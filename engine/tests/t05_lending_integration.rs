@@ -25,9 +25,11 @@
 //! 3. Initializes the oracle at price=100 and the pool with a 50% liquidation
 //!    threshold.
 //! 4. Executes: deposit 10_000 → borrow 600_000 → set price to 40 →
-//!    liquidate 2_000. (The on-chain pool treats `debt` as oracle-denominated
-//!    value, so the borrow amount is sized so the post-drop health factor
-//!    crosses the liquidation threshold.)
+//!    liquidate 2_000. Debt is stored in stable base units (not oracle-scaled);
+//!    only collateral is re-priced via the oracle. The borrow is sized large so
+//!    that post-drop `collateral_amount * new_price * liquidation_threshold_bps`
+//!    falls below the (constant) debt value, flipping the health factor below
+//!    1.0 and making the position liquidatable.
 //! 5. Reads back the pool and the borrower position after each mutation and
 //!    asserts the expected state transitions.
 //!
@@ -235,10 +237,11 @@ fn t05_deposit_borrow_liquidate_on_local_validator() {
     assert_eq!(borrower_after_deposit.debt, 0);
     assert!(!borrower_after_deposit.liquidated);
 
-    // 2) Borrow 600_000 against 10_000 @ price=100. The on-chain pool treats
-    //    debt as oracle-denominated value, so 600k is well within the 70% LTV
-    //    cap (collateral_value=1_000_000, max_borrow=700_000) and within the
-    //    pool-wide borrow_limit of 750_000.
+    // 2) Borrow 600_000 against 10_000 collateral @ price=100. Debt is tracked
+    //    as stable base units; the oracle only re-prices collateral. At deposit
+    //    time: collateral_value = collateral_amount * price = 1_000_000, LTV cap
+    //    at 70% allows up to 700_000, and pool borrow_limit is 750_000, so 600k
+    //    is within both caps.
     let borrow_amount: u64 = 600_000;
     send(
         &client,

@@ -43,6 +43,11 @@ pub struct Agent {
     pub total_actions: u32,
     pub triggers_activated: u32,
     pub liquidated_at_tick: Option<u32>,
+    /// Reference price used to normalize collateral MTM. Defaults to 1.0 so
+    /// existing tests/callers see no behavior change. The sim loop sets this
+    /// to the run's starting price so equity at t0 is invariant under the
+    /// chain-seeded position (cash debit cancels collateral credit).
+    pub starting_price: f64,
 }
 
 impl Agent {
@@ -58,11 +63,22 @@ impl Agent {
             total_actions: 0,
             triggers_activated: 0,
             liquidated_at_tick: None,
+            starting_price: 1.0,
         }
     }
 
+    pub fn with_starting_price(mut self, starting_price: f64) -> Self {
+        self.starting_price = if starting_price > 0.0 { starting_price } else { 1.0 };
+        self
+    }
+
     pub fn equity(&self, oracle_price: f64) -> f64 {
-        self.cash_balance + (self.position.collateral * oracle_price) - self.position.debt
+        let scale = if self.starting_price > 0.0 {
+            oracle_price / self.starting_price
+        } else {
+            oracle_price
+        };
+        self.cash_balance + (self.position.collateral * scale) - self.position.debt
     }
 
     pub fn update_balance(&mut self, delta: f64) -> Result<(), BalanceUpdateError> {
