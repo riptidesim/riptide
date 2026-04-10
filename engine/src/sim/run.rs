@@ -202,13 +202,15 @@ where
                 )));
             }
         };
-        // Equity-preserving sync: cash funded the seeded collateral, and any
-        // seeded debt arrived as cash on the agent's books. Equity at t0 ==
-        // starting_balance regardless of the on-chain seed shape.
+        // Equity-preserving sync: cash funded the seeded collateral (at
+        // starting_price dollars per unit), and any seeded debt arrived as
+        // cash on the agent's books. Equity at t0 == starting_balance
+        // regardless of the on-chain seed shape.
         let agent = &mut agents[idx];
         agent.position.collateral = obs.collateral as f64;
         agent.position.debt = obs.debt as f64;
-        agent.cash_balance = starting_balance - obs.collateral as f64 + obs.debt as f64;
+        agent.cash_balance =
+            starting_balance - (obs.collateral as f64 * starting_price) + obs.debt as f64;
         agent.peak_equity = agent.equity(starting_price).max(starting_balance);
         if obs.liquidated {
             agent.mark_liquidated(0);
@@ -270,7 +272,16 @@ where
 
         let oracle_price = oracle_update.price;
         let utilization = pool_obs.utilization();
-        let available_liquidity = pool_obs.available_liquidity() as f64;
+        // Convert pool headroom into dollar-denominated borrow capacity,
+        // matching how the on-chain program computes it at
+        // programs/lending_pool/src/processor.rs:211 — deposits are priced
+        // at `oracle_price` dollars per collateral unit, borrows are debt
+        // dollars. The old call used raw unit math here, which produced a
+        // value 1/oracle_price too small and zeroed borrow scores in the
+        // action policy whenever the pool was modestly funded.
+        let available_liquidity = ((pool_obs.total_deposits as f64 * oracle_price)
+            - pool_obs.total_borrows as f64)
+            .max(0.0);
 
         // 3. Per-agent observe → decide → act.
         for idx in 0..agents.len() {
@@ -319,20 +330,87 @@ where
             // cash debit to whatever the on-chain program will actually
             // consume. Mirrors the on-chain Repay/Liquidate clamping at
             // programs/lending_pool/src/processor.rs:251 and :293.
+            // For a liquidate, refresh every other borrower's on-chain
+            // position right before picking a target. Without this refresh
+            // the picker ranks candidates against engine-side state that is
+            // stale for siblings that already acted this tick, and the
+            // program rejects most attempts with PositionHealthy even when
+            // the engine thinks the candidate is underwater. Cost is one
+            // extra RPC per borrower per liquidate decision, which is
+            // acceptable for correctness.
             let liquidate_target = if matches!(action, RuntimeAction::Liquidate) {
-                pick_liquidation_target(idx, &agents)
+                for other_idx in 0..agents.len() {
+                    if other_idx == idx || !agents[other_idx].is_active() {
+                        continue;
+                    }
+                    // Full position sync — collateral, debt, *and* the
+                    // liquidated flag. If a borrower was liquidated
+                    // earlier in this same tick (partial-liq or bad-debt
+                    // path), it is still in_memory `Active` until its own
+                    // turn. Using apply_position_observation here flips
+                    // the status immediately so the picker can't retarget
+                    // an already-liquidated borrower, which would produce
+                    // an avoidable `PositionLiquidated` failure.
+                    match harness.observe_position(other_idx) {
+                        Ok(obs) => {
+                            if apply_position_observation(
+                                &mut agents[other_idx],
+                                &obs,
+                                tick,
+                            ) {
+                                cumulative_liquidations += 1;
+                            }
+                        }
+                        Err(HarnessError::Infra(msg)) => {
+                            eprintln!("warn: sibling observe failed ({msg}), skipping {other_idx}");
+                        }
+                        Err(HarnessError::ProgramRejected(msg)) => {
+                            return Err(SimulationAbort::Infra(format!(
+                                "sibling observe rejected: {msg}"
+                            )));
+                        }
+                    }
+                }
+                pick_liquidation_target(idx, &agents, oracle_price)
             } else {
                 None
             };
 
-            let (outcome, detail) = if matches!(action, RuntimeAction::NoOp) || amount == 0 {
+            // Unit reconciliation between the engine's dollar-denominated
+            // cash balance and the on-chain collateral token.
+            //
+            // The runtime sizes `amount` in cash dollars. On-chain,
+            // Deposit/Withdraw take an amount in collateral *units*, and the
+            // health check values those units at `oracle_price` dollars
+            // each. Passing the raw dollar amount as a unit count silently
+            // over-collateralizes the agent by a factor of `oracle_price`:
+            // spending $2,500 cash buys $250,000 of collateral value, which
+            // makes any borrower look massively healthy and no shock can
+            // ever trip liquidation.
+            //
+            // Fix: scale Deposit/Withdraw by 1/price before the harness
+            // call so one dollar of cash buys exactly one dollar of
+            // on-chain collateral value. Borrow/Repay/Liquidate operate in
+            // the debt token, which the MVP treats as 1:1 with dollars, so
+            // they do not need scaling.
+            let price_f = oracle_price.max(f64::EPSILON);
+            let on_chain_amount = match action {
+                RuntimeAction::Deposit | RuntimeAction::Withdraw => {
+                    ((amount as f64) / price_f).round().max(0.0) as u64
+                }
+                _ => amount,
+            };
+
+            let (outcome, detail) = if matches!(action, RuntimeAction::NoOp)
+                || on_chain_amount == 0
+            {
                 (SimOutcome::Skipped, None)
             } else {
                 match submit_action_to_target(
                     harness,
                     idx,
                     action,
-                    amount,
+                    on_chain_amount,
                     liquidate_target,
                 ) {
                     Ok(pair) => pair,
@@ -342,21 +420,22 @@ where
 
             if matches!(outcome, SimOutcome::Success) {
                 agents[idx].total_actions += 1;
-                // Cash bookkeeping. Position collateral/debt are refreshed
-                // from chain at the top of the next tick, so cash is the
-                // only piece the engine owns between observations. The
-                // requested `amount` may exceed what the program actually
-                // consumed (Repay/Liquidate are clamped to the borrower's
-                // debt), so we mirror the same clamp here — otherwise an
-                // over-repay permanently overcharges the agent's cash and
-                // distorts proportional sizing, drawdown, and final PnL.
+                // Cash bookkeeping. Deposit/Withdraw move collateral units,
+                // priced at `oracle_price` dollars each. Borrow/Repay/
+                // Liquidate move the debt token (1 dollar each in the MVP).
+                // Repay/Liquidate are clamped to the borrower's on-chain
+                // debt to match the program's own clamping — otherwise an
+                // over-repay permanently overcharges the agent's cash.
+                let on_chain_f = on_chain_amount as f64;
                 let amt_f = amount as f64;
                 let consumed = match action {
+                    RuntimeAction::Deposit | RuntimeAction::Withdraw => on_chain_f * price_f,
                     RuntimeAction::Repay => amt_f.min(agents[idx].position.debt),
                     RuntimeAction::Liquidate => liquidate_target
                         .map(|t| amt_f.min(agents[t].position.debt))
                         .unwrap_or(0.0),
-                    _ => amt_f,
+                    RuntimeAction::Borrow => amt_f,
+                    RuntimeAction::NoOp => 0.0,
                 };
                 let cash = &mut agents[idx].cash_balance;
                 match action {
@@ -498,14 +577,31 @@ fn build_snapshot(
     }
 }
 
-/// First other active agent with positive debt — the same target the old
-/// `submit_action` picked internally, lifted out so the caller can also use
-/// the target's debt to clamp the cash debit.
-fn pick_liquidation_target(idx: usize, agents: &[Agent]) -> Option<usize> {
+/// Pick the other active agent that is most underwater given the current
+/// oracle price. Uses the engine's local position model — which is refreshed
+/// from chain at each agent's observe step, so it's at most one iteration
+/// stale for sibling agents within the same tick. Returns `None` if no
+/// eligible borrower exists.
+///
+/// The previous implementation picked the first agent with any positive
+/// debt, which frequently targeted healthy borrowers and forced the
+/// on-chain program to reject with PositionHealthy (error 0x7). Ranking by
+/// lowest collateral-value-to-debt ratio lines up the engine's best guess
+/// with the program's actual health check.
+fn pick_liquidation_target(idx: usize, agents: &[Agent], oracle_price: f64) -> Option<usize> {
     agents
         .iter()
         .enumerate()
-        .find(|(other_idx, a)| *other_idx != idx && a.is_active() && a.position.debt > 0.0)
+        .filter(|(other_idx, a)| {
+            *other_idx != idx && a.is_active() && a.position.debt > 0.0
+        })
+        .min_by(|(_, a), (_, b)| {
+            // Lower ratio = more underwater. NaN-safe via total_cmp on the
+            // wrapped f64 so f64::NAN doesn't silently stall ordering.
+            let ra = (a.position.collateral * oracle_price) / a.position.debt;
+            let rb = (b.position.collateral * oracle_price) / b.position.debt;
+            ra.partial_cmp(&rb).unwrap_or(std::cmp::Ordering::Equal)
+        })
         .map(|(i, _)| i)
 }
 
@@ -619,8 +715,9 @@ mod tests {
     fn program_rejected_action_keeps_agent_live() {
         let cfg = basic_config(42, 2, 1);
         let mut scenario = BaselineScenario::new(100.0, 0);
-        // Set a tiny deposit limit so the agent's deposits get rejected.
-        let mut h = MockHarness::new(1, 100.0).with_pool_limits(50, 50);
+        // Zero-limit pool so any deposit/borrow is rejected regardless of
+        // the unit-reconciliation scaling applied at the call site.
+        let mut h = MockHarness::new(1, 100.0).with_pool_limits(0, 0);
         let result = run_simulation(&mut h, &mut scenario, standard_params(&cfg)).unwrap();
         assert!(result
             .events
@@ -735,25 +832,28 @@ mod tests {
             output_path: "x".into(),
         };
         let mut h = MockHarness::new(1, 100.0);
-        // Seed agent with small on-chain debt of 200 and 1000 collateral.
-        h.seed_position(0, 1_000, 200);
-        let mut scenario = BaselineScenario::new(100.0, 0);
+        // Seed agent with a known small on-chain debt (200) and small
+        // collateral (10 units = $1,000 at price 100). Run at starting
+        // price 1.0 so engine cash bookkeeping uses units 1:1 with
+        // dollars — the point of this test is the over-repay clamp, not
+        // the unit-reconciliation shim.
+        h.seed_position(0, 10, 200);
+        let mut scenario = BaselineScenario::new(1.0, 0);
         let params = SimulationParams {
             run_config: &cfg,
             policies: vec![policy],
             agent_personas: vec![0],
-            // starting_balance covers cash + seed; cash at t0 = 10_000 - 1000 + 200 = 9_200.
+            // cash at t0 = 10_000 - 10 + 200 = 10_190.
             starting_balance: 10_000.0,
-            starting_price: 100.0,
+            starting_price: 1.0,
             simulation_boundaries: vec!["t".into()],
         };
         let result = run_simulation(&mut h, &mut scenario, params).unwrap();
         // Repaid amount on chain = min(10_000, 200) = 200; cash debit must
-        // also be 200, not 10_000. Final cash = 9_200 - 200 = 9_000.
-        // Equity at price 100 (starting_price=100, scale=1.0):
-        //   cash 9_000 + collateral 1_000*1 - debt 0 = 10_000.
+        // also be 200, not 10_000. Final cash = 10_190 - 200 = 9_990.
+        // Equity at price 1: cash 9_990 + collateral 10*1 - debt 0 = 10_000.
         // pnl = 10_000 - 10_000 = 0. If clamping were broken, cash would
-        // be 0 and pnl would be -9_000.
+        // be 0 and pnl would be ~-9,800.
         assert!(
             result.agents[0].pnl.abs() < 1.0,
             "cash debit not clamped: pnl={}",

@@ -1,0 +1,9 @@
+{
+  "_comment": "Safe config: 5 conservative agents under a 50% price shock (RIPTIDE_PRICE_SHOCK_DROP=0.5 — set by run-demo.sh; the engine's default is 0.4). Personas are the shipped defaults — the point is that cautious personas survive identical protocol conditions that sink the risky mix.",
+  "agents": 5,
+  "ticks": 10,
+  "scenario": "price-shock",
+  "seed": 42,
+  "personas": ["cautious-yield-farmer", "steady-lp"],
+  "output_path": "demo/outputs/safe"
+}

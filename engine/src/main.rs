@@ -198,10 +198,26 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     let starting_price_f64: f64 = 100.0;
     let starting_price_u64: u64 = 100;
 
+    // Pool risk params are tunable via env vars so the demo can exercise
+    // a tighter risk regime without code changes. Defaults match the
+    // original hardcoded conservative values (LTV 7000, threshold 8000,
+    // bonus 500). See demo/README.md for the demo's chosen values.
+    let ltv_bps: u16 = std::env::var("RIPTIDE_POOL_LTV_BPS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(7_000);
+    let liquidation_threshold_bps: u16 = std::env::var("RIPTIDE_POOL_LIQ_THRESHOLD_BPS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(8_000);
+    let liquidation_bonus_bps: u16 = std::env::var("RIPTIDE_POOL_LIQ_BONUS_BPS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(500);
     let pool_config = LendingPoolConfig {
-        ltv_bps: 7_000,
-        liquidation_threshold_bps: 8_000,
-        liquidation_bonus_bps: 500,
+        ltv_bps,
+        liquidation_threshold_bps,
+        liquidation_bonus_bps,
         interest_bps: 250,
         deposit_limit: u64::MAX / 4,
         borrow_limit: u64::MAX / 4,
@@ -244,7 +260,23 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         send_tx(&rpc, &payer, ix, &[&payer, pos_kp])?;
 
         // Seed a starting deposit so agents have collateral to work with.
-        let seed_amount: u64 = 10_000;
+        // Tunable because the value is load-bearing: the borrow amounts the
+        // runtime picks (~10–30k in practice) are trivially healthy against a
+        // 10k×100 = 1M collateral value, so a price shock can never push
+        // them underwater. The demo lowers this so debt/collateral ratios
+        // land in a regime where the shipped price-shock scenario actually
+        // triggers liquidations. See demo/README.md.
+            // Default: 100 collateral units × $100/unit = $10,000 of seeded
+        // collateral per agent. Paired with the $20k default starting
+        // balance, initial cash is $10k and the agent can both deposit
+        // more and open borrows large enough to be sensitive to a price
+        // shock. Previously this was 10,000 units, which combined with
+        // the fixed unit-pricing semantics would cost $1M per agent and
+        // silently zero out initial cash.
+        let seed_amount: u64 = std::env::var("RIPTIDE_SEED_COLLATERAL")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(100);
         let deposit_ix = client.deposit(
             agents[idx].pubkey(),
             pool.pubkey(),
@@ -269,12 +301,23 @@ fn run(cli: Cli) -> anyhow::Result<()> {
 
     let mut scenario: Box<dyn Scenario> = match run_config.scenario.as_str() {
         "baseline" => Box::new(BaselineScenario::new(starting_price_f64, 25)),
-        "price-shock" | "price_shock" => Box::new(PriceShockScenario::new(
-            starting_price_f64,
-            25,
-            (run_config.ticks / 2).max(1),
-            0.4,
-        )),
+        "price-shock" | "price_shock" => {
+            // Shock magnitude is tunable via RIPTIDE_PRICE_SHOCK_DROP (0..1).
+            // Default 0.4 keeps the engine's own tests stable; the demo bumps
+            // this to 0.7 so the on-chain liquidation threshold actually
+            // trips for degen borrowers (see demo/README.md).
+            let drop = std::env::var("RIPTIDE_PRICE_SHOCK_DROP")
+                .ok()
+                .and_then(|s| s.parse::<f64>().ok())
+                .filter(|v| (0.0..1.0).contains(v))
+                .unwrap_or(0.4);
+            Box::new(PriceShockScenario::new(
+                starting_price_f64,
+                25,
+                (run_config.ticks / 2).max(1),
+                drop,
+            ))
+        }
         other => {
             eprintln!("warn: unknown scenario '{other}', falling back to baseline");
             Box::new(BaselineScenario::new(starting_price_f64, 25))
@@ -291,11 +334,20 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         run_config.agents as usize,
     )
     .map_err(|e| anyhow::anyhow!("{e}"))?;
+    // Starting off-chain cash balance for each agent. Like seed_amount,
+    // this is load-bearing: it bounds proportional sizing and fixed sizing
+    // can consume it faster when reduced. The demo lowers both in tandem
+    // so that debt/collateral ratios land in a regime where the shock
+    // actually liquidates.
+    let starting_balance: f64 = std::env::var("RIPTIDE_STARTING_BALANCE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(20_000.0);
     let params = SimulationParams {
         run_config: &run_config,
         policies,
         agent_personas,
-        starting_balance: 100_000.0,
+        starting_balance,
         starting_price: starting_price_f64,
         simulation_boundaries: vec![
             "No slippage, fees, or MEV modeled.".into(),

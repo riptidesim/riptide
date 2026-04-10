@@ -73,12 +73,14 @@ impl Agent {
     }
 
     pub fn equity(&self, oracle_price: f64) -> f64 {
-        let scale = if self.starting_price > 0.0 {
-            oracle_price / self.starting_price
-        } else {
-            oracle_price
-        };
-        self.cash_balance + (self.position.collateral * scale) - self.position.debt
+        // Value one on-chain collateral unit at `oracle_price` dollars,
+        // matching how the lending program computes collateral_value and
+        // health. Previously this scaled collateral by `oracle_price /
+        // starting_price` which implicitly treated 1 unit = $1 at
+        // starting_price regardless of the on-chain price scheme, creating
+        // a 100x mismatch vs the program's health check and preventing
+        // liquidations from ever firing.
+        self.cash_balance + (self.position.collateral * oracle_price) - self.position.debt
     }
 
     pub fn update_balance(&mut self, delta: f64) -> Result<(), BalanceUpdateError> {
