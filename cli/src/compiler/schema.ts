@@ -47,12 +47,22 @@ export const PolicySchema = z.object({
   max_exposure: z.number().min(0).max(1)
 });
 
+// Persona ids become filesystem paths (`<id>.toml`) in the persona compiler,
+// so they must be constrained to a safe character set. Without this, a value
+// like `../../../../etc/passwd` would let the compiler read arbitrary files
+// and — with --llm-url set — exfiltrate their contents to the LLM endpoint.
+export const PersonaIdSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9-]*$/, "persona id must be lowercase alphanumerics and dashes");
+
 export const RunConfigSchema = z.object({
   agents: z.number().int().positive(),
   ticks: z.number().int().positive(),
   scenario: z.string().min(1),
   seed: z.number().int().nonnegative(),
-  personas: z.array(z.string().min(1)),
+  personas: z.array(PersonaIdSchema),
   validator_url: z.string().url(),
   output_path: z.string().min(1)
 });

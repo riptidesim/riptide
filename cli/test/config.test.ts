@@ -25,3 +25,16 @@ test("accepts validator url overrides", () => {
 test("rejects invalid values", () => {
   assert.throws(() => buildSimulateOptions({ agents: 0, seed: 42 }));
 });
+
+test("rejects persona ids with path traversal", () => {
+  assert.throws(
+    () => buildSimulateOptions({ seed: 42, personas: "steady-lp,../../../../etc/passwd" }),
+    /persona id must be lowercase alphanumerics and dashes/
+  );
+});
+
+test("rejects persona ids with uppercase, slashes, or spaces", () => {
+  assert.throws(() => buildSimulateOptions({ seed: 42, personas: "Steady-LP" }), /persona id/);
+  assert.throws(() => buildSimulateOptions({ seed: 42, personas: "steady/lp" }), /persona id/);
+  assert.throws(() => buildSimulateOptions({ seed: 42, personas: "steady lp" }), /persona id/);
+});

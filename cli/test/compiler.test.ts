@@ -31,6 +31,19 @@ test("uses fallbacks when llm is unavailable", async () => {
   assert.match(warnings[0]!, /LLM unavailable/);
 });
 
+test("loadPersonaDescription rejects path-traversal persona ids", async () => {
+  await assert.rejects(
+    () => loadPersonaDescription("../../../../etc/passwd"),
+    /persona id must be lowercase alphanumerics and dashes/
+  );
+});
+
+test("loadPersonaDescription rejects ids with slashes or nulls", async () => {
+  await assert.rejects(() => loadPersonaDescription("steady/lp"), /persona id/);
+  await assert.rejects(() => loadPersonaDescription("steady\u0000lp"), /persona id/);
+  await assert.rejects(() => loadPersonaDescription(""), /persona id|too_small|>=1/);
+});
+
 test("repairs fenced json", () => {
   const repaired = repairJson("```json\n{\"persona_id\":\"steady-lp\"}\n```") as { persona_id: string };
   assert.equal(repaired.persona_id, "steady-lp");

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import TOML from "toml";
 
 import { getFallbackPolicy } from "./fallback.js";
-import { validatePolicy, type Policy } from "./schema.js";
+import { PersonaIdSchema, validatePolicy, type Policy } from "./schema.js";
 
 interface PersonaDescription {
   persona_id: string;
@@ -81,7 +81,17 @@ export async function compilePersonas(personaIds: string[], options: CompileOpti
 }
 
 export async function loadPersonaDescription(personaId: string): Promise<PersonaDescription> {
-  const raw = await readFile(path.join(await getPersonaDir(), `${personaId}.toml`), "utf8");
+  // Belt-and-braces: the schema already rejects non-[a-z0-9-] ids upstream,
+  // but this function is also exported and used by tests, so re-validate
+  // here and verify the resolved path is still inside the persona dir. The
+  // resolve+prefix check makes a symlink or traversal attempt fail closed.
+  const safeId = PersonaIdSchema.parse(personaId);
+  const personaDir = await getPersonaDir();
+  const resolved = path.resolve(personaDir, `${safeId}.toml`);
+  if (resolved !== path.join(personaDir, `${safeId}.toml`)) {
+    throw new Error(`Persona id resolves outside persona directory: ${personaId}`);
+  }
+  const raw = await readFile(resolved, "utf8");
   return TOML.parse(raw) as PersonaDescription;
 }
 
