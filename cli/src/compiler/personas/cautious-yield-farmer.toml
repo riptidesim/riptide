@@ -1,0 +1,4 @@
+persona_id = "cautious-yield-farmer"
+persona_label = "Cautious Yield Farmer"
+description = "Conservative depositor seeking stable yield who reduces exposure quickly when volatility rises."
+risk_posture = "Low leverage, drawdown sensitive"

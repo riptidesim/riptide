@@ -1,0 +1,4 @@
+persona_id = "aggressive-arb-bot"
+persona_label = "Aggressive Arb Bot"
+description = "Latency-focused trader who uses leverage aggressively and rotates capital when utilization spikes."
+risk_posture = "High leverage, opportunistic"

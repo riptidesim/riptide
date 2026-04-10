@@ -1,3 +1,6 @@
 /target/
+/programs/*/target/
 /cli/node_modules/
 /cli/dist/
+/cli/test-ledger/
+/.agents/

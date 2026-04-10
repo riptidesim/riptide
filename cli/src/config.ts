@@ -1,0 +1,77 @@
+import crypto from "node:crypto";
+
+import { Command } from "commander";
+import { z } from "zod";
+
+import { RunConfigSchema, type RunConfig } from "./compiler/schema.js";
+
+export const SimulateOptionsSchema = RunConfigSchema.extend({
+  llm_url: z.string().url().optional()
+});
+
+export type SimulateOptions = z.infer<typeof SimulateOptionsSchema>;
+
+export const DEFAULT_PERSONAS = [
+  "cautious-yield-farmer",
+  "aggressive-arb-bot",
+  "panic-whale",
+  "steady-lp",
+  "degen-borrower"
+] as const;
+export const DEFAULT_VALIDATOR_URL = "http://127.0.0.1:8899";
+
+export function registerRunConfigOptions(command: Command): Command {
+  return command
+    .option("--agents <count>", "Number of simulated agents", parseInteger)
+    .option("--ticks <count>", "Number of ticks to run", parseInteger)
+    .option("--scenario <name>", "Scenario preset", "baseline")
+    .option("--seed <seed>", "Random seed", parseInteger)
+    .option("--personas <ids>", "Comma-separated persona ids")
+    .option("--validator-url <url>", "Solana RPC URL", DEFAULT_VALIDATOR_URL)
+    .option("--llm-url <url>", "OpenAI-compatible LLM endpoint override")
+    .option("--output <path>", "Output directory for artifacts");
+}
+
+export function buildSimulateOptions(raw: Record<string, unknown>): { config: SimulateOptions; generatedSeed: boolean } {
+  const generatedSeed = raw.seed === undefined;
+  const parsed = SimulateOptionsSchema.parse({
+    agents: raw.agents ?? 15,
+    ticks: raw.ticks ?? 50,
+    scenario: raw.scenario ?? "price-shock",
+    seed: raw.seed ?? generateSeed(),
+    personas: parsePersonas(raw.personas),
+    validator_url: raw.validatorUrl ?? process.env.RIPTIDE_RPC_URL ?? DEFAULT_VALIDATOR_URL,
+    output_path: raw.output ?? "riptide-output/default-run",
+    llm_url: raw.llmUrl
+  });
+
+  return { config: parsed, generatedSeed };
+}
+
+export function toRunConfig(options: SimulateOptions): RunConfig {
+  const { llm_url: _llmUrl, ...runConfig } = options;
+  return runConfig;
+}
+
+function parsePersonas(value: unknown): string[] {
+  if (typeof value !== "string" || value.trim() === "") {
+    return [...DEFAULT_PERSONAS];
+  }
+
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function parseInteger(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Expected an integer, received "${value}"`);
+  }
+  return parsed;
+}
+
+function generateSeed(): number {
+  return crypto.randomInt(1, 2_147_483_647);
+}
