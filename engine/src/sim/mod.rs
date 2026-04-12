@@ -6,11 +6,15 @@
 //! in-memory `MockHarness` for unit tests.
 
 pub mod harness;
+#[cfg(any(feature = "litesvm-backend", test))]
+pub mod litesvm;
 pub mod mock;
 pub mod run;
 pub mod validator;
 
 pub use harness::{Harness, HarnessError, PoolObservation, PositionObservation};
+#[cfg(any(feature = "litesvm-backend", test))]
+pub use self::litesvm::LiteSvmHarness;
 pub use mock::{MockHarness, MockPosition};
 pub use run::{build_agent_personas, run_simulation, SimulationAbort, SimulationParams};
 pub use validator::ValidatorHarness;
