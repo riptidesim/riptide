@@ -139,7 +139,10 @@ fn t05_deposit_borrow_liquidate_on_local_validator() {
             _ if std::time::Instant::now() < deadline => {
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }
-            other => panic!("program {} never became executable: {:?}", program_id, other),
+            other => panic!(
+                "program {} never became executable: {:?}",
+                program_id, other
+            ),
         }
     }
     // Agave upgradeable loader activates a newly-deployed program one slot
@@ -209,9 +212,20 @@ fn t05_deposit_borrow_liquidate_on_local_validator() {
                 POSITION_STATE_LEN,
             ),
             sdk.initialize_oracle(payer.pubkey(), oracle.pubkey(), 100, 0),
-            sdk.initialize_pool(payer.pubkey(), pool.pubkey(), oracle.pubkey(), config.clone()),
+            sdk.initialize_pool(
+                payer.pubkey(),
+                pool.pubkey(),
+                oracle.pubkey(),
+                config.clone(),
+            ),
         ],
-        &[&payer, &oracle, &pool, &borrower_position, &liquidator_position],
+        &[
+            &payer,
+            &oracle,
+            &pool,
+            &borrower_position,
+            &liquidator_position,
+        ],
     );
 
     // 1) deposit 10_000 (borrower) + initialize liquidator position with a tiny seed.
@@ -219,8 +233,18 @@ fn t05_deposit_borrow_liquidate_on_local_validator() {
         &client,
         &payer,
         vec![
-            sdk.deposit(payer.pubkey(), pool.pubkey(), borrower_position.pubkey(), 10_000),
-            sdk.deposit(payer.pubkey(), pool.pubkey(), liquidator_position.pubkey(), 1),
+            sdk.deposit(
+                payer.pubkey(),
+                pool.pubkey(),
+                borrower_position.pubkey(),
+                10_000,
+            ),
+            sdk.deposit(
+                payer.pubkey(),
+                pool.pubkey(),
+                liquidator_position.pubkey(),
+                1,
+            ),
         ],
         &[],
     );
@@ -305,8 +329,7 @@ fn t05_deposit_borrow_liquidate_on_local_validator() {
     let pool_after_liq = read_pool(&client, &pool.pubkey());
 
     assert!(
-        borrower_after_liq.debt < borrower_after_borrow.debt
-            || borrower_after_liq.liquidated,
+        borrower_after_liq.debt < borrower_after_borrow.debt || borrower_after_liq.liquidated,
         "borrower debt should decrease or position should be marked liquidated"
     );
     assert!(

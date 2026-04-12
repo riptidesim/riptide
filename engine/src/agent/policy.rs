@@ -152,7 +152,9 @@ pub fn choose_best(scores: &[ActionScore], fired_triggers: Vec<FiredTrigger>) ->
     let normalized_score = |score: f64| if score.is_finite() { score } else { 0.0 };
     let best = scores
         .iter()
-        .max_by(|left, right| normalized_score(left.score).total_cmp(&normalized_score(right.score)))
+        .max_by(|left, right| {
+            normalized_score(left.score).total_cmp(&normalized_score(right.score))
+        })
         .cloned()
         .unwrap_or(ActionScore {
             action: RuntimeAction::NoOp,

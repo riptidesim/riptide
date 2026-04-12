@@ -3,4 +3,5 @@
 /cli/node_modules/
 /cli/dist/
 /cli/test-ledger/
+/test-ledger/
 /.agents/

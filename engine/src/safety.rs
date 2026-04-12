@@ -11,7 +11,10 @@ pub fn extract_host(url: &str) -> Option<&str> {
     // Strip the scheme.
     let after_scheme = url.split_once("://").map(|(_, rest)| rest).unwrap_or(url);
     // Strip any "user[:pass]@" credential prefix.
-    let after_creds = after_scheme.rsplit_once('@').map(|(_, rest)| rest).unwrap_or(after_scheme);
+    let after_creds = after_scheme
+        .rsplit_once('@')
+        .map(|(_, rest)| rest)
+        .unwrap_or(after_scheme);
     // Take everything up to the first path/query/fragment delimiter.
     let host_port = after_creds
         .split(|c: char| c == '/' || c == '?' || c == '#')
@@ -25,7 +28,12 @@ pub fn extract_host(url: &str) -> Option<&str> {
         return Some(&rest[..close]);
     }
     // host:port — take everything up to the last `:`. (IPv4/hostname only.)
-    Some(host_port.rsplit_once(':').map(|(h, _)| h).unwrap_or(host_port))
+    Some(
+        host_port
+            .rsplit_once(':')
+            .map(|(h, _)| h)
+            .unwrap_or(host_port),
+    )
 }
 
 /// `true` iff `host` matches the small allowlist of loopback names that we
@@ -62,9 +70,15 @@ mod tests {
     fn extracts_host_from_typical_local_url() {
         assert_eq!(extract_host("http://localhost:8899"), Some("localhost"));
         assert_eq!(extract_host("http://127.0.0.1:8899"), Some("127.0.0.1"));
-        assert_eq!(extract_host("https://api.devnet.solana.com"), Some("api.devnet.solana.com"));
+        assert_eq!(
+            extract_host("https://api.devnet.solana.com"),
+            Some("api.devnet.solana.com")
+        );
         assert_eq!(extract_host("http://[::1]:8899/foo"), Some("::1"));
-        assert_eq!(extract_host("http://user:pw@evil.example/x"), Some("evil.example"));
+        assert_eq!(
+            extract_host("http://user:pw@evil.example/x"),
+            Some("evil.example")
+        );
     }
 
     #[test]

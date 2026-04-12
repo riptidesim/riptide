@@ -44,6 +44,10 @@ use solana_sdk::{
 };
 use solana_transaction::Transaction;
 
+const FUNDING_BATCH_SIZE: usize = 16;
+const POSITION_CREATE_BATCH_SIZE: usize = 4;
+const SEED_DEPOSIT_BATCH_SIZE: usize = 4;
+
 #[derive(Debug, Parser)]
 #[command(
     name = "riptide-engine",
@@ -146,10 +150,27 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     );
 
     // --- Fund admin + agents with a modest amount so they can sign. ---
+    //
+    // This used to send one transfer per transaction, which front-loaded
+    // benchmark runs with >100 confirmed RPC round-trips before the engine
+    // had even reached the tick loop. Transfers share the same payer signer,
+    // so they can be safely grouped into conservative batches.
     let agents: Vec<Keypair> = (0..run_config.agents).map(|_| Keypair::new()).collect();
-    fund_account(&rpc, &payer, &admin.pubkey(), 1_000_000_000)?;
-    for agent in &agents {
-        fund_account(&rpc, &payer, &agent.pubkey(), 1_000_000_000)?;
+    let mut funding_targets = Vec::with_capacity(agents.len() + 1);
+    funding_targets.push(admin.pubkey());
+    funding_targets.extend(agents.iter().map(|agent| agent.pubkey()));
+    for recipients in funding_targets.chunks(FUNDING_BATCH_SIZE) {
+        let instructions = recipients
+            .iter()
+            .map(|recipient| {
+                solana_system_interface::instruction::transfer(
+                    &payer.pubkey(),
+                    recipient,
+                    1_000_000_000,
+                )
+            })
+            .collect();
+        send_tx(&rpc, &payer, instructions, &[&payer])?;
     }
 
     // --- Deploy program. ---
@@ -248,42 +269,64 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     ];
     send_tx(&rpc, &payer, init_ix, &[&payer, &admin, &oracle, &pool])?;
 
-    // Create + own each agent's position account, in batches of 4 per tx.
-    for (idx, pos_kp) in position_keys.iter().enumerate() {
-        let ix = vec![create_program_account(
-            &payer.pubkey(),
-            &pos_kp.pubkey(),
-            &program_id,
-            rent_position,
-            POSITION_STATE_LEN,
-        )];
-        send_tx(&rpc, &payer, ix, &[&payer, pos_kp])?;
+    // Create + own each agent's position account in conservative batches.
+    // `create_account` needs each new account keypair as a signer, so the
+    // batch size stays small to keep signatures and account metas within the
+    // legacy tx size limit.
+    for position_batch in position_keys.chunks(POSITION_CREATE_BATCH_SIZE) {
+        let instructions = position_batch
+            .iter()
+            .map(|position| {
+                create_program_account(
+                    &payer.pubkey(),
+                    &position.pubkey(),
+                    &program_id,
+                    rent_position,
+                    POSITION_STATE_LEN,
+                )
+            })
+            .collect();
+        let mut signers = Vec::with_capacity(position_batch.len() + 1);
+        signers.push(&payer);
+        signers.extend(position_batch.iter());
+        send_tx(&rpc, &payer, instructions, &signers)?;
+    }
 
-        // Seed a starting deposit so agents have collateral to work with.
-        // Tunable because the value is load-bearing: the borrow amounts the
-        // runtime picks (~10–30k in practice) are trivially healthy against a
-        // 10k×100 = 1M collateral value, so a price shock can never push
-        // them underwater. The demo lowers this so debt/collateral ratios
-        // land in a regime where the shipped price-shock scenario actually
-        // triggers liquidations. See demo/README.md.
-            // Default: 100 collateral units × $100/unit = $10,000 of seeded
-        // collateral per agent. Paired with the $20k default starting
-        // balance, initial cash is $10k and the agent can both deposit
-        // more and open borrows large enough to be sensitive to a price
-        // shock. Previously this was 10,000 units, which combined with
-        // the fixed unit-pricing semantics would cost $1M per agent and
-        // silently zero out initial cash.
-        let seed_amount: u64 = std::env::var("RIPTIDE_SEED_COLLATERAL")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(100);
-        let deposit_ix = client.deposit(
-            agents[idx].pubkey(),
-            pool.pubkey(),
-            pos_kp.pubkey(),
-            seed_amount,
-        );
-        send_tx(&rpc, &payer, vec![deposit_ix], &[&payer, &agents[idx]])?;
+    // Seed a starting deposit so agents have collateral to work with.
+    // Tunable because the value is load-bearing: the borrow amounts the
+    // runtime picks (~10–30k in practice) are trivially healthy against a
+    // 10k×100 = 1M collateral value, so a price shock can never push
+    // them underwater. The demo lowers this so debt/collateral ratios
+    // land in a regime where the shipped price-shock scenario actually
+    // triggers liquidations. See demo/README.md.
+    //
+    // Default: 100 collateral units × $100/unit = $10,000 of seeded
+    // collateral per agent. Paired with the $20k default starting
+    // balance, initial cash is $10k and the agent can both deposit
+    // more and open borrows large enough to be sensitive to a price
+    // shock. Previously this was 10,000 units, which combined with
+    // the fixed unit-pricing semantics would cost $1M per agent and
+    // silently zero out initial cash.
+    let seed_amount: u64 = std::env::var("RIPTIDE_SEED_COLLATERAL")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(100);
+    for start in (0..agents.len()).step_by(SEED_DEPOSIT_BATCH_SIZE) {
+        let end = (start + SEED_DEPOSIT_BATCH_SIZE).min(agents.len());
+        let instructions = (start..end)
+            .map(|idx| {
+                client.deposit(
+                    agents[idx].pubkey(),
+                    pool.pubkey(),
+                    position_keys[idx].pubkey(),
+                    seed_amount,
+                )
+            })
+            .collect();
+        let mut signers = Vec::with_capacity((end - start) + 1);
+        signers.push(&payer);
+        signers.extend(agents[start..end].iter());
+        send_tx(&rpc, &payer, instructions, &signers)?;
     }
 
     // --- Build harness + scenario + params, then run. ---
@@ -328,12 +371,9 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     // the policies file. Round-robins over the requested persona list when
     // there are more agents than personas. Errors out up front if a persona
     // ID is missing — silent fallback would let the wrong policy mix run.
-    let agent_personas = build_agent_personas(
-        &run_config.personas,
-        &policies,
-        run_config.agents as usize,
-    )
-    .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let agent_personas =
+        build_agent_personas(&run_config.personas, &policies, run_config.agents as usize)
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
     // Starting off-chain cash balance for each agent. Like seed_amount,
     // this is load-bearing: it bounds proportional sizing and fixed sizing
     // can consume it faster when reduced. The demo lowers both in tandem
@@ -366,19 +406,19 @@ fn run(cli: Cli) -> anyhow::Result<()> {
 }
 
 fn load_json<T: serde::de::DeserializeOwned>(path: &Path) -> anyhow::Result<T> {
-    let raw = fs::read_to_string(path)
-        .map_err(|e| anyhow::anyhow!("read {}: {e}", path.display()))?;
-    let parsed = serde_json::from_str(&raw)
-        .map_err(|e| anyhow::anyhow!("parse {}: {e}", path.display()))?;
+    let raw =
+        fs::read_to_string(path).map_err(|e| anyhow::anyhow!("read {}: {e}", path.display()))?;
+    let parsed =
+        serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("parse {}: {e}", path.display()))?;
     Ok(parsed)
 }
 
 /// Policies file may be either an array or a single object.
 fn load_policies(path: &Path) -> anyhow::Result<Vec<Policy>> {
-    let raw = fs::read_to_string(path)
-        .map_err(|e| anyhow::anyhow!("read {}: {e}", path.display()))?;
-    let value: serde_json::Value = serde_json::from_str(&raw)
-        .map_err(|e| anyhow::anyhow!("parse {}: {e}", path.display()))?;
+    let raw =
+        fs::read_to_string(path).map_err(|e| anyhow::anyhow!("read {}: {e}", path.display()))?;
+    let value: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("parse {}: {e}", path.display()))?;
     if value.is_array() {
         Ok(serde_json::from_value(value)?)
     } else {
@@ -394,8 +434,8 @@ fn write_result(path: &Path, result: &SimulationResult) -> anyhow::Result<()> {
         }
     }
     let serialized = serde_json::to_string_pretty(result)?;
-    let mut file = File::create(path)
-        .map_err(|e| anyhow::anyhow!("create {}: {e}", path.display()))?;
+    let mut file =
+        File::create(path).map_err(|e| anyhow::anyhow!("create {}: {e}", path.display()))?;
     file.write_all(serialized.as_bytes())?;
     file.write_all(b"\n")?;
     Ok(())
@@ -429,16 +469,6 @@ fn send_tx(
     Ok(())
 }
 
-fn fund_account(
-    rpc: &RpcClient,
-    payer: &Keypair,
-    recipient: &Pubkey,
-    lamports: u64,
-) -> anyhow::Result<()> {
-    let ix = solana_system_interface::instruction::transfer(&payer.pubkey(), recipient, lamports);
-    send_tx(rpc, payer, vec![ix], &[payer])
-}
-
 fn wait_for_executable(rpc: &RpcClient, program_id: &Pubkey) -> anyhow::Result<()> {
     let deadline = Instant::now() + Duration::from_secs(30);
     loop {
@@ -458,4 +488,3 @@ fn wait_for_executable(rpc: &RpcClient, program_id: &Pubkey) -> anyhow::Result<(
     }
     Ok(())
 }
-

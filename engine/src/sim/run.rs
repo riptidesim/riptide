@@ -11,8 +11,8 @@ use crate::{
     agent::{policy::RuntimeAction, state::Agent, AgentRuntime},
     scenario::Scenario,
     types::{
-        AgentStatus, Policy, RunConfig, SimEvent, SimOutcome, SimulationResult,
-        SimulationSummary, TickSnapshot,
+        AgentStatus, Policy, RunConfig, SimEvent, SimOutcome, SimulationResult, SimulationSummary,
+        TickSnapshot,
     },
 };
 
@@ -101,11 +101,7 @@ pub fn build_agent_personas(
 /// `true` if the agent transitioned to liquidated as a result of this
 /// observation (so the caller can bump cumulative counters and skip its
 /// action this tick).
-fn apply_position_observation(
-    agent: &mut Agent,
-    obs: &PositionObservation,
-    tick: u32,
-) -> bool {
+fn apply_position_observation(agent: &mut Agent, obs: &PositionObservation, tick: u32) -> bool {
     agent.position.collateral = obs.collateral as f64;
     agent.position.debt = obs.debt as f64;
     if obs.liquidated && !matches!(agent.status, AgentStatus::Liquidated) {
@@ -183,8 +179,7 @@ where
                 .get(persona_idx)
                 .cloned()
                 .unwrap_or_else(|| policies[0].clone());
-            Agent::new(agent_id(idx), policy, starting_balance)
-                .with_starting_price(starting_price)
+            Agent::new(agent_id(idx), policy, starting_balance).with_starting_price(starting_price)
         })
         .collect();
     for idx in 0..agents.len() {
@@ -353,11 +348,7 @@ where
                     // an avoidable `PositionLiquidated` failure.
                     match harness.observe_position(other_idx) {
                         Ok(obs) => {
-                            if apply_position_observation(
-                                &mut agents[other_idx],
-                                &obs,
-                                tick,
-                            ) {
+                            if apply_position_observation(&mut agents[other_idx], &obs, tick) {
                                 cumulative_liquidations += 1;
                             }
                         }
@@ -401,8 +392,7 @@ where
                 _ => amount,
             };
 
-            let (outcome, detail) = if matches!(action, RuntimeAction::NoOp)
-                || on_chain_amount == 0
+            let (outcome, detail) = if matches!(action, RuntimeAction::NoOp) || on_chain_amount == 0
             {
                 (SimOutcome::Skipped, None)
             } else {
@@ -496,7 +486,10 @@ where
     let final_pool = harness
         .observe_pool()
         .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
-    let final_price = timeseries.last().map(|s| s.oracle_price).unwrap_or(starting_price);
+    let final_price = timeseries
+        .last()
+        .map(|s| s.oracle_price)
+        .unwrap_or(starting_price);
 
     // Refresh each agent's position one last time so the final pnl reflects
     // any liquidation seizures or bad-debt write-offs that landed on the
@@ -592,9 +585,7 @@ fn pick_liquidation_target(idx: usize, agents: &[Agent], oracle_price: f64) -> O
     agents
         .iter()
         .enumerate()
-        .filter(|(other_idx, a)| {
-            *other_idx != idx && a.is_active() && a.position.debt > 0.0
-        })
+        .filter(|(other_idx, a)| *other_idx != idx && a.is_active() && a.position.debt > 0.0)
         .min_by(|(_, a), (_, b)| {
             // Lower ratio = more underwater. NaN-safe via total_cmp on the
             // wrapped f64 so f64::NAN doesn't silently stall ordering.
@@ -918,8 +909,8 @@ mod tests {
         // The retry path used to skip the liquidation transition; this is
         // a regression test for the helper that now sits on both the happy
         // path and the post-retry path.
-        let mut agent = Agent::new("a", tight_policy("steady-lp"), 1_000.0)
-            .with_starting_price(100.0);
+        let mut agent =
+            Agent::new("a", tight_policy("steady-lp"), 1_000.0).with_starting_price(100.0);
         let obs = PositionObservation {
             collateral: 100,
             debt: 50,
@@ -956,9 +947,16 @@ mod tests {
 
         assert_eq!(as_keys(&result_a.events), as_keys(&result_b.events));
         assert_eq!(
-            result_a.timeseries.iter().map(|s| s.tvl).collect::<Vec<_>>(),
-            result_b.timeseries.iter().map(|s| s.tvl).collect::<Vec<_>>()
+            result_a
+                .timeseries
+                .iter()
+                .map(|s| s.tvl)
+                .collect::<Vec<_>>(),
+            result_b
+                .timeseries
+                .iter()
+                .map(|s| s.tvl)
+                .collect::<Vec<_>>()
         );
     }
 }
-

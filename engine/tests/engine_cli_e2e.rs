@@ -70,7 +70,10 @@ fn engine_cli_produces_valid_simulation_result() {
         .arg(&payer)
         .status()
         .expect("spawn riptide-engine");
-    assert!(status.success(), "riptide-engine exited non-zero: {status:?}");
+    assert!(
+        status.success(),
+        "riptide-engine exited non-zero: {status:?}"
+    );
 
     let raw = std::fs::read_to_string(&output).expect("read output");
     let result: riptide_engine::types::SimulationResult =

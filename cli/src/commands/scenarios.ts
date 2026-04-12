@@ -3,7 +3,7 @@ import { Command } from "commander";
 
 const SCENARIOS = [
   { id: "baseline", summary: "Stable price path with light seeded noise" },
-  { id: "price-shock", summary: "Stable path with a configured sharp drop" }
+  { id: "price-shock", summary: "Stable path with a configured sharp drop" },
 ];
 
 export function createScenariosCommand(): Command {

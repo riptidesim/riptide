@@ -137,11 +137,10 @@ impl AgentRuntime {
                 {
                     continue;
                 }
-                self.cooldowns
-                    .insert(
-                        triggered.condition_label.clone(),
-                        observation.tick.saturating_add(triggered.cooldown_ticks),
-                    );
+                self.cooldowns.insert(
+                    triggered.condition_label.clone(),
+                    observation.tick.saturating_add(triggered.cooldown_ticks),
+                );
                 agent.triggers_activated += 1;
                 fired.push(triggered);
             }

@@ -68,7 +68,11 @@ impl Agent {
     }
 
     pub fn with_starting_price(mut self, starting_price: f64) -> Self {
-        self.starting_price = if starting_price > 0.0 { starting_price } else { 1.0 };
+        self.starting_price = if starting_price > 0.0 {
+            starting_price
+        } else {
+            1.0
+        };
         self
     }
 

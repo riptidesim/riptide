@@ -147,12 +147,9 @@ impl Harness for ValidatorHarness {
 
     fn withdraw(&mut self, agent_idx: usize, amount: u64) -> Result<(), HarnessError> {
         let agent = self.agents[agent_idx].insecure_clone();
-        let ix = self.client.withdraw(
-            agent.pubkey(),
-            self.pool,
-            self.positions[agent_idx],
-            amount,
-        );
+        let ix = self
+            .client
+            .withdraw(agent.pubkey(), self.pool, self.positions[agent_idx], amount);
         self.send(ix, Some(&agent))
     }
 

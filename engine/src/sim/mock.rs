@@ -146,10 +146,9 @@ impl Harness for MockHarness {
     }
 
     fn observe_position(&self, agent_idx: usize) -> Result<PositionObservation, HarnessError> {
-        let p = self
-            .positions
-            .get(agent_idx)
-            .ok_or_else(|| HarnessError::Infra(format!("mock: agent_idx {agent_idx} out of range")))?;
+        let p = self.positions.get(agent_idx).ok_or_else(|| {
+            HarnessError::Infra(format!("mock: agent_idx {agent_idx} out of range"))
+        })?;
         Ok(PositionObservation {
             collateral: p.collateral,
             debt: p.debt,
@@ -197,10 +196,8 @@ impl Harness for MockHarness {
         let remaining = pos.collateral - amount;
         if pos.debt > 0 {
             // same HF re-check as the on-chain processor
-            let max_debt = (remaining as u128)
-                * (self.price_u64 as u128)
-                * (self.ltv_bps as u128)
-                / 10_000;
+            let max_debt =
+                (remaining as u128) * (self.price_u64 as u128) * (self.ltv_bps as u128) / 10_000;
             if (pos.debt as u128) > max_debt {
                 return Err(HarnessError::ProgramRejected(
                     "insufficient collateral".into(),
@@ -298,8 +295,8 @@ impl Harness for MockHarness {
         // 2. ceil-divide by oracle price to get the collateral units to seize;
         // 3. cap by available collateral; if shortfall, accumulate bad_debt.
         let price = self.price_u64 as u128;
-        let seized_value = (repaid as u128) * (10_000u128 + self.liquidation_bonus_bps as u128)
-            / 10_000u128;
+        let seized_value =
+            (repaid as u128) * (10_000u128 + self.liquidation_bonus_bps as u128) / 10_000u128;
         let collateral_to_seize = if price == 0 {
             0u64
         } else {

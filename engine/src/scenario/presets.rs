@@ -19,8 +19,7 @@ impl BaselineScenario {
 
 impl Scenario for BaselineScenario {
     fn update(&mut self, _tick: u32, rng: &mut StdRng) -> OracleUpdate {
-        let noise =
-            rng.random_range(-(self.noise_bps as f64)..=(self.noise_bps as f64)) / 10_000.0;
+        let noise = rng.random_range(-(self.noise_bps as f64)..=(self.noise_bps as f64)) / 10_000.0;
         OracleUpdate {
             price: self.base_price * (1.0 + noise),
             exponent: 0,
