@@ -74,10 +74,24 @@ release whose bundled rustc is `>= 1.85`. After that, drop the
 `[patch.crates-io]` block in `programs/lending_pool/Cargo.toml` and let cargo
 resolve from crates.io directly.
 
-## Running the T05 validator integration test
+## Running the LiteSVM benchmark (primary path)
+
+The shipped CLI uses an in-process LiteSVM backend. To benchmark the target
+workload (100 agents × 180 ticks):
+
+```bash
+cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
+BENCH_AGENTS=100 BENCH_TICKS=180 cargo run --release -p riptide-engine \
+    --features litesvm-backend --example t7_litesvm_benchmark
+```
+
+No external validator or funded keypair is required.
+
+## Running the T05 validator integration test (historical / parity reference)
 
 The T05 deploy → deposit → borrow → liquidate sequence is exercised against a
-live `solana-test-validator` by an env-var-gated integration test.
+live `solana-test-validator` by an env-var-gated integration test. This is a
+**parity reference path**, not the primary execution backend.
 
 ```bash
 # In one terminal:

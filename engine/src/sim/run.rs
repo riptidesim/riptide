@@ -1,5 +1,6 @@
 //! The tick loop itself. Generic over any `Harness` implementation so the
-//! same code drives both the validator-backed and the mock-backed path.
+//! same code drives the in-process LiteSVM backend, the validator-backed
+//! parity path, or the mock-backed test path.
 
 use std::collections::BTreeMap;
 

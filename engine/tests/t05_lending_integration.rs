@@ -106,10 +106,11 @@ fn read_position(client: &RpcClient, position: &Pubkey) -> PositionState {
 }
 
 #[test]
+#[ignore = "requires RIPTIDE_RUN_VALIDATOR_TESTS=1 and a running solana-test-validator"]
 fn t05_deposit_borrow_liquidate_on_local_validator() {
     if std::env::var("RIPTIDE_RUN_VALIDATOR_TESTS").ok().as_deref() != Some("1") {
         eprintln!(
-            "skipping t05_deposit_borrow_liquidate_on_local_validator: set RIPTIDE_RUN_VALIDATOR_TESTS=1"
+            "skipping: set RIPTIDE_RUN_VALIDATOR_TESTS=1 to run the validator parity test"
         );
         return;
     }

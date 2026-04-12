@@ -140,10 +140,13 @@ impl LiteSvmHarness {
         // Signature verification and blockhash checks stay ON (the defaults)
         // so the in-process path exercises the same auth/replay checks the
         // on-chain program expects. All transactions are properly signed.
+        let per_identity_lamports: u64 = 10_000_000_000; // 10 SOL
+        let identity_count = (config.agent_count as u64) + 1; // agents + admin
+        let base_lamports = identity_count * per_identity_lamports * 2; // 2x headroom for rent + fees
         let mut svm = LiteSVM::new()
             .with_builtins()
             .with_sysvars()
-            .with_lamports(1_000_000_000_000);
+            .with_lamports(base_lamports);
 
         // --- Load the lending program ---
         let program_id = Pubkey::new_unique();

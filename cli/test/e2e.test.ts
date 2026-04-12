@@ -1,20 +1,20 @@
-// End-to-end integration test for `riptide simulate` against a live
-// solana-test-validator. This is the full-system smoke test that proves
-// the CLI -> persona compiler -> engine -> lending program pipeline works.
+// End-to-end integration test for `riptide simulate` using the in-process
+// LiteSVM backend. This is the full-system smoke test that proves the
+// CLI -> persona compiler -> engine -> lending program pipeline works.
 //
-// Gated on RIPTIDE_RUN_E2E=1 so regular `npm test` never touches the
-// network or requires a validator to be running. Mirrors the gating
-// pattern used by engine/tests/engine_cli_e2e.rs.
+// Gated on RIPTIDE_RUN_E2E=1 so regular `npm test` stays hermetic.
+// Mirrors the gating pattern used by engine/tests/engine_cli_e2e.rs.
 //
 // Preconditions to run:
-//   1. solana-test-validator running on loopback (default 127.0.0.1:8899)
-//   2. CLI built:             npm run build            (in cli/)
-//   3. Engine built:           cargo build --release -p riptide-engine
-//   4. Lending program built:  cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
-//   5. Funded payer keypair:   export RIPTIDE_PAYER=/tmp/riptide-payer.json
+//   1. CLI built:             npm run build            (in cli/)
+//   2. Engine built:           cargo build --release -p riptide-engine
+//   3. Lending program built:  cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
+//
+// No external validator or funded payer keypair is required — the engine
+// runs an in-process LiteSVM backend.
 //
 // Invoke:
-//   RIPTIDE_RUN_E2E=1 RIPTIDE_PAYER=/tmp/riptide-payer.json npm test
+//   RIPTIDE_RUN_E2E=1 npm test
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -69,15 +69,14 @@ async function runSimulate(opts: RunSimulateOptions): Promise<RunResult> {
         // Allowlisted env: we are asserting on realized liquidations,
         // so any ambient RIPTIDE_* knob could silently falsify the
         // result. Only pass what the subprocess genuinely needs —
-        // PATH/HOME for node + solana RPC resolution, RIPTIDE_PAYER
-        // for the funded keypair, and the one shock knob the test
-        // owns. Notably, RIPTIDE_ENGINE_BIN is NOT forwarded: this
-        // test must exercise the release binary on its canonical
-        // path, not an orchestrator-unit-test override.
+        // PATH/HOME for node resolution and the one shock knob the
+        // test owns. No RIPTIDE_PAYER needed — the engine runs an
+        // in-process LiteSVM backend. Notably, RIPTIDE_ENGINE_BIN is
+        // NOT forwarded: this test must exercise the release binary
+        // on its canonical path, not an orchestrator-unit-test override.
         env: {
           PATH: process.env.PATH ?? "",
           HOME: process.env.HOME ?? "",
-          RIPTIDE_PAYER: process.env.RIPTIDE_PAYER ?? "",
           RIPTIDE_PRICE_SHOCK_DROP: opts.shockDrop ?? "0.5"
         },
         stdio: ["ignore", "pipe", "pipe"]
@@ -141,10 +140,6 @@ async function loadArtifact(outputDir: string): Promise<SimulationResult> {
 }
 
 test("e2e: risky persona mix produces realized liquidations under shock", { skip: !E2E_ENABLED, timeout: E2E_TIMEOUT_MS }, async () => {
-  if (!process.env.RIPTIDE_PAYER) {
-    throw new Error("RIPTIDE_PAYER must be set to a funded local validator keypair path");
-  }
-
   const tmp = await mkdtemp(path.join(os.tmpdir(), "riptide-e2e-risky-"));
   try {
     const outputDir = path.join(tmp, "run");
@@ -200,10 +195,6 @@ test("e2e: cautious persona mix survives the same shock without liquidations", {
   // steady-lp the pool should have zero borrows, zero liquidation attempts,
   // and every agent still active. A regression where all personas converge
   // to similar behavior will fail this test.
-  if (!process.env.RIPTIDE_PAYER) {
-    throw new Error("RIPTIDE_PAYER must be set");
-  }
-
   const tmp = await mkdtemp(path.join(os.tmpdir(), "riptide-e2e-safe-"));
   try {
     const outputDir = path.join(tmp, "run");
@@ -237,10 +228,6 @@ test("e2e: cautious persona mix survives the same shock without liquidations", {
 });
 
 test("e2e: determinism — two runs with same seed produce byte-identical simulation logic", { skip: !E2E_ENABLED, timeout: E2E_TIMEOUT_MS * 2 }, async () => {
-  if (!process.env.RIPTIDE_PAYER) {
-    throw new Error("RIPTIDE_PAYER must be set");
-  }
-
   const tmp = await mkdtemp(path.join(os.tmpdir(), "riptide-e2e-det-"));
   try {
     const outA = path.join(tmp, "runA");
