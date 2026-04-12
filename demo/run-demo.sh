@@ -1,22 +1,15 @@
 #!/usr/bin/env bash
-# Riptide demo: run the safe and risky configs against a live
-# solana-test-validator and print a side-by-side headline-metric diff.
+# Riptide demo: run the safe and risky configs against the in-process
+# LiteSVM backend and print a side-by-side headline-metric diff.
 #
 # Preconditions (see demo/README.md for details):
-#   - solana-test-validator running on loopback
-#   - cli built:     (cd cli && npm run build)
 #   - engine built:  cargo build --release -p riptide-engine
 #   - lending built: cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
-#   - RIPTIDE_PAYER=/path/to/funded-keypair.json
+#   - cli built:     (cd cli && npm run build)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
-
-if [[ -z "${RIPTIDE_PAYER:-}" ]]; then
-  echo "error: RIPTIDE_PAYER must be set to a funded local validator keypair" >&2
-  exit 1
-fi
 
 # CLI invocation is split into a node binary + a script path so neither
 # can be repurposed to execute an arbitrary shell string via the

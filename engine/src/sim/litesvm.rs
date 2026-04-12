@@ -73,17 +73,6 @@ pub struct LiteSvmHarness {
 }
 
 impl LiteSvmHarness {
-    /// Submit a signed transaction through the in-process SVM.
-    /// Signature verification and blockhash checks are enforced.
-    pub(crate) fn send_transaction(
-        &mut self,
-        payer: &Keypair,
-        instructions: Vec<solana_sdk::instruction::Instruction>,
-        signers: &[&Keypair],
-    ) -> Result<()> {
-        send_tx(&mut self.svm, payer, instructions, signers)
-    }
-
     /// Submit a transaction and classify the result as a `HarnessError`.
     ///
     /// `InstructionError` variants (the program processed the tx and

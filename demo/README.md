@@ -20,16 +20,12 @@ defaults `riptide simulate` ships with.
 
 ## Preconditions
 
-1. `solana-test-validator` running on loopback (`127.0.0.1:8899`)
-2. CLI built: `(cd cli && npm run build)`
-3. Engine built: `cargo build --release -p riptide-engine`
-4. Lending program built: `cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml`
-5. Funded payer keypair:
-   ```bash
-   solana-keygen new --outfile /tmp/riptide-payer.json
-   solana airdrop 500 -k /tmp/riptide-payer.json --url localhost
-   export RIPTIDE_PAYER=/tmp/riptide-payer.json
-   ```
+1. Engine built: `cargo build --release -p riptide-engine`
+2. Lending program built: `cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml`
+3. CLI built: `(cd cli && npm run build)`
+
+No external validator or funded payer keypair is required — the engine
+runs an in-process LiteSVM backend.
 
 ## Run
 
@@ -54,7 +50,7 @@ get tested at their breaking point.
 
 ## Expected output (baseline, for regression detection)
 
-With the demo's one knob, seed 42, and a fresh validator state:
+With the demo's one knob and seed 42:
 
 ```
 metric                                  safe           risky
@@ -69,8 +65,8 @@ largest tick drawdown                  12.00          200.00
 event count                               50              40
 ```
 
-These numbers are reproducible (same seed, fresh validator) and come
-from an actual `bash demo/run-demo.sh` run, not a projection.
+These numbers are reproducible (same seed) and come from an actual
+`bash demo/run-demo.sh` run, not a projection.
 
 ### Per-agent outcomes
 
@@ -165,6 +161,6 @@ outcomes as first-class test gates:
 3. Determinism: two back-to-back runs of the risky mix produce
    byte-identical artifacts modulo the tmp `output_path` field.
 
-The test is gated on `RIPTIDE_RUN_E2E=1` and `RIPTIDE_PAYER` so the
-standard `npm test` run stays hermetic; the live-validator run
-exercises the exact same subprocess path the demo script uses.
+The test is gated on `RIPTIDE_RUN_E2E=1` so the standard `npm test`
+run stays hermetic; the gated run exercises the exact same subprocess
+path the demo script uses.
