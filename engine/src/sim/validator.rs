@@ -147,9 +147,15 @@ impl Harness for ValidatorHarness {
 
     fn withdraw(&mut self, agent_idx: usize, amount: u64) -> Result<(), HarnessError> {
         let agent = self.agents[agent_idx].insecure_clone();
-        let ix = self
-            .client
-            .withdraw(agent.pubkey(), self.pool, self.positions[agent_idx], amount);
+        // Always pass the oracle so the on-chain health-factor check
+        // succeeds regardless of whether the position currently has debt.
+        let ix = self.client.withdraw(
+            agent.pubkey(),
+            self.pool,
+            self.positions[agent_idx],
+            Some(self.oracle),
+            amount,
+        );
         self.send(ix, Some(&agent))
     }
 

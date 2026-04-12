@@ -238,6 +238,11 @@ where
     for tick in 1..=run_config.ticks {
         eprintln!("TICK {tick}/{}", run_config.ticks);
 
+        // 0. Advance synthetic chain state (slot, blockhash, clock).
+        //    No-op for backends that manage their own progression (validator,
+        //    mock). LiteSVM overrides this to keep tick semantics consistent.
+        harness.advance_tick();
+
         // 1. Advance scenario (deterministic via master_rng).
         let oracle_update = scenario.update(tick, &mut master_rng);
 

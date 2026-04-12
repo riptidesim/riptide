@@ -141,21 +141,27 @@ impl LendingProgramClient {
         )
     }
 
+    /// Build a Withdraw instruction. The on-chain program conditionally
+    /// reads the oracle account when `position.debt > 0` to re-check
+    /// the health factor after withdrawal. Pass `Some(oracle)` whenever
+    /// the position may carry debt; `None` is safe only when debt == 0.
     pub fn withdraw(
         &self,
         owner: Pubkey,
         pool: Pubkey,
         position: Pubkey,
+        oracle: Option<Pubkey>,
         amount: u64,
     ) -> Instruction {
-        self.ix(
-            vec![
-                AccountMeta::new_readonly(owner, true),
-                AccountMeta::new(pool, false),
-                AccountMeta::new(position, false),
-            ],
-            LendingInstructionData::Withdraw { amount },
-        )
+        let mut accounts = vec![
+            AccountMeta::new_readonly(owner, true),
+            AccountMeta::new(pool, false),
+            AccountMeta::new(position, false),
+        ];
+        if let Some(oracle_key) = oracle {
+            accounts.push(AccountMeta::new_readonly(oracle_key, false));
+        }
+        self.ix(accounts, LendingInstructionData::Withdraw { amount })
     }
 
     pub fn borrow(

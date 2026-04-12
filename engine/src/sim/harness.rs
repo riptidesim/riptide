@@ -79,6 +79,12 @@ pub trait Harness {
     /// Re-read a specific agent's position.
     fn observe_position(&self, agent_idx: usize) -> Result<PositionObservation, HarnessError>;
 
+    /// Advance synthetic chain state between ticks. Backends that
+    /// manage their own chain progression (e.g. LiteSVM) override this
+    /// to rotate blockhashes, advance slots/clock sysvars, etc. Live
+    /// validator backends and mocks default to a no-op.
+    fn advance_tick(&mut self) {}
+
     fn deposit(&mut self, agent_idx: usize, amount: u64) -> Result<(), HarnessError>;
     fn withdraw(&mut self, agent_idx: usize, amount: u64) -> Result<(), HarnessError>;
     fn borrow(&mut self, agent_idx: usize, amount: u64) -> Result<(), HarnessError>;
