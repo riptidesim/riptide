@@ -1,8 +1,19 @@
-# Riptide demo — safe vs risky
+# Riptide demo — safe vs risky (lending)
+
+> This is the lending-primitive demo. For the non-DeFi generic-primitive
+> demo, see the "Generic (non-DeFi) demo" section at the bottom, or run
+> the engine directly with
+> `--adapter fixtures/adapters/resource-grinder.toml` and the
+> `fixtures/generic-demo.*.json` fixtures.
 
 Two `RunConfig` files (`configs/safe.json`, `configs/risky.json`) plus
-`run-demo.sh`, which invokes `riptide simulate` against each and prints
-a side-by-side comparison of headline metrics.
+`run-demo.sh`, which drives the Node CLI wrapper
+(`node cli/dist/src/index.js simulate --adapter
+fixtures/adapters/solend-fork.toml`) against each and prints a
+side-by-side comparison of headline metrics. The engine itself boots
+from `--config / --policies / --output / --adapter` flags; the Node
+wrapper composes the persona/policy artifacts and invokes it under the
+hood.
 
 Both configs use:
 - identical scenario (`price-shock`)
@@ -10,13 +21,16 @@ Both configs use:
 - identical pool protocol parameters (LTV 7000, liquidation threshold
   8000, liquidation bonus 500)
 - identical tick count (`10`) and agent count (`5`)
+- the same adapter TOML (`fixtures/adapters/solend-fork.toml`) — the
+  demo drives the Solend-fork `LendingPrimitive` via the adapter, not
+  via hardcoded harness wiring
 
 The only difference is the persona mix:
 - **safe** → `cautious-yield-farmer`, `steady-lp`
 - **risky** → `panic-whale`, `degen-borrower`, `aggressive-arb-bot`
 
 The shipped persona policies are **not modified** — they are the same
-defaults `riptide simulate` ships with.
+defaults the CLI ships with.
 
 ## Preconditions
 
@@ -164,3 +178,23 @@ outcomes as first-class test gates:
 The test is gated on `RIPTIDE_RUN_E2E=1` so the standard `npm test`
 run stays hermetic; the gated run exercises the exact same subprocess
 path the demo script uses.
+
+## Generic (non-DeFi) demo
+
+The resource-grinder demo proves the `GenericPrimitive` escape hatch
+end-to-end against a program with zero lending semantics. It boots the
+engine directly (no Node wrapper needed) off the generic fixtures:
+
+```bash
+cargo run --release -p riptide-engine -- \
+  --config fixtures/generic-demo.run.json \
+  --policies fixtures/generic-demo.policies.json \
+  --adapter fixtures/adapters/resource-grinder.toml \
+  --output /tmp/riptide-generic-demo.json
+```
+
+Preconditions: `cargo build-sbf --manifest-path
+programs/resource_grinder/Cargo.toml` must have been run at least once
+so the `.so` referenced by the adapter exists. The generic demo is
+byte-stable under
+`cargo test -p riptide-engine --test t15_e2e_determinism`.

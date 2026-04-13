@@ -2,9 +2,12 @@
 //!
 //! End-to-end responsibilities:
 //!   1. Parse CLI args (clap derive).
-//!   2. Load run config + policies JSON.
-//!   3. Bootstrap an in-process LiteSVM environment with the lending program.
-//!   4. Construct a `LiteSvmHarness` and call `run_simulation`.
+//!   2. Load run config + policies JSON, plus an optional adapter TOML.
+//!   3. Bootstrap an in-process LiteSVM environment against either the
+//!      native lending primitive (Solend fork) or the `GenericPrimitive`
+//!      path, selected by the adapter's `protocol` field.
+//!   4. Construct the appropriate harness and call the matching
+//!      `run_simulation` / `run_generic_simulation` entry point.
 //!   5. Write the `SimulationResult` JSON to `--output`.
 //!
 //! Progress/warnings go to stderr; nothing but the `SimulationResult` JSON
@@ -41,10 +44,11 @@ use riptide_engine::{
 #[command(
     name = "riptide-engine",
     version,
-    about = "Riptide simulation engine",
-    long_about = "Tick-based multi-agent lending-pool simulator. Runs an in-process \
-                  LiteSVM backend (no external validator required); writes a \
-                  SimulationResult JSON to --output."
+    about = "Riptide simulation engine — protocol-agnostic multi-agent simulator",
+    long_about = "Tick-based multi-agent simulator for shared program state under time \
+                  pressure. Runs an in-process LiteSVM backend (no external validator \
+                  required) against a native lending primitive or a generic primitive \
+                  driven by an adapter TOML; writes a SimulationResult JSON to --output."
 )]
 struct Cli {
     /// Path to the run configuration JSON file.
