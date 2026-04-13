@@ -19,6 +19,7 @@ use std::{
 
 use clap::Parser;
 use riptide_engine::{
+    adapter::{load_adapter, Protocol},
     harness::{
         lending::LendingPoolConfig,
         setup::default_program_so_path,
@@ -60,6 +61,13 @@ struct Cli {
     /// standard `cargo build-sbf` output location inside the workspace.
     #[arg(long, value_name = "FILE")]
     program_so: Option<PathBuf>,
+
+    /// Optional adapter TOML. When present, the engine selects its
+    /// primitive impl from the adapter's `protocol` field instead of a
+    /// compile-time switch. Missing flag falls back to the default
+    /// lending primitive (Solend fork) so existing callers keep working.
+    #[arg(long, value_name = "FILE")]
+    adapter: Option<PathBuf>,
 }
 
 fn main() -> ExitCode {
@@ -86,6 +94,38 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         run_config.ticks,
         run_config.scenario,
     );
+
+    // --- Optional adapter TOML. Selects the primitive at runtime. ---
+    //
+    // When `--adapter` is absent, behavior is unchanged from Sprint 2:
+    // the engine boots the Solend-fork `LendingPrimitive` on LiteSVM,
+    // same as every previous run.
+    //
+    // When `--adapter` is present, the loader validates the TOML and
+    // picks a primitive impl from the `protocol` field. For now the
+    // only supported choice is `lending`, which still routes to the
+    // Solend-fork impl — the adapter's instruction/state maps are
+    // informational in v0 (the lending primitive knows its own wiring).
+    // T05 will wire `generic` to the `GenericPrimitive` impl.
+    if let Some(adapter_path) = cli.adapter.as_ref() {
+        let adapter = load_adapter(adapter_path).map_err(|e| anyhow::anyhow!("{e}"))?;
+        match adapter.protocol {
+            Protocol::Lending => {
+                eprintln!(
+                    "adapter: lending protocol, {} instructions, {} state mappings",
+                    adapter.instructions.len(),
+                    adapter.state_mapping.len()
+                );
+            }
+            Protocol::Generic => {
+                anyhow::bail!(
+                    "adapter {}: protocol=`generic` is declared but the generic primitive \
+                     is not wired yet (scheduled for Sprint 3 T05)",
+                    adapter_path.display()
+                );
+            }
+        }
+    }
 
     // --- Pool risk params (tunable via env vars, same as before). ---
     let ltv_bps: u16 = std::env::var("RIPTIDE_POOL_LTV_BPS")

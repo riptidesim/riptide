@@ -69,6 +69,7 @@ run_one() {
     --scenario "$scenario" \
     --seed "$seed" \
     --personas "$personas" \
+    --adapter "$REPO_ROOT/fixtures/adapters/solend-fork.toml" \
     --output "$out_dir"
 }
 

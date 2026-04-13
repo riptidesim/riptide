@@ -1,12 +1,20 @@
 import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import { Command } from "commander";
+import TOML from "toml";
 import { z } from "zod";
 
 import { RunConfigSchema, type RunConfig } from "./compiler/schema.js";
+import { validateAdapter } from "./schemas/adapter.js";
 
 export const SimulateOptionsSchema = RunConfigSchema.extend({
-  llm_url: z.string().url().optional()
+  llm_url: z.string().url().optional(),
+  // Absolute path to a pre-validated adapter TOML. Populated by
+  // `buildSimulateOptions` after running the raw path through
+  // `validateAdapter` — never trust the raw CLI string past that point.
+  adapter_path: z.string().min(1).optional()
 });
 
 export type SimulateOptions = z.infer<typeof SimulateOptionsSchema>;
@@ -29,11 +37,26 @@ export function registerRunConfigOptions(command: Command): Command {
     .option("--personas <ids>", "Comma-separated persona ids")
     .option("--validator-url <url>", "Solana RPC URL", DEFAULT_VALIDATOR_URL)
     .option("--llm-url <url>", "OpenAI-compatible LLM endpoint override")
+    .option("--adapter <path>", "Path to an adapter TOML (selects the primitive at runtime)")
     .option("--output <path>", "Output directory for artifacts");
 }
 
 export function buildSimulateOptions(raw: Record<string, unknown>): { config: SimulateOptions; generatedSeed: boolean } {
   const generatedSeed = raw.seed === undefined;
+
+  // Pre-validate the adapter TOML before it ever reaches the engine
+  // binary. Fail fast with the full path + key on a schema violation.
+  // We resolve to an absolute path so the engine binary can find the
+  // file regardless of its own cwd.
+  let adapterPath: string | undefined;
+  if (typeof raw.adapter === "string" && raw.adapter.length > 0) {
+    adapterPath = path.resolve(raw.adapter);
+    const rawToml = readFileSync(adapterPath, "utf8");
+    const parsedToml = TOML.parse(rawToml);
+    // Throws on validation failure. Message includes file + key.
+    validateAdapter(parsedToml, adapterPath);
+  }
+
   const parsed = SimulateOptionsSchema.parse({
     agents: raw.agents ?? 15,
     ticks: raw.ticks ?? 50,
@@ -42,14 +65,15 @@ export function buildSimulateOptions(raw: Record<string, unknown>): { config: Si
     personas: parsePersonas(raw.personas),
     validator_url: raw.validatorUrl ?? process.env.RIPTIDE_RPC_URL ?? DEFAULT_VALIDATOR_URL,
     output_path: raw.output ?? "riptide-output/default-run",
-    llm_url: raw.llmUrl
+    llm_url: raw.llmUrl,
+    adapter_path: adapterPath
   });
 
   return { config: parsed, generatedSeed };
 }
 
 export function toRunConfig(options: SimulateOptions): RunConfig {
-  const { llm_url: _llmUrl, ...runConfig } = options;
+  const { llm_url: _llmUrl, adapter_path: _adapterPath, ...runConfig } = options;
   return runConfig;
 }
 

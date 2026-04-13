@@ -22,6 +22,8 @@ export interface OrchestratorOptions {
   env?: NodeJS.ProcessEnv;
   cwd?: string;
   llmUrl?: string;
+  /** Absolute path to a pre-validated adapter TOML, or undefined. */
+  adapterPath?: string;
   warn?: (message: string) => void;
 }
 
@@ -61,6 +63,9 @@ export async function runOrchestrator(
       "--output",
       outputPath
     ];
+    if (options.adapterPath) {
+      args.push("--adapter", options.adapterPath);
+    }
 
     const { code, stderrTail } = await spawner(enginePath, args);
     if (code !== 0) {

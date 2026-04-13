@@ -1,0 +1,38 @@
+# Solend-fork lending adapter (Sprint 3 · T04).
+#
+# First real adapter shipped with Riptide. Drives the safe-vs-risky demo
+# end-to-end when passed via `--adapter fixtures/adapters/solend-fork.toml`.
+#
+# Protocol: the forked Solend-style lending pool at
+# `programs/lending_pool/`. Five lending actions + pool + per-position
+# observation paths. Schema details live at `engine/src/adapter/schema.rs`.
+
+protocol = "lending"
+
+# Instruction → logical action. `action` must be one of the five canonical
+# lending labels; `amount` names the ix argument that carries the amount.
+[instructions]
+deposit   = { action = "deposit",   amount = "amount" }
+borrow    = { action = "borrow",    amount = "amount" }
+repay     = { action = "repay",     amount = "amount" }
+withdraw  = { action = "withdraw",  amount = "amount" }
+liquidate = { action = "liquidate", amount = "repay_amount" }
+
+# Account field → logical observation name. Keys are `<account>.<field>`
+# dotted paths into the on-chain account hierarchy. Values are the
+# engine-side observation names the lending tick loop consumes.
+[state_mapping]
+"pool.total_deposits" = "tvl"
+"pool.total_borrows"  = "debt"
+"pool.bad_debt"       = "bad_debt"
+"position.collateral" = "collateral"
+"position.debt"       = "debt"
+"position.liquidated" = "liquidated"
+
+# Reserved for the generic primitive (T05). Lending adapters leave these
+# empty — the primitive itself supplies the lending semantics.
+[actions]
+
+[observations]
+
+[personas]

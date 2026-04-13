@@ -25,7 +25,10 @@ export function createSimulateCommand(): Command {
       )
     );
 
-    const result = await runOrchestrator(runConfig, { llmUrl: config.llm_url });
+    const result = await runOrchestrator(runConfig, {
+      llmUrl: config.llm_url,
+      adapterPath: config.adapter_path
+    });
 
     process.stdout.write(`${renderSummary(result)}\n\n`);
     process.stdout.write(`${renderTimeline(result)}\n`);
