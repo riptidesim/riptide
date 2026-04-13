@@ -42,6 +42,13 @@ pub struct PositionState {
     pub liquidated: bool,
 }
 
+/// On-chain oracle account layout.
+///
+/// **SSOT note (T01 / PAU-01):** this struct is byte-for-byte mirrored by
+/// `engine::scenario::OracleSnapshot` in a separate Cargo workspace. Both
+/// sides round-trip against `fixtures/oracle_state_golden.bin`; see the
+/// mirror test in `engine/src/scenario/oracle.rs`. If the layout changes
+/// here, regenerate the golden file and update both tests.
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct OracleState {
     pub is_initialized: bool,
@@ -153,4 +160,51 @@ pub fn health_factor_bps(
         .ok_or(LendingError::MathOverflow)?
         .checked_div(position.debt as u128)
         .ok_or(LendingError::MathOverflow)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use borsh::to_vec;
+
+    /// SSOT enforcement for `OracleState` (PAU-01).
+    ///
+    /// Mirror of `engine::scenario::oracle::oracle_snapshot_matches_golden_bytes`.
+    /// Both tests round-trip the same `fixtures/oracle_state_golden.bin` blob.
+    /// A field change here must be matched by an equivalent change to
+    /// `engine::scenario::OracleSnapshot` and a regenerated golden file.
+    #[test]
+    fn oracle_state_matches_golden_bytes() {
+        const GOLDEN: &[u8] =
+            include_bytes!("../../../fixtures/oracle_state_golden.bin");
+
+        let state = OracleState {
+            is_initialized: true,
+            admin: [7; 32],
+            price: 123,
+            exponent: -2,
+            reserved: [0; 8],
+        };
+
+        let encoded = to_vec(&state).expect("encode oracle state");
+        assert_eq!(
+            encoded.len(),
+            ORACLE_STATE_LEN,
+            "OracleState length drifted from ORACLE_STATE_LEN constant",
+        );
+        assert_eq!(
+            encoded.len(),
+            GOLDEN.len(),
+            "OracleState serialized length drifted from the golden file. \
+             If intentional, regenerate fixtures/oracle_state_golden.bin AND \
+             update the mirror test in engine/src/scenario/oracle.rs.",
+        );
+        assert_eq!(
+            encoded.as_slice(),
+            GOLDEN,
+            "OracleState layout drifted from fixtures/oracle_state_golden.bin. \
+             Update both sides (lending_pool::state::OracleState and \
+             engine::scenario::OracleSnapshot) in lock-step."
+        );
+    }
 }

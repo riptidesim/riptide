@@ -29,6 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let liquidator = Keypair::new();
     let borrower_position = Keypair::new();
     let liquidator_position = Keypair::new();
+    let cycle_position = Keypair::new();
 
     let rent_oracle = client.get_minimum_balance_for_rent_exemption(ORACLE_STATE_LEN)?;
     let rent_pool = client.get_minimum_balance_for_rent_exemption(POOL_STATE_LEN)?;
@@ -66,6 +67,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 rent_position,
                 POSITION_STATE_LEN,
             ),
+            create_program_account(
+                &payer.pubkey(),
+                &cycle_position.pubkey(),
+                &program_id,
+                rent_position,
+                POSITION_STATE_LEN,
+            ),
             sdk.initialize_oracle(payer.pubkey(), oracle.pubkey(), 100, 0),
             sdk.initialize_pool(
                 payer.pubkey(),
@@ -84,7 +92,44 @@ fn main() -> Result<(), Box<dyn Error>> {
             &pool,
             &borrower_position,
             &liquidator_position,
+            &cycle_position,
         ],
+    )?;
+
+    // Full deposit -> borrow -> repay -> withdraw cycle on a dedicated
+    // position, exercising the `withdraw_with_oracle` path (T02.a).
+    send(
+        &client,
+        &payer,
+        vec![
+            sdk.deposit(
+                payer.pubkey(),
+                pool.pubkey(),
+                cycle_position.pubkey(),
+                10_000,
+            ),
+            sdk.borrow(
+                payer.pubkey(),
+                pool.pubkey(),
+                cycle_position.pubkey(),
+                oracle.pubkey(),
+                5_000,
+            ),
+            sdk.repay(
+                payer.pubkey(),
+                pool.pubkey(),
+                cycle_position.pubkey(),
+                5_000,
+            ),
+            sdk.withdraw(
+                payer.pubkey(),
+                pool.pubkey(),
+                cycle_position.pubkey(),
+                Some(oracle.pubkey()),
+                10_000,
+            ),
+        ],
+        &[&payer],
     )?;
 
     send(
