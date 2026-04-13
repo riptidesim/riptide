@@ -4,7 +4,9 @@
 //! loop's happy path, error-handling, and determinism properties can all be
 //! exercised without ever booting a validator.
 
-use super::harness::{Harness, HarnessError, PoolObservation, PositionObservation};
+use crate::primitive::{
+    HarnessError, LendingPrimitive, PoolState, PositionHealth, PrimitiveError,
+};
 use crate::scenario::OracleUpdate;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -125,7 +127,7 @@ impl MockHarness {
     }
 }
 
-impl Harness for MockHarness {
+impl LendingPrimitive for MockHarness {
     fn agent_count(&self) -> usize {
         self.positions.len()
     }
@@ -137,19 +139,19 @@ impl Harness for MockHarness {
         Ok(())
     }
 
-    fn observe_pool(&self) -> Result<PoolObservation, HarnessError> {
-        Ok(PoolObservation {
+    fn pool_state(&self) -> Result<PoolState, PrimitiveError> {
+        Ok(PoolState {
             total_deposits: self.total_deposits,
             total_borrows: self.total_borrows,
             bad_debt: self.bad_debt,
         })
     }
 
-    fn observe_position(&self, agent_idx: usize) -> Result<PositionObservation, HarnessError> {
+    fn health_factor(&self, agent_idx: usize) -> Result<PositionHealth, PrimitiveError> {
         let p = self.positions.get(agent_idx).ok_or_else(|| {
-            HarnessError::Infra(format!("mock: agent_idx {agent_idx} out of range"))
+            PrimitiveError::Infra(format!("mock: agent_idx {agent_idx} out of range"))
         })?;
-        Ok(PositionObservation {
+        Ok(PositionHealth {
             collateral: p.collateral,
             debt: p.debt,
             liquidated: p.liquidated,
@@ -353,7 +355,7 @@ mod tests {
         let mut h = MockHarness::new(2, 100.0);
         h.deposit(0, 1_000).unwrap();
         h.borrow(0, 100).unwrap();
-        let pool = h.observe_pool().unwrap();
+        let pool = h.pool_state().unwrap();
         assert_eq!(pool.total_deposits, 1_000);
         assert_eq!(pool.total_borrows, 100);
     }

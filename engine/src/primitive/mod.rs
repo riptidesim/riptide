@@ -6,30 +6,27 @@
 //! wiring — instruction selectors, account layouts, client builders —
 //! behind the trait.
 //!
-//! The sim layer binds to the `Harness` trait from `sim::harness`, and each
-//! primitive impl is also a `Harness` impl so the tick loop can drive it
-//! without caring which primitive is underneath.
-//!
 //! ## Layering
 //!
 //! ```text
 //!        ┌───────────────────────┐
 //!        │   sim::run tick loop  │
 //!        └──────────┬────────────┘
-//!                   │ dyn Harness
+//!                   │ generic over H: Harness
 //!        ┌──────────▼────────────┐
-//!        │   Harness impl        │    ← sim/harness.rs
-//!        │   (sim-layer trait)   │
+//!        │  Harness (sim layer)  │    agent_count / advance_tick /
+//!        │                       │    push_oracle_price
 //!        └──────────┬────────────┘
-//!                   │ implements
+//!                   │ super-trait: Harness: LendingPrimitive
 //!        ┌──────────▼────────────┐
-//!        │   LendingPrimitive    │    ← primitive/lending.rs
-//!        │   (domain trait)      │
+//!        │   LendingPrimitive    │    deposit / borrow / repay /
+//!        │   (domain trait)      │    withdraw / liquidate /
+//!        │                       │    pool_state / health_factor
 //!        └──────────┬────────────┘
 //!                   │ implemented by
 //!        ┌──────────▼────────────┐
-//!        │   SolendForkPrimitive │    ← primitive/solend_fork.rs
-//!        │   (concrete impl)     │
+//!        │   LiteSvmHarness      │    ← primitive/solend_fork.rs
+//!        │   (Solend-fork impl)  │
 //!        └───────────────────────┘
 //! ```
 
@@ -37,4 +34,7 @@ pub mod lending;
 #[cfg(any(feature = "litesvm-backend", test))]
 pub mod solend_fork;
 
-pub use lending::{LendingPrimitive, PoolState, PositionHealth, PrimitiveError};
+pub use lending::{
+    Harness, HarnessError, LendingPrimitive, PoolObservation, PoolState, PositionHealth,
+    PositionObservation, PrimitiveError,
+};

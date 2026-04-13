@@ -82,6 +82,7 @@ fn main() {
             borrow_limit: u64::MAX / 4,
         },
         seed_deposit: 100,
+        adapter: None,
     };
     let mut harness = LiteSvmHarness::bootstrap(bootstrap_config)
         .expect("LiteSVM bootstrap failed");

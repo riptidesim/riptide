@@ -25,6 +25,7 @@ use solana_sdk::{
 use solana_transaction::Transaction;
 
 use crate::{
+    adapter::Adapter,
     harness::{
         lending::{LendingPoolConfig, LendingPoolState, LendingProgramClient, PositionState},
         setup::{
@@ -32,8 +33,8 @@ use crate::{
             ORACLE_STATE_LEN, POOL_STATE_LEN, POSITION_STATE_LEN,
         },
     },
+    primitive::{LendingPrimitive, PoolState, PositionHealth, PrimitiveError},
     scenario::OracleUpdate,
-    sim::harness::{Harness, HarnessError, PoolObservation, PositionObservation},
 };
 
 /// Configuration for bootstrapping a LiteSVM-backed Solend-fork primitive.
@@ -50,6 +51,12 @@ pub struct LiteSvmBootstrapConfig {
     pub pool_config: LendingPoolConfig,
     /// Initial deposit amount seeded per agent position.
     pub seed_deposit: u64,
+    /// Optional adapter configuration. When present, the primitive
+    /// validates at bootstrap time that the adapter's `[instructions]`
+    /// and `[state_mapping]` match the Solend-fork's expected wiring.
+    /// A scrambled adapter fails bootstrap before any on-chain state
+    /// is touched.
+    pub adapter: Option<Adapter>,
 }
 
 impl Default for LiteSvmBootstrapConfig {
@@ -61,8 +68,71 @@ impl Default for LiteSvmBootstrapConfig {
             price_exponent: 0,
             pool_config: default_pool_config(),
             seed_deposit: 100,
+            adapter: None,
         }
     }
+}
+
+/// Solend-fork's expected `[instructions]` wiring. Each tuple is
+/// (instruction name, required `action` field value). The primitive
+/// rejects any adapter whose shape diverges from this list.
+const EXPECTED_INSTRUCTIONS: &[(&str, &str)] = &[
+    ("deposit", "deposit"),
+    ("borrow", "borrow"),
+    ("repay", "repay"),
+    ("withdraw", "withdraw"),
+    ("liquidate", "liquidate"),
+];
+
+/// Solend-fork's expected `[state_mapping]` wiring. Each tuple is
+/// (`<account>.<field>` dotted path, required logical observation
+/// name). The primitive rejects any adapter whose shape diverges.
+const EXPECTED_STATE_MAPPING: &[(&str, &str)] = &[
+    ("pool.total_deposits", "tvl"),
+    ("pool.total_borrows", "debt"),
+    ("pool.bad_debt", "bad_debt"),
+    ("position.collateral", "collateral"),
+    ("position.debt", "debt"),
+    ("position.liquidated", "liquidated"),
+];
+
+/// Validate that an adapter matches the Solend-fork's hardcoded
+/// instruction/state wiring. Called from `bootstrap` when the adapter
+/// is supplied. Returns an error that identifies the first divergence.
+fn validate_adapter_for_solend_fork(adapter: &Adapter) -> Result<()> {
+    for (ix_name, expected_action) in EXPECTED_INSTRUCTIONS {
+        let mapping = adapter.instructions.get(*ix_name).ok_or_else(|| {
+            anyhow!(
+                "solend-fork primitive: adapter [instructions] missing required key `{}`",
+                ix_name
+            )
+        })?;
+        if mapping.action != *expected_action {
+            return Err(anyhow!(
+                "solend-fork primitive: adapter [instructions].{}.action must be `{}`, got `{}`",
+                ix_name,
+                expected_action,
+                mapping.action
+            ));
+        }
+    }
+    for (path, expected_obs) in EXPECTED_STATE_MAPPING {
+        let obs = adapter.state_mapping.get(*path).ok_or_else(|| {
+            anyhow!(
+                "solend-fork primitive: adapter [state_mapping] missing required key `{}`",
+                path
+            )
+        })?;
+        if obs != expected_obs {
+            return Err(anyhow!(
+                "solend-fork primitive: adapter [state_mapping].`{}` must be `{}`, got `{}`",
+                path,
+                expected_obs,
+                obs
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Solend-fork lending primitive, executed in-process on LiteSVM.
@@ -84,7 +154,7 @@ pub struct LiteSvmHarness {
 }
 
 impl LiteSvmHarness {
-    /// Submit a transaction and classify the result as a `HarnessError`.
+    /// Submit a transaction and classify the result as a `PrimitiveError`.
     ///
     /// `InstructionError` variants (the program processed the tx and
     /// rejected it) map to `ProgramRejected`. Everything else — blockhash
@@ -95,7 +165,7 @@ impl LiteSvmHarness {
         payer: &Keypair,
         ix: solana_sdk::instruction::Instruction,
         extra_signer: Option<&Keypair>,
-    ) -> Result<(), HarnessError> {
+    ) -> Result<(), PrimitiveError> {
         let blockhash = self.svm.latest_blockhash();
         let mut signers: Vec<&Keypair> = vec![payer];
         if let Some(s) = extra_signer {
@@ -117,11 +187,11 @@ impl LiteSvmHarness {
                 match e.err {
                     // The program processed the transaction and rejected it.
                     TransactionError::InstructionError(_, _) => {
-                        Err(HarnessError::ProgramRejected(msg))
+                        Err(PrimitiveError::ProgramRejected(msg))
                     }
                     // Everything else is infra: blockhash, signature
                     // verification, sanitization, account-not-found, etc.
-                    _ => Err(HarnessError::Infra(msg)),
+                    _ => Err(PrimitiveError::Infra(msg)),
                 }
             }
         }
@@ -142,6 +212,14 @@ impl LiteSvmHarness {
     /// - Pool initialized with `config.pool_config`
     /// - One position account per agent, each seeded with `config.seed_deposit`
     pub fn bootstrap(config: LiteSvmBootstrapConfig) -> Result<Self> {
+        // --- Validate the adapter contract (if present) BEFORE touching
+        // any on-chain state, so a scrambled adapter fails fast rather
+        // than producing a misleading mid-bootstrap error. ---
+        if let Some(adapter) = config.adapter.as_ref() {
+            validate_adapter_for_solend_fork(adapter)
+                .context("adapter validation failed at bootstrap")?;
+        }
+
         // --- Load and validate the program artifact ---
         let program_bytes = load_program_bytes(&config.program_so)?;
 
@@ -257,65 +335,15 @@ impl LiteSvmHarness {
 }
 
 // ---------------------------------------------------------------------------
-// LendingPrimitive impl (T03)
-// ---------------------------------------------------------------------------
+// LendingPrimitive impl (T03) — owns every method body.
 //
-// The `LendingPrimitive` trait is referenced inline here (not imported at the
-// module level) so it does NOT leak into the test module's `use super::*;`
-// glob. If both `Harness` and `LendingPrimitive` were in ambient scope at the
-// same time, method-call syntax (`h.deposit(...)`) would become ambiguous
-// across the two traits.
-
-impl crate::primitive::LendingPrimitive for LiteSvmHarness {
-    fn deposit(&mut self, agent_idx: usize, amount: u64)
-        -> Result<(), crate::primitive::PrimitiveError>
-    {
-        <Self as Harness>::deposit(self, agent_idx, amount)
-    }
-
-    fn borrow(&mut self, agent_idx: usize, amount: u64)
-        -> Result<(), crate::primitive::PrimitiveError>
-    {
-        <Self as Harness>::borrow(self, agent_idx, amount)
-    }
-
-    fn repay(&mut self, agent_idx: usize, amount: u64)
-        -> Result<(), crate::primitive::PrimitiveError>
-    {
-        <Self as Harness>::repay(self, agent_idx, amount)
-    }
-
-    fn withdraw(&mut self, agent_idx: usize, amount: u64)
-        -> Result<(), crate::primitive::PrimitiveError>
-    {
-        <Self as Harness>::withdraw(self, agent_idx, amount)
-    }
-
-    fn liquidate(
-        &mut self,
-        liquidator_idx: usize,
-        target_idx: usize,
-        repay_amount: u64,
-    ) -> Result<(), crate::primitive::PrimitiveError> {
-        <Self as Harness>::liquidate(self, liquidator_idx, target_idx, repay_amount)
-    }
-
-    fn pool_state(&self) -> Result<crate::primitive::PoolState, crate::primitive::PrimitiveError> {
-        <Self as Harness>::observe_pool(self)
-    }
-
-    fn health_factor(&self, agent_idx: usize)
-        -> Result<crate::primitive::PositionHealth, crate::primitive::PrimitiveError>
-    {
-        <Self as Harness>::observe_position(self, agent_idx)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Harness trait implementation (sim-layer tick-loop interface)
+// `sim::harness::Harness` is a re-export alias of `LendingPrimitive`, so
+// this single impl covers both trait names. There is no parallel
+// `impl Harness for LiteSvmHarness`; deleting this block or changing
+// any method body here changes the tick loop's behavior directly.
 // ---------------------------------------------------------------------------
 
-impl Harness for LiteSvmHarness {
+impl LendingPrimitive for LiteSvmHarness {
     fn agent_count(&self) -> usize {
         self.agents.len()
     }
@@ -326,7 +354,7 @@ impl Harness for LiteSvmHarness {
         self.svm.expire_blockhash();
     }
 
-    fn push_oracle_price(&mut self, update: &OracleUpdate) -> Result<(), HarnessError> {
+    fn push_oracle_price(&mut self, update: &OracleUpdate) -> Result<(), PrimitiveError> {
         let ix = self.client.set_oracle_price(
             self.admin.pubkey(),
             self.oracle,
@@ -336,39 +364,7 @@ impl Harness for LiteSvmHarness {
         self.send_harness(&self.admin.insecure_clone(), ix, None)
     }
 
-    fn observe_pool(&self) -> Result<PoolObservation, HarnessError> {
-        let acct = self
-            .svm
-            .get_account(&self.pool)
-            .ok_or_else(|| HarnessError::Infra("pool account not found".into()))?;
-        let state = LendingPoolState::try_from_slice(&acct.data)
-            .map_err(|e| HarnessError::Infra(format!("pool decode: {e}")))?;
-        Ok(PoolObservation {
-            total_deposits: state.total_deposits,
-            total_borrows: state.total_borrows,
-            bad_debt: state.bad_debt,
-        })
-    }
-
-    fn observe_position(&self, agent_idx: usize) -> Result<PositionObservation, HarnessError> {
-        let key = self
-            .positions
-            .get(agent_idx)
-            .ok_or_else(|| HarnessError::Infra(format!("position idx {agent_idx} out of range")))?;
-        let acct = self
-            .svm
-            .get_account(key)
-            .ok_or_else(|| HarnessError::Infra(format!("position {agent_idx} not found")))?;
-        let state = PositionState::try_from_slice(&acct.data)
-            .map_err(|e| HarnessError::Infra(format!("position decode: {e}")))?;
-        Ok(PositionObservation {
-            collateral: state.collateral,
-            debt: state.debt,
-            liquidated: state.liquidated,
-        })
-    }
-
-    fn deposit(&mut self, agent_idx: usize, amount: u64) -> Result<(), HarnessError> {
+    fn deposit(&mut self, agent_idx: usize, amount: u64) -> Result<(), PrimitiveError> {
         let agent = self.agents[agent_idx].insecure_clone();
         let ix = self
             .client
@@ -376,7 +372,7 @@ impl Harness for LiteSvmHarness {
         self.send_harness(&agent, ix, None)
     }
 
-    fn withdraw(&mut self, agent_idx: usize, amount: u64) -> Result<(), HarnessError> {
+    fn withdraw(&mut self, agent_idx: usize, amount: u64) -> Result<(), PrimitiveError> {
         let agent = self.agents[agent_idx].insecure_clone();
         // Always pass the oracle so the on-chain health-factor check
         // succeeds regardless of whether the position currently has debt.
@@ -390,7 +386,7 @@ impl Harness for LiteSvmHarness {
         self.send_harness(&agent, ix, None)
     }
 
-    fn borrow(&mut self, agent_idx: usize, amount: u64) -> Result<(), HarnessError> {
+    fn borrow(&mut self, agent_idx: usize, amount: u64) -> Result<(), PrimitiveError> {
         let agent = self.agents[agent_idx].insecure_clone();
         let ix = self.client.borrow(
             agent.pubkey(),
@@ -402,7 +398,7 @@ impl Harness for LiteSvmHarness {
         self.send_harness(&agent, ix, None)
     }
 
-    fn repay(&mut self, agent_idx: usize, amount: u64) -> Result<(), HarnessError> {
+    fn repay(&mut self, agent_idx: usize, amount: u64) -> Result<(), PrimitiveError> {
         let agent = self.agents[agent_idx].insecure_clone();
         let ix = self
             .client
@@ -415,7 +411,7 @@ impl Harness for LiteSvmHarness {
         liquidator_idx: usize,
         target_idx: usize,
         repay_amount: u64,
-    ) -> Result<(), HarnessError> {
+    ) -> Result<(), PrimitiveError> {
         let liquidator = self.agents[liquidator_idx].insecure_clone();
         let ix = self.client.liquidate(
             liquidator.pubkey(),
@@ -426,6 +422,38 @@ impl Harness for LiteSvmHarness {
             repay_amount,
         );
         self.send_harness(&liquidator, ix, None)
+    }
+
+    fn pool_state(&self) -> Result<PoolState, PrimitiveError> {
+        let acct = self
+            .svm
+            .get_account(&self.pool)
+            .ok_or_else(|| PrimitiveError::Infra("pool account not found".into()))?;
+        let state = LendingPoolState::try_from_slice(&acct.data)
+            .map_err(|e| PrimitiveError::Infra(format!("pool decode: {e}")))?;
+        Ok(PoolState {
+            total_deposits: state.total_deposits,
+            total_borrows: state.total_borrows,
+            bad_debt: state.bad_debt,
+        })
+    }
+
+    fn health_factor(&self, agent_idx: usize) -> Result<PositionHealth, PrimitiveError> {
+        let key = self
+            .positions
+            .get(agent_idx)
+            .ok_or_else(|| PrimitiveError::Infra(format!("position idx {agent_idx} out of range")))?;
+        let acct = self
+            .svm
+            .get_account(key)
+            .ok_or_else(|| PrimitiveError::Infra(format!("position {agent_idx} not found")))?;
+        let state = PositionState::try_from_slice(&acct.data)
+            .map_err(|e| PrimitiveError::Infra(format!("position decode: {e}")))?;
+        Ok(PositionHealth {
+            collateral: state.collateral,
+            debt: state.debt,
+            liquidated: state.liquidated,
+        })
     }
 }
 
@@ -462,6 +490,9 @@ fn send_tx(
 #[cfg(test)]
 mod tests {
     use super::*;
+    // `Harness` and `LendingPrimitive` are the same trait via re-export;
+    // either name pulls the full method surface into scope.
+    use crate::primitive::Harness;
 
     fn test_config() -> LiteSvmBootstrapConfig {
         LiteSvmBootstrapConfig {
@@ -575,21 +606,21 @@ mod tests {
     }
 
     #[test]
-    fn harness_observe_pool_returns_seeded_state() {
+    fn harness_pool_state_returns_seeded_state() {
         if skip_if_no_so() { return; }
         let harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
-        let obs = harness.observe_pool().unwrap();
+        let obs = harness.pool_state().unwrap();
         assert_eq!(obs.total_deposits, 150); // 3 agents * 50
         assert_eq!(obs.total_borrows, 0);
         assert_eq!(obs.bad_debt, 0);
     }
 
     #[test]
-    fn harness_observe_position_returns_seeded_state() {
+    fn harness_health_factor_returns_seeded_state() {
         if skip_if_no_so() { return; }
         let harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
         for idx in 0..3 {
-            let obs = harness.observe_position(idx).unwrap();
+            let obs = harness.health_factor(idx).unwrap();
             assert_eq!(obs.collateral, 50);
             assert_eq!(obs.debt, 0);
             assert!(!obs.liquidated);
@@ -597,11 +628,11 @@ mod tests {
     }
 
     #[test]
-    fn harness_observe_position_out_of_range_is_infra() {
+    fn harness_health_factor_out_of_range_is_infra() {
         if skip_if_no_so() { return; }
         let harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
-        let err = harness.observe_position(999).unwrap_err();
-        assert!(matches!(err, HarnessError::Infra(_)));
+        let err = harness.health_factor(999).unwrap_err();
+        assert!(matches!(err, PrimitiveError::Infra(_)));
     }
 
     #[test]
@@ -622,9 +653,9 @@ mod tests {
         let mut harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
         harness.deposit(0, 25).unwrap();
 
-        let pool = harness.observe_pool().unwrap();
+        let pool = harness.pool_state().unwrap();
         assert_eq!(pool.total_deposits, 175); // 150 seeded + 25 new
-        let pos = harness.observe_position(0).unwrap();
+        let pos = harness.health_factor(0).unwrap();
         assert_eq!(pos.collateral, 75); // 50 seeded + 25 new
     }
 
@@ -634,9 +665,9 @@ mod tests {
         let mut harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
         harness.withdraw(0, 20).unwrap();
 
-        let pool = harness.observe_pool().unwrap();
+        let pool = harness.pool_state().unwrap();
         assert_eq!(pool.total_deposits, 130); // 150 - 20
-        let pos = harness.observe_position(0).unwrap();
+        let pos = harness.health_factor(0).unwrap();
         assert_eq!(pos.collateral, 30); // 50 - 20
     }
 
@@ -651,15 +682,15 @@ mod tests {
         }).unwrap();
 
         harness.borrow(0, 10).unwrap();
-        let pool = harness.observe_pool().unwrap();
+        let pool = harness.pool_state().unwrap();
         assert_eq!(pool.total_borrows, 10);
-        let pos = harness.observe_position(0).unwrap();
+        let pos = harness.health_factor(0).unwrap();
         assert_eq!(pos.debt, 10);
 
         harness.repay(0, 5).unwrap();
-        let pool = harness.observe_pool().unwrap();
+        let pool = harness.pool_state().unwrap();
         assert_eq!(pool.total_borrows, 5);
-        let pos = harness.observe_position(0).unwrap();
+        let pos = harness.health_factor(0).unwrap();
         assert_eq!(pos.debt, 5);
     }
 
@@ -675,7 +706,7 @@ mod tests {
 
         let err = harness.borrow(0, 999_999).unwrap_err();
         assert!(
-            matches!(err, HarnessError::ProgramRejected(_)),
+            matches!(err, PrimitiveError::ProgramRejected(_)),
             "expected ProgramRejected, got: {err:?}"
         );
     }
@@ -695,10 +726,10 @@ mod tests {
         harness.repay(0, 10).unwrap();
         harness.withdraw(0, 500).unwrap();
 
-        let pool = harness.observe_pool().unwrap();
+        let pool = harness.pool_state().unwrap();
         assert_eq!(pool.total_deposits, 0);
         assert_eq!(pool.total_borrows, 0);
-        let pos = harness.observe_position(0).unwrap();
+        let pos = harness.health_factor(0).unwrap();
         assert_eq!(pos.collateral, 0);
         assert_eq!(pos.debt, 0);
     }
@@ -714,11 +745,11 @@ mod tests {
         }).unwrap();
 
         harness.borrow(0, 10).unwrap();
-        let pos = harness.observe_position(0).unwrap();
+        let pos = harness.health_factor(0).unwrap();
         assert_eq!(pos.debt, 10);
 
         harness.withdraw(0, 100).unwrap();
-        let pos = harness.observe_position(0).unwrap();
+        let pos = harness.health_factor(0).unwrap();
         assert_eq!(pos.collateral, 900);
         assert_eq!(pos.debt, 10);
     }
@@ -737,7 +768,7 @@ mod tests {
 
         let err = harness.withdraw(0, 99).unwrap_err();
         assert!(
-            matches!(err, HarnessError::ProgramRejected(_)),
+            matches!(err, PrimitiveError::ProgramRejected(_)),
             "expected ProgramRejected, got: {err:?}"
         );
     }
@@ -777,7 +808,7 @@ mod tests {
             harness.deposit(0, 10).unwrap();
         }
 
-        let pool = harness.observe_pool().unwrap();
+        let pool = harness.pool_state().unwrap();
         assert_eq!(pool.total_deposits, 150); // 100 seed + 5*10
         assert_eq!(harness.current_slot, 5);
     }
@@ -788,14 +819,14 @@ mod tests {
         let h1 = LiteSvmHarness::bootstrap(test_config()).unwrap();
         let h2 = LiteSvmHarness::bootstrap(test_config()).unwrap();
 
-        let p1 = h1.observe_pool().unwrap();
-        let p2 = h2.observe_pool().unwrap();
+        let p1 = h1.pool_state().unwrap();
+        let p2 = h2.pool_state().unwrap();
         assert_eq!(p1, p2);
 
         for i in 0..3 {
             assert_eq!(
-                h1.observe_position(i).unwrap(),
-                h2.observe_position(i).unwrap()
+                h1.health_factor(i).unwrap(),
+                h2.health_factor(i).unwrap()
             );
         }
     }
@@ -894,43 +925,170 @@ mod tests {
             "timeseries oracle_price diverged across same-seed runs");
     }
 
-    // --- LendingPrimitive trait tests (T03) ---
+    // --- LendingPrimitive is the dispatch path (T03) ---
     //
-    // These tests explicitly import `LendingPrimitive` to exercise it.
-    // They're in a nested module so the import doesn't shadow `Harness`
-    // on the ambient `harness.deposit(...)` calls in the rest of this
-    // file's tests.
-    mod primitive_tests {
-        use super::*;
-        use crate::primitive::LendingPrimitive;
+    // These tests prove the LendingPrimitive trait is what the tick loop
+    // actually calls, not a parallel decorative trait. `harness.deposit(...)`
+    // resolves to `LendingPrimitive::deposit` via the super-trait bound
+    // `trait Harness: LendingPrimitive`.
 
-        #[test]
-        fn lending_primitive_pool_state_matches_harness_observe_pool() {
-            if skip_if_no_so() { return; }
-            let harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
-            let via_primitive = LendingPrimitive::pool_state(&harness).unwrap();
-            let via_harness = Harness::observe_pool(&harness).unwrap();
-            assert_eq!(via_primitive, via_harness);
+    /// Passing the harness through a `&mut dyn LendingPrimitive` and
+    /// calling `deposit` must update on-chain state identically to
+    /// calling the inherent method. If they diverge, someone split the
+    /// impls and the primitive is back to being a parallel trait.
+    #[test]
+    fn lending_primitive_dyn_dispatch_updates_on_chain_state() {
+        if skip_if_no_so() { return; }
+        let mut harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
+        {
+            let dyn_prim: &mut dyn crate::primitive::LendingPrimitive = &mut harness;
+            dyn_prim.deposit(0, 25).unwrap();
         }
+        let pool = harness.pool_state().unwrap();
+        assert_eq!(pool.total_deposits, 175);
+        let pos = harness.health_factor(0).unwrap();
+        assert_eq!(pos.collateral, 75);
+    }
 
-        #[test]
-        fn lending_primitive_health_factor_matches_harness_observe_position() {
-            if skip_if_no_so() { return; }
-            let harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
-            for idx in 0..3 {
-                let via_primitive = LendingPrimitive::health_factor(&harness, idx).unwrap();
-                let via_harness = Harness::observe_position(&harness, idx).unwrap();
-                assert_eq!(via_primitive, via_harness);
-            }
+    /// Harness's super-trait bound on LendingPrimitive means the tick
+    /// loop can call lending actions through an `H: Harness` generic.
+    /// This test drives the harness through a function whose bound is
+    /// only `Harness` — if `deposit` weren't coming from
+    /// `LendingPrimitive`, this would fail to compile.
+    #[test]
+    fn tick_loop_path_dispatches_through_lending_primitive() {
+        if skip_if_no_so() { return; }
+        fn drive<H: Harness>(h: &mut H) -> Result<(), PrimitiveError> {
+            // Each of these method calls resolves through the
+            // `LendingPrimitive` trait because `Harness: LendingPrimitive`
+            // and `Harness` no longer defines these methods itself.
+            h.deposit(0, 10)?;
+            h.borrow(0, 1)?;
+            h.repay(0, 1)?;
+            h.withdraw(0, 10)?;
+            Ok(())
         }
+        let mut harness = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
+            agent_count: 1,
+            seed_deposit: 100,
+            starting_price: 100,
+            ..Default::default()
+        }).unwrap();
+        drive(&mut harness).unwrap();
+        let pool = harness.pool_state().unwrap();
+        // Net effect: deposit 10, borrow 1, repay 1, withdraw 10 → same as start
+        assert_eq!(pool.total_deposits, 100);
+        assert_eq!(pool.total_borrows, 0);
+    }
 
-        #[test]
-        fn lending_primitive_deposit_dispatches_to_harness() {
-            if skip_if_no_so() { return; }
-            let mut harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
-            LendingPrimitive::deposit(&mut harness, 0, 25).unwrap();
-            let pool = LendingPrimitive::pool_state(&harness).unwrap();
-            assert_eq!(pool.total_deposits, 175);
+    // --- T04: adapter validation is load-bearing at bootstrap ---
+
+    fn sample_lending_adapter() -> crate::adapter::Adapter {
+        use crate::adapter::InstructionMapping;
+        use std::collections::BTreeMap;
+        let mut instructions = BTreeMap::new();
+        for name in ["deposit", "borrow", "repay", "withdraw", "liquidate"] {
+            instructions.insert(
+                name.to_string(),
+                InstructionMapping {
+                    action: name.to_string(),
+                    amount: Some("amount".to_string()),
+                },
+            );
         }
+        let mut state_mapping = BTreeMap::new();
+        for (path, obs) in [
+            ("pool.total_deposits", "tvl"),
+            ("pool.total_borrows", "debt"),
+            ("pool.bad_debt", "bad_debt"),
+            ("position.collateral", "collateral"),
+            ("position.debt", "debt"),
+            ("position.liquidated", "liquidated"),
+        ] {
+            state_mapping.insert(path.to_string(), obs.to_string());
+        }
+        crate::adapter::Adapter {
+            protocol: crate::adapter::Protocol::Lending,
+            instructions,
+            state_mapping,
+            actions: BTreeMap::new(),
+            observations: BTreeMap::new(),
+            personas: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn bootstrap_accepts_canonical_adapter() {
+        if skip_if_no_so() { return; }
+        let mut config = test_config();
+        config.adapter = Some(sample_lending_adapter());
+        let harness = LiteSvmHarness::bootstrap(config).unwrap();
+        // Real post-bootstrap state — proving we actually booted.
+        let pool = harness.pool_state().unwrap();
+        assert_eq!(pool.total_deposits, 150); // 3 agents × 50 seed
+    }
+
+    #[test]
+    fn bootstrap_rejects_adapter_with_wrong_action_label() {
+        // A schema-valid adapter that wires `deposit` to `borrow`. The
+        // TOML loader accepts this (both action names are canonical
+        // lending actions), but the Solend-fork primitive rejects it
+        // because the concrete wiring is wrong.
+        let mut adapter = sample_lending_adapter();
+        adapter
+            .instructions
+            .get_mut("deposit")
+            .unwrap()
+            .action = "borrow".to_string();
+
+        let mut config = test_config();
+        config.adapter = Some(adapter);
+        let err = match LiteSvmHarness::bootstrap(config) {
+            Ok(_) => panic!("expected adapter validation to fail"),
+            Err(e) => format!("{e:#}"),
+        };
+        assert!(
+            err.contains("[instructions].deposit.action"),
+            "error should name the failing key: {err}"
+        );
+        assert!(err.contains("borrow"), "error should include actual value: {err}");
+    }
+
+    #[test]
+    fn bootstrap_rejects_adapter_missing_state_mapping_entry() {
+        let mut adapter = sample_lending_adapter();
+        adapter.state_mapping.remove("pool.total_deposits");
+
+        let mut config = test_config();
+        config.adapter = Some(adapter);
+        let err = match LiteSvmHarness::bootstrap(config) {
+            Ok(_) => panic!("expected adapter validation to fail"),
+            Err(e) => format!("{e:#}"),
+        };
+        assert!(
+            err.contains("pool.total_deposits"),
+            "error should name the missing key: {err}"
+        );
+    }
+
+    #[test]
+    fn bootstrap_rejects_adapter_with_swapped_observation_names() {
+        // A schema-valid adapter that maps `pool.total_deposits` to
+        // `debt` instead of `tvl`. Schema-wise both are in
+        // LENDING_OBSERVATIONS, but the Solend-fork primitive requires
+        // the canonical binding.
+        let mut adapter = sample_lending_adapter();
+        adapter
+            .state_mapping
+            .insert("pool.total_deposits".to_string(), "debt".to_string());
+
+        let mut config = test_config();
+        config.adapter = Some(adapter);
+        let err = match LiteSvmHarness::bootstrap(config) {
+            Ok(_) => panic!("expected adapter validation to fail"),
+            Err(e) => format!("{e:#}"),
+        };
+        assert!(err.contains("pool.total_deposits"), "got: {err}");
+        assert!(err.contains("tvl"), "got: {err}");
     }
 }

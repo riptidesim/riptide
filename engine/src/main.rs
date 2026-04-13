@@ -98,24 +98,27 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     // --- Optional adapter TOML. Selects the primitive at runtime. ---
     //
     // When `--adapter` is absent, behavior is unchanged from Sprint 2:
-    // the engine boots the Solend-fork `LendingPrimitive` on LiteSVM,
-    // same as every previous run.
+    // the engine boots the Solend-fork `LendingPrimitive` on LiteSVM.
     //
     // When `--adapter` is present, the loader validates the TOML and
-    // picks a primitive impl from the `protocol` field. For now the
-    // only supported choice is `lending`, which still routes to the
-    // Solend-fork impl — the adapter's instruction/state maps are
-    // informational in v0 (the lending primitive knows its own wiring).
-    // T05 will wire `generic` to the `GenericPrimitive` impl.
-    if let Some(adapter_path) = cli.adapter.as_ref() {
-        let adapter = load_adapter(adapter_path).map_err(|e| anyhow::anyhow!("{e}"))?;
-        match adapter.protocol {
+    // the `protocol` field picks the primitive impl. The adapter's
+    // `[instructions]` and `[state_mapping]` are load-bearing — they
+    // are threaded into `LiteSvmBootstrapConfig` and the primitive
+    // validates them against its own wiring at bootstrap time. A
+    // schema-valid but semantically-wrong adapter (e.g. `deposit`
+    // wired to action `borrow`) fails bootstrap before any on-chain
+    // state is touched.
+    let adapter = if let Some(adapter_path) = cli.adapter.as_ref() {
+        let loaded = load_adapter(adapter_path).map_err(|e| anyhow::anyhow!("{e}"))?;
+        match loaded.protocol {
             Protocol::Lending => {
                 eprintln!(
-                    "adapter: lending protocol, {} instructions, {} state mappings",
-                    adapter.instructions.len(),
-                    adapter.state_mapping.len()
+                    "adapter: {} (lending, {} instructions, {} state mappings)",
+                    adapter_path.display(),
+                    loaded.instructions.len(),
+                    loaded.state_mapping.len()
                 );
+                Some(loaded)
             }
             Protocol::Generic => {
                 anyhow::bail!(
@@ -125,7 +128,9 @@ fn run(cli: Cli) -> anyhow::Result<()> {
                 );
             }
         }
-    }
+    } else {
+        None
+    };
 
     // --- Pool risk params (tunable via env vars, same as before). ---
     let ltv_bps: u16 = std::env::var("RIPTIDE_POOL_LTV_BPS")
@@ -174,6 +179,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         price_exponent: 0,
         pool_config,
         seed_deposit: seed_amount,
+        adapter,
     };
     let mut harness = LiteSvmHarness::bootstrap(bootstrap_config)
         .map_err(|e| anyhow::anyhow!("LiteSVM bootstrap failed: {e:#}"))?;

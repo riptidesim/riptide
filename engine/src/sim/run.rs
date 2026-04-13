@@ -184,12 +184,12 @@ where
         })
         .collect();
     for idx in 0..agents.len() {
-        let obs = match harness.observe_position(idx) {
+        let obs = match harness.health_factor(idx) {
             Ok(o) => o,
             Err(HarnessError::Infra(first)) => {
                 eprintln!("warn: initial position observe failed ({first}), retrying once");
                 harness
-                    .observe_position(idx)
+                    .health_factor(idx)
                     .map_err(|e| SimulationAbort::Infra(e.to_string()))?
             }
             Err(HarnessError::ProgramRejected(msg)) => {
@@ -232,7 +232,7 @@ where
 
     // tick 0 snapshot (pre-run baseline).
     let initial_pool = harness
-        .observe_pool()
+        .pool_state()
         .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
     timeseries.push(build_snapshot(0, &initial_pool, starting_price, &agents, 0));
 
@@ -256,12 +256,12 @@ where
         })?;
 
         // Read pool state once at the top of the tick for observations.
-        let pool_obs = match harness.observe_pool() {
+        let pool_obs = match harness.pool_state() {
             Ok(p) => p,
             Err(HarnessError::Infra(first)) => {
                 eprintln!("warn: pool observe failed ({first}), retrying once");
                 harness
-                    .observe_pool()
+                    .pool_state()
                     .map_err(|e| SimulationAbort::Infra(e.to_string()))?
             }
             Err(HarnessError::ProgramRejected(msg)) => {
@@ -295,12 +295,12 @@ where
             // the happy path and the post-retry success path go through
             // `apply_position_observation` so the liquidation transition
             // can't be lost on a transient infra blip.
-            let position_obs = match harness.observe_position(idx) {
+            let position_obs = match harness.health_factor(idx) {
                 Ok(p) => p,
                 Err(HarnessError::Infra(first)) => {
                     eprintln!("warn: position observe failed ({first}), retrying");
                     harness
-                        .observe_position(idx)
+                        .health_factor(idx)
                         .map_err(|e| SimulationAbort::Infra(e.to_string()))?
                 }
                 Err(HarnessError::ProgramRejected(msg)) => {
@@ -352,7 +352,7 @@ where
                     // the status immediately so the picker can't retarget
                     // an already-liquidated borrower, which would produce
                     // an avoidable `PositionLiquidated` failure.
-                    match harness.observe_position(other_idx) {
+                    match harness.health_factor(other_idx) {
                         Ok(obs) => {
                             if apply_position_observation(&mut agents[other_idx], &obs, tick) {
                                 cumulative_liquidations += 1;
@@ -469,7 +469,7 @@ where
 
         // 4. Post-tick snapshot.
         let post_pool = harness
-            .observe_pool()
+            .pool_state()
             .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
         timeseries.push(build_snapshot(
             tick,
@@ -490,7 +490,7 @@ where
 
     // 5. Build summary + finals.
     let final_pool = harness
-        .observe_pool()
+        .pool_state()
         .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
     let final_price = timeseries
         .last()
@@ -501,7 +501,7 @@ where
     // any liquidation seizures or bad-debt write-offs that landed on the
     // closing tick. Best-effort: an infra failure here doesn't taint the run.
     for idx in 0..agents.len() {
-        if let Ok(obs) = harness.observe_position(idx) {
+        if let Ok(obs) = harness.health_factor(idx) {
             if apply_position_observation(&mut agents[idx], &obs, last_executed_tick) {
                 cumulative_liquidations += 1;
             }
