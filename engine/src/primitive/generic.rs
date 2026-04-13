@@ -675,6 +675,186 @@ impl crate::primitive::Primitive for GenericHarness {
 
         Ok(observed)
     }
+
+    fn snapshot_metrics(
+        &self,
+    ) -> Result<BTreeMap<String, serde_json::Value>, crate::primitive::PrimitiveError> {
+        // Per-tick aggregate of adapter-declared observations across all
+        // agents. For each key declared in `[observations]`, fold the
+        // per-agent values into a single representative value so the
+        // timeseries entry stays a flat JSON object (one column per key).
+        //
+        // Aggregation rules (v0):
+        // - int/uint → mean across agents, emitted as f64
+        // - bool     → count of `true` across agents, as u64
+        // - pubkey   → count of distinct pubkeys across agents, as u64
+        // - map      → mean entry count across agents, as f64
+        let mut per_agent: Vec<BTreeMap<String, ObservationValue>> =
+            Vec::with_capacity(self.agents.len());
+        for idx in 0..self.agents.len() {
+            per_agent.push(
+                <Self as crate::primitive::Primitive>::observation_values(self, idx)?,
+            );
+        }
+
+        let mut metrics = BTreeMap::new();
+        for key in self.adapter.observations.keys() {
+            let values: Vec<&ObservationValue> =
+                per_agent.iter().filter_map(|map| map.get(key)).collect();
+            if values.is_empty() {
+                continue;
+            }
+            let cell = aggregate_observation_column(&values);
+            metrics.insert(key.clone(), cell);
+        }
+        Ok(metrics)
+    }
+
+    fn summarize_metrics(
+        &self,
+        timeseries: &[crate::types::TickSnapshot],
+    ) -> Result<BTreeMap<String, serde_json::Value>, crate::primitive::PrimitiveError> {
+        // For each adapter-declared observation, walk the timeseries
+        // column and emit primitive-appropriate stats. Numeric columns
+        // produce `<key>_avg/_max/_min` (alphabetical); bool columns
+        // produce `_true_count`/`_false_count`; map columns produce
+        // `_entry_count_avg`/`_entry_count_max`; pubkey columns produce
+        // `_unique_count` (taking the max per-tick unique count as the
+        // v0 approximation — spec note in T11).
+        let mut summary = BTreeMap::new();
+        for (key, definition) in &self.adapter.observations {
+            let column: Vec<&serde_json::Value> = timeseries
+                .iter()
+                .filter_map(|entry| entry.get(key))
+                .collect();
+            if column.is_empty() {
+                continue;
+            }
+            match definition.kind() {
+                crate::adapter::ObservationType::Int
+                | crate::adapter::ObservationType::UInt => {
+                    let numeric: Vec<f64> =
+                        column.iter().filter_map(|v| v.as_f64()).collect();
+                    if numeric.is_empty() {
+                        continue;
+                    }
+                    let avg = numeric.iter().sum::<f64>() / (numeric.len() as f64);
+                    let min = numeric.iter().copied().fold(f64::INFINITY, f64::min);
+                    let max = numeric
+                        .iter()
+                        .copied()
+                        .fold(f64::NEG_INFINITY, f64::max);
+                    summary.insert(format!("{key}_avg"), json_f64_gen(avg));
+                    summary.insert(format!("{key}_max"), json_f64_gen(max));
+                    summary.insert(format!("{key}_min"), json_f64_gen(min));
+                }
+                crate::adapter::ObservationType::Bool => {
+                    let true_count: u64 =
+                        column.iter().filter_map(|v| v.as_u64()).sum();
+                    // Each tick's column value is the number of agents
+                    // with `true`. `false_count` = agents*ticks - trues.
+                    let total_cells = (self.agents.len() as u64)
+                        .saturating_mul(column.len() as u64);
+                    let false_count = total_cells.saturating_sub(true_count);
+                    summary
+                        .insert(format!("{key}_true_count"), serde_json::json!(true_count));
+                    summary
+                        .insert(format!("{key}_false_count"), serde_json::json!(false_count));
+                }
+                crate::adapter::ObservationType::Pubkey => {
+                    let max_unique: u64 = column
+                        .iter()
+                        .filter_map(|v| v.as_u64())
+                        .max()
+                        .unwrap_or(0);
+                    summary.insert(
+                        format!("{key}_unique_count"),
+                        serde_json::json!(max_unique),
+                    );
+                }
+                crate::adapter::ObservationType::Map => {
+                    let numeric: Vec<f64> =
+                        column.iter().filter_map(|v| v.as_f64()).collect();
+                    if numeric.is_empty() {
+                        continue;
+                    }
+                    let avg = numeric.iter().sum::<f64>() / (numeric.len() as f64);
+                    let max = numeric
+                        .iter()
+                        .copied()
+                        .fold(f64::NEG_INFINITY, f64::max);
+                    summary.insert(
+                        format!("{key}_entry_count_avg"),
+                        json_f64_gen(avg),
+                    );
+                    summary.insert(
+                        format!("{key}_entry_count_max"),
+                        json_f64_gen(max),
+                    );
+                }
+            }
+        }
+        Ok(summary)
+    }
+}
+
+/// Fold a column of per-agent observation values into a single JSON
+/// cell for the per-tick timeseries entry. Type dispatch mirrors the
+/// v0 aggregation rules spelled out in `snapshot_metrics` above.
+#[cfg(any(feature = "litesvm-backend", test))]
+fn aggregate_observation_column(values: &[&ObservationValue]) -> serde_json::Value {
+    // Peek the first entry to pick the aggregation strategy; adapter
+    // validation guarantees the column is homogeneous per tick.
+    match values.first() {
+        None => serde_json::Value::Null,
+        Some(ObservationValue::Int(_)) | Some(ObservationValue::UInt(_)) => {
+            let numeric: Vec<f64> = values
+                .iter()
+                .map(|value| match value {
+                    ObservationValue::Int(number) => *number as f64,
+                    ObservationValue::UInt(number) => *number as f64,
+                    _ => 0.0,
+                })
+                .collect();
+            let mean = numeric.iter().sum::<f64>() / (numeric.len() as f64);
+            json_f64_gen(mean)
+        }
+        Some(ObservationValue::Bool(_)) => {
+            let trues: u64 = values
+                .iter()
+                .filter(|value| matches!(value, ObservationValue::Bool(true)))
+                .count() as u64;
+            serde_json::json!(trues)
+        }
+        Some(ObservationValue::Pubkey(_)) => {
+            let distinct: std::collections::BTreeSet<&String> = values
+                .iter()
+                .filter_map(|value| match value {
+                    ObservationValue::Pubkey(key) => Some(key),
+                    _ => None,
+                })
+                .collect();
+            serde_json::json!(distinct.len() as u64)
+        }
+        Some(ObservationValue::Map(_)) => {
+            let sizes: Vec<f64> = values
+                .iter()
+                .map(|value| match value {
+                    ObservationValue::Map(map) => map.len() as f64,
+                    _ => 0.0,
+                })
+                .collect();
+            let mean = sizes.iter().sum::<f64>() / (sizes.len() as f64);
+            json_f64_gen(mean)
+        }
+    }
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn json_f64_gen(value: f64) -> serde_json::Value {
+    serde_json::Number::from_f64(value)
+        .map(serde_json::Value::Number)
+        .unwrap_or(serde_json::Value::Null)
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]

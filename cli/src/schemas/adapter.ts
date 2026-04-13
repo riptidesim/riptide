@@ -84,6 +84,110 @@ export interface AdapterValidationError {
   reason: string;
 }
 
+// Phase 6 review fix (2026-04-13): adapter-supplied identifiers flow
+// into `snapshot_metrics`/`summarize_metrics` output and are rendered
+// raw in the CLI summary's fallback metrics table. Without a character
+// allow-list a malicious adapter could smuggle ANSI escape sequences
+// through an observation key like `"line\u001bbreak"`. The allow-list
+// matches the engine-side `is_safe_adapter_identifier` in
+// `engine/src/adapter/loader.rs` so adapter validation is consistent
+// on both ends.
+const ADAPTER_IDENT_RE = /^[A-Za-z0-9_.-]+$/;
+const ADAPTER_IDENT_MAX_LEN = 128;
+const ADAPTER_LABEL_MAX_LEN = 256;
+
+function isSafeAdapterIdentifier(value: string): boolean {
+  return (
+    value.length > 0 &&
+    value.length <= ADAPTER_IDENT_MAX_LEN &&
+    ADAPTER_IDENT_RE.test(value)
+  );
+}
+
+function isSafeAdapterLabel(value: string): boolean {
+  if (value.length === 0 || value.length > ADAPTER_LABEL_MAX_LEN) return false;
+  for (const char of value) {
+    const code = char.codePointAt(0)!;
+    if (code < 0x20) return false;
+    if (code === 0x7f) return false;
+    if (code >= 0x80 && code < 0xa0) return false;
+  }
+  return true;
+}
+
+function rejectIdentifier(path: string, key: string, value: string): never {
+  throw new Error(
+    `${path}: \`${key}\`: adapter identifier \`${JSON.stringify(value)}\` must match \`[A-Za-z0-9_.-]+\` (1..=${ADAPTER_IDENT_MAX_LEN} chars); control characters and whitespace are rejected so adapter-supplied names cannot inject ANSI escape sequences into operator-visible CLI output`
+  );
+}
+
+function rejectLabel(path: string, key: string, value: string): never {
+  throw new Error(
+    `${path}: \`${key}\`: adapter label must be non-empty and free of control characters (got ${JSON.stringify(value)}) so adapter-supplied text cannot inject ANSI escape sequences into operator-visible CLI output`
+  );
+}
+
+function checkIdentifier(path: string, key: string, value: string): void {
+  if (!isSafeAdapterIdentifier(value)) rejectIdentifier(path, key, value);
+}
+
+function checkLabel(path: string, key: string, value: string): void {
+  if (!isSafeAdapterLabel(value)) rejectLabel(path, key, value);
+}
+
+function validateAdapterIdentifiers(adapter: Adapter, path: string): void {
+  for (const accountName of Object.keys(adapter.accounts)) {
+    checkIdentifier(path, `[accounts].${accountName}`, accountName);
+  }
+  for (const [ixName, mapping] of Object.entries(adapter.instructions)) {
+    checkIdentifier(path, `[instructions].${ixName}`, ixName);
+    checkIdentifier(path, `[instructions].${ixName}.action`, mapping.action);
+    if (mapping.amount !== undefined) {
+      checkIdentifier(path, `[instructions].${ixName}.amount`, mapping.amount);
+    }
+  }
+  for (const [key, logical] of Object.entries(adapter.state_mapping)) {
+    const scope = `[state_mapping].${key}`;
+    for (const segment of key.split(".")) {
+      checkIdentifier(path, scope, segment);
+    }
+    for (const segment of logical.split(".")) {
+      checkIdentifier(path, `${scope} (value)`, segment);
+    }
+  }
+  for (const [actionName, action] of Object.entries(adapter.actions)) {
+    checkIdentifier(path, `[actions].${actionName}`, actionName);
+    if (action.label !== undefined) {
+      checkLabel(path, `[actions].${actionName}.label`, action.label);
+    }
+    for (const arg of action.takes) {
+      checkIdentifier(path, `[actions].${actionName}.takes`, arg);
+    }
+  }
+  for (const [obsName, definition] of Object.entries(adapter.observations)) {
+    const scope = `[observations].${obsName}`;
+    for (const segment of obsName.split(".")) {
+      checkIdentifier(path, scope, segment);
+    }
+    if (typeof definition === "object" && definition.label !== undefined) {
+      checkLabel(path, `${scope}.label`, definition.label);
+    }
+  }
+  for (const [personaName, persona] of Object.entries(adapter.personas)) {
+    checkIdentifier(path, `[personas].${personaName}`, personaName);
+    if (persona.label !== undefined) {
+      checkLabel(path, `[personas].${personaName}.label`, persona.label);
+    }
+    for (const actionName of Object.keys(persona.action_weights)) {
+      checkIdentifier(
+        path,
+        `[personas].${personaName}.action_weights`,
+        actionName
+      );
+    }
+  }
+}
+
 export function validateAdapter(raw: unknown, path: string): Adapter {
   const parsed = AdapterSchema.safeParse(raw);
   if (!parsed.success) {
@@ -92,6 +196,8 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
     throw new Error(`${path}: \`${key || "(root)"}\`: ${first.message}`);
   }
   const adapter = parsed.data;
+
+  validateAdapterIdentifiers(adapter, path);
 
   if (adapter.protocol === "lending") {
     validateLending(adapter, path);

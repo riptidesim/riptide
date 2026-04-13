@@ -151,6 +151,11 @@ pub struct LiteSvmHarness {
     pub positions: Vec<Pubkey>,
     /// Monotonically increasing slot used for synthetic chain progression.
     current_slot: u64,
+    /// Last oracle price observed by `push_oracle_price`, cached so
+    /// `snapshot_metrics` can emit an `oracle_price` column without
+    /// re-reading the oracle account every tick. Initialized to the
+    /// bootstrap starting price.
+    last_oracle_price: f64,
 }
 
 impl LiteSvmHarness {
@@ -320,6 +325,14 @@ impl LiteSvmHarness {
             }
         }
 
+        let starting_oracle_price = if config.price_exponent < 0 {
+            (config.starting_price as f64)
+                / 10f64.powi(i32::from(-config.price_exponent))
+        } else {
+            (config.starting_price as f64)
+                * 10f64.powi(i32::from(config.price_exponent))
+        };
+
         Ok(Self {
             svm,
             client,
@@ -330,6 +343,7 @@ impl LiteSvmHarness {
             agents,
             positions: position_pubkeys,
             current_slot: 0,
+            last_oracle_price: starting_oracle_price,
         })
     }
 }
@@ -361,7 +375,53 @@ impl crate::primitive::Primitive for LiteSvmHarness {
             update.as_u64(),
             update.exponent,
         );
-        self.send_harness(&self.admin.insecure_clone(), ix, None)
+        self.send_harness(&self.admin.insecure_clone(), ix, None)?;
+        self.last_oracle_price = update.price;
+        Ok(())
+    }
+
+    fn snapshot_metrics(
+        &self,
+    ) -> Result<std::collections::BTreeMap<String, serde_json::Value>, PrimitiveError> {
+        use crate::primitive::LendingPrimitive;
+        let pool = <Self as LendingPrimitive>::pool_state(self)?;
+        let mut metrics = std::collections::BTreeMap::new();
+        metrics.insert("tvl".into(), json_f64(pool.total_deposits as f64));
+        metrics.insert("utilization".into(), json_f64(pool.utilization()));
+        metrics.insert("oracle_price".into(), json_f64(self.last_oracle_price));
+        metrics.insert("cumulative_bad_debt".into(), json_f64(pool.bad_debt as f64));
+        Ok(metrics)
+    }
+
+    fn summarize_metrics(
+        &self,
+        timeseries: &[crate::types::TickSnapshot],
+    ) -> Result<std::collections::BTreeMap<String, serde_json::Value>, PrimitiveError> {
+        use crate::primitive::LendingPrimitive;
+        let pool = <Self as LendingPrimitive>::pool_state(self)?;
+
+        // Largest single-tick oracle drawdown across the timeseries.
+        let mut largest_drawdown: f64 = 0.0;
+        for pair in timeseries.windows(2) {
+            let prev = pair[0].get("oracle_price").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let next = pair[1].get("oracle_price").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            if prev > 0.0 {
+                let drop = ((prev - next) / prev).max(0.0);
+                if drop > largest_drawdown {
+                    largest_drawdown = drop;
+                }
+            }
+        }
+
+        let mut summary = std::collections::BTreeMap::new();
+        summary.insert("final_tvl".into(), json_f64(pool.total_deposits as f64));
+        summary.insert("final_utilization".into(), json_f64(pool.utilization()));
+        summary.insert("total_bad_debt".into(), json_f64(pool.bad_debt as f64));
+        summary.insert(
+            "largest_single_tick_drawdown".into(),
+            json_f64(largest_drawdown),
+        );
+        Ok(summary)
     }
 
     fn execute_action(
@@ -472,6 +532,16 @@ impl LendingPrimitive for LiteSvmHarness {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/// Encode an `f64` as `serde_json::Value::Number`, falling back to
+/// `Null` if the value is NaN/Inf (neither can round-trip through
+/// `serde_json::Number::from_f64`). Shared by the lending rollup so
+/// the determinism gate doesn't see a panic across NaN edge cases.
+fn json_f64(value: f64) -> serde_json::Value {
+    serde_json::Number::from_f64(value)
+        .map(serde_json::Value::Number)
+        .unwrap_or(serde_json::Value::Null)
+}
 
 /// Airdrop lamports to an address in LiteSVM.
 fn airdrop(svm: &mut LiteSVM, address: &Pubkey, lamports: u64) -> Result<()> {
@@ -930,14 +1000,20 @@ mod tests {
         assert_eq!(event_keys(&r1.events), event_keys(&r2.events),
             "event sequences diverged across same-seed runs");
 
-        let tvls = |r: &crate::types::SimulationResult| -> Vec<f64> {
-            r.timeseries.iter().map(|s| s.tvl).collect()
+        let tvls = |r: &crate::types::SimulationResult| -> Vec<Option<f64>> {
+            r.timeseries
+                .iter()
+                .map(|s| s.get("tvl").and_then(|v| v.as_f64()))
+                .collect()
         };
         assert_eq!(tvls(&r1), tvls(&r2),
             "timeseries TVL diverged across same-seed runs");
 
-        let prices = |r: &crate::types::SimulationResult| -> Vec<f64> {
-            r.timeseries.iter().map(|s| s.oracle_price).collect()
+        let prices = |r: &crate::types::SimulationResult| -> Vec<Option<f64>> {
+            r.timeseries
+                .iter()
+                .map(|s| s.get("oracle_price").and_then(|v| v.as_f64()))
+                .collect()
         };
         assert_eq!(prices(&r1), prices(&r2),
             "timeseries oracle_price diverged across same-seed runs");

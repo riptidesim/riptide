@@ -47,7 +47,12 @@
 
 use std::collections::BTreeMap;
 
-use crate::{scenario::OracleUpdate, types::ObservationValue};
+use serde_json::Value;
+
+use crate::{
+    scenario::OracleUpdate,
+    types::{ObservationValue, TickSnapshot},
+};
 
 /// Pool-wide observation. Units follow whatever the on-chain program
 /// uses — stable base units for deposits/borrows/bad_debt in the
@@ -172,6 +177,31 @@ pub trait Primitive {
         &self,
         _agent_idx: usize,
     ) -> Result<BTreeMap<String, ObservationValue>, PrimitiveError> {
+        Ok(BTreeMap::new())
+    }
+
+    /// Per-tick metric snapshot in this primitive's own schema.
+    ///
+    /// Sprint 3 · T11: every primitive contributes its own per-tick
+    /// metric keys to the rollup. The tick loop overlays engine-side
+    /// counters (tick, active_agents, cumulative_liquidations) on top.
+    /// Default: empty map — backends that have nothing to report stay
+    /// silent instead of faking zero-valued lending keys.
+    fn snapshot_metrics(&self) -> Result<BTreeMap<String, Value>, PrimitiveError> {
+        Ok(BTreeMap::new())
+    }
+
+    /// End-of-run summary in this primitive's own schema.
+    ///
+    /// The tick loop passes the already-built `timeseries` so
+    /// derived-cross-tick stats (largest drawdown, observation
+    /// avg/min/max) can be computed without re-reading state. The
+    /// tick loop overlays engine-side lifecycle counters
+    /// (agents_active/liquidated/depleted, total_liquidations) on top.
+    fn summarize_metrics(
+        &self,
+        _timeseries: &[TickSnapshot],
+    ) -> Result<BTreeMap<String, Value>, PrimitiveError> {
         Ok(BTreeMap::new())
     }
 }

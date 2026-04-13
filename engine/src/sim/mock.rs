@@ -149,6 +149,72 @@ impl Primitive for MockHarness {
     ) -> Result<(), PrimitiveError> {
         dispatch_lending_action(self, agent_idx, action, amount, target_idx)
     }
+
+    fn snapshot_metrics(
+        &self,
+    ) -> Result<std::collections::BTreeMap<String, serde_json::Value>, PrimitiveError> {
+        use crate::primitive::LendingPrimitive;
+        let pool = <Self as LendingPrimitive>::pool_state(self)?;
+        let oracle_price = self.current_price_f64();
+        let mut metrics = std::collections::BTreeMap::new();
+        let number = |value: f64| -> serde_json::Value {
+            serde_json::Number::from_f64(value)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null)
+        };
+        metrics.insert("tvl".into(), number(pool.total_deposits as f64));
+        metrics.insert("utilization".into(), number(pool.utilization()));
+        metrics.insert("oracle_price".into(), number(oracle_price));
+        metrics.insert("cumulative_bad_debt".into(), number(pool.bad_debt as f64));
+        Ok(metrics)
+    }
+
+    fn summarize_metrics(
+        &self,
+        timeseries: &[crate::types::TickSnapshot],
+    ) -> Result<std::collections::BTreeMap<String, serde_json::Value>, PrimitiveError> {
+        use crate::primitive::LendingPrimitive;
+        let pool = <Self as LendingPrimitive>::pool_state(self)?;
+        let mut largest: f64 = 0.0;
+        for pair in timeseries.windows(2) {
+            let prev = pair[0]
+                .get("oracle_price")
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0);
+            let next = pair[1]
+                .get("oracle_price")
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0);
+            if prev > 0.0 {
+                let drop = ((prev - next) / prev).max(0.0);
+                if drop > largest {
+                    largest = drop;
+                }
+            }
+        }
+        let number = |value: f64| -> serde_json::Value {
+            serde_json::Number::from_f64(value)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null)
+        };
+        let mut summary = std::collections::BTreeMap::new();
+        summary.insert("final_tvl".into(), number(pool.total_deposits as f64));
+        summary.insert("final_utilization".into(), number(pool.utilization()));
+        summary.insert("total_bad_debt".into(), number(pool.bad_debt as f64));
+        summary.insert("largest_single_tick_drawdown".into(), number(largest));
+        Ok(summary)
+    }
+}
+
+impl MockHarness {
+    fn current_price_f64(&self) -> f64 {
+        let exp = self.price_exponent;
+        if exp < 0 {
+            (self.price_u64 as f64) / 10f64.powi(i32::from(-exp))
+        } else {
+            (self.price_u64 as f64) * 10f64.powi(i32::from(exp))
+        }
+    }
 }
 
 impl LendingPrimitive for MockHarness {

@@ -253,3 +253,84 @@ test("AdapterSchema LENDING_OBSERVATIONS is identical to the Rust canonical list
     "tvl",
   ]);
 });
+
+// Phase 6 review fix (2026-04-13): mirror the engine-side adapter
+// identifier allow-list. A malicious adapter TOML that smuggles a
+// control character through an observation/action/persona name must
+// be rejected at adapter-load time on both ends, not just at render
+// time.
+
+function minimalGenericAdapter(overrides: {
+  observationKey?: string;
+  actionKey?: string;
+  personaLabel?: string;
+  stateMappingValue?: string;
+} = {}): unknown {
+  const observationKey = overrides.observationKey ?? "player.gold";
+  const actionKey = overrides.actionKey ?? "mine";
+  return {
+    protocol: "generic",
+    program_so: "out/demo.so",
+    idl_path: "out/demo.json",
+    accounts: {
+      player: { kind: "agent", space: 32 },
+    },
+    instructions: {
+      [actionKey]: { action: actionKey, amount: "amount" },
+    },
+    state_mapping: {
+      "player.gold": overrides.stateMappingValue ?? "player.gold",
+    },
+    actions: {
+      [actionKey]: { takes: ["amount"] },
+    },
+    observations: {
+      [observationKey]: "uint",
+    },
+    personas: {
+      grinder: {
+        label: overrides.personaLabel,
+        action_weights: { [actionKey]: 1.0 },
+        triggers: [],
+      },
+    },
+  };
+}
+
+test("validateAdapter rejects observation key with ANSI escape", () => {
+  const raw = minimalGenericAdapter({ observationKey: "line\u001bbreak" });
+  assert.throws(
+    () => validateAdapter(raw, "evil.toml"),
+    /adapter identifier.*ANSI/i
+  );
+});
+
+test("validateAdapter rejects action name with embedded newline", () => {
+  const raw = minimalGenericAdapter({ actionKey: "mine\nforged" });
+  assert.throws(
+    () => validateAdapter(raw, "evil.toml"),
+    /adapter identifier/i
+  );
+});
+
+test("validateAdapter rejects persona label containing a control character", () => {
+  const raw = minimalGenericAdapter({ personaLabel: "Grinder\u001b[31m" });
+  assert.throws(
+    () => validateAdapter(raw, "evil.toml"),
+    /adapter label.*control characters/i
+  );
+});
+
+test("validateAdapter rejects state_mapping value with bell control byte", () => {
+  const raw = minimalGenericAdapter({ stateMappingValue: "player.\u0007bell" });
+  assert.throws(
+    () => validateAdapter(raw, "evil.toml"),
+    /adapter identifier/i
+  );
+});
+
+test("validateAdapter accepts the safe minimal adapter", () => {
+  const raw = minimalGenericAdapter();
+  const adapter = validateAdapter(raw, "safe.toml");
+  assert.equal(adapter.protocol, "generic");
+});

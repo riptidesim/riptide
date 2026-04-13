@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use rand::{rngs::StdRng, SeedableRng};
 use serde_json::Value;
 
-use super::harness::{Harness, HarnessError, PoolObservation, PositionObservation};
+use super::harness::{Harness, HarnessError, PositionObservation};
 use crate::{
     agent::{
         policy::RuntimeAction,
@@ -236,10 +236,15 @@ where
     let mut last_executed_tick: u32 = 0;
 
     // tick 0 snapshot (pre-run baseline).
-    let initial_pool = harness
-        .pool_state()
-        .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
-    timeseries.push(build_snapshot(0, &initial_pool, starting_price, &agents, 0));
+    {
+        let mut baseline = build_snapshot(harness, 0, &agents)
+            .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+        baseline.insert(
+            "cumulative_liquidations".into(),
+            Value::from(cumulative_liquidations),
+        );
+        timeseries.push(baseline);
+    }
 
     for tick in 1..=run_config.ticks {
         eprintln!("TICK {tick}/{}", run_config.ticks);
@@ -492,16 +497,15 @@ where
         }
 
         // 4. Post-tick snapshot.
-        let post_pool = harness
-            .pool_state()
-            .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
-        timeseries.push(build_snapshot(
-            tick,
-            &post_pool,
-            oracle_price,
-            &agents,
-            cumulative_liquidations,
-        ));
+        {
+            let mut snap = build_snapshot(harness, tick, &agents)
+                .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+            snap.insert(
+                "cumulative_liquidations".into(),
+                Value::from(cumulative_liquidations),
+            );
+            timeseries.push(snap);
+        }
 
         last_executed_tick = tick;
 
@@ -513,12 +517,10 @@ where
     }
 
     // 5. Build summary + finals.
-    let final_pool = harness
-        .pool_state()
-        .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
     let final_price = timeseries
         .last()
-        .map(|s| s.oracle_price)
+        .and_then(|s| s.get("oracle_price"))
+        .and_then(|v| v.as_f64())
         .unwrap_or(starting_price);
 
     // Refresh each agent's position one last time so the final pnl reflects
@@ -533,41 +535,16 @@ where
     }
 
     let agent_finals: Vec<_> = agents.iter().map(|a| a.final_state(final_price)).collect();
-    let agents_active = agent_finals
-        .iter()
-        .filter(|a| matches!(a.status, AgentStatus::Active))
-        .count() as u32;
-    let agents_liquidated = agent_finals
-        .iter()
-        .filter(|a| matches!(a.status, AgentStatus::Liquidated))
-        .count() as u32;
-    let agents_depleted = agent_finals
-        .iter()
-        .filter(|a| matches!(a.status, AgentStatus::Depleted))
-        .count() as u32;
 
-    // Largest single-tick oracle drawdown across the timeseries.
-    let largest_single_tick_drawdown = timeseries
-        .windows(2)
-        .map(|w| {
-            if w[0].oracle_price <= 0.0 {
-                0.0
-            } else {
-                ((w[0].oracle_price - w[1].oracle_price) / w[0].oracle_price).max(0.0)
-            }
-        })
-        .fold(0.0_f64, f64::max);
-
-    let summary = SimulationSummary {
-        final_tvl: final_pool.total_deposits as f64,
-        final_utilization: final_pool.utilization(),
-        total_liquidations: cumulative_liquidations,
-        total_bad_debt: final_pool.bad_debt as f64,
-        agents_active,
-        agents_liquidated,
-        agents_depleted,
-        largest_single_tick_drawdown,
-    };
+    let mut summary = build_summary(harness, &timeseries, &agent_finals)
+        .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+    // Lending-only counter: the generic tick loop omits this key so
+    // generic runs never emit a zero-valued `total_liquidations` that a
+    // reader could misread as a lending metric.
+    summary.insert(
+        "total_liquidations".into(),
+        Value::from(cumulative_liquidations),
+    );
 
     Ok(SimulationResult {
         run_config: run_config.clone(),
@@ -581,23 +558,51 @@ where
     })
 }
 
-fn build_snapshot(
+/// Build a per-tick `TickSnapshot` from the primitive's own metrics
+/// and the engine-side counters the tick loop tracks above the
+/// primitive layer (tick index, active agent count, cumulative
+/// liquidation count).
+///
+/// Sprint 3 · T11: both tick loops funnel through this helper so the
+/// snapshot shape is consistent across lending and generic paths.
+fn build_snapshot<H: crate::primitive::Primitive + ?Sized>(
+    harness: &H,
     tick: u32,
-    pool: &PoolObservation,
-    oracle_price: f64,
     agents: &[Agent],
-    cumulative_liquidations: u32,
-) -> TickSnapshot {
+) -> Result<TickSnapshot, HarnessError> {
     let active = agents.iter().filter(|a| a.is_active()).count() as u32;
-    TickSnapshot {
-        tick,
-        tvl: pool.total_deposits as f64,
-        utilization: pool.utilization(),
-        oracle_price,
-        active_agents: active,
-        cumulative_liquidations,
-        cumulative_bad_debt: pool.bad_debt as f64,
-    }
+    let mut snapshot = harness.snapshot_metrics()?;
+    snapshot.insert("tick".into(), Value::from(tick));
+    snapshot.insert("active_agents".into(), Value::from(active));
+    Ok(snapshot)
+}
+
+/// Build an end-of-run `SimulationSummary` from the primitive's
+/// `summarize_metrics` and the engine-side lifecycle counters the tick
+/// loop owns (agents_active / agents_liquidated / agents_depleted /
+/// total_liquidations).
+fn build_summary<H: crate::primitive::Primitive + ?Sized>(
+    harness: &H,
+    timeseries: &[TickSnapshot],
+    agent_finals: &[crate::types::AgentFinalState],
+) -> Result<SimulationSummary, HarnessError> {
+    let mut summary = harness.summarize_metrics(timeseries)?;
+    let agents_active = agent_finals
+        .iter()
+        .filter(|a| matches!(a.status, AgentStatus::Active))
+        .count() as u32;
+    let agents_liquidated = agent_finals
+        .iter()
+        .filter(|a| matches!(a.status, AgentStatus::Liquidated))
+        .count() as u32;
+    let agents_depleted = agent_finals
+        .iter()
+        .filter(|a| matches!(a.status, AgentStatus::Depleted))
+        .count() as u32;
+    summary.insert("agents_active".into(), Value::from(agents_active));
+    summary.insert("agents_liquidated".into(), Value::from(agents_liquidated));
+    summary.insert("agents_depleted".into(), Value::from(agents_depleted));
+    Ok(summary)
 }
 
 /// Pick the other active agent that is most underwater given the current
@@ -719,17 +724,13 @@ where
     let mut timeseries: Vec<TickSnapshot> = Vec::new();
     let mut last_executed_tick: u32 = 0;
 
-    // tick 0 baseline. No pool state on the generic path — all
-    // lending-shaped fields zero.
-    timeseries.push(TickSnapshot {
-        tick: 0,
-        tvl: 0.0,
-        utilization: 0.0,
-        oracle_price: starting_price,
-        active_agents: agents.iter().filter(|a| a.is_active()).count() as u32,
-        cumulative_liquidations: 0,
-        cumulative_bad_debt: 0.0,
-    });
+    // tick 0 baseline. Adapter-declared metrics only; the generic
+    // path no longer synthesizes zero-valued lending columns.
+    timeseries.push(
+        build_snapshot(harness, 0, &agents)
+            .map_err(|e| SimulationAbort::Infra(e.to_string()))?,
+    );
+    let _ = starting_price;
 
     for tick in 1..=run_config.ticks {
         eprintln!("TICK {tick}/{}", run_config.ticks);
@@ -813,42 +814,24 @@ where
             });
         }
 
-        timeseries.push(TickSnapshot {
-            tick,
-            tvl: 0.0,
-            utilization: 0.0,
-            oracle_price,
-            active_agents: agents.iter().filter(|a| a.is_active()).count() as u32,
-            cumulative_liquidations: 0,
-            cumulative_bad_debt: 0.0,
-        });
+        timeseries.push(
+            build_snapshot(harness, tick, &agents)
+                .map_err(|e| SimulationAbort::Infra(e.to_string()))?,
+        );
+        let _ = oracle_price;
 
         last_executed_tick = tick;
     }
 
     let _ = last_executed_tick;
 
-    let final_price = timeseries
-        .last()
-        .map(|s| s.oracle_price)
-        .unwrap_or(starting_price);
-
-    let agent_finals: Vec<_> = agents.iter().map(|a| a.final_state(final_price)).collect();
-    let agents_active = agent_finals
+    let agent_finals: Vec<_> = agents
         .iter()
-        .filter(|a| matches!(a.status, AgentStatus::Active))
-        .count() as u32;
+        .map(|a| a.final_state(starting_price))
+        .collect();
 
-    let summary = SimulationSummary {
-        final_tvl: 0.0,
-        final_utilization: 0.0,
-        total_liquidations: 0,
-        total_bad_debt: 0.0,
-        agents_active,
-        agents_liquidated: 0,
-        agents_depleted: 0,
-        largest_single_tick_drawdown: 0.0,
-    };
+    let summary = build_summary(harness, &timeseries, &agent_finals)
+        .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
 
     Ok(SimulationResult {
         run_config: run_config.clone(),
@@ -1189,17 +1172,13 @@ mod tests {
         };
 
         assert_eq!(as_keys(&result_a.events), as_keys(&result_b.events));
-        assert_eq!(
-            result_a
+        let tvls = |result: &SimulationResult| -> Vec<Option<f64>> {
+            result
                 .timeseries
                 .iter()
-                .map(|s| s.tvl)
-                .collect::<Vec<_>>(),
-            result_b
-                .timeseries
-                .iter()
-                .map(|s| s.tvl)
-                .collect::<Vec<_>>()
-        );
+                .map(|entry| entry.get("tvl").and_then(|value| value.as_f64()))
+                .collect()
+        };
+        assert_eq!(tvls(&result_a), tvls(&result_b));
     }
 }

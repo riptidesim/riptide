@@ -148,6 +148,26 @@ fn run_generic_fixture(seed: u64) -> SimulationResult {
     run_generic_simulation(&mut harness, &mut scenario, params).unwrap()
 }
 
+/// Keys the lending rollup emits. `t15` uses this set twice: to assert
+/// the lending fixture still populates them, and to assert the generic
+/// fixture does NOT (i.e. the generic rollup is not secretly pulling
+/// lending-shaped defaults).
+const LENDING_SUMMARY_KEYS: &[&str] = &[
+    "final_tvl",
+    "final_utilization",
+    "total_liquidations",
+    "total_bad_debt",
+    "largest_single_tick_drawdown",
+];
+
+const LENDING_TICK_KEYS: &[&str] = &[
+    "tvl",
+    "utilization",
+    "oracle_price",
+    "cumulative_liquidations",
+    "cumulative_bad_debt",
+];
+
 #[test]
 fn lending_fixture_is_byte_stable_same_seed() {
     let program_so = default_program_so_path();
@@ -162,6 +182,25 @@ fn lending_fixture_is_byte_stable_same_seed() {
         canonical_bytes(&second),
         "lending fixture output diverged across same-seed runs"
     );
+
+    // T11 contract: the lending path still populates every historical
+    // summary + timeseries key. Zero regression vs the pre-T11 shape.
+    for key in LENDING_SUMMARY_KEYS {
+        assert!(
+            first.summary.contains_key(*key),
+            "lending summary missing historical key `{key}`: {:?}",
+            first.summary
+        );
+    }
+    for entry in &first.timeseries {
+        for key in LENDING_TICK_KEYS {
+            assert!(
+                entry.contains_key(*key),
+                "lending timeseries entry missing historical key `{key}` at tick {:?}",
+                entry.get("tick")
+            );
+        }
+    }
 }
 
 #[test]
@@ -186,5 +225,48 @@ fn generic_fixture_is_byte_stable_same_seed() {
     assert!(
         first.events.iter().any(|event| event.triggered_by.is_some()),
         "generic fixture should surface at least one persona trigger in the event log"
+    );
+
+    // T11 contract: the generic rollup is driven by the adapter's
+    // `[observations]` block. The summary must contain at least one
+    // adapter-derived key and must not carry any lending-shaped keys.
+    assert!(
+        !first.summary.is_empty(),
+        "generic summary must be non-empty after T11: {:?}",
+        first.summary
+    );
+    for key in LENDING_SUMMARY_KEYS {
+        assert!(
+            !first.summary.contains_key(*key),
+            "generic summary must not carry lending-shaped key `{key}`: {:?}",
+            first.summary
+        );
+    }
+    // Every timeseries entry must be non-trivial (primitive-specific
+    // metrics are present alongside the engine-side counters) and
+    // must not contain the lending-specific `tvl`/`utilization`/
+    // `oracle_price` / `cumulative_*` columns.
+    for entry in &first.timeseries {
+        for key in LENDING_TICK_KEYS {
+            assert!(
+                !entry.contains_key(*key),
+                "generic timeseries entry must not carry lending-shaped key `{key}`: {entry:?}"
+            );
+        }
+    }
+    // At least one adapter-declared observation key must appear in the
+    // summary (e.g. `player.gold_avg`). Look for any key containing a
+    // dot, since the resource-grinder adapter declares dotted paths.
+    assert!(
+        first.summary.keys().any(|key| key.contains('.')),
+        "generic summary must contain at least one adapter-declared observation key: {:?}",
+        first.summary
+    );
+    // Same rule for timeseries entries past tick 0 — we expect at
+    // least one dotted adapter key present per tick.
+    let mid = &first.timeseries[first.timeseries.len() / 2];
+    assert!(
+        mid.keys().any(|key| key.contains('.')),
+        "generic timeseries mid-entry must contain an adapter observation: {mid:?}"
     );
 }

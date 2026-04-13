@@ -470,9 +470,15 @@ fn litesvm_deterministic_same_seed() {
         "event sequences diverged across same-seed LiteSVM runs"
     );
 
-    // Timeseries must be identical.
-    let tvls = |r: &riptide_engine::types::SimulationResult| -> Vec<f64> {
-        r.timeseries.iter().map(|s| s.tvl).collect()
+    // Timeseries must be identical. Post T11 (Sprint 3 Phase 6)
+    // `TickSnapshot` is a `BTreeMap<String, serde_json::Value>`, so
+    // the lending-shaped keys are looked up by string instead of being
+    // struct-field accesses.
+    let tvls = |r: &riptide_engine::types::SimulationResult| -> Vec<Option<f64>> {
+        r.timeseries
+            .iter()
+            .map(|s| s.get("tvl").and_then(|value| value.as_f64()))
+            .collect()
     };
     assert_eq!(
         tvls(&r1),
@@ -480,8 +486,11 @@ fn litesvm_deterministic_same_seed() {
         "timeseries TVL diverged across same-seed LiteSVM runs"
     );
 
-    let prices = |r: &riptide_engine::types::SimulationResult| -> Vec<f64> {
-        r.timeseries.iter().map(|s| s.oracle_price).collect()
+    let prices = |r: &riptide_engine::types::SimulationResult| -> Vec<Option<f64>> {
+        r.timeseries
+            .iter()
+            .map(|s| s.get("oracle_price").and_then(|value| value.as_f64()))
+            .collect()
     };
     assert_eq!(
         prices(&r1),

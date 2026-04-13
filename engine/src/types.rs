@@ -107,16 +107,15 @@ pub struct SimulationResult {
     pub simulation_boundaries: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TickSnapshot {
-    pub tick: u32,
-    pub tvl: f64,
-    pub utilization: f64,
-    pub oracle_price: f64,
-    pub active_agents: u32,
-    pub cumulative_liquidations: u32,
-    pub cumulative_bad_debt: f64,
-}
+/// Per-tick rollup, primitive-agnostic.
+///
+/// Sprint 3 · T11 (Phase 6 follow-up): replaced the fixed lending struct
+/// with an untagged `BTreeMap<String, serde_json::Value>`. The tick loop
+/// injects engine-side counters (`tick`, `active_agents`, and lending-
+/// specific `cumulative_liquidations`) directly; the primitive contributes
+/// its own metrics via `Primitive::snapshot_metrics`. Alphabetical key
+/// order keeps serialization deterministic.
+pub type TickSnapshot = BTreeMap<String, Value>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SimEvent {
@@ -163,17 +162,17 @@ pub enum AgentStatus {
     Depleted,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SimulationSummary {
-    pub final_tvl: f64,
-    pub final_utilization: f64,
-    pub total_liquidations: u32,
-    pub total_bad_debt: f64,
-    pub agents_active: u32,
-    pub agents_liquidated: u32,
-    pub agents_depleted: u32,
-    pub largest_single_tick_drawdown: f64,
-}
+/// End-of-run summary, primitive-agnostic.
+///
+/// Sprint 3 · T11 (Phase 6 follow-up): replaced the fixed lending struct
+/// with an untagged `BTreeMap<String, serde_json::Value>`. The lending
+/// primitive emits its historical keys (`final_tvl`, `final_utilization`,
+/// `total_bad_debt`, `largest_single_tick_drawdown`) via
+/// `Primitive::summarize_metrics`; the generic primitive emits
+/// adapter-declared observation aggregates. The tick loop overlays
+/// engine-side lifecycle counters (`agents_active`, `agents_liquidated`,
+/// `agents_depleted`, `total_liquidations`) on top.
+pub type SimulationSummary = BTreeMap<String, Value>;
 
 #[cfg(test)]
 mod tests {
