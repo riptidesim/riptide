@@ -37,25 +37,6 @@ export async function runOrchestrator(
   const spawner = options.spawner ?? defaultSpawner;
   const warn = options.warn ?? ((msg: string) => process.stderr.write(`${msg}\n`));
 
-  const payer = env.RIPTIDE_PAYER;
-  if (!payer) {
-    throw new Error(
-      [
-        "RIPTIDE_PAYER is not set.",
-        "",
-        "The engine spends real SOL to fund admin/agent accounts and deploy the",
-        "lending_pool program; it requires a disposable payer keypair and does NOT",
-        "fall back to ~/.config/solana/id.json (which could drain your wallet).",
-        "",
-        "Create one and fund it against a local validator:",
-        "  solana-keygen new --outfile /tmp/riptide-payer.json",
-        "  solana airdrop 100 -k /tmp/riptide-payer.json --url localhost",
-        "",
-        "Then: export RIPTIDE_PAYER=/tmp/riptide-payer.json"
-      ].join("\n")
-    );
-  }
-
   const enginePath = await resolveEngineBinary(env, cwd);
 
   const policies = await compilePersonas(runConfig.personas, {
@@ -78,14 +59,8 @@ export async function runOrchestrator(
       "--policies",
       policiesPath,
       "--output",
-      outputPath,
-      "--payer",
-      payer
+      outputPath
     ];
-
-    if (env.RIPTIDE_ALLOW_NONLOCAL_RPC === "1") {
-      args.push("--allow-nonlocal-rpc");
-    }
 
     const { code, stderrTail } = await spawner(enginePath, args);
     if (code !== 0) {
@@ -116,8 +91,8 @@ async function resolveEngineBinary(env: NodeJS.ProcessEnv, cwd: string): Promise
 
   // Explicit, trusted candidates only — do NOT walk arbitrary ancestors.
   // Walking up would let a binary planted in /tmp/evil/target/release/
-  // riptide-engine hijack the run and inherit RIPTIDE_PAYER + the shell
-  // environment if the CLI is invoked from any descendant directory.
+  // riptide-engine hijack the run and inherit the shell environment if
+  // the CLI is invoked from any descendant directory.
   //
   // The three supported layouts:
   //   1. cwd is the monorepo root               → cwd/target/release/...

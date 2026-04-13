@@ -81,8 +81,6 @@ test("simulate command runs end-to-end with a faked engine binary", async () => 
   await chmod(fakeEngine, 0o755);
 
   const outputDir = path.join(tmp, "run-out");
-  const fakePayer = path.join(tmp, "payer.json");
-  await writeFile(fakePayer, "[]");
 
   const captured = await runSimulate(
     [
@@ -100,7 +98,6 @@ test("simulate command runs end-to-end with a faked engine binary", async () => 
       outputDir
     ],
     {
-      RIPTIDE_PAYER: fakePayer,
       RIPTIDE_ENGINE_BIN: fakeEngine
     }
   );

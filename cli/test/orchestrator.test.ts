@@ -77,7 +77,7 @@ test("orchestrator constructs engine args and returns validated result", async (
 
   const result = await runOrchestrator(baseRunConfig(), {
     cwd: root,
-    env: { RIPTIDE_PAYER: "/tmp/fake-payer.json", PATH: process.env.PATH },
+    env: { PATH: process.env.PATH },
     spawner: successSpawner(log, fixture)
   });
 
@@ -87,7 +87,7 @@ test("orchestrator constructs engine args and returns validated result", async (
   assert.ok(call.args.includes("--config"));
   assert.ok(call.args.includes("--policies"));
   assert.ok(call.args.includes("--output"));
-  assert.equal(call.args[call.args.indexOf("--payer") + 1], "/tmp/fake-payer.json");
+  assert.ok(!call.args.includes("--payer"));
   assert.ok(!call.args.includes("--allow-nonlocal-rpc"));
   assert.equal(typeof result.total_ticks, "number");
   assert.ok(Array.isArray(result.events));
@@ -100,7 +100,7 @@ test("orchestrator resolves engine from cli/ subdir via cwd/../target/release", 
 
   await runOrchestrator(baseRunConfig(), {
     cwd: nestedCwd,
-    env: { RIPTIDE_PAYER: "/tmp/fake-payer.json", PATH: process.env.PATH },
+    env: { PATH: process.env.PATH },
     spawner: successSpawner(log, fixture)
   });
 
@@ -124,29 +124,11 @@ test("orchestrator does NOT walk up past the allowed candidates (security)", asy
     () =>
       runOrchestrator(baseRunConfig(), {
         cwd: deepCwd,
-        env: { RIPTIDE_PAYER: "/tmp/fake-payer.json", PATH: "/nonexistent-path-12345" },
+        env: { PATH: "/nonexistent-path-12345" },
         spawner: async () => ({ code: 0, stderrTail: "" })
       }),
     /Could not locate the riptide-engine binary/
   );
-});
-
-test("orchestrator propagates --allow-nonlocal-rpc when env flag set", async () => {
-  const { root } = await makeFakeEngineRoot();
-  const fixture = await loadFixtureRaw();
-  const log: Call[] = [];
-
-  await runOrchestrator(baseRunConfig(), {
-    cwd: root,
-    env: {
-      RIPTIDE_PAYER: "/tmp/fake-payer.json",
-      RIPTIDE_ALLOW_NONLOCAL_RPC: "1",
-      PATH: process.env.PATH
-    },
-    spawner: successSpawner(log, fixture)
-  });
-
-  assert.ok(log[0]!.args.includes("--allow-nonlocal-rpc"));
 });
 
 test("orchestrator cleans up temp dir on success", async () => {
@@ -163,7 +145,7 @@ test("orchestrator cleans up temp dir on success", async () => {
 
   await runOrchestrator(baseRunConfig(), {
     cwd: root,
-    env: { RIPTIDE_PAYER: "/tmp/fake-payer.json", PATH: process.env.PATH },
+    env: { PATH: process.env.PATH },
     spawner
   });
 
@@ -187,7 +169,7 @@ test("orchestrator surfaces engine stderr tail on non-zero exit", async () => {
     () =>
       runOrchestrator(baseRunConfig(), {
         cwd: root,
-        env: { RIPTIDE_PAYER: "/tmp/fake-payer.json", PATH: process.env.PATH },
+        env: { PATH: process.env.PATH },
         spawner
       }),
     (err: Error) => {
@@ -211,7 +193,7 @@ test("orchestrator handles empty stderr on failure without a bogus tail section"
     () =>
       runOrchestrator(baseRunConfig(), {
         cwd: root,
-        env: { RIPTIDE_PAYER: "/tmp/fake-payer.json", PATH: process.env.PATH },
+        env: { PATH: process.env.PATH },
         spawner
       }),
     (err: Error) => {
@@ -222,24 +204,13 @@ test("orchestrator handles empty stderr on failure without a bogus tail section"
   );
 });
 
-test("orchestrator rejects when RIPTIDE_PAYER is unset", async () => {
-  await assert.rejects(
-    () =>
-      runOrchestrator(baseRunConfig(), {
-        env: { PATH: process.env.PATH },
-        spawner: async () => ({ code: 0, stderrTail: "" })
-      }),
-    /RIPTIDE_PAYER is not set/
-  );
-});
-
 test("orchestrator reports every lookup attempt when engine binary missing", async () => {
   const emptyCwd = await mkdtemp(path.join(os.tmpdir(), "riptide-empty-"));
   await assert.rejects(
     () =>
       runOrchestrator(baseRunConfig(), {
         cwd: emptyCwd,
-        env: { RIPTIDE_PAYER: "/tmp/fake-payer.json", PATH: "/nonexistent-path-12345" },
+        env: { PATH: "/nonexistent-path-12345" },
         spawner: async () => ({ code: 0, stderrTail: "" })
       }),
     (err: Error) => {
@@ -264,7 +235,6 @@ test("orchestrator honors RIPTIDE_ENGINE_BIN override", async () => {
   await runOrchestrator(baseRunConfig(), {
     cwd: "/nonexistent-cwd",
     env: {
-      RIPTIDE_PAYER: "/tmp/fake-payer.json",
       RIPTIDE_ENGINE_BIN: enginePath,
       PATH: ""
     },
