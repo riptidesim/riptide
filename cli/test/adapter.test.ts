@@ -70,6 +70,7 @@ test("AdapterSchema produces the same shape the serde side expects", async () =>
   assert.deepEqual(
     topLevel,
     [
+      "accounts",
       "actions",
       "instructions",
       "observations",
@@ -91,6 +92,51 @@ test("AdapterSchema produces the same shape the serde side expects", async () =>
       "InstructionMapping should only carry action/amount fields"
     );
   }
+});
+
+test("AdapterSchema accepts a generic adapter shape", () => {
+  const raw = {
+    protocol: "generic",
+    program_so: "programs/resource_grinder/target/deploy/resource_grinder.so",
+    idl_path: "fixtures/idls/resource-grinder.json",
+    accounts: {
+      player: { kind: "agent", space: 48 },
+      marketplace: { kind: "shared", space: 512 },
+    },
+    instructions: {
+      mine: { action: "mine", amount: "amount" },
+      craft: { action: "craft" },
+      list_for_sale: { action: "list_for_sale" },
+    },
+    state_mapping: {
+      "player.gold": "player.gold",
+      "player.wood": "player.wood",
+      "marketplace.listings": "marketplace.listings",
+    },
+    actions: {
+      mine: { takes: ["amount"] },
+      craft: { takes: [] },
+      list_for_sale: { takes: [] },
+    },
+    observations: {
+      "player.gold": "uint",
+      "player.wood": "uint",
+      "marketplace.listings": "map",
+    },
+    personas: {
+      grinder: {
+        action_rate_multiplier: 1.5,
+        action_weights: { mine: 1, craft: 0.2 },
+        triggers: [{ if: "player.wood < 10", then: "mine", weight_boost: 2 }],
+      },
+    },
+  };
+
+  const adapter = validateAdapter(raw, "generic.toml");
+  assert.equal(adapter.protocol, "generic");
+  assert.equal(adapter.program_so, raw.program_so);
+  assert.equal(adapter.idl_path, raw.idl_path);
+  assert.equal(adapter.accounts.player.kind, "agent");
 });
 
 test("AdapterSchema rejects unknown lending actions with an actionable error", () => {
@@ -140,6 +186,44 @@ test("AdapterSchema rejects unknown observations", () => {
     (err: Error) => {
       assert.ok(err.message.includes("[state_mapping].pool.total_deposits"));
       assert.ok(err.message.includes("magic_number"));
+      return true;
+    }
+  );
+});
+
+test("AdapterSchema rejects unsupported generic trigger operators", () => {
+  const raw = {
+    protocol: "generic",
+    program_so: "programs/resource_grinder/target/deploy/resource_grinder.so",
+    idl_path: "fixtures/idls/resource-grinder.json",
+    accounts: {
+      player: { kind: "agent", space: 48 },
+    },
+    instructions: {
+      mine: { action: "mine" },
+    },
+    state_mapping: {
+      "player.gold": "player.gold",
+    },
+    actions: {
+      mine: { takes: [] },
+    },
+    observations: {
+      "player.gold": "uint",
+    },
+    personas: {
+      grinder: {
+        action_weights: { mine: 1 },
+        triggers: [{ if: "player.gold <= 10", then: "mine", weight_boost: 1 }],
+      },
+    },
+  };
+
+  assert.throws(
+    () => validateAdapter(raw, "bad-generic.toml"),
+    (err: Error) => {
+      assert.ok(err.message.includes("triggers[0].if"));
+      assert.ok(err.message.includes("unsupported generic trigger operator"));
       return true;
     }
   );

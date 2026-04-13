@@ -1,40 +1,30 @@
-//! Primitive abstraction layer (Sprint 3 · T03).
+//! Primitive abstraction layer.
 //!
-//! A **primitive** is a protocol-domain trait: the abstract surface the
-//! engine calls for one class of on-chain programs (lending, AMM, etc.).
-//! Concrete primitives (e.g. `SolendForkPrimitive`) hide protocol-specific
-//! wiring — instruction selectors, account layouts, client builders —
-//! behind the trait.
+//! A **primitive** is a protocol-neutral trait the engine dispatches
+//! through. Post-Sprint 3 review #3, the trait is split in two:
 //!
-//! ## Layering
+//! - [`Primitive`] — domain-neutral base trait every backend
+//!   implements. Owns `agent_count`, `advance_tick`,
+//!   `push_oracle_price`, `execute_action`, `observation_values`.
+//! - [`LendingPrimitive`] — super-trait adding the five lending
+//!   actions and two lending observations.
 //!
-//! ```text
-//!        ┌───────────────────────┐
-//!        │   sim::run tick loop  │
-//!        └──────────┬────────────┘
-//!                   │ generic over H: Harness
-//!        ┌──────────▼────────────┐
-//!        │  Harness (sim layer)  │    agent_count / advance_tick /
-//!        │                       │    push_oracle_price
-//!        └──────────┬────────────┘
-//!                   │ super-trait: Harness: LendingPrimitive
-//!        ┌──────────▼────────────┐
-//!        │   LendingPrimitive    │    deposit / borrow / repay /
-//!        │   (domain trait)      │    withdraw / liquidate /
-//!        │                       │    pool_state / health_factor
-//!        └──────────┬────────────┘
-//!                   │ implemented by
-//!        ┌──────────▼────────────┐
-//!        │   LiteSvmHarness      │    ← primitive/solend_fork.rs
-//!        │   (Solend-fork impl)  │
-//!        └───────────────────────┘
-//! ```
+//! The lending tick loop (`run_simulation`) binds on
+//! `LendingPrimitive`. The generic tick loop (`run_generic_simulation`)
+//! binds on `Primitive` and has no lending vocabulary at all.
 
 pub mod lending;
+pub mod generic;
 #[cfg(any(feature = "litesvm-backend", test))]
 pub mod solend_fork;
 
+pub use generic::{
+    build_generic_policies, generic_runtime_actions, parse_generic_idl_str, GenericIdl,
+    GenericInstructionBuilder,
+};
+#[cfg(any(feature = "litesvm-backend", test))]
+pub use generic::{GenericBootstrapConfig, GenericHarness};
 pub use lending::{
-    Harness, HarnessError, LendingPrimitive, PoolObservation, PoolState, PositionHealth,
-    PositionObservation, PrimitiveError,
+    dispatch_lending_action, Harness, HarnessError, LendingPrimitive, PoolObservation, PoolState,
+    PositionHealth, PositionObservation, Primitive, PrimitiveError,
 };

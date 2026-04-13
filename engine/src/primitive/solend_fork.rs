@@ -343,7 +343,7 @@ impl LiteSvmHarness {
 // any method body here changes the tick loop's behavior directly.
 // ---------------------------------------------------------------------------
 
-impl LendingPrimitive for LiteSvmHarness {
+impl crate::primitive::Primitive for LiteSvmHarness {
     fn agent_count(&self) -> usize {
         self.agents.len()
     }
@@ -364,6 +364,18 @@ impl LendingPrimitive for LiteSvmHarness {
         self.send_harness(&self.admin.insecure_clone(), ix, None)
     }
 
+    fn execute_action(
+        &mut self,
+        agent_idx: usize,
+        action: &str,
+        amount: u64,
+        target_idx: Option<usize>,
+    ) -> Result<(), PrimitiveError> {
+        crate::primitive::dispatch_lending_action(self, agent_idx, action, amount, target_idx)
+    }
+}
+
+impl LendingPrimitive for LiteSvmHarness {
     fn deposit(&mut self, agent_idx: usize, amount: u64) -> Result<(), PrimitiveError> {
         let agent = self.agents[agent_idx].insecure_clone();
         let ix = self
@@ -490,9 +502,11 @@ fn send_tx(
 #[cfg(test)]
 mod tests {
     use super::*;
-    // `Harness` and `LendingPrimitive` are the same trait via re-export;
-    // either name pulls the full method surface into scope.
-    use crate::primitive::Harness;
+    // `Harness` is the alias for `LendingPrimitive`; `Primitive` is the
+    // base trait that carries the sim-layer concerns (advance_tick,
+    // push_oracle_price, execute_action). Tests need both in scope to
+    // exercise the full surface.
+    use crate::primitive::{Harness, Primitive};
 
     fn test_config() -> LiteSvmBootstrapConfig {
         LiteSvmBootstrapConfig {
@@ -785,7 +799,7 @@ mod tests {
         }).unwrap();
 
         let hash_before = harness.svm.latest_blockhash();
-        Harness::advance_tick(&mut harness);
+        Primitive::advance_tick(&mut harness);
         let hash_after = harness.svm.latest_blockhash();
         assert_ne!(hash_before, hash_after, "blockhash should change after advance_tick");
         assert_eq!(harness.current_slot, 1);
@@ -802,7 +816,7 @@ mod tests {
         }).unwrap();
 
         for tick in 0..5 {
-            Harness::advance_tick(&mut harness);
+            Primitive::advance_tick(&mut harness);
             let update = OracleUpdate { price: 100.0 + tick as f64, exponent: 0 };
             harness.push_oracle_price(&update).unwrap();
             harness.deposit(0, 10).unwrap();
@@ -838,6 +852,7 @@ mod tests {
     fn same_seed_litesvm_run_is_deterministic() {
         use std::collections::BTreeMap;
         use crate::{
+            agent::policy::LENDING_RUNTIME_ACTIONS,
             scenario::BaselineScenario,
             sim::run::{run_simulation, SimulationParams},
             types::{
@@ -852,6 +867,7 @@ mod tests {
             Policy {
                 persona_id: "steady-lp".into(),
                 persona_label: "steady-lp".into(),
+                action_rate_multiplier: 1.0,
                 risk_tolerance: 0.5,
                 action_weights: BTreeMap::from([
                     ("deposit".into(), 0.8),
@@ -865,6 +881,7 @@ mod tests {
                     response: "hold".into(),
                     severity: 1,
                     cooldown_ticks: 1,
+                    weight_boost: None,
                 }],
                 position_sizing: PositionSizing {
                     strategy: PositionSizingStrategy::Fixed,
@@ -896,6 +913,7 @@ mod tests {
                 run_config: &cfg,
                 policies,
                 agent_personas: vec![0; 3],
+                available_actions: LENDING_RUNTIME_ACTIONS.to_vec(),
                 starting_balance: 10_000.0,
                 starting_price: 100.0,
                 simulation_boundaries: vec!["litesvm".into()],
@@ -1009,6 +1027,9 @@ mod tests {
         }
         crate::adapter::Adapter {
             protocol: crate::adapter::Protocol::Lending,
+            program_so: None,
+            idl_path: None,
+            accounts: BTreeMap::new(),
             instructions,
             state_mapping,
             actions: BTreeMap::new(),

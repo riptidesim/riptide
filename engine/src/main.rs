@@ -19,16 +19,20 @@ use std::{
 
 use clap::Parser;
 use riptide_engine::{
+    agent::policy::LENDING_RUNTIME_ACTIONS,
     adapter::{load_adapter, Protocol},
     harness::{
         lending::LendingPoolConfig,
         setup::default_program_so_path,
     },
+    primitive::{
+        build_generic_policies, generic_runtime_actions, GenericBootstrapConfig, GenericHarness,
+    },
     scenario::{BaselineScenario, PriceShockScenario, Scenario},
     sim::{
         build_agent_personas,
         litesvm::LiteSvmBootstrapConfig,
-        run_simulation, LiteSvmHarness, SimulationParams,
+        run_generic_simulation, run_simulation, LiteSvmHarness, SimulationParams,
     },
     types::{Policy, RunConfig, SimulationResult},
 };
@@ -82,14 +86,11 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> anyhow::Result<()> {
     let run_config: RunConfig = load_json(&cli.config)?;
-    let policies: Vec<Policy> = load_policies(&cli.policies)?;
-    if policies.is_empty() {
-        anyhow::bail!("no policies found in {}", cli.policies.display());
-    }
+    let loaded_policies: Vec<Policy> = load_policies(&cli.policies)?;
 
     eprintln!(
         "riptide-engine: loaded {} policies, agents={}, ticks={}, scenario={}",
-        policies.len(),
+        loaded_policies.len(),
         run_config.agents,
         run_config.ticks,
         run_config.scenario,
@@ -121,16 +122,27 @@ fn run(cli: Cli) -> anyhow::Result<()> {
                 Some(loaded)
             }
             Protocol::Generic => {
-                anyhow::bail!(
-                    "adapter {}: protocol=`generic` is declared but the generic primitive \
-                     is not wired yet (scheduled for Sprint 3 T05)",
-                    adapter_path.display()
+                eprintln!(
+                    "adapter: {} (generic, {} instructions, {} actions, {} observations, {} personas)",
+                    adapter_path.display(),
+                    loaded.instructions.len(),
+                    loaded.actions.len(),
+                    loaded.observations.len(),
+                    loaded.personas.len(),
                 );
+                Some(loaded)
             }
         }
     } else {
         None
     };
+    let generic_mode = matches!(
+        adapter.as_ref().map(|adapter| adapter.protocol),
+        Some(Protocol::Generic)
+    );
+    if !generic_mode && loaded_policies.is_empty() {
+        anyhow::bail!("no policies found in {}", cli.policies.display());
+    }
 
     // --- Pool risk params (tunable via env vars, same as before). ---
     let ltv_bps: u16 = std::env::var("RIPTIDE_POOL_LTV_BPS")
@@ -162,34 +174,6 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     let starting_price_f64: f64 = 100.0;
     let starting_price_u64: u64 = 100;
 
-    // --- Bootstrap the in-process LiteSVM environment. ---
-    let program_so = cli.program_so.unwrap_or_else(default_program_so_path);
-    if !program_so.exists() {
-        anyhow::bail!(
-            "program .so missing at {} (run `cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml` first)",
-            program_so.display()
-        );
-    }
-
-    eprintln!("bootstrapping LiteSVM backend ...");
-    let bootstrap_config = LiteSvmBootstrapConfig {
-        program_so,
-        agent_count: run_config.agents as usize,
-        starting_price: starting_price_u64,
-        price_exponent: 0,
-        pool_config,
-        seed_deposit: seed_amount,
-        adapter,
-    };
-    let mut harness = LiteSvmHarness::bootstrap(bootstrap_config)
-        .map_err(|e| anyhow::anyhow!("LiteSVM bootstrap failed: {e:#}"))?;
-    eprintln!(
-        "LiteSVM ready: program={}, agents={}, seed_deposit={}",
-        harness.program_id,
-        harness.agents.len(),
-        seed_amount,
-    );
-
     // --- Build scenario. ---
     let mut scenario: Box<dyn Scenario> = match run_config.scenario.as_str() {
         "baseline" => Box::new(BaselineScenario::new(starting_price_f64, 25)),
@@ -212,31 +196,127 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         }
     };
 
-    let agent_personas =
-        build_agent_personas(&run_config.personas, &policies, run_config.agents as usize)
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
-
     let starting_balance: f64 = std::env::var("RIPTIDE_STARTING_BALANCE")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(20_000.0);
-    let params = SimulationParams {
-        run_config: &run_config,
-        policies,
-        agent_personas,
-        starting_balance,
-        starting_price: starting_price_f64,
-        simulation_boundaries: vec![
-            "In-process LiteSVM backend (no external validator).".into(),
-            "No slippage, fees, or MEV modeled.".into(),
-            "Oracle prices are scenario-driven, not external feeds.".into(),
-            "Agents funded via deterministic airdrop, not realistic onboarding.".into(),
-        ],
-    };
+    let result = match adapter {
+        Some(adapter) if matches!(adapter.protocol, Protocol::Generic) => {
+            if !loaded_policies.is_empty() {
+                eprintln!(
+                    "warn: ignoring {} external policies from {} because protocol=`generic` uses inline adapter personas",
+                    loaded_policies.len(),
+                    cli.policies.display()
+                );
+            }
 
-    eprintln!("running tick loop ...");
-    let result = run_simulation(&mut harness, scenario.as_mut(), params)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+            let policies = build_generic_policies(&adapter, |warning| eprintln!("warn: {warning}"))
+                .map_err(|e| anyhow::anyhow!("compile generic adapter personas: {e:#}"))?;
+            let agent_personas =
+                build_agent_personas(&run_config.personas, &policies, run_config.agents as usize)
+                    .map_err(|e| anyhow::anyhow!("{e}"))?;
+            let program_so = cli.program_so.unwrap_or_else(|| {
+                PathBuf::from(
+                    adapter
+                        .program_so
+                        .as_deref()
+                        .expect("generic adapter validation requires program_so"),
+                )
+            });
+            let idl_path = PathBuf::from(
+                adapter
+                    .idl_path
+                    .as_deref()
+                    .expect("generic adapter validation requires idl_path"),
+            );
+
+            eprintln!("bootstrapping LiteSVM backend (generic) ...");
+            let mut harness = GenericHarness::bootstrap(GenericBootstrapConfig {
+                program_so,
+                idl_path,
+                agent_count: run_config.agents as usize,
+                adapter: adapter.clone(),
+            })
+            .map_err(|e| anyhow::anyhow!("LiteSVM generic bootstrap failed: {e:#}"))?;
+            eprintln!(
+                "LiteSVM ready: program={}, agents={}, protocol=generic",
+                harness.program_id,
+                harness.agents.len(),
+            );
+
+            let params = SimulationParams {
+                run_config: &run_config,
+                policies,
+                agent_personas,
+                available_actions: generic_runtime_actions(&adapter),
+                starting_balance,
+                starting_price: starting_price_f64,
+                simulation_boundaries: vec![
+                    "In-process LiteSVM backend (no external validator).".into(),
+                    "Generic adapters expose only adapter-defined actions/observations; no default TVL/health semantics are inferred.".into(),
+                    "Pool-wide TVL/utilization metrics are zeroed on the generic path until a protocol-specific aggregate is declared.".into(),
+                    "Custom actions do not mutate engine cash/PnL by default; only on-chain account observations are authoritative.".into(),
+                ],
+            };
+
+            eprintln!("running tick loop ...");
+            run_generic_simulation(&mut harness, scenario.as_mut(), params)
+                .map_err(|e| anyhow::anyhow!("{e}"))?
+        }
+        adapter => {
+            let program_so = cli.program_so.unwrap_or_else(default_program_so_path);
+            if !program_so.exists() {
+                anyhow::bail!(
+                    "program .so missing at {} (run `cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml` first)",
+                    program_so.display()
+                );
+            }
+
+            eprintln!("bootstrapping LiteSVM backend ...");
+            let bootstrap_config = LiteSvmBootstrapConfig {
+                program_so,
+                agent_count: run_config.agents as usize,
+                starting_price: starting_price_u64,
+                price_exponent: 0,
+                pool_config,
+                seed_deposit: seed_amount,
+                adapter,
+            };
+            let mut harness = LiteSvmHarness::bootstrap(bootstrap_config)
+                .map_err(|e| anyhow::anyhow!("LiteSVM bootstrap failed: {e:#}"))?;
+            eprintln!(
+                "LiteSVM ready: program={}, agents={}, seed_deposit={}",
+                harness.program_id,
+                harness.agents.len(),
+                seed_amount,
+            );
+
+            let agent_personas = build_agent_personas(
+                &run_config.personas,
+                &loaded_policies,
+                run_config.agents as usize,
+            )
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+            let params = SimulationParams {
+                run_config: &run_config,
+                policies: loaded_policies,
+                agent_personas,
+                available_actions: LENDING_RUNTIME_ACTIONS.to_vec(),
+                starting_balance,
+                starting_price: starting_price_f64,
+                simulation_boundaries: vec![
+                    "In-process LiteSVM backend (no external validator).".into(),
+                    "No slippage, fees, or MEV modeled.".into(),
+                    "Oracle prices are scenario-driven, not external feeds.".into(),
+                    "Agents funded via deterministic airdrop, not realistic onboarding.".into(),
+                ],
+            };
+
+            eprintln!("running tick loop ...");
+            run_simulation(&mut harness, scenario.as_mut(), params)
+                .map_err(|e| anyhow::anyhow!("{e}"))?
+        }
+    };
 
     write_result(&cli.output, &result)?;
     eprintln!("wrote {}", cli.output.display());

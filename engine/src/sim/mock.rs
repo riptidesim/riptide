@@ -5,7 +5,8 @@
 //! exercised without ever booting a validator.
 
 use crate::primitive::{
-    HarnessError, LendingPrimitive, PoolState, PositionHealth, PrimitiveError,
+    dispatch_lending_action, HarnessError, LendingPrimitive, PoolState, PositionHealth, Primitive,
+    PrimitiveError,
 };
 use crate::scenario::OracleUpdate;
 
@@ -127,7 +128,7 @@ impl MockHarness {
     }
 }
 
-impl LendingPrimitive for MockHarness {
+impl Primitive for MockHarness {
     fn agent_count(&self) -> usize {
         self.positions.len()
     }
@@ -139,6 +140,18 @@ impl LendingPrimitive for MockHarness {
         Ok(())
     }
 
+    fn execute_action(
+        &mut self,
+        agent_idx: usize,
+        action: &str,
+        amount: u64,
+        target_idx: Option<usize>,
+    ) -> Result<(), PrimitiveError> {
+        dispatch_lending_action(self, agent_idx, action, amount, target_idx)
+    }
+}
+
+impl LendingPrimitive for MockHarness {
     fn pool_state(&self) -> Result<PoolState, PrimitiveError> {
         Ok(PoolState {
             total_deposits: self.total_deposits,

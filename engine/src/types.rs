@@ -18,11 +18,17 @@ pub struct RunConfig {
 pub struct Policy {
     pub persona_id: String,
     pub persona_label: String,
+    #[serde(default = "default_action_rate_multiplier")]
+    pub action_rate_multiplier: f64,
     pub risk_tolerance: f64,
     pub action_weights: BTreeMap<String, f64>,
     pub triggers: Vec<Trigger>,
     pub position_sizing: PositionSizing,
     pub max_exposure: f64,
+}
+
+fn default_action_rate_multiplier() -> f64 {
+    1.0
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -31,6 +37,34 @@ pub struct Trigger {
     pub response: String,
     pub severity: u32,
     pub cooldown_ticks: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight_boost: Option<f64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ComparisonOp {
+    Lt,
+    Gt,
+    Eq,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TriggerValue {
+    Int(i64),
+    UInt(u64),
+    Bool(bool),
+    String(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ObservationValue {
+    Int(i64),
+    UInt(u64),
+    Bool(bool),
+    Pubkey(String),
+    Map(BTreeMap<String, i64>),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -41,6 +75,11 @@ pub enum TriggerCondition {
     PriceDropPercent { threshold: f64 },
     ExposureAbove { threshold: f64 },
     HealthFactorBelow { threshold: f64 },
+    ObservationCompare {
+        key: String,
+        op: ComparisonOp,
+        value: TriggerValue,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

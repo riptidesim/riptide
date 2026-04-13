@@ -3359,11 +3359,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "bs58",
  "clap",
  "litesvm",
  "rand 0.10.0",
  "serde",
  "serde_json",
+ "solana-account 3.4.0",
  "solana-client",
  "solana-commitment-config",
  "solana-sdk",

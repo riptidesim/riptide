@@ -16,4 +16,7 @@ pub use harness::{Harness, HarnessError, PoolObservation, PositionObservation};
 #[cfg(any(feature = "litesvm-backend", test))]
 pub use crate::primitive::solend_fork::LiteSvmHarness;
 pub use mock::{MockHarness, MockPosition};
-pub use run::{build_agent_personas, run_simulation, SimulationAbort, SimulationParams};
+pub use run::{
+    build_agent_personas, run_generic_simulation, run_simulation, SimulationAbort,
+    SimulationParams,
+};

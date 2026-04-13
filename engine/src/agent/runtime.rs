@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use rand::{rngs::StdRng, SeedableRng};
 
-use crate::types::Policy;
+use crate::types::{ObservationValue, Policy};
 
 use super::{
-    policy::{choose_best, score_actions, Decision},
+    policy::{choose_best, score_actions, Decision, RuntimeAction},
     state::Agent,
     triggers::{evaluate_trigger, FiredTrigger},
 };
@@ -22,6 +22,7 @@ pub struct AgentObservation {
     pub available_liquidity: f64,
     pub liquidation_threshold: f64,
     pub can_liquidate: bool,
+    pub custom_observations: BTreeMap<String, ObservationValue>,
 }
 
 impl AgentObservation {
@@ -42,6 +43,7 @@ impl AgentObservation {
             available_liquidity,
             liquidation_threshold: DEFAULT_LIQUIDATION_THRESHOLD,
             can_liquidate: false,
+            custom_observations: BTreeMap::new(),
         }
     }
 
@@ -92,6 +94,7 @@ impl AgentRuntime {
         start_price: f64,
         utilization: f64,
         available_liquidity: f64,
+        custom_observations: BTreeMap<String, ObservationValue>,
     ) -> AgentObservation {
         let equity = agent.equity(oracle_price);
         let drawdown = if agent.peak_equity <= 0.0 {
@@ -117,6 +120,7 @@ impl AgentRuntime {
             available_liquidity,
             liquidation_threshold: DEFAULT_LIQUIDATION_THRESHOLD,
             can_liquidate,
+            custom_observations,
         }
     }
 
@@ -150,9 +154,21 @@ impl AgentRuntime {
         fired
     }
 
-    pub fn decide(&mut self, agent: &mut Agent, observation: &AgentObservation) -> Decision {
+    pub fn decide(
+        &mut self,
+        agent: &mut Agent,
+        observation: &AgentObservation,
+        available_actions: &[RuntimeAction],
+    ) -> Decision {
         let fired = self.evaluate_triggers(agent, observation);
-        let scores = score_actions(&agent.policy, agent, observation, &fired, &mut self.rng);
+        let scores = score_actions(
+            &agent.policy,
+            available_actions,
+            agent,
+            observation,
+            &fired,
+            &mut self.rng,
+        );
         choose_best(&scores, fired)
     }
 }
@@ -170,6 +186,7 @@ mod tests {
         Policy {
             persona_id: id.into(),
             persona_label: id.into(),
+            action_rate_multiplier: 1.0,
             risk_tolerance: 0.5,
             action_weights: BTreeMap::from([
                 ("deposit".into(), deposit),
@@ -183,6 +200,7 @@ mod tests {
                 response: "panic_exit".into(),
                 severity: 9,
                 cooldown_ticks: 2,
+                weight_boost: None,
             }],
             position_sizing: PositionSizing {
                 strategy: PositionSizingStrategy::Fixed,
@@ -200,8 +218,16 @@ mod tests {
         let mut agent_b = Agent::new("b", policy("aggressive", 0.1, 0.9), 1_000.0);
         let observation = AgentObservation::new(1, 100.0, 0.4, 0.0, 0.0, 10_000.0);
 
-        let decision_a = runtime_a.decide(&mut agent_a, &observation);
-        let decision_b = runtime_b.decide(&mut agent_b, &observation);
+        let decision_a = runtime_a.decide(
+            &mut agent_a,
+            &observation,
+            crate::agent::policy::LENDING_RUNTIME_ACTIONS,
+        );
+        let decision_b = runtime_b.decide(
+            &mut agent_b,
+            &observation,
+            crate::agent::policy::LENDING_RUNTIME_ACTIONS,
+        );
 
         assert_ne!(decision_a.chosen, decision_b.chosen);
     }
@@ -229,7 +255,11 @@ mod tests {
         let mut agent = Agent::new("agent", policy("empty", 0.9, 0.9), 0.0);
         let observation = AgentObservation::new(1, 100.0, 0.4, 0.0, 0.0, 0.0);
 
-        let decision = runtime.decide(&mut agent, &observation);
+        let decision = runtime.decide(
+            &mut agent,
+            &observation,
+            crate::agent::policy::LENDING_RUNTIME_ACTIONS,
+        );
         assert_eq!(decision.chosen, super::super::policy::RuntimeAction::NoOp);
     }
 
@@ -270,7 +300,16 @@ mod tests {
     fn price_drop_from_start_uses_actual_start_price() {
         let runtime = AgentRuntime::new(11);
         let agent = Agent::new("agent", policy("panic", 0.4, 0.4), 500.0);
-        let observation = runtime.observe(1, &agent.policy, &agent, 0.25, 0.5, 0.4, 1_000.0);
+        let observation = runtime.observe(
+            1,
+            &agent.policy,
+            &agent,
+            0.25,
+            0.5,
+            0.4,
+            1_000.0,
+            BTreeMap::new(),
+        );
 
         assert_eq!(observation.price_drop_from_start, 0.5);
     }

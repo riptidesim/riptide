@@ -9,7 +9,11 @@ use serde_json::Value;
 
 use super::harness::{Harness, HarnessError, PoolObservation, PositionObservation};
 use crate::{
-    agent::{policy::RuntimeAction, state::Agent, AgentRuntime},
+    agent::{
+        policy::RuntimeAction,
+        state::Agent,
+        AgentRuntime,
+    },
     scenario::Scenario,
     types::{
         AgentStatus, Policy, RunConfig, SimEvent, SimOutcome, SimulationResult, SimulationSummary,
@@ -34,6 +38,7 @@ pub struct SimulationParams<'a> {
     /// per-agent instantiation order. Must be the same length as the harness's
     /// `agent_count()`.
     pub agent_personas: Vec<usize>,
+    pub available_actions: Vec<RuntimeAction>,
     pub starting_balance: f64,
     pub starting_price: f64,
     pub simulation_boundaries: Vec<String>,
@@ -116,7 +121,6 @@ fn apply_position_observation(agent: &mut Agent, obs: &PositionObservation, tick
 /// `ProgramRejected` is returned as-is.
 fn with_retry<H, F>(harness: &mut H, mut op: F) -> Result<(), HarnessError>
 where
-    H: Harness,
     F: FnMut(&mut H) -> Result<(), HarnessError>,
 {
     match op(harness) {
@@ -145,6 +149,7 @@ where
         run_config,
         policies,
         agent_personas,
+        available_actions,
         starting_balance,
         starting_price,
         simulation_boundaries,
@@ -322,9 +327,23 @@ where
                 starting_price,
                 utilization,
                 available_liquidity,
+                match harness.observation_values(idx) {
+                    Ok(values) => values,
+                    Err(HarnessError::Infra(first)) => {
+                        eprintln!("warn: custom observation read failed ({first}), retrying");
+                        harness
+                            .observation_values(idx)
+                            .map_err(|e| SimulationAbort::Infra(e.to_string()))?
+                    }
+                    Err(HarnessError::ProgramRejected(msg)) => {
+                        return Err(SimulationAbort::Infra(format!(
+                            "custom observation rejected: {msg}"
+                        )));
+                    }
+                },
             );
-            let decision = runtimes[idx].decide(&mut agents[idx], &observation);
-            let action = decision.chosen;
+            let decision = runtimes[idx].decide(&mut agents[idx], &observation, &available_actions);
+            let action = decision.chosen.clone();
             let amount = decision.amount.max(0.0).round() as u64;
 
             // Pick a liquidation target up front so the caller can clamp the
@@ -339,7 +358,7 @@ where
             // the engine thinks the candidate is underwater. Cost is one
             // extra RPC per borrower per liquidate decision, which is
             // acceptable for correctness.
-            let liquidate_target = if matches!(action, RuntimeAction::Liquidate) {
+            let liquidate_target = if action == RuntimeAction::Liquidate {
                 for other_idx in 0..agents.len() {
                     if other_idx == idx || !agents[other_idx].is_active() {
                         continue;
@@ -391,21 +410,21 @@ where
             // the debt token, which the MVP treats as 1:1 with dollars, so
             // they do not need scaling.
             let price_f = oracle_price.max(f64::EPSILON);
-            let on_chain_amount = match action {
+            let on_chain_amount = match &action {
                 RuntimeAction::Deposit | RuntimeAction::Withdraw => {
                     ((amount as f64) / price_f).round().max(0.0) as u64
                 }
                 _ => amount,
             };
 
-            let (outcome, detail) = if matches!(action, RuntimeAction::NoOp) || on_chain_amount == 0
+            let (outcome, detail) = if action == RuntimeAction::NoOp || on_chain_amount == 0
             {
                 (SimOutcome::Skipped, None)
             } else {
                 match submit_action_to_target(
                     harness,
                     idx,
-                    action,
+                    &action,
                     on_chain_amount,
                     liquidate_target,
                 ) {
@@ -424,22 +443,24 @@ where
                 // over-repay permanently overcharges the agent's cash.
                 let on_chain_f = on_chain_amount as f64;
                 let amt_f = amount as f64;
-                let consumed = match action {
+                let consumed = match &action {
                     RuntimeAction::Deposit | RuntimeAction::Withdraw => on_chain_f * price_f,
                     RuntimeAction::Repay => amt_f.min(agents[idx].position.debt),
                     RuntimeAction::Liquidate => liquidate_target
                         .map(|t| amt_f.min(agents[t].position.debt))
                         .unwrap_or(0.0),
                     RuntimeAction::Borrow => amt_f,
+                    RuntimeAction::Custom(_) => 0.0,
                     RuntimeAction::NoOp => 0.0,
                 };
                 let cash = &mut agents[idx].cash_balance;
-                match action {
+                match &action {
                     RuntimeAction::Deposit => *cash -= consumed,
                     RuntimeAction::Withdraw => *cash += consumed,
                     RuntimeAction::Borrow => *cash += consumed,
                     RuntimeAction::Repay => *cash -= consumed,
                     RuntimeAction::Liquidate => *cash -= consumed,
+                    RuntimeAction::Custom(_) => {}
                     RuntimeAction::NoOp => {}
                 }
                 if *cash < 0.0 {
@@ -463,7 +484,10 @@ where
                 params: params_map,
                 outcome,
                 outcome_detail: detail,
-                triggered_by: None,
+                triggered_by: decision
+                    .fired_triggers
+                    .first()
+                    .map(|trigger| trigger.condition_label.clone()),
             });
         }
 
@@ -606,20 +630,25 @@ fn pick_liquidation_target(idx: usize, agents: &[Agent], oracle_price: f64) -> O
 /// program-rejected error returns `(Failed, Some(reason))`. On an infra
 /// failure that survived the single retry inside `with_retry`, returns
 /// `Err(msg)` so the caller can abort the whole run.
-fn submit_action_to_target<H: Harness>(
+fn submit_action_to_target<H: crate::primitive::Primitive>(
     harness: &mut H,
     idx: usize,
-    action: RuntimeAction,
+    action: &RuntimeAction,
     amount: u64,
     liquidate_target: Option<usize>,
 ) -> Result<(SimOutcome, Option<String>), String> {
     let result = match action {
-        RuntimeAction::Deposit => with_retry(harness, |h| h.deposit(idx, amount)),
-        RuntimeAction::Withdraw => with_retry(harness, |h| h.withdraw(idx, amount)),
-        RuntimeAction::Borrow => with_retry(harness, |h| h.borrow(idx, amount)),
-        RuntimeAction::Repay => with_retry(harness, |h| h.repay(idx, amount)),
+        RuntimeAction::Deposit
+        | RuntimeAction::Withdraw
+        | RuntimeAction::Borrow
+        | RuntimeAction::Repay
+        | RuntimeAction::Custom(_) => {
+            with_retry(harness, |h| h.execute_action(idx, action.as_str(), amount, None))
+        }
         RuntimeAction::Liquidate => match liquidate_target {
-            Some(t) => with_retry(harness, |h| h.liquidate(idx, t, amount)),
+            Some(t) => with_retry(harness, |h| {
+                h.execute_action(idx, action.as_str(), amount, Some(t))
+            }),
             None => return Ok((SimOutcome::Skipped, Some("no liquidation target".into()))),
         },
         RuntimeAction::NoOp => return Ok((SimOutcome::Skipped, None)),
@@ -629,6 +658,208 @@ fn submit_action_to_target<H: Harness>(
         Err(HarnessError::ProgramRejected(msg)) => Ok((SimOutcome::Failed, Some(msg))),
         Err(HarnessError::Infra(msg)) => Err(msg),
     }
+}
+
+/// Run the generic (non-lending) tick loop. Binds on [`Primitive`] only
+/// — no lending vocabulary, no pool/health reads, no liquidation path,
+/// no cash/PnL bookkeeping. Agents observe adapter-defined state,
+/// decide via their inline personas, and execute adapter-defined
+/// actions. All lending-shaped fields in the returned
+/// [`SimulationResult`] are zero-filled so the fixture format matches
+/// the lending path for the CLI consumer.
+pub fn run_generic_simulation<H, S>(
+    harness: &mut H,
+    scenario: &mut S,
+    params: SimulationParams<'_>,
+) -> Result<SimulationResult, SimulationAbort>
+where
+    H: crate::primitive::Primitive,
+    S: Scenario + ?Sized,
+{
+    let SimulationParams {
+        run_config,
+        policies,
+        agent_personas,
+        available_actions,
+        starting_balance,
+        starting_price,
+        simulation_boundaries,
+    } = params;
+
+    if harness.agent_count() != agent_personas.len() {
+        return Err(SimulationAbort::BadInput(format!(
+            "harness agent_count={} does not match agent_personas len={}",
+            harness.agent_count(),
+            agent_personas.len()
+        )));
+    }
+    if policies.is_empty() {
+        return Err(SimulationAbort::BadInput("empty policies".into()));
+    }
+
+    let mut master_rng = StdRng::seed_from_u64(run_config.seed);
+
+    let mut agents: Vec<Agent> = agent_personas
+        .iter()
+        .enumerate()
+        .map(|(idx, &persona_idx)| {
+            let policy = policies
+                .get(persona_idx)
+                .cloned()
+                .unwrap_or_else(|| policies[0].clone());
+            Agent::new(agent_id(idx), policy, starting_balance).with_starting_price(starting_price)
+        })
+        .collect();
+
+    let mut runtimes: Vec<AgentRuntime> = (0..agents.len())
+        .map(|idx| AgentRuntime::new(run_config.seed.wrapping_add(idx as u64)))
+        .collect();
+
+    let mut events: Vec<SimEvent> = Vec::new();
+    let mut timeseries: Vec<TickSnapshot> = Vec::new();
+    let mut last_executed_tick: u32 = 0;
+
+    // tick 0 baseline. No pool state on the generic path — all
+    // lending-shaped fields zero.
+    timeseries.push(TickSnapshot {
+        tick: 0,
+        tvl: 0.0,
+        utilization: 0.0,
+        oracle_price: starting_price,
+        active_agents: agents.iter().filter(|a| a.is_active()).count() as u32,
+        cumulative_liquidations: 0,
+        cumulative_bad_debt: 0.0,
+    });
+
+    for tick in 1..=run_config.ticks {
+        eprintln!("TICK {tick}/{}", run_config.ticks);
+
+        harness.advance_tick();
+
+        let oracle_update = scenario.update(tick, &mut master_rng);
+        with_retry(harness, |h| h.push_oracle_price(&oracle_update)).map_err(|e| match e {
+            HarnessError::Infra(msg) => SimulationAbort::Infra(msg),
+            HarnessError::ProgramRejected(msg) => SimulationAbort::Infra(format!(
+                "oracle push rejected by program (unexpected): {msg}"
+            )),
+        })?;
+
+        let oracle_price = oracle_update.price;
+
+        for idx in 0..agents.len() {
+            if !agents[idx].is_active() {
+                continue;
+            }
+
+            let custom = match harness.observation_values(idx) {
+                Ok(values) => values,
+                Err(HarnessError::Infra(first)) => {
+                    eprintln!("warn: custom observation read failed ({first}), retrying");
+                    harness
+                        .observation_values(idx)
+                        .map_err(|e| SimulationAbort::Infra(e.to_string()))?
+                }
+                Err(HarnessError::ProgramRejected(msg)) => {
+                    return Err(SimulationAbort::Infra(format!(
+                        "custom observation rejected: {msg}"
+                    )));
+                }
+            };
+
+            let observation = runtimes[idx].observe(
+                tick,
+                &agents[idx].policy.clone(),
+                &agents[idx],
+                oracle_price,
+                starting_price,
+                0.0,
+                0.0,
+                custom,
+            );
+            let decision =
+                runtimes[idx].decide(&mut agents[idx], &observation, &available_actions);
+            let action = decision.chosen.clone();
+            let amount = decision.amount.max(0.0).round() as u64;
+
+            let (outcome, detail) = if matches!(action, RuntimeAction::NoOp) || amount == 0 {
+                (SimOutcome::Skipped, None)
+            } else {
+                match submit_action_to_target(harness, idx, &action, amount, None) {
+                    Ok(pair) => pair,
+                    Err(msg) => return Err(SimulationAbort::Infra(msg)),
+                }
+            };
+
+            if matches!(outcome, SimOutcome::Success) {
+                agents[idx].total_actions += 1;
+            }
+
+            let mut params_map: BTreeMap<String, Value> = BTreeMap::new();
+            params_map.insert("amount".into(), Value::from(amount));
+
+            events.push(SimEvent {
+                tick,
+                agent_id: agents[idx].agent_id.clone(),
+                persona_id: agents[idx].policy.persona_id.clone(),
+                persona_label: agents[idx].policy.persona_label.clone(),
+                action: action.as_str().to_string(),
+                params: params_map,
+                outcome,
+                outcome_detail: detail,
+                triggered_by: decision
+                    .fired_triggers
+                    .first()
+                    .map(|trigger| trigger.condition_label.clone()),
+            });
+        }
+
+        timeseries.push(TickSnapshot {
+            tick,
+            tvl: 0.0,
+            utilization: 0.0,
+            oracle_price,
+            active_agents: agents.iter().filter(|a| a.is_active()).count() as u32,
+            cumulative_liquidations: 0,
+            cumulative_bad_debt: 0.0,
+        });
+
+        last_executed_tick = tick;
+    }
+
+    let _ = last_executed_tick;
+
+    let final_price = timeseries
+        .last()
+        .map(|s| s.oracle_price)
+        .unwrap_or(starting_price);
+
+    let agent_finals: Vec<_> = agents.iter().map(|a| a.final_state(final_price)).collect();
+    let agents_active = agent_finals
+        .iter()
+        .filter(|a| matches!(a.status, AgentStatus::Active))
+        .count() as u32;
+
+    let summary = SimulationSummary {
+        final_tvl: 0.0,
+        final_utilization: 0.0,
+        total_liquidations: 0,
+        total_bad_debt: 0.0,
+        agents_active,
+        agents_liquidated: 0,
+        agents_depleted: 0,
+        largest_single_tick_drawdown: 0.0,
+    };
+
+    Ok(SimulationResult {
+        run_config: run_config.clone(),
+        seed: run_config.seed,
+        total_ticks: run_config.ticks,
+        timeseries,
+        events,
+        agents: agent_finals,
+        summary,
+        simulation_boundaries,
+    })
 }
 
 #[cfg(test)]
@@ -646,6 +877,7 @@ mod tests {
         Policy {
             persona_id: id.into(),
             persona_label: id.into(),
+            action_rate_multiplier: 1.0,
             risk_tolerance: 0.5,
             action_weights: BTreeMap::from([
                 ("deposit".into(), 0.9),
@@ -659,6 +891,7 @@ mod tests {
                 response: "hold".into(),
                 severity: 1,
                 cooldown_ticks: 1,
+                weight_boost: None,
             }],
             position_sizing: PositionSizing {
                 strategy: PositionSizingStrategy::Fixed,
@@ -686,6 +919,7 @@ mod tests {
             run_config,
             policies,
             agent_personas: vec![0; run_config.agents as usize],
+            available_actions: crate::agent::policy::LENDING_RUNTIME_ACTIONS.to_vec(),
             starting_balance: 10_000.0,
             starting_price: 100.0,
             simulation_boundaries: vec!["mock harness".into()],
@@ -804,6 +1038,7 @@ mod tests {
         let policy = Policy {
             persona_id: "repayer".into(),
             persona_label: "repayer".into(),
+            action_rate_multiplier: 1.0,
             risk_tolerance: 0.5,
             action_weights: BTreeMap::from([
                 ("deposit".into(), 0.0),
@@ -840,6 +1075,7 @@ mod tests {
             run_config: &cfg,
             policies: vec![policy],
             agent_personas: vec![0],
+            available_actions: crate::agent::policy::LENDING_RUNTIME_ACTIONS.to_vec(),
             // cash at t0 = 10_000 - 10 + 200 = 10_190.
             starting_balance: 10_000.0,
             starting_price: 1.0,
@@ -891,6 +1127,7 @@ mod tests {
             run_config: &cfg,
             policies: vec![policy],
             agent_personas: vec![0],
+            available_actions: crate::agent::policy::LENDING_RUNTIME_ACTIONS.to_vec(),
             starting_balance: 10_000.0,
             starting_price: 100.0,
             simulation_boundaries: vec!["t".into()],

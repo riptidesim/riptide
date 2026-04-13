@@ -29,6 +29,7 @@ use std::collections::BTreeMap;
 use std::time::Instant;
 
 use riptide_engine::{
+    agent::policy::LENDING_RUNTIME_ACTIONS,
     harness::setup::default_program_so_path,
     scenario::BaselineScenario,
     sim::{
@@ -93,6 +94,7 @@ fn main() {
     let policy = Policy {
         persona_id: "steady-lp".into(),
         persona_label: "steady-lp".into(),
+        action_rate_multiplier: 1.0,
         risk_tolerance: 0.5,
         action_weights: BTreeMap::from([
             ("deposit".into(), 0.6),
@@ -106,6 +108,7 @@ fn main() {
             response: "hold".into(),
             severity: 1,
             cooldown_ticks: 1,
+            weight_boost: None,
         }],
         position_sizing: PositionSizing {
             strategy: PositionSizingStrategy::Fixed,
@@ -137,6 +140,7 @@ fn main() {
         run_config: &run_config,
         policies,
         agent_personas,
+        available_actions: LENDING_RUNTIME_ACTIONS.to_vec(),
         starting_balance: 20_000.0,
         starting_price: 100.0,
         simulation_boundaries: vec!["LiteSVM benchmark run".into()],

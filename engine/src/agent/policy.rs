@@ -4,28 +4,38 @@ use crate::types::Policy;
 
 use super::{runtime::AgentObservation, state::Agent, triggers::FiredTrigger};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RuntimeAction {
     Deposit,
     Withdraw,
     Borrow,
     Repay,
     Liquidate,
+    Custom(String),
     NoOp,
 }
 
 impl RuntimeAction {
-    pub fn as_str(self) -> &'static str {
+    pub fn as_str(&self) -> &str {
         match self {
             Self::Deposit => "deposit",
             Self::Withdraw => "withdraw",
             Self::Borrow => "borrow",
             Self::Repay => "repay",
             Self::Liquidate => "liquidate",
+            Self::Custom(name) => name.as_str(),
             Self::NoOp => "no_op",
         }
     }
 }
+
+pub const LENDING_RUNTIME_ACTIONS: &[RuntimeAction] = &[
+    RuntimeAction::Deposit,
+    RuntimeAction::Withdraw,
+    RuntimeAction::Borrow,
+    RuntimeAction::Repay,
+    RuntimeAction::Liquidate,
+];
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActionScore {
@@ -61,40 +71,42 @@ fn sizing_amount(policy: &Policy, agent: &Agent) -> f64 {
     }
 }
 
-fn response_matches_action(response: &str, action: RuntimeAction) -> bool {
+fn response_matches_action(response: &str, action: &RuntimeAction) -> bool {
     let normalized = response.trim().to_ascii_lowercase();
+    if let RuntimeAction::Custom(name) = action {
+        return normalized == *name || normalized.contains(name);
+    }
 
     match normalized.as_str() {
-        "deposit" => action == RuntimeAction::Deposit,
-        "withdraw" => action == RuntimeAction::Withdraw,
-        "borrow" => action == RuntimeAction::Borrow,
-        "repay" => action == RuntimeAction::Repay,
-        "liquidate" => action == RuntimeAction::Liquidate,
-        "hold" | "wait" | "no_op" | "noop" => action == RuntimeAction::NoOp,
+        "deposit" => action == &RuntimeAction::Deposit,
+        "withdraw" => action == &RuntimeAction::Withdraw,
+        "borrow" => action == &RuntimeAction::Borrow,
+        "repay" => action == &RuntimeAction::Repay,
+        "liquidate" => action == &RuntimeAction::Liquidate,
+        "hold" | "wait" | "no_op" | "noop" => action == &RuntimeAction::NoOp,
         "panic_exit" | "reduce_exposure" => {
-            matches!(action, RuntimeAction::Withdraw | RuntimeAction::Repay)
+            action == &RuntimeAction::Withdraw || action == &RuntimeAction::Repay
         }
-        "rotate_capital" => matches!(action, RuntimeAction::Withdraw | RuntimeAction::Deposit),
+        "rotate_capital" => {
+            action == &RuntimeAction::Withdraw || action == &RuntimeAction::Deposit
+        }
         _ => normalized.contains(action.as_str()),
     }
 }
 
 pub fn score_actions(
     policy: &Policy,
+    available_actions: &[RuntimeAction],
     agent: &Agent,
     observation: &AgentObservation,
     fired_triggers: &[FiredTrigger],
     rng: &mut StdRng,
 ) -> Vec<ActionScore> {
     let amount = sizing_amount(policy, agent);
-    let actions = [
-        RuntimeAction::Deposit,
-        RuntimeAction::Withdraw,
-        RuntimeAction::Borrow,
-        RuntimeAction::Repay,
-        RuntimeAction::Liquidate,
-        RuntimeAction::NoOp,
-    ];
+    let mut actions = available_actions.to_vec();
+    if !actions.contains(&RuntimeAction::NoOp) {
+        actions.push(RuntimeAction::NoOp);
+    }
 
     actions
         .into_iter()
@@ -106,10 +118,12 @@ pub fn score_actions(
                 .unwrap_or_default();
             let trigger_modifier = fired_triggers
                 .iter()
-                .filter(|trigger| response_matches_action(&trigger.response, action))
-                .map(|trigger| trigger.severity as f64 * 0.1)
+                .filter(|trigger| response_matches_action(&trigger.response, &action))
+                .map(|trigger| trigger.score_boost)
                 .sum::<f64>();
-            score += rng.random_range(0.0..0.01);
+            if action != RuntimeAction::NoOp {
+                score *= policy.action_rate_multiplier.max(0.0);
+            }
             score += trigger_modifier;
 
             match action {
@@ -131,12 +145,16 @@ pub fn score_actions(
                     score = 0.0
                 }
                 RuntimeAction::Liquidate if !observation.can_liquidate => score = 0.0,
+                RuntimeAction::Custom(_) => {}
                 RuntimeAction::NoOp => score = score.max(0.001),
                 _ => {}
             }
 
             if !score.is_finite() {
                 score = 0.0;
+            }
+            if score > 0.0 {
+                score += rng.random_range(0.0..0.01);
             }
 
             ActionScore {
@@ -188,6 +206,7 @@ mod tests {
         Policy {
             persona_id: "steady-lp".into(),
             persona_label: "Steady LP".into(),
+            action_rate_multiplier: 1.0,
             risk_tolerance: 0.4,
             action_weights: BTreeMap::from([
                 ("deposit".into(), 0.8),
@@ -234,7 +253,14 @@ mod tests {
         let observation = AgentObservation::new(1, 100.0, 0.3, 0.0, 0.0, 1_000.0);
         let mut rng = rand::SeedableRng::seed_from_u64(7);
 
-        let scores = score_actions(&policy, &agent, &observation, &[], &mut rng);
+        let scores = score_actions(
+            &policy,
+            LENDING_RUNTIME_ACTIONS,
+            &agent,
+            &observation,
+            &[],
+            &mut rng,
+        );
         let deposit_score = scores
             .iter()
             .find(|score| score.action == RuntimeAction::Deposit)
@@ -254,10 +280,18 @@ mod tests {
             severity: 9,
             cooldown_ticks: 3,
             condition_label: "price_drop_percent".into(),
+            score_boost: 0.9,
         }];
         let mut rng = rand::SeedableRng::seed_from_u64(7);
 
-        let scores = score_actions(&policy, &agent, &observation, &fired_triggers, &mut rng);
+        let scores = score_actions(
+            &policy,
+            LENDING_RUNTIME_ACTIONS,
+            &agent,
+            &observation,
+            &fired_triggers,
+            &mut rng,
+        );
         let deposit_score = scores
             .iter()
             .find(|score| score.action == RuntimeAction::Deposit)
@@ -289,11 +323,19 @@ mod tests {
             severity: 10,
             cooldown_ticks: 3,
             condition_label: "price_drop_percent".into(),
+            score_boost: 1.0,
         }];
         let mut rng = rand::SeedableRng::seed_from_u64(11);
 
         let decision = choose_best(
-            &score_actions(&policy, &agent, &observation, &fired_triggers, &mut rng),
+            &score_actions(
+                &policy,
+                LENDING_RUNTIME_ACTIONS,
+                &agent,
+                &observation,
+                &fired_triggers,
+                &mut rng,
+            ),
             fired_triggers,
         );
 

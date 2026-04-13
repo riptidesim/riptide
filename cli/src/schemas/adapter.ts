@@ -1,16 +1,11 @@
-// Zod schema for the adapter TOML (Sprint 3 · T04).
+// Zod schema for the adapter TOML (Sprint 3 · T05).
 //
 // Must stay in lock-step with the serde schema in
-// `engine/src/adapter/schema.rs`. The contract test in
-// `cli/test/adapter.test.ts` parses the shipped
-// `fixtures/adapters/solend-fork.toml` through both validators and
-// asserts structural equivalence — any shape drift fails that test,
-// not a demo run.
+// `engine/src/adapter/schema.rs` and the loader validation in
+// `engine/src/adapter/loader.rs`.
 
 import { z } from "zod";
 
-// Canonical action / observation lists mirror
-// engine/src/adapter/schema.rs LENDING_ACTIONS / LENDING_OBSERVATIONS.
 export const LENDING_ACTIONS = [
   "deposit",
   "borrow",
@@ -32,33 +27,51 @@ export type Protocol = z.infer<typeof ProtocolSchema>;
 
 export const InstructionMappingSchema = z.object({
   action: z.string().min(1),
-  // Optional in the serde schema — zero-arg or observation-only
-  // instructions may omit it.
   amount: z.string().min(1).optional(),
 });
 export type InstructionMapping = z.infer<typeof InstructionMappingSchema>;
 
-export const ActionDefinitionSchema = z.object({
-  label: z.string().min(1).optional(),
-  instruction: z.string().min(1).optional(),
+export const AccountKindSchema = z.enum(["agent", "shared"]);
+export const AccountDefinitionSchema = z.object({
+  kind: AccountKindSchema,
+  space: z.number().int().positive(),
 });
 
-export const ObservationDefinitionSchema = z.object({
+export const ActionDefinitionSchema = z.object({
   label: z.string().min(1).optional(),
-  path: z.string().min(1).optional(),
+  takes: z.array(z.string().min(1)).default([]),
+});
+
+export const ObservationTypeSchema = z.enum(["int", "uint", "bool", "pubkey", "map"]);
+const ObservationShapeSchema = z.object({
+  label: z.string().min(1).optional(),
+  type: ObservationTypeSchema,
+});
+export const ObservationDefinitionSchema = z.union([
+  ObservationTypeSchema,
+  ObservationShapeSchema,
+]);
+
+export const PersonaTriggerSchema = z.object({
+  if: z.string().min(1),
+  then: z.string().min(1),
+  weight_boost: z.number().finite(),
 });
 
 export const PersonaDefinitionSchema = z.object({
   label: z.string().min(1).optional(),
+  action_rate_multiplier: z.number().finite().nonnegative().default(1),
   action_weights: z.record(z.string(), z.number()).default({}),
+  triggers: z.array(PersonaTriggerSchema).default([]),
 });
 
 export const AdapterSchema = z.object({
   protocol: ProtocolSchema,
   instructions: z.record(z.string(), InstructionMappingSchema),
   state_mapping: z.record(z.string(), z.string()),
-  // Reserved for T05 (generic primitive). Lending adapters leave these
-  // empty; both sides parse them as empty `{}` by default.
+  program_so: z.string().min(1).optional(),
+  idl_path: z.string().min(1).optional(),
+  accounts: z.record(z.string(), AccountDefinitionSchema).default({}),
   actions: z.record(z.string(), ActionDefinitionSchema).default({}),
   observations: z.record(z.string(), ObservationDefinitionSchema).default({}),
   personas: z.record(z.string(), PersonaDefinitionSchema).default({}),
@@ -71,17 +84,6 @@ export interface AdapterValidationError {
   reason: string;
 }
 
-/**
- * Validate a parsed-TOML adapter object. Returns the validated
- * adapter on success, or throws an `Error` whose message carries the
- * virtual adapter path + the first violation.
- *
- * Lending-specific validation runs after the Zod parse:
- * - `[instructions]` must be non-empty.
- * - Every instruction `action` must be in LENDING_ACTIONS.
- * - `[state_mapping]` keys must be `<account>.<field>` shaped.
- * - `[state_mapping]` values must be in LENDING_OBSERVATIONS.
- */
 export function validateAdapter(raw: unknown, path: string): Adapter {
   const parsed = AdapterSchema.safeParse(raw);
   if (!parsed.success) {
@@ -93,7 +95,10 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
 
   if (adapter.protocol === "lending") {
     validateLending(adapter, path);
+  } else {
+    validateGeneric(adapter, path);
   }
+
   return adapter;
 }
 
@@ -104,23 +109,140 @@ function validateLending(adapter: Adapter, path: string): void {
     );
   }
   for (const [ixName, mapping] of Object.entries(adapter.instructions)) {
-    if (!LENDING_ACTIONS.includes(mapping.action as any)) {
+    if (!LENDING_ACTIONS.includes(mapping.action as (typeof LENDING_ACTIONS)[number])) {
       throw new Error(
         `${path}: \`[instructions].${ixName}.action\`: unknown lending action \`${mapping.action}\`; expected one of ${JSON.stringify(LENDING_ACTIONS)}`
       );
     }
   }
   for (const [key, logical] of Object.entries(adapter.state_mapping)) {
-    const dot = key.indexOf(".");
-    if (dot <= 0 || dot === key.length - 1) {
-      throw new Error(
-        `${path}: \`[state_mapping].${key}\`: state_mapping keys must be \`<account>.<field>\` (non-empty both sides)`
-      );
-    }
-    if (!LENDING_OBSERVATIONS.includes(logical as any)) {
+    validateDottedPath(path, key);
+    if (!LENDING_OBSERVATIONS.includes(logical as (typeof LENDING_OBSERVATIONS)[number])) {
       throw new Error(
         `${path}: \`[state_mapping].${key}\`: unknown lending observation \`${logical}\`; expected one of ${JSON.stringify(LENDING_OBSERVATIONS)}`
       );
     }
+  }
+}
+
+function validateGeneric(adapter: Adapter, path: string): void {
+  requireNonEmptyOption(path, "program_so", adapter.program_so, "generic adapters must declare `program_so`");
+  requireNonEmptyOption(path, "idl_path", adapter.idl_path, "generic adapters must declare `idl_path`");
+
+  requireNonEmptyBlock(path, "[accounts]", adapter.accounts, "generic adapters must declare at least one account binding");
+  requireNonEmptyBlock(path, "[instructions]", adapter.instructions, "generic adapters must declare at least one instruction mapping");
+  requireNonEmptyBlock(path, "[actions]", adapter.actions, "generic adapters must declare at least one action");
+  requireNonEmptyBlock(path, "[observations]", adapter.observations, "generic adapters must declare at least one observation");
+  requireNonEmptyBlock(path, "[personas]", adapter.personas, "generic adapters must declare at least one persona");
+
+  for (const [ixName, mapping] of Object.entries(adapter.instructions)) {
+    if (!(mapping.action in adapter.actions)) {
+      throw new Error(
+        `${path}: \`[instructions].${ixName}.action\`: unknown generic action \`${mapping.action}\`; expected one of ${JSON.stringify(Object.keys(adapter.actions))}`
+      );
+    }
+  }
+
+  for (const [actionName, action] of Object.entries(adapter.actions)) {
+    if (action.takes.length > 1) {
+      throw new Error(
+        `${path}: \`[actions].${actionName}.takes\`: T05 v0 supports either zero args or one numeric arg; expand only if T06 needs more`
+      );
+    }
+    const expectedArg = action.takes[0];
+    if (expectedArg) {
+      const hasBinding = Object.values(adapter.instructions).some(
+        (mapping) => mapping.action === actionName && mapping.amount === expectedArg
+      );
+      if (!hasBinding) {
+        throw new Error(
+          `${path}: \`[actions].${actionName}.takes\`: action \`${actionName}\` expects arg \`${expectedArg}\` but no matching \`[instructions].*.amount\` binding was found`
+        );
+      }
+    }
+  }
+
+  for (const [key, logical] of Object.entries(adapter.state_mapping)) {
+    const [account] = validateDottedPath(path, key);
+    if (!(account in adapter.accounts)) {
+      throw new Error(
+        `${path}: \`[state_mapping].${key}\`: unknown generic account binding \`${account}\`; declare it under \`[accounts]\``
+      );
+    }
+    if (!(logical in adapter.observations)) {
+      throw new Error(
+        `${path}: \`[state_mapping].${key}\`: unknown generic observation \`${logical}\`; declare it under \`[observations]\``
+      );
+    }
+  }
+
+  for (const [personaName, persona] of Object.entries(adapter.personas)) {
+    for (const actionName of Object.keys(persona.action_weights)) {
+      if (!(actionName in adapter.actions)) {
+        throw new Error(
+          `${path}: \`[personas].${personaName}.action_weights.${actionName}\`: unknown generic action \`${actionName}\`; expected one of ${JSON.stringify(Object.keys(adapter.actions))}`
+        );
+      }
+    }
+    persona.triggers.forEach((trigger, index) => {
+      if (!(trigger.then in adapter.actions)) {
+        throw new Error(
+          `${path}: \`[personas].${personaName}.triggers[${index}].then\`: unknown generic action \`${trigger.then}\`; expected one of ${JSON.stringify(Object.keys(adapter.actions))}`
+        );
+      }
+      validateTriggerCondition(path, personaName, index, trigger.if);
+    });
+  }
+}
+
+function requireNonEmptyOption(
+  path: string,
+  key: string,
+  value: string | undefined,
+  reason: string
+): void {
+  if (!value || value.trim() === "") {
+    throw new Error(`${path}: \`${key}\`: ${reason}`);
+  }
+}
+
+function requireNonEmptyBlock(
+  path: string,
+  key: string,
+  value: Record<string, unknown>,
+  reason: string
+): void {
+  if (Object.keys(value).length === 0) {
+    throw new Error(`${path}: \`${key}\`: ${reason}`);
+  }
+}
+
+function validateDottedPath(path: string, key: string): [string, string] {
+  const dot = key.indexOf(".");
+  if (dot <= 0 || dot === key.length - 1) {
+    throw new Error(
+      `${path}: \`[state_mapping].${key}\`: state_mapping keys must be \`<account>.<field>\` (non-empty both sides)`
+    );
+  }
+  return [key.slice(0, dot), key.slice(dot + 1)];
+}
+
+function validateTriggerCondition(
+  path: string,
+  personaName: string,
+  index: number,
+  condition: string
+): void {
+  // T05 v0: expand if T06 fixture needs more.
+  const parts = condition.trim().split(/\s+/);
+  if (parts.length !== 3) {
+    throw new Error(
+      `${path}: \`[personas].${personaName}.triggers[${index}].if\`: generic trigger conditions must be \`<observation> <op> <constant>\` in T05 v0`
+    );
+  }
+  if (!["<", ">", "=="].includes(parts[1]!)) {
+    throw new Error(
+      `${path}: \`[personas].${personaName}.triggers[${index}].if\`: unsupported generic trigger operator \`${parts[1]}\`; expected one of ["<", ">", "=="]`
+    );
   }
 }

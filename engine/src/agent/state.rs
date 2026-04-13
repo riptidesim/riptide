@@ -176,6 +176,7 @@ mod tests {
         Policy {
             persona_id: "steady-lp".into(),
             persona_label: "Steady LP".into(),
+            action_rate_multiplier: 1.0,
             risk_tolerance: 0.4,
             action_weights: BTreeMap::from([
                 ("deposit".into(), 0.8),

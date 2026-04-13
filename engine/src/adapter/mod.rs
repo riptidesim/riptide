@@ -27,14 +27,16 @@
 //! "position.liquidated" = "liquidated"
 //! ```
 //!
-//! The optional `[actions]`, `[observations]`, `[personas]` blocks are
-//! reserved for the generic primitive (T05) and parsed but ignored when
-//! `protocol = "lending"`.
+//! Sprint 3 T05 extends the generic path with `[accounts]`, `program_so`,
+//! and `idl_path`, which give the engine enough information to boot a
+//! non-lending program honestly instead of hiding those details in code.
 
 pub mod loader;
 pub mod schema;
 
 pub use loader::{load_adapter, AdapterError};
 pub use schema::{
-    Adapter, InstructionMapping, Protocol, ACTION_NAMES, LENDING_ACTIONS, LENDING_OBSERVATIONS,
+    AccountDefinition, AccountKind, ActionDefinition, Adapter, InstructionMapping,
+    ObservationDefinition, ObservationType, PersonaDefinition, PersonaTriggerDefinition, Protocol,
+    ACTION_NAMES, LENDING_ACTIONS, LENDING_OBSERVATIONS,
 };

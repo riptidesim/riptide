@@ -29,10 +29,12 @@
 use std::collections::BTreeMap;
 
 use riptide_engine::{
+    agent::policy::LENDING_RUNTIME_ACTIONS,
     harness::{
         lending::LendingPoolConfig,
         setup::default_program_so_path,
     },
+    primitive::Primitive,
     scenario::{BaselineScenario, OracleUpdate},
     sim::{
         litesvm::{LiteSvmBootstrapConfig, LiteSvmHarness},
@@ -398,6 +400,7 @@ fn litesvm_deterministic_same_seed() {
         Policy {
             persona_id: "test-lp".into(),
             persona_label: "test-lp".into(),
+            action_rate_multiplier: 1.0,
             risk_tolerance: 0.5,
             action_weights: BTreeMap::from([
                 ("deposit".into(), 0.6),
@@ -411,6 +414,7 @@ fn litesvm_deterministic_same_seed() {
                 response: "hold".into(),
                 severity: 1,
                 cooldown_ticks: 1,
+                weight_boost: None,
             }],
             position_sizing: PositionSizing {
                 strategy: PositionSizingStrategy::Fixed,
@@ -442,6 +446,7 @@ fn litesvm_deterministic_same_seed() {
             run_config: &cfg,
             policies,
             agent_personas: vec![0; 5],
+            available_actions: LENDING_RUNTIME_ACTIONS.to_vec(),
             starting_balance: 10_000.0,
             starting_price: 100.0,
             simulation_boundaries: vec!["litesvm parity".into()],
@@ -509,7 +514,7 @@ fn litesvm_operations_stable_across_tick_advances() {
 
     // Simulate 10 ticks with mixed operations.
     for tick in 0..10 {
-        Harness::advance_tick(&mut h);
+        Primitive::advance_tick(&mut h);
         h.push_oracle_price(&OracleUpdate {
             price: 100.0 + tick as f64,
             exponent: 0,

@@ -1,35 +1,53 @@
-//! `LendingPrimitive` — the lending-domain trait the tick loop executes.
+//! Primitive traits — the two-tier split the tick loop dispatches through.
 //!
-//! Defines the five lending actions (deposit / borrow / repay / withdraw /
-//! liquidate) and the two observations (`pool_state`, `health_factor`).
-//! Concrete impls live in submodules of `primitive/` — `solend_fork.rs`
-//! is the first. T05 will add `generic.rs` for the `GenericPrimitive`
-//! impl driven by an adapter TOML.
+//! Post Sprint 3 · #3: the original `LendingPrimitive` conflated two
+//! different contracts. It carried the five lending actions
+//! (deposit/borrow/repay/withdraw/liquidate) and the two lending
+//! observations (`pool_state`, `health_factor`) alongside
+//! domain-neutral sim-layer concerns (`agent_count`, `advance_tick`,
+//! `push_oracle_price`, `execute_action`, `observation_values`). A
+//! generic non-lending impl (`GenericHarness`) was forced to impl the
+//! full trait and stub the lending-specific methods as
+//! `ProgramRejected` / zero, which the tick loop then silently
+//! consumed — a technical-debt smell flagged in the Phase 3 review.
 //!
-//! ## The trait the tick loop calls
+//! The split:
 //!
-//! The Sprint 3 T03 rearchitecture makes **this trait** the one the
-//! tick loop dispatches through. Sprint 2 shipped a `Harness` trait in
-//! `sim::harness` with all the lending-action methods on it; that
-//! trait is now a re-export of `LendingPrimitive` (`pub use ... as
-//! Harness`), which means:
+//! - [`Primitive`] is the domain-neutral base trait every backend
+//!   implements. It exposes only the hooks the generic tick loop
+//!   needs: agent count, tick advance, oracle push, action dispatch,
+//!   and adapter-defined observation reads.
+//! - [`LendingPrimitive`] is a super-trait of `Primitive` that adds
+//!   the lending-specific actions and observations. The lending tick
+//!   loop binds on this trait.
 //!
-//! 1. `use sim::harness::Harness;` and `use primitive::LendingPrimitive;`
-//!    bring the **same trait** into scope — no method-call ambiguity.
-//! 2. Deleting `LendingPrimitive` or changing any method body inside an
-//!    `impl LendingPrimitive for <T>` immediately changes the tick
-//!    loop's behavior, because there is no parallel `Harness`
-//!    implementation to hide behind.
-//! 3. `sim::run` and tests that only import `Harness` keep compiling
-//!    without modification, because `Harness` *is* `LendingPrimitive`.
+//! ```text
+//!        ┌───────────────────────┐
+//!        │   sim::run::*         │
+//!        ├───────────────────────┤
+//!        │  run_simulation       │ generic over H: LendingPrimitive
+//!        │  run_generic_sim      │ generic over H: Primitive
+//!        └──────────┬────────────┘
+//!                   │
+//!        ┌──────────▼────────────┐
+//!        │       Primitive       │   agent_count / advance_tick /
+//!        │   (base trait)        │   push_oracle_price /
+//!        │                       │   execute_action / observation_values
+//!        └──────────┬────────────┘
+//!                   │ super-trait
+//!        ┌──────────▼────────────┐
+//!        │   LendingPrimitive    │   deposit / borrow / repay /
+//!        │                       │   withdraw / liquidate /
+//!        │                       │   pool_state / health_factor
+//!        └───────────────────────┘
+//! ```
 //!
-//! Sim-layer concerns that aren't lending-specific — `agent_count`,
-//! `push_oracle_price`, `advance_tick` — live on this trait too. They
-//! have default implementations on trait objects where it makes sense
-//! (`advance_tick` defaults to a no-op); a primitive that needs to
-//! override them can do so in its own impl block.
+//! `Harness` is a re-export of `LendingPrimitive` so Sprint 2 imports
+//! (`use sim::harness::Harness`) keep resolving for the lending path.
 
-use crate::scenario::OracleUpdate;
+use std::collections::BTreeMap;
+
+use crate::{scenario::OracleUpdate, types::ObservationValue};
 
 /// Pool-wide observation. Units follow whatever the on-chain program
 /// uses — stable base units for deposits/borrows/bad_debt in the
@@ -91,33 +109,91 @@ impl std::fmt::Display for PrimitiveError {
 
 impl std::error::Error for PrimitiveError {}
 
-/// Abstract lending-protocol surface.
+/// Domain-neutral primitive surface.
 ///
-/// Five actions the tick loop exercises, two observations it reads
-/// after every state-changing tx, plus three sim-layer concerns
-/// (`agent_count`, `push_oracle_price`, `advance_tick`) that a
-/// lending backend needs to drive a full simulation run. All of them
-/// live on the same trait so:
+/// Every backend the engine can drive — lending fork, generic
+/// adapter-driven program, mock — implements this trait. It carries
+/// only the methods the sim layer genuinely needs without knowing the
+/// protocol domain:
 ///
-/// - method-call resolution is unambiguous (`h.deposit(...)` resolves
-///   to exactly one method),
-/// - the tick loop binds to **one** trait (`H: LendingPrimitive`),
-/// - there is no parallel "Harness has deposit too" dispatch path
-///   that could decay back into a decorative primitive.
+/// - `agent_count` for input validation,
+/// - `advance_tick` for synthetic chain progression,
+/// - `push_oracle_price` for scenario-driven price updates (backends
+///   that don't consume prices default to a no-op),
+/// - `execute_action` for dispatching an adapter-level action name,
+/// - `observation_values` for reading adapter-defined observations
+///   back into the agent runtime.
 ///
-/// `sim::harness::Harness` is a re-export of this trait — same trait,
-/// two names, zero duplication.
+/// Lending-specific action and observation methods live on the
+/// [`LendingPrimitive`] super-trait below.
 ///
 /// ## Invariants
 ///
 /// 1. **Error classification** — `PrimitiveError::ProgramRejected`
 ///    means "the program processed the tx and rejected it";
 ///    `Infra` means the failure was below the program layer.
-/// 2. **Units** — `amount` is in the program's native unit (collateral
-///    tokens for deposit/withdraw, debt tokens for
-///    borrow/repay/liquidate). The engine is responsible for unit
-///    conversions at the boundary.
-pub trait LendingPrimitive {
+/// 2. **Determinism** — implementations must be deterministic under
+///    a fixed seed and fixed action sequence.
+pub trait Primitive {
+    /// Number of agents this primitive was initialized with.
+    fn agent_count(&self) -> usize;
+
+    /// Advance synthetic chain state between ticks. LiteSVM backends
+    /// override this to rotate blockhashes and advance slot/clock
+    /// sysvars. Mock/legacy backends default to a no-op.
+    fn advance_tick(&mut self) {}
+
+    /// Push a new oracle price into the program's pricing feed.
+    /// Backends without a price feed default to a no-op.
+    fn push_oracle_price(
+        &mut self,
+        _update: &OracleUpdate,
+    ) -> Result<(), PrimitiveError> {
+        Ok(())
+    }
+
+    /// Execute an adapter-level action for `agent_idx`. `action` is
+    /// the logical action name (e.g. "deposit", "mine");
+    /// `target_idx` is only populated for lending-style pairwise
+    /// actions like `liquidate`.
+    fn execute_action(
+        &mut self,
+        agent_idx: usize,
+        action: &str,
+        amount: u64,
+        target_idx: Option<usize>,
+    ) -> Result<(), PrimitiveError>;
+
+    /// Read adapter-defined observations for `agent_idx`. Lending
+    /// impls keep the default empty map; generic impls return the
+    /// decoded state of every account bound in the adapter's
+    /// `[state_mapping]` block.
+    fn observation_values(
+        &self,
+        _agent_idx: usize,
+    ) -> Result<BTreeMap<String, ObservationValue>, PrimitiveError> {
+        Ok(BTreeMap::new())
+    }
+}
+
+/// Lending-specific primitive surface. Super-trait of `Primitive`.
+///
+/// Five actions the lending tick loop exercises, two observations it
+/// reads after every state-changing tx. The lending tick loop binds
+/// on this trait so it can call `pool_state`, `health_factor`, and
+/// the canonical five actions directly.
+///
+/// A default `execute_action` dispatches the five canonical action
+/// names through the typed methods, which means lending impls get
+/// [`Primitive`]'s `execute_action` satisfied automatically via this
+/// default, without touching the trait body explicitly.
+///
+/// ## Units
+///
+/// `amount` is in the program's native unit (collateral tokens for
+/// deposit/withdraw, debt tokens for borrow/repay/liquidate). The
+/// engine is responsible for unit conversions at the boundary.
+pub trait LendingPrimitive: Primitive {
     // --- Actions ---
 
     /// Increase `agent_idx`'s collateral by `amount`.
@@ -155,24 +231,6 @@ pub trait LendingPrimitive {
     /// oracle price to derive the actual health factor.
     fn health_factor(&self, agent_idx: usize) -> Result<PositionHealth, PrimitiveError>;
 
-    // --- Sim-layer concerns ---
-
-    /// Number of agents this primitive was initialized with. The tick
-    /// loop uses this to validate the input `agent_personas` vector
-    /// has a matching length.
-    fn agent_count(&self) -> usize;
-
-    /// Push a new oracle price into the program's pricing feed. In
-    /// the lending context this updates the value used by subsequent
-    /// health-factor checks.
-    fn push_oracle_price(&mut self, update: &OracleUpdate) -> Result<(), PrimitiveError>;
-
-    /// Advance synthetic chain state between ticks. Backends that
-    /// manage their own chain progression (LiteSVM) override this to
-    /// rotate blockhashes, advance slots/clock sysvars, etc.
-    /// Mock/legacy backends default to a no-op.
-    fn advance_tick(&mut self) {}
-
     // --- Sprint 2 name-compat aliases ---
     //
     // Sprint 2 code (including `tests/t06_litesvm_parity.rs`) called
@@ -193,6 +251,40 @@ pub trait LendingPrimitive {
         agent_idx: usize,
     ) -> Result<PositionHealth, PrimitiveError> {
         self.health_factor(agent_idx)
+    }
+}
+
+/// Default action-dispatch helper for lending backends.
+///
+/// A concrete lending impl wires `Primitive::execute_action` to this
+/// helper in one line so it doesn't have to re-enumerate the five
+/// canonical lending actions. This keeps the dispatch logic in one
+/// place while still leaving `Primitive::execute_action` as a required
+/// method (so generic impls cannot accidentally inherit a lending
+/// fallback).
+pub fn dispatch_lending_action<H: LendingPrimitive + ?Sized>(
+    harness: &mut H,
+    agent_idx: usize,
+    action: &str,
+    amount: u64,
+    target_idx: Option<usize>,
+) -> Result<(), PrimitiveError> {
+    match action {
+        "deposit" => harness.deposit(agent_idx, amount),
+        "withdraw" => harness.withdraw(agent_idx, amount),
+        "borrow" => harness.borrow(agent_idx, amount),
+        "repay" => harness.repay(agent_idx, amount),
+        "liquidate" => {
+            let target_idx = target_idx.ok_or_else(|| {
+                PrimitiveError::ProgramRejected(
+                    "liquidate action missing target_idx".to_string(),
+                )
+            })?;
+            harness.liquidate(agent_idx, target_idx, amount)
+        }
+        other => Err(PrimitiveError::ProgramRejected(format!(
+            "unknown lending action `{other}`"
+        ))),
     }
 }
 

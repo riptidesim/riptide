@@ -1,0 +1,190 @@
+//! Dedicated end-to-end determinism gate for Sprint 3 Phase 3.
+//!
+//! `t06_litesvm_parity::litesvm_deterministic_same_seed` remains in place as
+//! the lending-path regression test that existed before T06. This file adds
+//! the sprint DoD target that asserts byte-stable output for both the shipped
+//! lending fixture shape and the new generic/resource-grinder fixture.
+
+#![cfg(feature = "litesvm-backend")]
+#![cfg(not(doctest))]
+
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+};
+
+use riptide_engine::{
+    adapter::load_adapter,
+    agent::policy::LENDING_RUNTIME_ACTIONS,
+    harness::setup::default_program_so_path,
+    primitive::{
+        build_generic_policies, generic_runtime_actions, GenericBootstrapConfig, GenericHarness,
+    },
+    scenario::BaselineScenario,
+    sim::{
+        build_agent_personas,
+        litesvm::{LiteSvmBootstrapConfig, LiteSvmHarness},
+        run::{run_generic_simulation, run_simulation, SimulationParams},
+    },
+    types::{
+        Policy, PositionSizing, PositionSizingStrategy, RunConfig, SimOutcome, SimulationResult,
+        Trigger, TriggerCondition,
+    },
+};
+
+fn manifest_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn monorepo_root() -> PathBuf {
+    manifest_dir().parent().unwrap().to_path_buf()
+}
+
+fn canonical_bytes(result: &SimulationResult) -> Vec<u8> {
+    serde_json::to_vec(result).expect("serialize simulation result")
+}
+
+fn skip_if_missing(path: &Path, label: &str) -> bool {
+    if !path.exists() {
+        eprintln!("skipping: {label} missing at {}", path.display());
+        true
+    } else {
+        false
+    }
+}
+
+fn lending_policy() -> Policy {
+    Policy {
+        persona_id: "test-lp".into(),
+        persona_label: "test-lp".into(),
+        action_rate_multiplier: 1.0,
+        risk_tolerance: 0.5,
+        action_weights: BTreeMap::from([
+            ("deposit".into(), 0.6),
+            ("borrow".into(), 0.2),
+            ("withdraw".into(), 0.1),
+            ("repay".into(), 0.1),
+            ("liquidate".into(), 0.0),
+        ]),
+        triggers: vec![Trigger {
+            condition: TriggerCondition::PriceDropPercent { threshold: 0.9 },
+            response: "hold".into(),
+            severity: 1,
+            cooldown_ticks: 1,
+            weight_boost: None,
+        }],
+        position_sizing: PositionSizing {
+            strategy: PositionSizingStrategy::Fixed,
+            params: BTreeMap::from([("amount".into(), 50.0)]),
+        },
+        max_exposure: 0.8,
+    }
+}
+
+fn run_lending_fixture(seed: u64) -> SimulationResult {
+    let cfg = RunConfig {
+        agents: 5,
+        ticks: 10,
+        scenario: "baseline".into(),
+        seed,
+        personas: vec!["test-lp".into()],
+        validator_url: "unused".into(),
+        output_path: "unused".into(),
+    };
+    let mut harness = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
+        agent_count: 5,
+        seed_deposit: 50,
+        starting_price: 100,
+        ..Default::default()
+    })
+    .unwrap();
+    let mut scenario = BaselineScenario::new(100.0, 25);
+    let params = SimulationParams {
+        run_config: &cfg,
+        policies: vec![lending_policy()],
+        agent_personas: vec![0; 5],
+        available_actions: LENDING_RUNTIME_ACTIONS.to_vec(),
+        starting_balance: 10_000.0,
+        starting_price: 100.0,
+        simulation_boundaries: vec!["t15 lending".into()],
+    };
+    run_simulation(&mut harness, &mut scenario, params).unwrap()
+}
+
+fn run_generic_fixture(seed: u64) -> SimulationResult {
+    let repo = monorepo_root();
+    let adapter_path = repo.join("fixtures/adapters/resource-grinder.toml");
+    let run_config_path = repo.join("fixtures/generic-demo.run.json");
+    let adapter = load_adapter(&adapter_path).expect("load generic adapter");
+    let mut run_config: RunConfig = serde_json::from_str(
+        &fs::read_to_string(&run_config_path).expect("read generic demo run config"),
+    )
+    .expect("parse generic demo run config");
+    run_config.seed = seed;
+
+    let policies = build_generic_policies(&adapter, |_| {}).expect("build generic policies");
+    let agent_personas =
+        build_agent_personas(&run_config.personas, &policies, run_config.agents as usize)
+            .expect("resolve generic personas");
+
+    let mut harness = GenericHarness::bootstrap(GenericBootstrapConfig {
+        program_so: PathBuf::from(adapter.program_so.as_deref().unwrap()),
+        idl_path: PathBuf::from(adapter.idl_path.as_deref().unwrap()),
+        agent_count: run_config.agents as usize,
+        adapter: adapter.clone(),
+    })
+    .unwrap();
+    let mut scenario = BaselineScenario::new(100.0, 25);
+    let params = SimulationParams {
+        run_config: &run_config,
+        policies,
+        agent_personas,
+        available_actions: generic_runtime_actions(&adapter),
+        starting_balance: 20_000.0,
+        starting_price: 100.0,
+        simulation_boundaries: vec!["t15 generic".into()],
+    };
+    run_generic_simulation(&mut harness, &mut scenario, params).unwrap()
+}
+
+#[test]
+fn lending_fixture_is_byte_stable_same_seed() {
+    let program_so = default_program_so_path();
+    if skip_if_missing(&program_so, "lending_pool.so") {
+        return;
+    }
+
+    let first = run_lending_fixture(42);
+    let second = run_lending_fixture(42);
+    assert_eq!(
+        canonical_bytes(&first),
+        canonical_bytes(&second),
+        "lending fixture output diverged across same-seed runs"
+    );
+}
+
+#[test]
+fn generic_fixture_is_byte_stable_same_seed() {
+    let repo = monorepo_root();
+    let program_so = repo.join("programs/resource_grinder/target/deploy/resource_grinder.so");
+    if skip_if_missing(&program_so, "resource_grinder.so") {
+        return;
+    }
+
+    let first = run_generic_fixture(42);
+    let second = run_generic_fixture(42);
+    assert_eq!(
+        canonical_bytes(&first),
+        canonical_bytes(&second),
+        "generic fixture output diverged across same-seed runs"
+    );
+    assert!(
+        first.events.iter().any(|event| event.outcome == SimOutcome::Success),
+        "generic fixture should produce at least one successful event"
+    );
+    assert!(
+        first.events.iter().any(|event| event.triggered_by.is_some()),
+        "generic fixture should surface at least one persona trigger in the event log"
+    );
+}

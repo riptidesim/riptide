@@ -49,12 +49,13 @@ export function buildSimulateOptions(raw: Record<string, unknown>): { config: Si
   // We resolve to an absolute path so the engine binary can find the
   // file regardless of its own cwd.
   let adapterPath: string | undefined;
+  let adapterProtocol: "lending" | "generic" | undefined;
   if (typeof raw.adapter === "string" && raw.adapter.length > 0) {
     adapterPath = path.resolve(raw.adapter);
     const rawToml = readFileSync(adapterPath, "utf8");
     const parsedToml = TOML.parse(rawToml);
     // Throws on validation failure. Message includes file + key.
-    validateAdapter(parsedToml, adapterPath);
+    adapterProtocol = validateAdapter(parsedToml, adapterPath).protocol;
   }
 
   const parsed = SimulateOptionsSchema.parse({
@@ -62,7 +63,7 @@ export function buildSimulateOptions(raw: Record<string, unknown>): { config: Si
     ticks: raw.ticks ?? 50,
     scenario: raw.scenario ?? "price-shock",
     seed: raw.seed ?? generateSeed(),
-    personas: parsePersonas(raw.personas),
+    personas: parsePersonas(raw.personas, adapterProtocol),
     validator_url: raw.validatorUrl ?? process.env.RIPTIDE_RPC_URL ?? DEFAULT_VALIDATOR_URL,
     output_path: raw.output ?? "riptide-output/default-run",
     llm_url: raw.llmUrl,
@@ -77,8 +78,14 @@ export function toRunConfig(options: SimulateOptions): RunConfig {
   return runConfig;
 }
 
-function parsePersonas(value: unknown): string[] {
+function parsePersonas(
+  value: unknown,
+  adapterProtocol?: "lending" | "generic"
+): string[] {
   if (typeof value !== "string" || value.trim() === "") {
+    if (adapterProtocol === "generic") {
+      return [];
+    }
     return [...DEFAULT_PERSONAS];
   }
 

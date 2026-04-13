@@ -61,6 +61,9 @@ const POLICY_PROMPT_SCHEMA = {
 let personaDirPromise: Promise<string> | undefined;
 
 export async function compilePersonas(personaIds: string[], options: CompileOptions = {}): Promise<Policy[]> {
+  if (personaIds.length === 0) {
+    return [];
+  }
   const warn = options.warn ?? console.warn;
   if (!options.llmUrl) {
     warn("LLM unavailable — using default policies");
