@@ -161,11 +161,4 @@ fn main() {
     eprintln!("warm_validator_baseline_secs=901.461");
     let speedup = 901.461 / total_elapsed.as_secs_f64();
     eprintln!("speedup_vs_validator={speedup:.1}x");
-    eprintln!();
-    eprintln!("=== Caveats ===");
-    eprintln!("- LiteSVM runs the SVM in-process; no JSON-RPC or confirmation overhead.");
-    eprintln!("- Validator baseline measured on solana-test-validator with --bpf-program preload.");
-    eprintln!("- LiteSVM does not model full validator behavior (gossip, vote, PoH).");
-    eprintln!("- The speedup reflects the removal of network/RPC overhead, not a program-level optimization.");
-    eprintln!("- Both paths execute the same lending_pool.so BPF program logic.");
 }
