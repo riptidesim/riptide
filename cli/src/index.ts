@@ -2,6 +2,7 @@
 
 import { Command } from "commander";
 
+import { createAdaptCommand } from "./commands/adapt.js";
 import { createScenariosCommand } from "./commands/scenarios.js";
 import { createSimulateCommand } from "./commands/simulate.js";
 
@@ -14,6 +15,7 @@ program
 
 program.addCommand(createSimulateCommand());
 program.addCommand(createScenariosCommand());
+program.addCommand(createAdaptCommand());
 
 program.parseAsync(process.argv).catch((error: unknown) => {
   console.error(error);

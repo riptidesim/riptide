@@ -7,7 +7,7 @@
     "riptide": "dist/src/index.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node ./scripts/copy-personas.mjs",
+    "build": "tsc -p tsconfig.json && node ./scripts/copy-personas.mjs && node ./scripts/copy-prompts.mjs",
     "test": "npm run build && node --test dist/test/*.test.js"
   },
   "engines": {

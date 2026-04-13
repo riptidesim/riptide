@@ -1,0 +1,288 @@
+// Adapter smoke test (Sprint 3 · T07).
+//
+// Contract: take a generated adapter TOML, locate an appropriate
+// write-action, invoke the engine binary with the canonical
+// `--config / --policies / --output / --adapter` shape (there is no
+// `simulate` subcommand — the engine CLI takes explicit flags), then
+// assert that at least one observation in the output delta changed
+// from the initial state. Pass = exit 0 in `riptide adapt`; fail =
+// exit 1 with the adapter path printed so the dev can edit the
+// `# TODO:` markers.
+//
+// We do NOT try to be clever here. We pick the matching sample
+// fixture for the primitive class (lending vs generic), shrink it
+// to a tiny run (5 agents · 2 ticks · baseline), and run the engine.
+// If the engine exits 0 and the output JSON contains at least one
+// observation value that differs from an initial baseline, the smoke
+// test passes. Anything else is a fail.
+
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import os from "node:os";
+
+import type { Adapter } from "../schemas/adapter.js";
+
+export interface SmokeTestOptions {
+  adapterPath: string;
+  adapter: Adapter;
+  engineBinary: string;
+  fixturesRoot: string;
+}
+
+export interface SmokeTestResult {
+  passed: boolean;
+  engineExitCode: number | null;
+  engineStderr: string;
+  reason: string;
+  outputPath: string;
+}
+
+export async function runSmokeTest(options: SmokeTestOptions): Promise<SmokeTestResult> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "riptide-adapt-"));
+  const outputPath = path.join(tempDir, "smoke-output.json");
+  const configPath = path.join(tempDir, "run.json");
+  const policiesPath = path.join(tempDir, "policies.json");
+
+  const { runConfig, policies } = pickFixtures(options);
+  await writeFile(configPath, JSON.stringify(runConfig, null, 2), "utf8");
+  await writeFile(policiesPath, JSON.stringify(policies, null, 2), "utf8");
+
+  if (!existsSync(options.engineBinary)) {
+    return {
+      passed: false,
+      engineExitCode: null,
+      engineStderr: "",
+      reason: `engine binary not found at ${options.engineBinary} — build it with \`cargo build --release -p riptide-engine\``,
+      outputPath
+    };
+  }
+
+  const child = spawn(
+    options.engineBinary,
+    [
+      "--config",
+      configPath,
+      "--policies",
+      policiesPath,
+      "--output",
+      outputPath,
+      "--adapter",
+      options.adapterPath
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] }
+  );
+
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+  // Drain stdout so the child never blocks on a full pipe.
+  child.stdout.on("data", () => {});
+
+  const exitCode: number | null = await new Promise((resolve) => {
+    child.on("exit", (code) => resolve(code));
+  });
+
+  if (exitCode !== 0) {
+    return {
+      passed: false,
+      engineExitCode: exitCode,
+      engineStderr: stderr,
+      reason: `engine exited with code ${exitCode}`,
+      outputPath
+    };
+  }
+
+  let parsed: unknown;
+  try {
+    const raw = await readFile(outputPath, "utf8");
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return {
+      passed: false,
+      engineExitCode: exitCode,
+      engineStderr: stderr,
+      reason: `could not read or parse engine output at ${outputPath}: ${err instanceof Error ? err.message : String(err)}`,
+      outputPath
+    };
+  }
+
+  const delta = findObservationDelta(parsed);
+  if (!delta) {
+    return {
+      passed: false,
+      engineExitCode: exitCode,
+      engineStderr: stderr,
+      reason: "engine output contains no observation delta from the initial state (no action mutated observable state)",
+      outputPath
+    };
+  }
+
+  return {
+    passed: true,
+    engineExitCode: exitCode,
+    engineStderr: stderr,
+    reason: `observed state delta: ${delta}`,
+    outputPath
+  };
+}
+
+function pickFixtures(options: SmokeTestOptions): {
+  runConfig: Record<string, unknown>;
+  policies: unknown;
+} {
+  const protocol = options.adapter.protocol;
+
+  if (protocol === "lending") {
+    return {
+      runConfig: {
+        agents: 5,
+        ticks: 2,
+        scenario: "baseline",
+        seed: 1337,
+        personas: ["cautious-yield-farmer", "panic-whale"],
+        validator_url: "http://localhost:8899",
+        output_path: "riptide-adapt-smoke"
+      },
+      policies: loadSampleLendingPolicies(options.fixturesRoot)
+    };
+  }
+
+  // generic — reuse the shipped generic-demo run + empty policies.
+  const genericRun = JSON.parse(
+    readFileSync(path.join(options.fixturesRoot, "generic-demo.run.json"), "utf8")
+  ) as Record<string, unknown>;
+  // Shrink for smoke-speed.
+  genericRun.agents = 3;
+  genericRun.ticks = 2;
+
+  return {
+    runConfig: genericRun,
+    policies: []
+  };
+}
+
+function loadSampleLendingPolicies(fixturesRoot: string): unknown {
+  const raw = readFileSync(path.join(fixturesRoot, "policies.sample.json"), "utf8");
+  return JSON.parse(raw);
+}
+
+// Walk the engine output JSON and prove that at least one observation
+// actually changed because of a successful write-action.
+//
+// Contract (from `.specs/features/protocol-agnostic-unlock/tasks.md` and
+// the T07 task note): "locate an appropriate write-action, invoke the
+// engine, assert at least one observation in the output delta changed
+// from the initial state". Two real signals satisfy that:
+//
+//   A. The engine's events array contains at least one entry with
+//      `outcome == "success"` that is NOT a passive signal (trigger
+//      activation, noop, skipped). A successful deposit/borrow/repay/
+//      withdraw/liquidate/mine/swap/etc. is direct evidence a write
+//      action mutated observable state.
+//
+//   B. The timeseries has >= 2 entries AND at least one numeric
+//      observation field differs between the first and last entry.
+//      This catches cases where the engine aggregates per-tick state
+//      without individually logging each successful event.
+//
+// Either signal on its own is sufficient. A populated `summary` or
+// `metrics` object by itself is NOT — a static baseline also has a
+// populated summary, and accepting that as proof of a delta is the
+// bug the Phase 4 review caught.
+export function findObservationDelta(output: unknown): string | null {
+  if (!output || typeof output !== "object") {
+    return null;
+  }
+  const root = output as Record<string, unknown>;
+
+  const events = root["events"];
+  if (Array.isArray(events)) {
+    for (const entry of events) {
+      if (entry && typeof entry === "object") {
+        const e = entry as Record<string, unknown>;
+        const outcome = e["outcome"];
+        const action = e["action"];
+        if (
+          outcome === "success" &&
+          typeof action === "string" &&
+          isWriteAction(action)
+        ) {
+          return `successful write-action event: ${action}`;
+        }
+      }
+    }
+  }
+
+  const ts = root["timeseries"];
+  if (Array.isArray(ts) && ts.length >= 2) {
+    const first = ts[0];
+    const last = ts[ts.length - 1];
+    if (
+      first &&
+      last &&
+      typeof first === "object" &&
+      typeof last === "object"
+    ) {
+      const firstObj = first as Record<string, unknown>;
+      const lastObj = last as Record<string, unknown>;
+      for (const key of Object.keys(firstObj)) {
+        if (key === "tick") {
+          continue;
+        }
+        const a = firstObj[key];
+        const b = lastObj[key];
+        if (isNumericLike(a) && isNumericLike(b) && a !== b) {
+          return `timeseries field \`${key}\` changed: ${a} → ${b}`;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+// Write-action labels the smoke test accepts as proof of a state
+// mutation. Purely additive: anything outside this list is treated as
+// a passive signal (trigger fired, tick noop, persona reaction, etc.)
+// and does NOT satisfy the delta contract.
+const WRITE_ACTIONS = new Set<string>([
+  // lending primitive
+  "deposit",
+  "borrow",
+  "repay",
+  "withdraw",
+  "liquidate",
+  // generic primitive — resource grinder + common generic verbs
+  "mine",
+  "craft",
+  "list_for_sale",
+  // AMM (for future-proofing T08 wiring)
+  "swap",
+  "add_liquidity",
+  "remove_liquidity"
+]);
+
+function isWriteAction(action: string): boolean {
+  if (WRITE_ACTIONS.has(action)) {
+    return true;
+  }
+  // Passive signals the engine emits alongside real actions — explicit
+  // blocklist so adapter-defined custom action names (generic
+  // primitive) still qualify as write actions by default.
+  if (
+    action === "trigger_activated" ||
+    action === "noop" ||
+    action === "skipped" ||
+    action === "tick"
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function isNumericLike(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}

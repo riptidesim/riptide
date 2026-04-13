@@ -15,8 +15,12 @@
 
 pub mod lending;
 pub mod generic;
+pub mod amm;
 #[cfg(any(feature = "litesvm-backend", test))]
 pub mod solend_fork;
+
+#[allow(unused_imports)]
+pub use amm::{AmmPrimitive, AmmReserves};
 
 pub use generic::{
     build_generic_policies, generic_runtime_actions, parse_generic_idl_str, GenericIdl,
