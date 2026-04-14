@@ -1,0 +1,321 @@
+{
+  "schema_version": 1,
+  "artifact": "riptide-hero-grid",
+  "generated_at": "2026-04-14T18:39:17+00:00",
+  "metadata": {
+    "seed": 42,
+    "agents": 20,
+    "ticks": 20,
+    "scenario": "price-shock",
+    "adapter_toml": "fixtures/adapters/solend-fork.toml",
+    "adapter_toml_sha256": "6d35cb7b84146c6402ffe3182df5aaa4077849c7e30851ef59050f78e1b9c2c8",
+    "whale_persona_toml": "fixtures/personas/whale.toml",
+    "whale_persona_sha256": "14e6727216011cc37bb9c9a014a98ead3197e1398cc25d96b3105d8b8432956e",
+    "bad_debt_table_sha256": "ec3ff70655874f3944c43fce2250e14c385f46a33f287c4622a54bdc2a5fed67",
+    "grid_axes": {
+      "whale_share_pct": [
+        5,
+        15,
+        25
+      ],
+      "shock_pct": [
+        20,
+        30,
+        40
+      ]
+    },
+    "whale_parameters": {
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "risk_tolerance": 0.95,
+      "action_rate_multiplier": 1.0,
+      "max_exposure": 0.98,
+      "triggers": [],
+      "action_weights": {
+        "deposit": 0.3,
+        "borrow": 1.0,
+        "withdraw": 0.0,
+        "repay": 0.0,
+        "liquidate": 0.0
+      },
+      "position_sizing": {
+        "strategy": "fixed",
+        "params": {
+          "amount": 800
+        }
+      }
+    },
+    "counter_persona_parameters": {
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "risk_tolerance": 0.25,
+      "action_rate_multiplier": 1.0,
+      "action_weights": {
+        "deposit": 0.85,
+        "borrow": 0.15,
+        "withdraw": 0.2,
+        "repay": 0.6,
+        "liquidate": 1.5
+      },
+      "position_sizing": {
+        "strategy": "fixed",
+        "params": {
+          "amount": 6500.0
+        }
+      },
+      "max_exposure": 0.35,
+      "triggers": [
+        {
+          "condition": {
+            "type": "health_factor_below",
+            "threshold": 1.25
+          },
+          "response": "repay",
+          "severity": 7,
+          "cooldown_ticks": 3
+        }
+      ]
+    },
+    "shock_parameters": {
+      "mechanism": "scenario-driven oracle drop at ticks/2",
+      "env_var": "RIPTIDE_PRICE_SHOCK_DROP",
+      "values_by_axis_pct": {
+        "20": 0.2,
+        "30": 0.3,
+        "40": 0.4
+      },
+      "scrubbed_pool_env": [
+        "RIPTIDE_POOL_LTV_BPS",
+        "RIPTIDE_POOL_LIQ_THRESHOLD_BPS",
+        "RIPTIDE_POOL_LIQ_BONUS_BPS",
+        "RIPTIDE_SEED_COLLATERAL",
+        "RIPTIDE_STARTING_BALANCE"
+      ],
+      "scrubbed_pool_note": "Ambient pool knobs are unset per-cell so every cell sees identical default LTV/threshold/bonus. See scripts/sprint4/run-hero-grid.sh."
+    },
+    "retune_log": [
+      {
+        "pass": 1,
+        "delta": "whale: proportional 0.45 \u2192 fixed 800/tick; repay/withdraw weights zeroed; triggers removed",
+        "why": "proportional sizing only cleared a single borrow per whale (Custom(8) InsufficientCollateral on tick 2); post-shock health stayed above 1.0 at 40%, so nothing liquidated"
+      },
+      {
+        "pass": 2,
+        "delta": "steady-lp: proportional 0.08 \u2192 fixed 6500; liquidate weight 0.05 \u2192 1.5",
+        "why": "the lending program flags `borrower.liquidated = true` after the first successful partial liq, so per-call repay must be large enough to exhaust whale collateral in a single call \u2014 otherwise shortfall is never realized and bad_debt stays at 0 even when positions are structurally underwater"
+      }
+    ],
+    "determinism_reference_sha256": "d6c8088d616592d4c7cf42c44478470cca62d283db04a122481e08baac833fce",
+    "determinism_note": "Hash locked by T01: two back-to-back full sweeps produced byte-identical outputs. Do not re-run the grid in Phase 1 \u2014 re-running rotates the per-cell stderr/timestamp surface and would invalidate the determinism claim."
+  },
+  "solend_june_2022_cell": "w25-s40",
+  "solend_june_2022_reference": {
+    "cell": "w25-s40",
+    "rationale": "Solend's June 2022 whale held ~22-25% of open borrows while SOL dropped 30-50% over the week. Highest whale share and largest shock in the grid is the closest discrete mapping. Riptide maps the danger region; Solend's actual parameters sit inside it.",
+    "total_bad_debt": 3600.0,
+    "inside_danger_region": true
+  },
+  "cells": [
+    {
+      "cell": "w5-s20",
+      "parameters": {
+        "whale_share_pct": 5,
+        "whale_count": 1,
+        "shock_pct": 20,
+        "shock_env": {
+          "var": "RIPTIDE_PRICE_SHOCK_DROP",
+          "value": 0.2
+        }
+      },
+      "total_bad_debt": 0.0,
+      "total_liquidations": 0,
+      "agents_liquidated": 0,
+      "final_tvl": 3235.0,
+      "final_utilization": 1.9783616692426584,
+      "largest_single_tick_drawdown": 0.20051305303868958,
+      "simulation_result_path": "w5-s20/simulation-result.json"
+    },
+    {
+      "cell": "w5-s30",
+      "parameters": {
+        "whale_share_pct": 5,
+        "whale_count": 1,
+        "shock_pct": 30,
+        "shock_env": {
+          "var": "RIPTIDE_PRICE_SHOCK_DROP",
+          "value": 0.3
+        }
+      },
+      "total_bad_debt": 0.0,
+      "total_liquidations": 1,
+      "agents_liquidated": 1,
+      "final_tvl": 3235.0,
+      "final_utilization": 0.0,
+      "largest_single_tick_drawdown": 0.3004489214088533,
+      "simulation_result_path": "w5-s30/simulation-result.json"
+    },
+    {
+      "cell": "w5-s40",
+      "parameters": {
+        "whale_share_pct": 5,
+        "whale_count": 1,
+        "shock_pct": 40,
+        "shock_env": {
+          "var": "RIPTIDE_PRICE_SHOCK_DROP",
+          "value": 0.4
+        }
+      },
+      "total_bad_debt": 720.0,
+      "total_liquidations": 1,
+      "agents_liquidated": 1,
+      "final_tvl": 3214.0,
+      "final_utilization": 0.0,
+      "largest_single_tick_drawdown": 0.4003847897790172,
+      "simulation_result_path": "w5-s40/simulation-result.json"
+    },
+    {
+      "cell": "w15-s20",
+      "parameters": {
+        "whale_share_pct": 15,
+        "whale_count": 3,
+        "shock_pct": 20,
+        "shock_env": {
+          "var": "RIPTIDE_PRICE_SHOCK_DROP",
+          "value": 0.2
+        }
+      },
+      "total_bad_debt": 0.0,
+      "total_liquidations": 0,
+      "agents_liquidated": 0,
+      "final_tvl": 3105.0,
+      "final_utilization": 6.183574879227053,
+      "largest_single_tick_drawdown": 0.20051305303868958,
+      "simulation_result_path": "w15-s20/simulation-result.json"
+    },
+    {
+      "cell": "w15-s30",
+      "parameters": {
+        "whale_share_pct": 15,
+        "whale_count": 3,
+        "shock_pct": 30,
+        "shock_env": {
+          "var": "RIPTIDE_PRICE_SHOCK_DROP",
+          "value": 0.3
+        }
+      },
+      "total_bad_debt": 0.0,
+      "total_liquidations": 3,
+      "agents_liquidated": 3,
+      "final_tvl": 3105.0,
+      "final_utilization": 0.0,
+      "largest_single_tick_drawdown": 0.3004489214088533,
+      "simulation_result_path": "w15-s30/simulation-result.json"
+    },
+    {
+      "cell": "w15-s40",
+      "parameters": {
+        "whale_share_pct": 15,
+        "whale_count": 3,
+        "shock_pct": 40,
+        "shock_env": {
+          "var": "RIPTIDE_PRICE_SHOCK_DROP",
+          "value": 0.4
+        }
+      },
+      "total_bad_debt": 2160.0,
+      "total_liquidations": 3,
+      "agents_liquidated": 3,
+      "final_tvl": 3082.0,
+      "final_utilization": 0.0,
+      "largest_single_tick_drawdown": 0.4003847897790172,
+      "simulation_result_path": "w15-s40/simulation-result.json"
+    },
+    {
+      "cell": "w25-s20",
+      "parameters": {
+        "whale_share_pct": 25,
+        "whale_count": 5,
+        "shock_pct": 20,
+        "shock_env": {
+          "var": "RIPTIDE_PRICE_SHOCK_DROP",
+          "value": 0.2
+        }
+      },
+      "total_bad_debt": 0.0,
+      "total_liquidations": 0,
+      "agents_liquidated": 0,
+      "final_tvl": 2975.0,
+      "final_utilization": 10.756302521008404,
+      "largest_single_tick_drawdown": 0.20051305303868958,
+      "simulation_result_path": "w25-s20/simulation-result.json"
+    },
+    {
+      "cell": "w25-s30",
+      "parameters": {
+        "whale_share_pct": 25,
+        "whale_count": 5,
+        "shock_pct": 30,
+        "shock_env": {
+          "var": "RIPTIDE_PRICE_SHOCK_DROP",
+          "value": 0.3
+        }
+      },
+      "total_bad_debt": 0.0,
+      "total_liquidations": 5,
+      "agents_liquidated": 5,
+      "final_tvl": 2975.0,
+      "final_utilization": 0.0,
+      "largest_single_tick_drawdown": 0.3004489214088533,
+      "simulation_result_path": "w25-s30/simulation-result.json"
+    },
+    {
+      "cell": "w25-s40",
+      "parameters": {
+        "whale_share_pct": 25,
+        "whale_count": 5,
+        "shock_pct": 40,
+        "shock_env": {
+          "var": "RIPTIDE_PRICE_SHOCK_DROP",
+          "value": 0.4
+        }
+      },
+      "total_bad_debt": 3600.0,
+      "total_liquidations": 5,
+      "agents_liquidated": 5,
+      "final_tvl": 2950.0,
+      "final_utilization": 0.0,
+      "largest_single_tick_drawdown": 0.4003847897790172,
+      "simulation_result_path": "w25-s40/simulation-result.json"
+    }
+  ],
+  "transitions": {
+    "shock_axis_transitions": [
+      {
+        "axis": "shock",
+        "whale_share_pct": 5,
+        "from_cell": "w5-s30",
+        "to_cell": "w5-s40",
+        "from_bad_debt": 0.0,
+        "to_bad_debt": 720.0
+      },
+      {
+        "axis": "shock",
+        "whale_share_pct": 15,
+        "from_cell": "w15-s30",
+        "to_cell": "w15-s40",
+        "from_bad_debt": 0.0,
+        "to_bad_debt": 2160.0
+      },
+      {
+        "axis": "shock",
+        "whale_share_pct": 25,
+        "from_cell": "w25-s30",
+        "to_cell": "w25-s40",
+        "from_bad_debt": 0.0,
+        "to_bad_debt": 3600.0
+      }
+    ],
+    "whale_axis_transitions": [],
+    "knife_edge_visible": true
+  }
+}
