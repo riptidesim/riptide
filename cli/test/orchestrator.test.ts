@@ -78,7 +78,8 @@ test("orchestrator constructs engine args and returns validated result", async (
   const result = await runOrchestrator(baseRunConfig(), {
     cwd: root,
     env: { PATH: process.env.PATH },
-    spawner: successSpawner(log, fixture)
+    spawner: successSpawner(log, fixture),
+    moduleRoot: null
   });
 
   assert.equal(log.length, 1);
@@ -101,7 +102,8 @@ test("orchestrator resolves engine from cli/ subdir via cwd/../target/release", 
   await runOrchestrator(baseRunConfig(), {
     cwd: nestedCwd,
     env: { PATH: process.env.PATH },
-    spawner: successSpawner(log, fixture)
+    spawner: successSpawner(log, fixture),
+    moduleRoot: null
   });
 
   assert.equal(log[0]!.bin, enginePath);
@@ -125,7 +127,8 @@ test("orchestrator does NOT walk up past the allowed candidates (security)", asy
       runOrchestrator(baseRunConfig(), {
         cwd: deepCwd,
         env: { PATH: "/nonexistent-path-12345" },
-        spawner: async () => ({ code: 0, stderrTail: "" })
+        spawner: async () => ({ code: 0, stderrTail: "" }),
+        moduleRoot: null
       }),
     /Could not locate the riptide-engine binary/
   );
@@ -211,7 +214,8 @@ test("orchestrator reports every lookup attempt when engine binary missing", asy
       runOrchestrator(baseRunConfig(), {
         cwd: emptyCwd,
         env: { PATH: "/nonexistent-path-12345" },
-        spawner: async () => ({ code: 0, stderrTail: "" })
+        spawner: async () => ({ code: 0, stderrTail: "" }),
+        moduleRoot: null
       }),
     (err: Error) => {
       assert.match(err.message, /Could not locate the riptide-engine binary/);
@@ -222,6 +226,26 @@ test("orchestrator reports every lookup attempt when engine binary missing", asy
       return true;
     }
   );
+});
+
+test("orchestrator resolves engine from moduleRoot regardless of cwd", async () => {
+  // The "any session / zero setup" fix: when the CLI is invoked from a
+  // cwd that is NOT inside the monorepo (e.g. `/tmp` during a Claude
+  // Code skill run), the module-root derivation should find the engine
+  // in the monorepo this CLI was built from.
+  const { root: moduleRoot, enginePath } = await makeFakeEngineRoot();
+  const outsideCwd = await mkdtemp(path.join(os.tmpdir(), "riptide-outside-"));
+  const fixture = await loadFixtureRaw();
+  const log: Call[] = [];
+
+  await runOrchestrator(baseRunConfig(), {
+    cwd: outsideCwd,
+    env: { PATH: "/nonexistent-path-12345" },
+    spawner: successSpawner(log, fixture),
+    moduleRoot
+  });
+
+  assert.equal(log[0]!.bin, enginePath);
 });
 
 test("orchestrator honors RIPTIDE_ENGINE_BIN override", async () => {

@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
 import { access, constants, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { compilePersonas } from "../compiler/compile.js";
 import {
@@ -25,10 +27,44 @@ export interface OrchestratorOptions {
   /** Absolute path to a pre-validated adapter TOML, or undefined. */
   adapterPath?: string;
   warn?: (message: string) => void;
+  /**
+   * Override the module-root lookup. Pass `null` to disable it entirely
+   * (used by tests that want to exercise the "no engine anywhere" path
+   * without the real in-tree binary leaking in). Defaults to the
+   * monorepo root derived from this module's on-disk location.
+   */
+  moduleRoot?: string | null;
 }
 
 const ENGINE_REL_PATH = path.join("target", "release", "riptide-engine");
 const STDERR_TAIL_BYTES = 8192;
+
+// Derive the monorepo root from *this file's* real location on disk. The
+// CLI ships as `<monorepo>/cli/dist/src/orchestrator/index.js`, so five
+// dirname steps land on the monorepo root regardless of where the user
+// invoked `riptide` from. `realpathSync` follows `npm link` symlinks so
+// a globally-linked CLI still resolves back into the source tree.
+//
+// This is the fix for the "any Claude Code session / zero setup" promise:
+// previously we only looked at $cwd-relative layouts, which broke the
+// moment the user ran the command from anywhere outside the monorepo.
+let cachedMonorepoRoot: string | undefined;
+export function monorepoRootFromModule(): string | undefined {
+  if (cachedMonorepoRoot !== undefined) {
+    return cachedMonorepoRoot || undefined;
+  }
+  try {
+    const here = realpathSync(fileURLToPath(import.meta.url));
+    // here = <monorepo>/cli/dist/src/orchestrator/index.js
+    //        ^5^       ^4^ ^3^ ^2^          ^1^
+    const root = path.resolve(here, "..", "..", "..", "..", "..");
+    cachedMonorepoRoot = root;
+    return root;
+  } catch {
+    cachedMonorepoRoot = "";
+    return undefined;
+  }
+}
 
 export async function runOrchestrator(
   runConfig: RunConfig,
@@ -39,7 +75,11 @@ export async function runOrchestrator(
   const spawner = options.spawner ?? defaultSpawner;
   const warn = options.warn ?? ((msg: string) => process.stderr.write(`${msg}\n`));
 
-  const enginePath = await resolveEngineBinary(env, cwd);
+  const enginePath = await resolveEngineBinary(
+    env,
+    cwd,
+    options.moduleRoot === undefined ? monorepoRootFromModule() ?? null : options.moduleRoot
+  );
 
   const policies = await compilePersonas(runConfig.personas, {
     llmUrl: options.llmUrl,
@@ -81,7 +121,11 @@ export async function runOrchestrator(
   }
 }
 
-async function resolveEngineBinary(env: NodeJS.ProcessEnv, cwd: string): Promise<string> {
+export async function resolveEngineBinary(
+  env: NodeJS.ProcessEnv,
+  cwd: string,
+  moduleRoot: string | null = monorepoRootFromModule() ?? null
+): Promise<string> {
   const attempts: string[] = [];
 
   const fromEnv = env.RIPTIDE_ENGINE_BIN;
@@ -99,15 +143,20 @@ async function resolveEngineBinary(env: NodeJS.ProcessEnv, cwd: string): Promise
   // riptide-engine hijack the run and inherit the shell environment if
   // the CLI is invoked from any descendant directory.
   //
-  // The three supported layouts:
-  //   1. cwd is the monorepo root               → cwd/target/release/...
-  //   2. cwd is the cli/ subdir of the monorepo → cwd/../target/release/...
-  //   3. cwd is the parent of the monorepo      → cwd/riptide-monorepo/target/release/...
-  const relativeCandidates = [
+  // Preferred: the monorepo root derived from this module's real disk
+  // location. This is what makes `riptide adapt` invokable from any
+  // cwd — including `/tmp` inside a Claude Code skill run. Fall back
+  // to cwd-relative layouts for historical compatibility (tests and
+  // anyone running the raw built CLI from inside the monorepo).
+  const relativeCandidates: string[] = [];
+  if (moduleRoot) {
+    relativeCandidates.push(path.resolve(moduleRoot, ENGINE_REL_PATH));
+  }
+  relativeCandidates.push(
     path.resolve(cwd, ENGINE_REL_PATH),
     path.resolve(cwd, "..", ENGINE_REL_PATH),
     path.resolve(cwd, "riptide-monorepo", ENGINE_REL_PATH)
-  ];
+  );
   for (const candidate of relativeCandidates) {
     if (await isExecutable(candidate)) {
       return candidate;

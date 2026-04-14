@@ -17,9 +17,9 @@ Riptide is a **multi-agent simulator for shared program state under time pressur
 - **Solend-fork lending (safe vs risky).** `fixtures/adapters/solend-fork.toml` drives the safe-vs-risky demo end-to-end via the adapter, not via hardcoded harness wiring. Run it with `bash demo/run-demo.sh`.
 - **Resource-grinder (non-DeFi generic demo).** `fixtures/adapters/resource-grinder.toml` + `fixtures/generic-demo.run.json` + `fixtures/generic-demo.policies.json` run the generic primitive against a standalone SBF program at `programs/resource_grinder/`. Byte-stable under `cargo test -p riptide-engine --test t15_e2e_determinism`.
 
-**LLM-assisted adapter generation.** `riptide adapt` reads an IDL (and optionally a source tree) and emits a working-or-nearly-working adapter TOML plus a smoke-test run. It targets any OpenAI-compatible endpoint (local models, Anthropic via compat shim, Groq, etc.). The subcommand is code complete, integration-tested end-to-end against a scripted LLM client, and has been run through a stub smoke runner. A manual run against a live endpoint is pending — not because the code doesn't work, but because the credentials/network path has not been exercised yet. The hand-written `fixtures/adapters/solend-fork.toml` ships as the canonical demo adapter regardless, so the pivot is not gated on the live run.
+**Adapter generation via Claude Code skill.** Install the `riptide-adapt` Claude Code skill. Invoke it inside any Claude Code session on your program's IDL — the skill reads your program, generates an adapter TOML using your session's existing LLM, writes it, and runs a smoke test against your program. Zero endpoint configuration. Zero API keys. Zero additional LLM cost. The session's model is the generator.
 
-A thin `riptide-adapt` Claude Code skill lives at `skills/riptide-adapt/` and wraps the same code path.
+`riptide adapt` is the smoke-test harness the skill invokes. It validates a generated adapter by booting the local engine with it and confirming one write-action produces a state delta. It does not call any external service; it runs entirely against the local LiteSVM engine.
 
 ## The generic primitive, in one paragraph
 
@@ -74,12 +74,12 @@ The `resource-grinder` program has no lending semantics at all — it is a toy "
 ## Repo layout
 
 - `engine/` — Rust simulation engine. `src/primitive/` holds the `Primitive` base trait, `LendingPrimitive`, `AmmPrimitive`, and the `GenericPrimitive` harness.
-- `cli/` — TypeScript CLI wrapper. Handles persona compilation, adapter pre-validation (Zod mirror of the serde schema), orchestration, and the `riptide adapt` subcommand.
+- `cli/` — TypeScript CLI wrapper. Handles persona compilation, adapter pre-validation (Zod mirror of the serde schema), orchestration, and the `riptide adapt` smoke-test harness.
 - `programs/` — standalone SBF crates (`lending_pool/`, `resource_grinder/`) built out of the root workspace so the pinned Solana/Borsh build environment stays intact.
 - `fixtures/` — run configs, policies, adapter TOMLs, and the oracle golden-bytes SSOT.
-- `skills/riptide-adapt/` — Claude Code skill wrapping `riptide adapt`.
+- `skills/riptide-adapt/` — self-contained Claude Code skill for adapter generation. Reads its own `prompts/` directory and uses the session's LLM; invokes `riptide adapt` for smoke verification.
 - `demo/` — safe-vs-risky lending demo shell script and configs.
 
 ## Status
 
-Sprint 3 (Protocol-Agnostic Unlock) closed on 2026-04-13 with the P0 spine green (T01–T06), Phase 4 distribution layer shipped (T07–T09), and this README + the ROADMAP flipped to match. Two open manual-verification gates remain: `riptide adapt` against a live OpenAI-compatible endpoint, and the Claude Code skill invocation end-to-end. Neither gates the pivot story; both are tracked in `.specs/project/STATE.md`.
+Sprint 3 (Protocol-Agnostic Unlock) closed on 2026-04-13 with the P0 spine green (T01–T06), Phase 4 distribution layer shipped (T07–T09), and this README + the ROADMAP flipped to match. Phase 4 was corrected on 2026-04-13: the original plan shipped `riptide adapt` as a standalone HTTP-calling CLI (OpenAI-compatible endpoint + BYOK) and wrapped it as a shell-out skill. That was the wrong shape for a target audience that already runs inside an LLM-powered CLI agent. The HTTP path was deleted. `riptide adapt` is now the smoke-test harness the Claude Code skill invokes, and the skill itself is the sole adapter-generation surface, using the session's own LLM.

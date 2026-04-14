@@ -1,20 +1,17 @@
-// Adapter smoke test (Sprint 3 · T07).
+// Adapter smoke runner (Sprint 3 · T07, corrected 2026-04-13).
 //
-// Contract: take a generated adapter TOML, locate an appropriate
-// write-action, invoke the engine binary with the canonical
-// `--config / --policies / --output / --adapter` shape (there is no
-// `simulate` subcommand — the engine CLI takes explicit flags), then
-// assert that at least one observation in the output delta changed
-// from the initial state. Pass = exit 0 in `riptide adapt`; fail =
-// exit 1 with the adapter path printed so the dev can edit the
-// `# TODO:` markers.
+// Contract: take a (validated) adapter TOML, invoke the engine binary
+// with the canonical `--config / --policies / --output / --adapter`
+// shape, then assert that at least one observation in the output delta
+// changed from the initial state. Used by `riptide adapt` as its only
+// job: verify an adapter that the Claude Code skill's in-session agent
+// just generated round-trips cleanly against the local engine.
 //
-// We do NOT try to be clever here. We pick the matching sample
-// fixture for the primitive class (lending vs generic), shrink it
-// to a tiny run (5 agents · 2 ticks · baseline), and run the engine.
-// If the engine exits 0 and the output JSON contains at least one
-// observation value that differs from an initial baseline, the smoke
-// test passes. Anything else is a fail.
+// We pick the matching sample run-config for the primitive class
+// (lending vs generic), shrink it to a tiny run (5 agents · 2 ticks ·
+// baseline), and run the engine. If the engine exits 0 and the output
+// JSON contains at least one observation value that differs from an
+// initial baseline, the smoke test passes. Anything else is a fail.
 
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
