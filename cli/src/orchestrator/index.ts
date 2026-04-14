@@ -155,7 +155,7 @@ export async function resolveEngineBinary(
   relativeCandidates.push(
     path.resolve(cwd, ENGINE_REL_PATH),
     path.resolve(cwd, "..", ENGINE_REL_PATH),
-    path.resolve(cwd, "riptide-monorepo", ENGINE_REL_PATH)
+    path.resolve(cwd, "riptide", ENGINE_REL_PATH)
   );
   for (const candidate of relativeCandidates) {
     if (await isExecutable(candidate)) {

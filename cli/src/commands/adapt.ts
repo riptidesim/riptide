@@ -165,7 +165,7 @@ function defaultFixturesRoot(): string {
   const candidates = [
     path.resolve(cwd, "fixtures"),
     path.resolve(cwd, "..", "fixtures"),
-    path.resolve(cwd, "riptide-monorepo", "fixtures")
+    path.resolve(cwd, "riptide", "fixtures")
   ];
   for (const c of candidates) {
     if (existsSync(c)) {

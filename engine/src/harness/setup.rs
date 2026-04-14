@@ -131,7 +131,7 @@ pub fn load_program_bytes(so_path: &Path) -> Result<Vec<u8>> {
     if !so_path.exists() {
         return Err(anyhow!(
             "lending_pool.so not found at {}\n\
-             Run:  cd riptide-monorepo/programs/lending_pool && cargo build-sbf\n\
+             Run:  cd riptide/programs/lending_pool && cargo build-sbf\n\
              then retry the simulation.",
             so_path.display()
         ));
