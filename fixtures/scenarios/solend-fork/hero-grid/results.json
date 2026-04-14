@@ -105,8 +105,9 @@
         "why": "the lending program flags `borrower.liquidated = true` after the first successful partial liq, so per-call repay must be large enough to exhaust whale collateral in a single call \u2014 otherwise shortfall is never realized and bad_debt stays at 0 even when positions are structurally underwater"
       }
     ],
-    "determinism_reference_sha256": "d6c8088d616592d4c7cf42c44478470cca62d283db04a122481e08baac833fce",
-    "determinism_note": "Hash locked by two back-to-back full sweeps that produced byte-identical outputs. Do not re-run the grid from this branch \u2014 re-running rotates the per-cell stderr/timestamp surface and would invalidate the determinism claim."
+    "determinism_reference_sha256": "5a5f6744173c8aeb63c41983ac53b1cc143330cc4393886a65ecfdf30154a2a2",
+    "determinism_reference_scope": "sha256 of the concatenated sha256sums of all per-cell run-config.json + simulation-result.json files (18 files, alphabetical). Reproduce with: sha256sum fixtures/scenarios/solend-fork/hero-grid/w*-s*/run-config.json fixtures/scenarios/solend-fork/hero-grid/w*-s*/simulation-result.json | sha256sum",
+    "determinism_note": "Hash locked by two back-to-back full sweeps that produced byte-identical outputs. The grid runner emits relative output paths so the per-cell artifacts carry no machine-specific strings; re-running on a clean checkout should reproduce this hash exactly."
   },
   "solend_june_2022_cell": "w25-s40",
   "solend_june_2022_reference": {

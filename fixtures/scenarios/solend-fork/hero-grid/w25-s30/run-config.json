@@ -1,6 +1,6 @@
 {
   "agents": 20,
-  "output_path": "/home/ailton/Work/riptide/riptide-monorepo/fixtures/scenarios/solend-fork/hero-grid/w25-s30",
+  "output_path": "fixtures/scenarios/solend-fork/hero-grid/w25-s30",
   "personas": [
     "whale",
     "steady-lp",

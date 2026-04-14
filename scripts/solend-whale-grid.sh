@@ -12,13 +12,17 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 ENGINE="${RIPTIDE_ENGINE_BIN:-$REPO_ROOT/target/release/riptide-engine}"
-ADAPTER="$REPO_ROOT/fixtures/adapters/solend-fork.toml"
-WHALE_TOML="$REPO_ROOT/fixtures/personas/whale.toml"
-OUT_BASE="$REPO_ROOT/fixtures/scenarios/solend-fork/hero-grid"
+# Adapter / persona / output paths are kept relative to REPO_ROOT so the
+# JSON artifacts the engine echoes back don't leak absolute paths from
+# the machine that ran the grid. The `cd "$REPO_ROOT"` above anchors
+# every relative path below against the repo root.
+ADAPTER="fixtures/adapters/solend-fork.toml"
+WHALE_TOML="fixtures/personas/whale.toml"
+OUT_BASE="fixtures/scenarios/solend-fork/hero-grid"
 
 if [[ ! -x "$ENGINE" ]]; then
   echo "error: riptide-engine not built at $ENGINE" >&2
@@ -129,6 +133,9 @@ PY
 
 echo ">>> hero grid sweep: agents=$AGENTS ticks=$TICKS seed=$SEED scenario=$SCENARIO"
 
+tmp_log="$(mktemp)"
+trap 'rm -f "$tmp_log"' EXIT
+
 for whale in "${WHALE_SHARES[@]}"; do
   whale_count=$(( AGENTS * whale / 100 ))
   # whale=5 -> 1, whale=15 -> 3, whale=25 -> 5 at agents=20
@@ -156,8 +163,9 @@ for whale in "${WHALE_SHARES[@]}"; do
         --policies "$cell_dir/policies.json" \
         --output "$cell_dir/simulation-result.json" \
         --adapter "$ADAPTER" \
-        >"$cell_dir/engine.stderr.log" 2>&1 \
-      || { tail -40 "$cell_dir/engine.stderr.log" >&2; echo "FAIL $cell" >&2; exit 1; }
+        >"$tmp_log" 2>&1 \
+      || { tail -40 "$tmp_log" >&2; rm -f "$tmp_log"; echo "FAIL $cell" >&2; exit 1; }
+    rm -f "$tmp_log"
   done
 done
 

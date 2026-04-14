@@ -27,7 +27,7 @@
       "steady-lp"
     ],
     "validator_url": "unused",
-    "output_path": "/home/ailton/Work/riptide/riptide-monorepo/fixtures/scenarios/solend-fork/hero-grid/w15-s40"
+    "output_path": "fixtures/scenarios/solend-fork/hero-grid/w15-s40"
   },
   "seed": 42,
   "total_ticks": 20,
