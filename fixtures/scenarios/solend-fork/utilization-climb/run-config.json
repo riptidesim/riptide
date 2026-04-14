@@ -1,0 +1,25 @@
+{
+  "agents": 15,
+  "ticks": 30,
+  "scenario": "baseline",
+  "seed": 42,
+  "personas": [
+    "leveraged-borrower",
+    "leveraged-borrower",
+    "leveraged-borrower",
+    "leveraged-borrower",
+    "leveraged-borrower",
+    "leveraged-borrower",
+    "leveraged-borrower",
+    "leveraged-borrower",
+    "leveraged-borrower",
+    "leveraged-borrower",
+    "steady-lp",
+    "steady-lp",
+    "steady-lp",
+    "steady-lp",
+    "steady-lp"
+  ],
+  "validator_url": "http://localhost:8899",
+  "output_path": "fixtures/scenarios/solend-fork/utilization-climb"
+}

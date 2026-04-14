@@ -1,0 +1,20 @@
+{
+  "agents": 10,
+  "ticks": 20,
+  "scenario": "price-shock",
+  "seed": 42,
+  "personas": [
+    "whale",
+    "steady-lp",
+    "steady-lp",
+    "steady-lp",
+    "steady-lp",
+    "steady-lp",
+    "steady-lp",
+    "steady-lp",
+    "steady-lp",
+    "steady-lp"
+  ],
+  "validator_url": "http://localhost:8899",
+  "output_path": "fixtures/scenarios/solend-fork/oracle-lag-baseline"
+}

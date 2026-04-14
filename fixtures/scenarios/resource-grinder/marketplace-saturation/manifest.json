@@ -1,0 +1,6 @@
+{
+  "adapter": "fixtures/adapters/resource-grinder.toml",
+  "slug": "marketplace-saturation",
+  "failure_mode": "utilization_stress",
+  "rationale": "Sustained marketplace pressure: 4 botters + 8 grinders over 30 ticks. Classification flagged utilization_stress because the state_mapping exposes marketplace.listings as a shared map accumulator, and the botter persona declares action_rate_multiplier=4.0 with list_for_sale=2.5 weights — sustained list pressure on a shared capacity is the direct stress axis."
+}
