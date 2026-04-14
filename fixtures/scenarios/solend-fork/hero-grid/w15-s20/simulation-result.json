@@ -1,0 +1,5136 @@
+{
+  "run_config": {
+    "agents": 20,
+    "ticks": 20,
+    "scenario": "price-shock",
+    "seed": 42,
+    "personas": [
+      "whale",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "whale",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "whale",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp"
+    ],
+    "validator_url": "unused",
+    "output_path": "/home/ailton/Work/riptide/riptide-monorepo/fixtures/scenarios/solend-fork/hero-grid/w15-s20"
+  },
+  "seed": 42,
+  "total_ticks": 20,
+  "timeseries": [
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 100.0,
+      "tick": 0,
+      "tvl": 2000.0,
+      "utilization": 0.0
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 100.01327870450139,
+      "tick": 1,
+      "tvl": 3105.0,
+      "utilization": 0.7729468599033816
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 100.02136260495158,
+      "tick": 2,
+      "tvl": 2000.0,
+      "utilization": 2.4
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 100.06823254957196,
+      "tick": 3,
+      "tvl": 3105.0,
+      "utilization": 2.318840579710145
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 99.95295087911539,
+      "tick": 4,
+      "tvl": 3105.0,
+      "utilization": 3.0917874396135265
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 99.76717140897748,
+      "tick": 5,
+      "tvl": 3105.0,
+      "utilization": 3.864734299516908
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 99.95747842309268,
+      "tick": 6,
+      "tvl": 3105.0,
+      "utilization": 4.63768115942029
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 100.1187122138622,
+      "tick": 7,
+      "tvl": 2000.0,
+      "utilization": 8.4
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 100.17462580222471,
+      "tick": 8,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 99.81563944458371,
+      "tick": 9,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 79.80130083854118,
+      "tick": 10,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 80.17285805287044,
+      "tick": 11,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 80.0024597449786,
+      "tick": 12,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 79.95625970995673,
+      "tick": 13,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 79.85635199767631,
+      "tick": 14,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 80.00921565301736,
+      "tick": 15,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 79.88748223593629,
+      "tick": 16,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 79.80503720013768,
+      "tick": 17,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 80.00769949268181,
+      "tick": 18,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 79.82010947414322,
+      "tick": 19,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0.0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 80.05858020276409,
+      "tick": 20,
+      "tvl": 3105.0,
+      "utilization": 6.183574879227053
+    }
+  ],
+  "events": [
+    {
+      "tick": 1,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    }
+  ],
+  "agents": [
+    {
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "status": "active",
+      "final_balance": 18005.85802027641,
+      "pnl": -1994.1419797235903,
+      "total_actions": 8,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-003",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-007",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "status": "active",
+      "final_balance": 18005.85802027641,
+      "pnl": -1994.1419797235903,
+      "total_actions": 8,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-014",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "status": "active",
+      "final_balance": 18005.85802027641,
+      "pnl": -1994.1419797235903,
+      "total_actions": 8,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 16702.121688019597,
+      "pnl": -3297.878311980403,
+      "total_actions": 5,
+      "triggers_activated": 0
+    }
+  ],
+  "summary": {
+    "agents_active": 20,
+    "agents_depleted": 0,
+    "agents_liquidated": 0,
+    "final_tvl": 3105.0,
+    "final_utilization": 6.183574879227053,
+    "largest_single_tick_drawdown": 0.20051305303868958,
+    "total_bad_debt": 0.0,
+    "total_liquidations": 0
+  },
+  "simulation_boundaries": [
+    "In-process LiteSVM backend (no external validator).",
+    "No slippage, fees, or MEV modeled.",
+    "Oracle prices are scenario-driven, not external feeds.",
+    "Agents funded via deterministic airdrop, not realistic onboarding."
+  ]
+}

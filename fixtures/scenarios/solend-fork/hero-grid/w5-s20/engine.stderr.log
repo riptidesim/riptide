@@ -1,0 +1,26 @@
+riptide-engine: loaded 2 policies, agents=20, ticks=20, scenario=price-shock
+adapter: /home/ailton/Work/riptide/riptide-monorepo/fixtures/adapters/solend-fork.toml (lending, 5 instructions, 6 state mappings)
+bootstrapping LiteSVM backend ...
+LiteSVM ready: program=11157t3sqMV725NVRLrVQbAu98Jjfk1uCKehJnXXQs, agents=20, seed_deposit=100
+running tick loop ...
+TICK 1/20
+TICK 2/20
+TICK 3/20
+TICK 4/20
+TICK 5/20
+TICK 6/20
+TICK 7/20
+TICK 8/20
+TICK 9/20
+TICK 10/20
+TICK 11/20
+TICK 12/20
+TICK 13/20
+TICK 14/20
+TICK 15/20
+TICK 16/20
+TICK 17/20
+TICK 18/20
+TICK 19/20
+TICK 20/20
+wrote /home/ailton/Work/riptide/riptide-monorepo/fixtures/scenarios/solend-fork/hero-grid/w5-s20/simulation-result.json
