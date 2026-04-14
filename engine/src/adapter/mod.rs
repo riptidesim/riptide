@@ -1,4 +1,4 @@
-//! Adapter format (Sprint 3 · T04).
+//! Adapter format.
 //!
 //! An **adapter** is a TOML file that tells the engine which primitive
 //! impl to boot and how its on-chain wiring maps to the engine's tick
@@ -27,7 +27,7 @@
 //! "position.liquidated" = "liquidated"
 //! ```
 //!
-//! Sprint 3 T05 extends the generic path with `[accounts]`, `program_so`,
+//! The generic path extends the schema with `[accounts]`, `program_so`,
 //! and `idl_path`, which give the engine enough information to boot a
 //! non-lending program honestly instead of hiding those details in code.
 

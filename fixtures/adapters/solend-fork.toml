@@ -1,4 +1,4 @@
-# Solend-fork lending adapter (Sprint 3 · T04).
+# Solend-fork lending adapter.
 #
 # First real adapter shipped with Riptide. Drives the safe-vs-risky demo
 # end-to-end when passed via `--adapter fixtures/adapters/solend-fork.toml`.
@@ -29,7 +29,7 @@ liquidate = { action = "liquidate", amount = "repay_amount" }
 "position.debt"       = "debt"
 "position.liquidated" = "liquidated"
 
-# Reserved for the generic primitive (T05). Lending adapters leave these
+# Reserved for the generic primitive. Lending adapters leave these
 # empty — the primitive itself supplies the lending semantics.
 [actions]
 

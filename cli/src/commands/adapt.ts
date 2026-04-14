@@ -1,4 +1,4 @@
-// `riptide adapt` — smoke-test harness (Sprint 3 · T07, corrected 2026-04-13).
+// `riptide adapt` — smoke-test harness.
 //
 // This is NOT a generator. The Claude Code `riptide-adapt` skill is the
 // sole adapter-generation surface: the in-session agent reads the IDL,

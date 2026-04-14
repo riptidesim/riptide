@@ -1,4 +1,4 @@
-// `riptide scenarios --validate` harness tests (Sprint 4 · T07).
+// `riptide scenarios --validate` harness tests.
 //
 // Covers the three exit paths of the one-tick boot validator:
 //   - exit 2 when the scenario directory is missing

@@ -122,7 +122,7 @@ pub fn placeholder_state() -> (LendingPoolState, PositionState) {
 }
 
 // ---------------------------------------------------------------------------
-// In-process bootstrap helpers (LiteSVM path — T02)
+// In-process bootstrap helpers (LiteSVM path)
 // ---------------------------------------------------------------------------
 
 /// Read the compiled program artifact from disk. Fails fast with a clear
@@ -230,7 +230,7 @@ mod tests {
         assert!(default_program_so_path().ends_with(PROGRAM_SO_RELATIVE_PATH));
     }
 
-    // --- T02 in-process bootstrap helpers ---
+    // --- in-process bootstrap helpers ---
 
     #[test]
     fn load_program_bytes_fails_fast_on_missing_so() {

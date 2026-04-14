@@ -144,10 +144,10 @@ parameter region, not a verdict on the program.
 
 ## Reproducibility notes
 
-- **Grid runner:** `scripts/sprint4/run-hero-grid.sh` drives the sidecar
+- **Grid runner:** `scripts/solend-whale-grid.sh` drives the sidecar
   that reads `fixtures/personas/whale.toml`, emits per-cell `policies.json`,
   and invokes `target/release/riptide-engine` once per cell.
-- **Determinism:** T01 locked the sweep output at
+- **Determinism:** the sweep output is locked at
   `sha256:d6c8088d616592d4c7cf42c44478470cca62d283db04a122481e08baac833fce`
   across two back-to-back full runs. Re-running the grid from this branch is
   unnecessary and will only rotate stderr/timestamp surfaces; the bad-debt
@@ -167,7 +167,7 @@ parameter region, not a verdict on the program.
      never realized and bad debt sticks at 0 even when positions are
      structurally underwater. Deltas live in `bad-debt-table.json.retune_log`
      and are mirrored into `results.json` under `metadata.retune_log`.
-- **Follow-ups (not in Phase 1).** Per-whale shortfall breakdown and
+- **Follow-ups.** Per-whale shortfall breakdown and
   per-tick liquidation traces are not surfaced in `results.json` today — the
   source timeseries and events live under each cell's
   `simulation-result.json`, and a richer aggregator can pull them in later

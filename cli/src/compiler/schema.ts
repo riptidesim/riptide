@@ -79,13 +79,12 @@ export const SimEventSchema = z.object({
   triggered_by: z.string().optional()
 });
 
-// Sprint 3 · T11 (Phase 6 follow-up): `TickSnapshot` is a
-// primitive-agnostic key/value map. The engine-side type is
-// `BTreeMap<String, serde_json::Value>`, so on the CLI side we accept
-// any record whose values are JSON primitives (number / bool / string /
-// null). Required engine-owned counters (`tick`, `active_agents`) must
-// still be nonnegative integers — the pre-T11 schema enforced that and
-// downgrading it would let malformed payloads slip through.
+// `TickSnapshot` is a primitive-agnostic key/value map. The engine-side
+// type is `BTreeMap<String, serde_json::Value>`, so on the CLI side we
+// accept any record whose values are JSON primitives (number / bool /
+// string / null). Required engine-owned counters (`tick`, `active_agents`)
+// must still be nonnegative integers — downgrading that would let
+// malformed payloads slip through.
 function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
@@ -114,16 +113,15 @@ export const AgentFinalStateSchema = z.object({
   liquidated_at_tick: z.number().int().nonnegative().optional()
 });
 
-// Sprint 3 · T11 (Phase 6 follow-up): `SimulationSummary` is a
-// primitive-agnostic key/value map. Lending runs emit
-// `final_tvl`/`final_utilization`/`total_liquidations`/`total_bad_debt`/
-// `largest_single_tick_drawdown`; generic runs emit adapter-declared
-// observation aggregates (`<key>_avg`/`_max`/`_min` for numeric,
-// `_true_count`/`_false_count` for bool, `_unique_count` for pubkey,
-// `_entry_count_avg`/`_max` for map). All three engine-owned lifecycle
-// counters (`agents_active`, `agents_liquidated`, `agents_depleted`)
-// are required and must be nonnegative integers — Phase 6 review
-// regression fix so malformed payloads can't slip through the CLI gate.
+// `SimulationSummary` is a primitive-agnostic key/value map. Lending
+// runs emit `final_tvl`/`final_utilization`/`total_liquidations`/
+// `total_bad_debt`/`largest_single_tick_drawdown`; generic runs emit
+// adapter-declared observation aggregates (`<key>_avg`/`_max`/`_min` for
+// numeric, `_true_count`/`_false_count` for bool, `_unique_count` for
+// pubkey, `_entry_count_avg`/`_max` for map). All three engine-owned
+// lifecycle counters (`agents_active`, `agents_liquidated`,
+// `agents_depleted`) are required and must be nonnegative integers so
+// malformed payloads can't slip through the CLI gate.
 export const SimulationSummarySchema = z
   .record(
     z.string(),

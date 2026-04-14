@@ -1,4 +1,4 @@
-// Adapter smoke runner (Sprint 3 · T07, corrected 2026-04-13).
+// Adapter smoke runner.
 //
 // Contract: take a (validated) adapter TOML, invoke the engine binary
 // with the canonical `--config / --policies / --output / --adapter`
@@ -169,10 +169,9 @@ function loadSampleLendingPolicies(fixturesRoot: string): unknown {
 // Walk the engine output JSON and prove that at least one observation
 // actually changed because of a successful write-action.
 //
-// Contract (from `.specs/features/protocol-agnostic-unlock/tasks.md` and
-// the T07 task note): "locate an appropriate write-action, invoke the
-// engine, assert at least one observation in the output delta changed
-// from the initial state". Two real signals satisfy that:
+// Contract: "locate an appropriate write-action, invoke the engine,
+// assert at least one observation in the output delta changed from the
+// initial state". Two real signals satisfy that:
 //
 //   A. The engine's events array contains at least one entry with
 //      `outcome == "success"` that is NOT a passive signal (trigger
@@ -187,8 +186,8 @@ function loadSampleLendingPolicies(fixturesRoot: string): unknown {
 //
 // Either signal on its own is sufficient. A populated `summary` or
 // `metrics` object by itself is NOT — a static baseline also has a
-// populated summary, and accepting that as proof of a delta is the
-// bug the Phase 4 review caught.
+// populated summary, and accepting that as proof of a delta is a bug
+// that review caught before this shipped.
 export function findObservationDelta(output: unknown): string | null {
   if (!output || typeof output !== "object") {
     return null;
@@ -256,7 +255,7 @@ const WRITE_ACTIONS = new Set<string>([
   "mine",
   "craft",
   "list_for_sale",
-  // AMM (for future-proofing T08 wiring)
+  // AMM (for future-proofing AMM wiring)
   "swap",
   "add_liquidity",
   "remove_liquidity"

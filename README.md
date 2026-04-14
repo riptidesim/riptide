@@ -2,7 +2,7 @@
 
 > Riptide runs your Solana program against hundreds of different users under any market scenario you want and tells you which combination breaks it — before mainnet does.
 
-Riptide is a **multi-agent simulator for shared program state under time pressure**. It is not a DeFi simulator. DeFi is the first application because the failure modes are economically catastrophic and the need is loud — but the engine does not know or care about finance. After Sprint 3 (Protocol-Agnostic Unlock), Riptide is positioned against *any* Solana program, native or generic, with or without LLM-assisted adapter generation.
+Riptide is a **multi-agent simulator for shared program state under time pressure**. It is not a DeFi simulator. DeFi is the first application because the failure modes are economically catastrophic and the need is loud — but the engine does not know or care about finance. Riptide is positioned against *any* Solana program, native or generic, with or without LLM-assisted adapter generation.
 
 ## Two paths in
 
@@ -11,7 +11,7 @@ Riptide is a **multi-agent simulator for shared program state under time pressur
 - **Path A — write your own experiments.** If you already know what you're testing for, author a run-config + policies + adapter TOML directly. The safe-vs-risky lending demo (`demo/run-demo.sh`) and the non-DeFi resource-grinder demo are the canonical examples.
 - **Path B — let the skill propose a starter catalog.** Install the `riptide-scenarios` Claude Code skill ([`skills/riptide-scenarios/SKILL.md`](skills/riptide-scenarios/SKILL.md)), invoke it inside any Claude Code session on your adapter + IDL, and it classifies plausible failure modes for your program and proposes 3–5 ranked starter experiments (whale concentration, shock cascades, utilization stress, persona-mix instability, oracle lag). The skill writes run-configs to `fixtures/scenarios/<adapter>/<experiment>/` and does **not** autorun — the dev picks what to run.
 
-**Outcome demo:** the Sprint 4 hero grid — a 3×3 whale × shock parameter-boundary discovery run on the Solend fork — is the shipping example of what Path A looks like when it lands well. See [`docs/sprint-4/hero-grid.md`](docs/sprint-4/hero-grid.md) for the full report, the bad-debt table, and the load-bearing claim: *Riptide maps the danger region; Solend's actual parameters sit inside it.*
+**Outcome demo:** the Solend-fork case study — a 3×3 whale × shock parameter-boundary discovery run on the Solend fork — is the shipping example of what Path A looks like when it lands well. See [`docs/case-studies/solend-fork.md`](docs/case-studies/solend-fork.md) for the full report, the bad-debt table, and the load-bearing claim: *Riptide maps the danger region; Solend's actual parameters sit inside it.*
 
 ## Caveat — lab, not oracle
 
@@ -103,4 +103,4 @@ The `resource-grinder` program has no lending semantics at all — it is a toy "
 
 ## Status
 
-Sprint 3 (Protocol-Agnostic Unlock) closed on 2026-04-13 with the P0 spine green (T01–T06), Phase 4 distribution layer shipped (T07–T09), and this README + the ROADMAP flipped to match. Phase 4 was corrected on 2026-04-13: the original plan shipped `riptide adapt` as a standalone HTTP-calling CLI (OpenAI-compatible endpoint + BYOK) and wrapped it as a shell-out skill. That was the wrong shape for a target audience that already runs inside an LLM-powered CLI agent. The HTTP path was deleted. `riptide adapt` is now the smoke-test harness the Claude Code skill invokes, and the skill itself is the sole adapter-generation surface, using the session's own LLM.
+The protocol-agnostic architecture (lending + generic primitive + adapter TOML + AMM trait sketch) ships today, alongside the `riptide-adapt` Claude Code skill for LLM-assisted adapter generation. `riptide adapt` is the smoke-test harness the Claude Code skill invokes; the skill itself is the sole adapter-generation surface, using the session's own LLM. No standalone HTTP path, no BYOK endpoint configuration, no external service dependency.

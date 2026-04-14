@@ -1,9 +1,9 @@
 //! Serde types for the adapter TOML v0.
 //!
 //! Keep the schema boring. No dynamic eval, no templating, no variable
-//! substitution. Sprint 3 T05 makes the generic blocks load-bearing and
-//! adds the minimum extra metadata the engine needs to boot a non-lending
-//! program honestly: program artifact path, IDL path, and account bindings.
+//! substitution. The generic blocks are load-bearing and add the minimum
+//! extra metadata the engine needs to boot a non-lending program
+//! honestly: program artifact path, IDL path, and account bindings.
 
 use std::collections::BTreeMap;
 
@@ -110,7 +110,7 @@ impl ObservationDefinition {
     }
 }
 
-/// Smallest trigger DSL that works for T05/T06.
+/// Smallest trigger DSL that works for the generic primitive.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PersonaTriggerDefinition {
     #[serde(rename = "if")]

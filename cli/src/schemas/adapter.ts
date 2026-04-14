@@ -1,4 +1,4 @@
-// Zod schema for the adapter TOML (Sprint 3 · T05).
+// Zod schema for the adapter TOML.
 //
 // Must stay in lock-step with the serde schema in
 // `engine/src/adapter/schema.rs` and the loader validation in
@@ -84,7 +84,7 @@ export interface AdapterValidationError {
   reason: string;
 }
 
-// Phase 6 review fix (2026-04-13): adapter-supplied identifiers flow
+// Adapter-supplied identifiers flow
 // into `snapshot_metrics`/`summarize_metrics` output and are rendered
 // raw in the CLI summary's fallback metrics table. Without a character
 // allow-list a malicious adapter could smuggle ANSI escape sequences
@@ -252,7 +252,7 @@ function validateGeneric(adapter: Adapter, path: string): void {
   for (const [actionName, action] of Object.entries(adapter.actions)) {
     if (action.takes.length > 1) {
       throw new Error(
-        `${path}: \`[actions].${actionName}.takes\`: T05 v0 supports either zero args or one numeric arg; expand only if T06 needs more`
+        `${path}: \`[actions].${actionName}.takes\`: generic actions support either zero args or one numeric arg`
       );
     }
     const expectedArg = action.takes[0];
@@ -339,11 +339,10 @@ function validateTriggerCondition(
   index: number,
   condition: string
 ): void {
-  // T05 v0: expand if T06 fixture needs more.
   const parts = condition.trim().split(/\s+/);
   if (parts.length !== 3) {
     throw new Error(
-      `${path}: \`[personas].${personaName}.triggers[${index}].if\`: generic trigger conditions must be \`<observation> <op> <constant>\` in T05 v0`
+      `${path}: \`[personas].${personaName}.triggers[${index}].if\`: generic trigger conditions must be \`<observation> <op> <constant>\``
     );
   }
   if (!["<", ">", "=="].includes(parts[1]!)) {

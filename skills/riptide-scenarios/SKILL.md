@@ -70,8 +70,8 @@ under test (e.g. `whale-share-sweep`, `shock-magnitude-sweep`,
 that proposals boot; the developer runs the full experiment.
 
 **Do not** overwrite directories under
-`fixtures/scenarios/solend-fork/hero-grid/`. Those are sealed Phase 0
-/ Phase 1 artifacts. Write new sibling directories.
+`fixtures/scenarios/solend-fork/hero-grid/`. Those are sealed
+case-study artifacts. Write new sibling directories.
 
 ## Flow
 

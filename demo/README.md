@@ -16,7 +16,7 @@ This demo directory exercises **both** paths. They are additive — Path B does 
 
 The safe-vs-risky walkthrough below is the canonical Path A demo: two hand-authored `RunConfig` files (`configs/safe.json`, `configs/risky.json`), the shipped persona policies, and one shell script (`run-demo.sh`) that drives them. You already know what you're testing for — "does persona mix alone flip the outcome at a 50 % shock?" — so you write the experiment directly.
 
-The Sprint 4 hero grid at [`../docs/sprint-4/hero-grid.md`](../docs/sprint-4/hero-grid.md) is the same Path A posture at a larger scale: a 3×3 whale × shock parameter-boundary discovery run, hand-authored against the Solend fork, with the load-bearing claim *Riptide maps the danger region; Solend's actual parameters sit inside it.*
+The Solend-fork case study at [`../docs/case-studies/solend-fork.md`](../docs/case-studies/solend-fork.md) is the same Path A posture at a larger scale: a 3×3 whale × shock parameter-boundary discovery run, hand-authored against the Solend fork, with the load-bearing claim *Riptide maps the danger region; Solend's actual parameters sit inside it.*
 
 ### Path B — let the `riptide-scenarios` skill propose a starter catalog
 
@@ -203,9 +203,9 @@ outcome.**
   harsher shock would start producing bad debt, but that's future
   work, not this demo.
 
-## Relationship to T15
+## Relationship to the determinism gate
 
-The T15 e2e test (`cli/test/e2e.test.ts`) asserts the same three
+The end-to-end determinism test (`cli/test/e2e.test.ts`) asserts the same three
 outcomes as first-class test gates:
 
 1. Risky mix: `total_liquidations >= 1`, `agents_liquidated >= 1`,

@@ -97,7 +97,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     // Full deposit -> borrow -> repay -> withdraw cycle on a dedicated
-    // position, exercising the `withdraw_with_oracle` path (T02.a).
+    // position, exercising the `withdraw_with_oracle` path.
     send(
         &client,
         &payer,

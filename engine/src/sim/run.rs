@@ -563,8 +563,8 @@ where
 /// primitive layer (tick index, active agent count, cumulative
 /// liquidation count).
 ///
-/// Sprint 3 · T11: both tick loops funnel through this helper so the
-/// snapshot shape is consistent across lending and generic paths.
+/// Both tick loops funnel through this helper so the snapshot shape
+/// is consistent across lending and generic paths.
 fn build_snapshot<H: crate::primitive::Primitive + ?Sized>(
     harness: &H,
     tick: u32,

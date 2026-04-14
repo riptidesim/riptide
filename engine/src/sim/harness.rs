@@ -1,7 +1,7 @@
 //! Back-compat shim — the sim-layer `Harness` trait and its companion
 //! observation / error types now live in `crate::primitive::lending`.
 //!
-//! Sprint 3 T03 rearchitected the trait split so that:
+//! The trait split:
 //! - the lending-domain actions (`deposit`, `borrow`, `repay`,
 //!   `withdraw`, `liquidate`) and observations (`pool_state`,
 //!   `health_factor`) live on `LendingPrimitive`,
@@ -9,7 +9,7 @@
 //!   `advance_tick`) live on `Harness`, which super-traits
 //!   `LendingPrimitive`.
 //!
-//! All re-exports preserved here so Sprint 2 imports keep resolving.
+//! All re-exports preserved here so legacy imports keep resolving.
 //! New code should import from `crate::primitive::*` directly.
 
 pub use crate::primitive::{

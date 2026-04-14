@@ -41,11 +41,11 @@ test("SimulationResultSchema validates the shared simulation result fixture", as
   assert.equal(result.events.length, 2);
 });
 
-// Sprint 3 · T11 (Phase 6 follow-up, review fix): the record-based
-// schemas must still enforce nonnegative-integer shape on the
-// engine-owned counters. Regression tests for the Phase 6 review
-// finding that the first T11 pass accepted negative/fractional values
-// and dropped the `agents_liquidated` / `agents_depleted` checks.
+// The record-based schemas must still enforce nonnegative-integer
+// shape on the engine-owned counters. Regression tests for a review
+// finding that an earlier schema pass accepted negative/fractional
+// values and dropped the `agents_liquidated` / `agents_depleted`
+// checks.
 
 test("TickSnapshotSchema accepts a well-formed lending-shaped entry", () => {
   const parsed = TickSnapshotSchema.safeParse({

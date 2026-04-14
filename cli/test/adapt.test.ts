@@ -1,4 +1,4 @@
-// `riptide adapt` smoke-test harness tests (Sprint 3 · T07, corrected 2026-04-13).
+// `riptide adapt` smoke-test harness tests.
 //
 // The command is now a smoke-test harness, not a generator. These
 // tests exercise:
@@ -166,7 +166,7 @@ test("adapt: valid adapter but smoke test fails → exit 1", async () => {
 
 // --- findObservationDelta unit tests (primitive-agnostic) ---
 
-test("findObservationDelta: rejects a baseline-only summary with empty events + empty timeseries (Phase 4 review regression)", () => {
+test("findObservationDelta: rejects a baseline-only summary with empty events + empty timeseries", () => {
   const fake = {
     summary: { final_tvl: 0 },
     events: [],

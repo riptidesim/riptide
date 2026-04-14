@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sprint 4 Phase 0 — hero grid driver.
+# Solend-fork whale-share x shock-magnitude hero grid driver.
 #
 # Runs a 3x3 whale-share x shock-magnitude sweep against the Solend fork
 # adapter with a fixed seed and a fixed non-whale population. Cells land

@@ -164,7 +164,7 @@ test("e2e: risky persona mix produces realized liquidations under shock", { skip
     // The real acceptance criterion: the shock actually liquidates
     // leveraged borrowers. Anything less means we're measuring plumbing,
     // not the behavior the demo is supposed to showcase.
-    // Post T11 (Sprint 3 Phase 6) the summary is a primitive-agnostic
+    // The summary is a primitive-agnostic
     // `Record<string, number | boolean | string | null>`, so the
     // lending-specific counters are looked up by key and narrowed
     // before comparison.

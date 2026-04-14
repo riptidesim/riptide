@@ -3,7 +3,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 /// Engine-side mirror of the on-chain oracle account layout.
 ///
-/// **SSOT note (T01 / PAU-01):** this struct is a byte-for-byte Borsh mirror
+/// **SSOT note:** this struct is a byte-for-byte Borsh mirror
 /// of `programs/lending_pool::state::OracleState`. The two crates live in
 /// separate Cargo workspaces pinned to incompatible `borsh` versions
 /// (engine: 1.6, on-chain program: 0.10), so the shared-crate extraction

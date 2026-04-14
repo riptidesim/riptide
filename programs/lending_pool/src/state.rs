@@ -44,7 +44,7 @@ pub struct PositionState {
 
 /// On-chain oracle account layout.
 ///
-/// **SSOT note (T01 / PAU-01):** this struct is byte-for-byte mirrored by
+/// **SSOT note:** this struct is byte-for-byte mirrored by
 /// `engine::scenario::OracleSnapshot` in a separate Cargo workspace. Both
 /// sides round-trip against `fixtures/oracle_state_golden.bin`; see the
 /// mirror test in `engine/src/scenario/oracle.rs`. If the layout changes

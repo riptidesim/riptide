@@ -1,4 +1,4 @@
-// Adapter schema round-trip tests (Sprint 3 · T04).
+// Adapter schema round-trip tests.
 //
 // Contract: the CLI Zod schema and the engine serde schema parse the
 // same adapter TOML into structurally equivalent objects. If either
@@ -254,8 +254,8 @@ test("AdapterSchema LENDING_OBSERVATIONS is identical to the Rust canonical list
   ]);
 });
 
-// Phase 6 review fix (2026-04-13): mirror the engine-side adapter
-// identifier allow-list. A malicious adapter TOML that smuggles a
+// Mirror the engine-side adapter identifier allow-list. A malicious
+// adapter TOML that smuggles a
 // control character through an observation/action/persona name must
 // be rejected at adapter-load time on both ends, not just at render
 // time.

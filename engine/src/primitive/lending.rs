@@ -1,7 +1,7 @@
 //! Primitive traits — the two-tier split the tick loop dispatches through.
 //!
-//! Post Sprint 3 · #3: the original `LendingPrimitive` conflated two
-//! different contracts. It carried the five lending actions
+//! An earlier `LendingPrimitive` trait conflated two different
+//! contracts. It carried the five lending actions
 //! (deposit/borrow/repay/withdraw/liquidate) and the two lending
 //! observations (`pool_state`, `health_factor`) alongside
 //! domain-neutral sim-layer concerns (`agent_count`, `advance_tick`,
@@ -9,7 +9,7 @@
 //! generic non-lending impl (`GenericHarness`) was forced to impl the
 //! full trait and stub the lending-specific methods as
 //! `ProgramRejected` / zero, which the tick loop then silently
-//! consumed — a technical-debt smell flagged in the Phase 3 review.
+//! consumed — a technical-debt smell flagged in review.
 //!
 //! The split:
 //!
@@ -42,8 +42,9 @@
 //!        └───────────────────────┘
 //! ```
 //!
-//! `Harness` is a re-export of `LendingPrimitive` so Sprint 2 imports
-//! (`use sim::harness::Harness`) keep resolving for the lending path.
+//! `Harness` is a re-export of `LendingPrimitive` so the legacy
+//! `use sim::harness::Harness` imports keep resolving for the lending
+//! path.
 
 use std::collections::BTreeMap;
 
@@ -182,8 +183,8 @@ pub trait Primitive {
 
     /// Per-tick metric snapshot in this primitive's own schema.
     ///
-    /// Sprint 3 · T11: every primitive contributes its own per-tick
-    /// metric keys to the rollup. The tick loop overlays engine-side
+    /// Every primitive contributes its own per-tick metric keys to the
+    /// rollup. The tick loop overlays engine-side
     /// counters (tick, active_agents, cumulative_liquidations) on top.
     /// Default: empty map — backends that have nothing to report stay
     /// silent instead of faking zero-valued lending keys.
@@ -261,14 +262,13 @@ pub trait LendingPrimitive: Primitive {
     /// oracle price to derive the actual health factor.
     fn health_factor(&self, agent_idx: usize) -> Result<PositionHealth, PrimitiveError>;
 
-    // --- Sprint 2 name-compat aliases ---
+    // --- legacy name-compat aliases ---
     //
-    // Sprint 2 code (including `tests/t06_litesvm_parity.rs`) called
-    // the observations `observe_pool` / `observe_position`. The
-    // Sprint 3 T03 spec renames them to `pool_state` / `health_factor`.
-    // The default-method shims below preserve the old call sites so
-    // the parity test suite does not need to change (the T03
-    // constraints explicitly forbid modifying it).
+    // Earlier code (including `tests/t06_litesvm_parity.rs`) called the
+    // observations `observe_pool` / `observe_position`. The canonical
+    // names are `pool_state` / `health_factor`; the default-method shims
+    // below preserve the old call sites so the parity test suite does
+    // not need to change.
 
     /// Back-compat alias for `pool_state`. Prefer `pool_state` in new code.
     fn observe_pool(&self) -> Result<PoolState, PrimitiveError> {
@@ -319,12 +319,13 @@ pub fn dispatch_lending_action<H: LendingPrimitive + ?Sized>(
 }
 
 // ---------------------------------------------------------------------------
-// Sprint 2 type aliases
+// Legacy type aliases
 // ---------------------------------------------------------------------------
 //
-// Sprint 2 imports `HarnessError`, `PoolObservation`, `PositionObservation`
-// from `sim::harness`. These names now resolve to the `primitive::lending`
-// types via re-export — one canonical type, two paths.
+// Legacy imports of `HarnessError`, `PoolObservation`,
+// `PositionObservation` from `sim::harness` resolve to the
+// `primitive::lending` types via re-export — one canonical type, two
+// paths.
 
 pub type HarnessError = PrimitiveError;
 pub type PoolObservation = PoolState;
@@ -334,9 +335,9 @@ pub type PositionObservation = PositionHealth;
 // `Harness` — same trait as `LendingPrimitive`, different name
 // ---------------------------------------------------------------------------
 
-/// `Harness` is an alias for `LendingPrimitive`. Sprint 2 callers that
-/// imported `use sim::harness::Harness;` keep working; Sprint 3 callers
-/// that import `use primitive::LendingPrimitive;` also keep working —
-/// they are literally the same trait. No method-resolution ambiguity
+/// `Harness` is an alias for `LendingPrimitive`. Legacy callers that
+/// imported `use sim::harness::Harness;` keep working; callers that
+/// import `use primitive::LendingPrimitive;` also keep working — they
+/// are literally the same trait. No method-resolution ambiguity
 /// because there is only one trait defining `deposit`, `borrow`, etc.
 pub use LendingPrimitive as Harness;

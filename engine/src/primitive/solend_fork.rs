@@ -1,19 +1,14 @@
 //! Solend-fork lending primitive implementation, backed by in-process
 //! LiteSVM.
 //!
-//! This is the first `LendingPrimitive` impl (Sprint 3 · T03). It wraps a
+//! This is the first `LendingPrimitive` impl. It wraps a
 //! `litesvm::LiteSVM` instance, the forked Solend lending program
 //! (`lending_pool.so`), and one position account per simulated agent.
 //! Protocol-specific wiring (`LendingProgramClient`, account layouts,
 //! instruction selectors) lives inside this module — the rest of the
 //! engine reaches it only through the `LendingPrimitive` and `Harness`
-//! traits.
-//!
-//! **History**: this file is the moved and re-homed content of the
-//! Sprint 2 `sim/litesvm.rs` module. The type name (`LiteSvmHarness`) is
-//! preserved so existing tests and benchmarks stay on the same symbol;
-//! the module path is what communicates "this is the Solend-fork impl".
-//! T05 will land a sibling `primitive/generic.rs` driven by adapter TOML.
+//! traits. A sibling `primitive/generic.rs` handles non-lending programs
+//! driven by adapter TOML.
 
 use anyhow::{anyhow, Context, Result};
 use borsh::BorshDeserialize;
@@ -349,7 +344,7 @@ impl LiteSvmHarness {
 }
 
 // ---------------------------------------------------------------------------
-// LendingPrimitive impl (T03) — owns every method body.
+// LendingPrimitive impl — owns every method body.
 //
 // `sim::harness::Harness` is a re-export alias of `LendingPrimitive`, so
 // this single impl covers both trait names. There is no parallel
@@ -596,7 +591,7 @@ mod tests {
         }
     }
 
-    // --- T02 bootstrap tests (preserved) ---
+    // --- bootstrap tests ---
 
     #[test]
     fn bootstrap_fails_fast_on_missing_program() {
@@ -1019,7 +1014,7 @@ mod tests {
             "timeseries oracle_price diverged across same-seed runs");
     }
 
-    // --- LendingPrimitive is the dispatch path (T03) ---
+    // --- LendingPrimitive is the dispatch path ---
     //
     // These tests prove the LendingPrimitive trait is what the tick loop
     // actually calls, not a parallel decorative trait. `harness.deposit(...)`
@@ -1075,7 +1070,7 @@ mod tests {
         assert_eq!(pool.total_borrows, 0);
     }
 
-    // --- T04: adapter validation is load-bearing at bootstrap ---
+    // --- adapter validation is load-bearing at bootstrap ---
 
     fn sample_lending_adapter() -> crate::adapter::Adapter {
         use crate::adapter::InstructionMapping;

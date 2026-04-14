@@ -2,17 +2,17 @@ import chalk from "chalk";
 
 import type { SimulationResult } from "../compiler/schema.js";
 
-// Sprint 3 · T11 (Phase 6 follow-up): after the rollup refactor both
-// `summary` and `timeseries[i]` are primitive-agnostic key/value maps.
-// Lending runs still emit their historical keys; generic runs emit
-// adapter-declared observation aggregates with no lending shape at all.
-// The renderer displays known lending keys with their current labels
-// and falls back to a generic `key: value` table for anything else.
+// Both `summary` and `timeseries[i]` are primitive-agnostic key/value
+// maps. Lending runs still emit their historical keys; generic runs
+// emit adapter-declared observation aggregates with no lending shape
+// at all. The renderer displays known lending keys with their current
+// labels and falls back to a generic `key: value` table for anything
+// else.
 
 type SummaryCell = number | boolean | string | null;
 
-// Phase 6 review fix (2026-04-13): defense-in-depth against ANSI
-// injection via adapter-supplied identifiers. The engine-side loader
+// Defense-in-depth against ANSI injection via adapter-supplied
+// identifiers. The engine-side loader
 // and the CLI-side adapter schema both reject identifiers containing
 // control characters, but the renderer is the last line of output
 // — if an adapter ever slips past validation the renderer must not
@@ -74,8 +74,7 @@ function formatCell(value: SummaryCell): string {
   if (value === null) return "null";
   if (typeof value === "number") {
     // Integer-looking numbers render without trailing decimals; floats
-    // render with 4-digit precision (same convention the lending path
-    // used before T11).
+    // render with 4-digit precision.
     return Number.isInteger(value) ? value.toString() : value.toFixed(4);
   }
   if (typeof value === "string") {
@@ -93,8 +92,8 @@ export function renderSummary(result: SimulationResult): string {
   ];
 
   // Lending-shaped keys: if any of the historical lending keys are
-  // present, render them with their familiar labels and the same
-  // coloring heuristics the Sprint 2 renderer used.
+  // present, render them with their familiar labels and the canonical
+  // lending coloring heuristics.
   const hasLending = LENDING_KEY_LABELS.some(([key]) => key in summary);
   if (hasLending) {
     const utilization = toNumber((summary as Record<string, unknown>).final_utilization);

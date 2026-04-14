@@ -1,4 +1,4 @@
-// `riptide scenarios` — two modes (Sprint 4 · T07).
+// `riptide scenarios` — two modes.
 //
 // 1. No args: list the built-in scenario presets (legacy behavior,
 //    preserved for the demo README + any scripts that depend on it).

@@ -1,4 +1,4 @@
-//! T05 validator integration test: deploy → deposit → borrow → liquidate.
+//! Validator integration test: deploy → deposit → borrow → liquidate.
 //!
 //! This test is gated on the `RIPTIDE_RUN_VALIDATOR_TESTS` environment variable
 //! so that it is a no-op under `cargo test` in CI when no local validator is
@@ -17,7 +17,7 @@
 //!   cargo test -p riptide-engine --test t05_lending_integration -- --nocapture
 //! ```
 //!
-//! The test verifies the full T05 harness path end-to-end against the on-chain
+//! The test verifies the full validator harness path end-to-end against the on-chain
 //! program:
 //!
 //! 1. Deploys `lending_pool.so` via `harness::setup::deploy_program`.

@@ -109,8 +109,8 @@ pub struct SimulationResult {
 
 /// Per-tick rollup, primitive-agnostic.
 ///
-/// Sprint 3 · T11 (Phase 6 follow-up): replaced the fixed lending struct
-/// with an untagged `BTreeMap<String, serde_json::Value>`. The tick loop
+/// Untagged `BTreeMap<String, serde_json::Value>` so both lending and
+/// generic primitives can emit their own keys. The tick loop
 /// injects engine-side counters (`tick`, `active_agents`, and lending-
 /// specific `cumulative_liquidations`) directly; the primitive contributes
 /// its own metrics via `Primitive::snapshot_metrics`. Alphabetical key
@@ -164,8 +164,8 @@ pub enum AgentStatus {
 
 /// End-of-run summary, primitive-agnostic.
 ///
-/// Sprint 3 · T11 (Phase 6 follow-up): replaced the fixed lending struct
-/// with an untagged `BTreeMap<String, serde_json::Value>`. The lending
+/// Untagged `BTreeMap<String, serde_json::Value>` so both lending and
+/// generic primitives can emit their own keys. The lending
 /// primitive emits its historical keys (`final_tvl`, `final_utilization`,
 /// `total_bad_debt`, `largest_single_tick_drawdown`) via
 /// `Primitive::summarize_metrics`; the generic primitive emits

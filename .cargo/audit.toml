@@ -4,7 +4,7 @@
 # They are unmaintained-crate warnings or unsoundness that does not apply to
 # our use case (local simulation tool, no network exposure, no custom loggers).
 #
-# Reviewed: 2026-04-12 (Phase 4 LiteSVM migration).
+# Reviewed: 2026-04-12 (LiteSVM migration review).
 
 [advisories]
 ignore = [

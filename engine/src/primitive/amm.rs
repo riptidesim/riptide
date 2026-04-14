@@ -1,15 +1,15 @@
-//! AMM primitive trait sketch (Sprint 3 · T08).
+//! AMM primitive trait sketch.
 //!
-//! Compile-only stub. No impl ships this sprint. The whole point of this
-//! file is to pressure-test the [`Primitive`] base trait from T03 *before*
-//! submission: if sketching `AMMPrimitive` alongside `LendingPrimitive`
-//! reveals that the base trait is the wrong shape, the reshape happens
-//! here and propagates back into the lending side in the same PR.
+//! Compile-only stub. No runnable impl ships with this file. The whole
+//! point is to pressure-test the [`Primitive`] base trait: if sketching
+//! `AMMPrimitive` alongside `LendingPrimitive` had revealed that the
+//! base trait was the wrong shape, the reshape would have happened here
+//! and propagated back into the lending side in the same PR.
 //!
-//! # Pressure-test result (2026-04-13)
+//! # Pressure-test result
 //!
-//! No reshape needed. The split shipped in T03 already factored the
-//! domain-neutral concerns ([`Primitive`]: `agent_count`, `advance_tick`,
+//! No reshape needed. The split already factors the domain-neutral
+//! concerns ([`Primitive`]: `agent_count`, `advance_tick`,
 //! `push_oracle_price`, `execute_action`, `observation_values`) out of
 //! the lending-specific surface ([`LendingPrimitive`]). `AMMPrimitive`
 //! slots in as a sibling super-trait of `Primitive` with its own three

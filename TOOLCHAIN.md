@@ -87,9 +87,9 @@ BENCH_AGENTS=100 BENCH_TICKS=180 cargo run --release -p riptide-engine \
 
 No external validator or funded keypair is required.
 
-## Running the T05 validator integration test (historical / parity reference)
+## Running the validator integration test (historical / parity reference)
 
-The T05 deploy → deposit → borrow → liquidate sequence is exercised against a
+The deploy → deposit → borrow → liquidate sequence is exercised against a
 live `solana-test-validator` by an env-var-gated integration test. This is a
 **parity reference path**, not the primary execution backend.
 

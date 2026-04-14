@@ -1,4 +1,4 @@
-//! T06 LiteSVM parity test suite.
+//! LiteSVM parity test suite.
 //!
 //! Requires `--features litesvm-backend` (the module is feature-gated
 //! in the library crate). Skipped automatically when the feature is off.
@@ -470,10 +470,9 @@ fn litesvm_deterministic_same_seed() {
         "event sequences diverged across same-seed LiteSVM runs"
     );
 
-    // Timeseries must be identical. Post T11 (Sprint 3 Phase 6)
-    // `TickSnapshot` is a `BTreeMap<String, serde_json::Value>`, so
-    // the lending-shaped keys are looked up by string instead of being
-    // struct-field accesses.
+    // Timeseries must be identical. `TickSnapshot` is a
+    // `BTreeMap<String, serde_json::Value>`, so the lending-shaped keys
+    // are looked up by string instead of being struct-field accesses.
     let tvls = |r: &riptide_engine::types::SimulationResult| -> Vec<Option<f64>> {
         r.timeseries
             .iter()

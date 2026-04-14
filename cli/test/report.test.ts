@@ -56,11 +56,10 @@ test("artifacts are written to disk", async () => {
   assert.match(raw, /simulation_boundaries/);
 });
 
-// Sprint 3 · T11 (Phase 6 follow-up): `renderSummary` must now handle
-// both the historical lending shape and the generic/adapter-declared
-// shape without crashing or silently dropping keys. These tests drive
-// the renderer directly with synthetic `SimulationResult` payloads that
-// mimic both outputs.
+// `renderSummary` must handle both the historical lending shape and
+// the generic/adapter-declared shape without crashing or silently
+// dropping keys. These tests drive the renderer directly with synthetic
+// `SimulationResult` payloads that mimic both outputs.
 
 function baseResult(summary: Record<string, number | string | boolean | null>) {
   return {
@@ -142,8 +141,8 @@ test("renderSummary does not crash on an empty summary", () => {
   assert.match(rendered, /Simulation Boundaries:/);
 });
 
-// Phase 6 review fix (2026-04-13): defense-in-depth — even if a
-// malformed summary somehow slips past adapter validation, the
+// Defense-in-depth — even if a malformed summary somehow slips past
+// adapter validation, the
 // renderer must not forward raw control bytes to the terminal. These
 // tests feed synthetic payloads containing ANSI escape sequences and
 // assert the rendered output has no ESC / BEL / DEL characters.

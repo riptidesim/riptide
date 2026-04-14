@@ -1,4 +1,4 @@
-//! Generic primitive helpers (Sprint 3 · T05).
+//! Generic primitive helpers.
 //!
 //! This module owns the non-domain-specific pieces the generic path needs:
 //! - minimal IDL/catalog parsing for instruction dispatch,
@@ -225,7 +225,7 @@ impl<'a> GenericInstructionBuilder<'a> {
             .get(action_name)
             .ok_or_else(|| anyhow!("generic adapter missing action `{action_name}`"))?;
         if action.takes.len() > 1 {
-            bail!("T05 v0 supports at most one action arg");
+            bail!("generic adapter actions support at most one arg");
         }
 
         let mut encoded = instruction.discriminator.clone();
@@ -720,7 +720,7 @@ impl crate::primitive::Primitive for GenericHarness {
         // produce `_true_count`/`_false_count`; map columns produce
         // `_entry_count_avg`/`_entry_count_max`; pubkey columns produce
         // `_unique_count` (taking the max per-tick unique count as the
-        // v0 approximation — spec note in T11).
+        // current approximation).
         let mut summary = BTreeMap::new();
         for (key, definition) in &self.adapter.observations {
             let column: Vec<&serde_json::Value> = timeseries

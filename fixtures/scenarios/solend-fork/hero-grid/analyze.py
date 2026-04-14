@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Sprint 4 Phase 0 — hero grid aggregator.
+"""Solend-fork hero grid aggregator.
 
 Reads the 9 simulation-result.json files produced by
-scripts/sprint4/run-hero-grid.sh and emits bad-debt-table.json with one
+scripts/solend-whale-grid.sh and emits bad-debt-table.json with one
 entry per cell plus knife-edge + Solend-2022 annotations.
 
-Throwaway script. Called manually after run-hero-grid.sh.
+Throwaway script. Called manually after the grid runner.
 """
 from __future__ import annotations
 

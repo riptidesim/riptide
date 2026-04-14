@@ -1,7 +1,7 @@
 //! Primitive abstraction layer.
 //!
 //! A **primitive** is a protocol-neutral trait the engine dispatches
-//! through. Post-Sprint 3 review #3, the trait is split in two:
+//! through. The trait is split in two:
 //!
 //! - [`Primitive`] — domain-neutral base trait every backend
 //!   implements. Owns `agent_count`, `advance_tick`,

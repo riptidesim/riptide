@@ -102,8 +102,8 @@ fn run(cli: Cli) -> anyhow::Result<()> {
 
     // --- Optional adapter TOML. Selects the primitive at runtime. ---
     //
-    // When `--adapter` is absent, behavior is unchanged from Sprint 2:
-    // the engine boots the Solend-fork `LendingPrimitive` on LiteSVM.
+    // When `--adapter` is absent, the engine boots the Solend-fork
+    // `LendingPrimitive` on LiteSVM.
     //
     // When `--adapter` is present, the loader validates the TOML and
     // the `protocol` field picks the primitive impl. The adapter's

@@ -1,4 +1,4 @@
-// `riptide scenarios --validate` — one-tick boot harness (Sprint 4 · T07).
+// `riptide scenarios --validate` — one-tick boot harness.
 //
 // This is the sibling of `riptide adapt`. The Claude Code
 // `riptide-scenarios` skill is the sole proposer of experiments: the

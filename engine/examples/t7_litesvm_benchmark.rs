@@ -1,7 +1,7 @@
 //! LiteSVM benchmark — measures wall-clock time for a full simulation run
 //! using the in-process LiteSVM backend.
 //!
-//! This is the Phase 4 (T07) benchmark that replaces the validator-backed
+//! This is the LiteSVM benchmark that replaces the validator-backed
 //! `t5_benchmark.rs` as the primary performance measurement path.
 //!
 //! ## Usage

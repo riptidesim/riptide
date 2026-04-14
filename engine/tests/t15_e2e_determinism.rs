@@ -1,9 +1,9 @@
-//! Dedicated end-to-end determinism gate for Sprint 3 Phase 3.
+//! Dedicated end-to-end determinism gate.
 //!
 //! `t06_litesvm_parity::litesvm_deterministic_same_seed` remains in place as
-//! the lending-path regression test that existed before T06. This file adds
-//! the sprint DoD target that asserts byte-stable output for both the shipped
-//! lending fixture shape and the new generic/resource-grinder fixture.
+//! the lending-path regression test. This file adds byte-stable output
+//! assertions for both the shipped lending fixture shape and the
+//! generic/resource-grinder fixture.
 
 #![cfg(feature = "litesvm-backend")]
 #![cfg(not(doctest))]
@@ -183,8 +183,8 @@ fn lending_fixture_is_byte_stable_same_seed() {
         "lending fixture output diverged across same-seed runs"
     );
 
-    // T11 contract: the lending path still populates every historical
-    // summary + timeseries key. Zero regression vs the pre-T11 shape.
+    // Contract: the lending path still populates every historical
+    // summary + timeseries key.
     for key in LENDING_SUMMARY_KEYS {
         assert!(
             first.summary.contains_key(*key),
@@ -227,12 +227,12 @@ fn generic_fixture_is_byte_stable_same_seed() {
         "generic fixture should surface at least one persona trigger in the event log"
     );
 
-    // T11 contract: the generic rollup is driven by the adapter's
+    // Contract: the generic rollup is driven by the adapter's
     // `[observations]` block. The summary must contain at least one
     // adapter-derived key and must not carry any lending-shaped keys.
     assert!(
         !first.summary.is_empty(),
-        "generic summary must be non-empty after T11: {:?}",
+        "generic summary must be non-empty: {:?}",
         first.summary
     );
     for key in LENDING_SUMMARY_KEYS {

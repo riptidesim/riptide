@@ -91,7 +91,7 @@
         "RIPTIDE_SEED_COLLATERAL",
         "RIPTIDE_STARTING_BALANCE"
       ],
-      "scrubbed_pool_note": "Ambient pool knobs are unset per-cell so every cell sees identical default LTV/threshold/bonus. See scripts/sprint4/run-hero-grid.sh."
+      "scrubbed_pool_note": "Ambient pool knobs are unset per-cell so every cell sees identical default LTV/threshold/bonus. See scripts/solend-whale-grid.sh."
     },
     "retune_log": [
       {
@@ -106,7 +106,7 @@
       }
     ],
     "determinism_reference_sha256": "d6c8088d616592d4c7cf42c44478470cca62d283db04a122481e08baac833fce",
-    "determinism_note": "Hash locked by T01: two back-to-back full sweeps produced byte-identical outputs. Do not re-run the grid in Phase 1 \u2014 re-running rotates the per-cell stderr/timestamp surface and would invalidate the determinism claim."
+    "determinism_note": "Hash locked by two back-to-back full sweeps that produced byte-identical outputs. Do not re-run the grid from this branch \u2014 re-running rotates the per-cell stderr/timestamp surface and would invalidate the determinism claim."
   },
   "solend_june_2022_cell": "w25-s40",
   "solend_june_2022_reference": {
