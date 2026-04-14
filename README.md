@@ -4,6 +4,27 @@
 
 Riptide is a **multi-agent simulator for shared program state under time pressure**. It is not a DeFi simulator. DeFi is the first application because the failure modes are economically catastrophic and the need is loud — but the engine does not know or care about finance. After Sprint 3 (Protocol-Agnostic Unlock), Riptide is positioned against *any* Solana program, native or generic, with or without LLM-assisted adapter generation.
 
+## Two paths in
+
+> *"Two ways to use Riptide: write your own experiments if you already know what you're testing for, or let the `riptide-scenarios` skill propose a starter catalog based on your program. Both run deterministically against your real code and surface the knife edges. Zero setup inside Claude Code."*
+
+- **Path A — write your own experiments.** If you already know what you're testing for, author a run-config + policies + adapter TOML directly. The safe-vs-risky lending demo (`demo/run-demo.sh`) and the non-DeFi resource-grinder demo are the canonical examples.
+- **Path B — let the skill propose a starter catalog.** Install the `riptide-scenarios` Claude Code skill ([`skills/riptide-scenarios/SKILL.md`](skills/riptide-scenarios/SKILL.md)), invoke it inside any Claude Code session on your adapter + IDL, and it classifies plausible failure modes for your program and proposes 3–5 ranked starter experiments (whale concentration, shock cascades, utilization stress, persona-mix instability, oracle lag). The skill writes run-configs to `fixtures/scenarios/<adapter>/<experiment>/` and does **not** autorun — the dev picks what to run.
+
+**Outcome demo:** the Sprint 4 hero grid — a 3×3 whale × shock parameter-boundary discovery run on the Solend fork — is the shipping example of what Path A looks like when it lands well. See [`docs/sprint-4/hero-grid.md`](docs/sprint-4/hero-grid.md) for the full report, the bad-debt table, and the load-bearing claim: *Riptide maps the danger region; Solend's actual parameters sit inside it.*
+
+## Caveat — lab, not oracle
+
+> **Riptide is a lab, not an oracle.** The dev picks the experiment —
+> Riptide does not tell you what's wrong with your program. Riptide runs the
+> experiment deterministically: same seed in, same bytes out, every time, so
+> the grid you're reading is reproducible from the adapter TOML and the
+> persona TOML alone. And nobody is claiming this catches bugs on its own.
+> The grid maps a parameter region; the dev draws the conclusions. A cell
+> that comes back with bad debt is not a bug report — it is a point in
+> parameter space where the program's math lost headroom, and the dev is the
+> one who decides whether that point matters.
+
 ## What ships today
 
 **Three primitives, one abstraction.**

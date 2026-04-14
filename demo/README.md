@@ -6,6 +6,46 @@
 > `--adapter fixtures/adapters/resource-grinder.toml` and the
 > `fixtures/generic-demo.*.json` fixtures.
 
+## Two paths in
+
+> *"Two ways to use Riptide: write your own experiments if you already know what you're testing for, or let the `riptide-scenarios` skill propose a starter catalog based on your program. Both run deterministically against your real code and surface the knife edges. Zero setup inside Claude Code."*
+
+This demo directory exercises **both** paths. They are additive — Path B does not replace Path A, it just lowers the activation energy for devs who don't yet know what to test.
+
+### Path A — write your own experiments
+
+The safe-vs-risky walkthrough below is the canonical Path A demo: two hand-authored `RunConfig` files (`configs/safe.json`, `configs/risky.json`), the shipped persona policies, and one shell script (`run-demo.sh`) that drives them. You already know what you're testing for — "does persona mix alone flip the outcome at a 50 % shock?" — so you write the experiment directly.
+
+The Sprint 4 hero grid at [`../docs/sprint-4/hero-grid.md`](../docs/sprint-4/hero-grid.md) is the same Path A posture at a larger scale: a 3×3 whale × shock parameter-boundary discovery run, hand-authored against the Solend fork, with the load-bearing claim *Riptide maps the danger region; Solend's actual parameters sit inside it.*
+
+### Path B — let the `riptide-scenarios` skill propose a starter catalog
+
+Install the skill at [`../skills/riptide-scenarios/SKILL.md`](../skills/riptide-scenarios/SKILL.md) and invoke it inside a Claude Code session on an adapter + IDL. The skill classifies plausible failure modes for your program and proposes 3–5 ranked starter experiments (whale concentration, shock cascades, utilization stress, persona-mix instability, oracle lag), writing generated run-configs to `fixtures/scenarios/<adapter>/<experiment>/`. The skill does **not** autorun — the dev picks what to run.
+
+One-command invocation inside a Claude Code session on the Solend-fork adapter:
+
+```
+/riptide-scenarios fixtures/adapters/solend-fork.toml
+```
+
+The Solend run independently proposes a whale-share sweep from classification — the same shape as the hero grid's whale axis — which is the R2.8 credibility gate for the pitch claim. See `fixtures/scenarios/solend-fork/whale-share-sweep/` for the generated starter.
+
+## Caveat — lab, not oracle
+
+> **Riptide is a lab, not an oracle.** The dev picks the experiment —
+> Riptide does not tell you what's wrong with your program. Riptide runs the
+> experiment deterministically: same seed in, same bytes out, every time, so
+> the grid you're reading is reproducible from the adapter TOML and the
+> persona TOML alone. And nobody is claiming this catches bugs on its own.
+> The grid maps a parameter region; the dev draws the conclusions. A cell
+> that comes back with bad debt is not a bug report — it is a point in
+> parameter space where the program's math lost headroom, and the dev is the
+> one who decides whether that point matters.
+
+---
+
+## Path A — safe vs risky walkthrough
+
 Two `RunConfig` files (`configs/safe.json`, `configs/risky.json`) plus
 `run-demo.sh`, which drives the Node CLI wrapper
 (`node cli/dist/src/index.js simulate --adapter
