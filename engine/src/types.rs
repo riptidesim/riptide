@@ -107,6 +107,27 @@ pub struct SimulationResult {
     pub simulation_boundaries: Vec<String>,
 }
 
+/// A single invariant fire. Captured when the declared comparison is
+/// falsified against an observation snapshot on a given tick. Ticks
+/// where the declared field is missing from the snapshot, or where the
+/// value fails numeric coercion, are skipped (logged to stderr but not
+/// recorded as a violation). Not serialized directly on
+/// `SimulationResult` — violations appear in the main `events` stream
+/// as structured `SimEvent`s with `agent_id = "__engine__"` and
+/// `action = "invariant_violation:<name>"`; this struct is kept as the
+/// tick-loop-internal bookkeeping shape that drives the
+/// `summary["invariants_fired"]` rollup.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InvariantViolation {
+    pub tick: u32,
+    pub index: usize,
+    pub name: String,
+    pub field: String,
+    pub op: String,
+    pub observed: f64,
+    pub expected: f64,
+}
+
 /// Per-tick rollup, primitive-agnostic.
 ///
 /// Untagged `BTreeMap<String, serde_json::Value>` so both lending and

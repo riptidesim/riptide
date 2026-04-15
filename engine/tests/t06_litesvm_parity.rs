@@ -450,6 +450,7 @@ fn litesvm_deterministic_same_seed() {
             starting_balance: 10_000.0,
             starting_price: 100.0,
             simulation_boundaries: vec!["litesvm parity".into()],
+            invariants: Vec::new(),
         };
         run_simulation(&mut harness, &mut scenario, params).unwrap()
     }

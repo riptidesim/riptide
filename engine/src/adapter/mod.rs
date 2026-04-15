@@ -34,9 +34,10 @@
 pub mod loader;
 pub mod schema;
 
-pub use loader::{load_adapter, AdapterError};
+pub use loader::{load_adapter, parse_adapter_str, AdapterError};
 pub use schema::{
-    AccountDefinition, AccountKind, ActionDefinition, Adapter, InstructionMapping,
-    ObservationDefinition, ObservationType, PersonaDefinition, PersonaTriggerDefinition, Protocol,
-    ACTION_NAMES, LENDING_ACTIONS, LENDING_OBSERVATIONS,
+    AccountDefinition, AccountKind, ActionDefinition, Adapter, InstructionMapping, Invariant,
+    InvariantOp, ObservationDefinition, ObservationType, PersonaDefinition,
+    PersonaTriggerDefinition, Protocol, ACTION_NAMES, LENDING_ACTIONS, LENDING_OBSERVATIONS,
+    LENDING_SNAPSHOT_METRICS,
 };

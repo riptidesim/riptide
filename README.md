@@ -56,6 +56,14 @@ The engine runs on **LiteSVM** (in-process SVM). For the same `100 agents × 180
 
 Same seed = same result, byte-for-byte, across both the lending fixture and the generic fixture. The `t15_e2e_determinism` integration test enforces this on every run.
 
+## Install
+
+```bash
+./install.sh
+```
+
+From a fresh clone on Linux with Rust + Node already installed, this builds the engine, the on-chain programs, and the CLI; symlinks `riptide` into `~/.local/bin/`; and smoke-tests the lending demo.
+
 ## Build
 
 ```bash

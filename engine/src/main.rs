@@ -31,7 +31,9 @@ use riptide_engine::{
     primitive::{
         build_generic_policies, generic_runtime_actions, GenericBootstrapConfig, GenericHarness,
     },
-    scenario::{BaselineScenario, PriceShockScenario, Scenario},
+    scenario::{
+        load_presets_dir, BaselineScenario, PresetSpec, PriceShockScenario, Scenario, ScenarioKind,
+    },
     sim::{
         build_agent_personas,
         litesvm::LiteSvmBootstrapConfig,
@@ -179,25 +181,54 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     let starting_price_u64: u64 = 100;
 
     // --- Build scenario. ---
-    let mut scenario: Box<dyn Scenario> = match run_config.scenario.as_str() {
-        "baseline" => Box::new(BaselineScenario::new(starting_price_f64, 25)),
-        "price-shock" | "price_shock" => {
-            let drop = std::env::var("RIPTIDE_PRICE_SHOCK_DROP")
-                .ok()
-                .and_then(|s| s.parse::<f64>().ok())
-                .filter(|v| (0.0..1.0).contains(v))
-                .unwrap_or(0.4);
-            Box::new(PriceShockScenario::new(
-                starting_price_f64,
-                25,
-                (run_config.ticks / 2).max(1),
-                drop,
-            ))
+    //
+    // T02: scenario *parameters* live in `fixtures/scenarios/presets/*.toml`
+    // and are loaded at boot into a map keyed by preset `name`. The Rust
+    // `Scenario` impls (e.g. `PriceShockScenario`) still live in
+    // `scenario::presets` — only the parameter set travels into TOML.
+    //
+    // Dispatch order:
+    //   1. `baseline` stays a hardcoded default so a stripped checkout
+    //      still runs without the fixtures tree on disk.
+    //   2. Otherwise look up `run_config.scenario` in the preset map and
+    //      instantiate the Rust impl matching `preset.kind`.
+    //   3. Unknown scenario -> fall back to baseline with a warning
+    //      (preserves pre-T02 behavior).
+    let presets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("engine crate has a parent directory")
+        .join("fixtures/scenarios/presets");
+    let scenario_presets = load_presets_dir(&presets_dir)
+        .map_err(|e| anyhow::anyhow!("load scenario presets: {e:#}"))?;
+    let mut scenario: Box<dyn Scenario> = if run_config.scenario == "baseline" {
+        Box::new(BaselineScenario::new(starting_price_f64, 25))
+    } else if let Some(preset) = lookup_preset(&scenario_presets, &run_config.scenario) {
+        match preset.kind {
+            ScenarioKind::PriceShock => {
+                // `RIPTIDE_PRICE_SHOCK_DROP` still overrides the preset's
+                // `drop_percent` — this preserves the env-var knob the
+                // Sprint 4 hero grid sweep relies on.
+                let drop = std::env::var("RIPTIDE_PRICE_SHOCK_DROP")
+                    .ok()
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .filter(|v| (0.0..1.0).contains(v))
+                    .unwrap_or(preset.drop_percent);
+                let shock_tick =
+                    (run_config.ticks / preset.shock_tick_denominator.max(1)).max(1);
+                Box::new(PriceShockScenario::new(
+                    preset.base_price,
+                    preset.noise_bps,
+                    shock_tick,
+                    drop,
+                ))
+            }
         }
-        other => {
-            eprintln!("warn: unknown scenario '{other}', falling back to baseline");
-            Box::new(BaselineScenario::new(starting_price_f64, 25))
-        }
+    } else {
+        eprintln!(
+            "warn: unknown scenario '{}', falling back to baseline",
+            run_config.scenario
+        );
+        Box::new(BaselineScenario::new(starting_price_f64, 25))
     };
 
     let starting_balance: f64 = std::env::var("RIPTIDE_STARTING_BALANCE")
@@ -261,6 +292,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
                     "Pool-wide TVL/utilization metrics are zeroed on the generic path until a protocol-specific aggregate is declared.".into(),
                     "Custom actions do not mutate engine cash/PnL by default; only on-chain account observations are authoritative.".into(),
                 ],
+                invariants: adapter.invariants.clone(),
             };
 
             eprintln!("running tick loop ...");
@@ -275,6 +307,15 @@ fn run(cli: Cli) -> anyhow::Result<()> {
                     program_so.display()
                 );
             }
+
+            // Sprint 5 T01: pull the adapter's declared invariants *before*
+            // the bootstrap config consumes the adapter by move. Empty when
+            // no adapter was supplied so the default Solend-fork path keeps
+            // producing byte-identical output against the Sprint 4 hash.
+            let lending_invariants = adapter
+                .as_ref()
+                .map(|a| a.invariants.clone())
+                .unwrap_or_default();
 
             eprintln!("bootstrapping LiteSVM backend ...");
             let bootstrap_config = LiteSvmBootstrapConfig {
@@ -314,6 +355,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
                     "Oracle prices are scenario-driven, not external feeds.".into(),
                     "Agents funded via deterministic airdrop, not realistic onboarding.".into(),
                 ],
+                invariants: lending_invariants,
             };
 
             eprintln!("running tick loop ...");
@@ -327,24 +369,82 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Look up a preset by dispatch key, matching either the exact `name`
+/// field or its hyphen/underscore twin. Pre-T02 the engine accepted
+/// `"price-shock"` and `"price_shock"` for the same scenario; this helper
+/// preserves that alias so existing run-configs keep resolving.
+fn lookup_preset<'a>(
+    presets: &'a std::collections::HashMap<String, PresetSpec>,
+    key: &str,
+) -> Option<&'a PresetSpec> {
+    if let Some(spec) = presets.get(key) {
+        return Some(spec);
+    }
+    let alias = if key.contains('-') {
+        key.replace('-', "_")
+    } else if key.contains('_') {
+        key.replace('_', "-")
+    } else {
+        return None;
+    };
+    presets.get(&alias)
+}
+
 fn load_json<T: serde::de::DeserializeOwned>(path: &Path) -> anyhow::Result<T> {
-    let raw =
-        fs::read_to_string(path).map_err(|e| anyhow::anyhow!("read {}: {e}", path.display()))?;
-    let parsed =
-        serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("parse {}: {e}", path.display()))?;
+    let raw = fs::read_to_string(path).map_err(|e| friendly_read_error("run-config", path, e))?;
+    let parsed = serde_json::from_str(&raw).map_err(|e| {
+        anyhow::anyhow!(
+            "failed to parse run-config JSON at {}: {e}\n\
+             Check for a trailing comma, missing quote, or a field with the wrong type \
+             near the reported line/column.",
+            path.display()
+        )
+    })?;
     Ok(parsed)
 }
 
 /// Policies file may be either an array or a single object.
 fn load_policies(path: &Path) -> anyhow::Result<Vec<Policy>> {
-    let raw =
-        fs::read_to_string(path).map_err(|e| anyhow::anyhow!("read {}: {e}", path.display()))?;
-    let value: serde_json::Value =
-        serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("parse {}: {e}", path.display()))?;
+    let raw = fs::read_to_string(path).map_err(|e| friendly_read_error("policies", path, e))?;
+    let value: serde_json::Value = serde_json::from_str(&raw).map_err(|e| {
+        anyhow::anyhow!(
+            "failed to parse policies JSON at {}: {e}\n\
+             Check for a trailing comma, missing quote, or a field with the wrong type \
+             near the reported line/column.",
+            path.display()
+        )
+    })?;
     if value.is_array() {
         Ok(serde_json::from_value(value)?)
     } else {
         Ok(vec![serde_json::from_value(value)?])
+    }
+}
+
+/// Produce a cold-user-friendly wrapper around a filesystem read error.
+/// ENOENT gets a "did you mean" hint pointing at the shipped demo
+/// configs so first-run failures point at a concrete, known-good example
+/// instead of leaving the user to guess.
+fn friendly_read_error(kind: &str, path: &Path, source: std::io::Error) -> anyhow::Error {
+    if source.kind() == std::io::ErrorKind::NotFound {
+        let hint = match kind {
+            "run-config" => {
+                "Try one of the shipped examples: demo/configs/safe.json or demo/configs/stressed.json, \
+                 or check that --config points at a readable JSON file."
+            }
+            "policies" => {
+                "The policies file is the JSON emitted by `riptide simulate` after compiling personas \
+                 — check that --policies points at a readable file, or let the CLI compile personas \
+                 for you instead of invoking the engine directly."
+            }
+            _ => "Check that the path points at a readable file.",
+        };
+        anyhow::anyhow!(
+            "{kind} file not found at {}\n{hint}",
+            path.display()
+        )
+    } else {
+        anyhow::anyhow!("read {} failed: {source}", path.display())
     }
 }
 

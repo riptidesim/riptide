@@ -1,0 +1,19 @@
+# bank-run scenario preset (placeholder)
+#
+# Stub preset that proves the loader picks up additional TOML files with
+# zero engine-code changes. Today this file aliases `price_shock` with
+# more aggressive parameters (earlier shock tick, larger drop) and is not
+# wired into any shipped run-config. It exists so T02's acceptance
+# criterion — "adding a second preset file requires zero engine changes"
+# — has a concrete artifact to test against.
+#
+# When a real `bank_run` scenario kind lands in a future sprint, replace
+# the `kind` below and add the matching Rust `Scenario` impl. Until then,
+# this file is loader-visible but behaviorally a steeper price shock.
+
+name = "bank-run"
+kind = "price_shock"
+base_price = 100.0
+noise_bps = 25
+shock_tick_denominator = 4
+drop_percent = 0.6

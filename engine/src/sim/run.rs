@@ -9,6 +9,7 @@ use serde_json::Value;
 
 use super::harness::{Harness, HarnessError, PositionObservation};
 use crate::{
+    adapter::Invariant,
     agent::{
         policy::RuntimeAction,
         state::Agent,
@@ -16,8 +17,8 @@ use crate::{
     },
     scenario::Scenario,
     types::{
-        AgentStatus, Policy, RunConfig, SimEvent, SimOutcome, SimulationResult, SimulationSummary,
-        TickSnapshot,
+        AgentStatus, InvariantViolation, Policy, RunConfig, SimEvent, SimOutcome,
+        SimulationResult, SimulationSummary, TickSnapshot,
     },
 };
 
@@ -42,6 +43,38 @@ pub struct SimulationParams<'a> {
     pub starting_balance: f64,
     pub starting_price: f64,
     pub simulation_boundaries: Vec<String>,
+    /// Sprint 5 T01: declarative invariants pulled from the adapter TOML
+    /// `[[invariants]]` block. Empty by default so the Sprint 4 hero-grid
+    /// determinism hash stays byte-stable for every adapter that does
+    /// not declare any invariants.
+    #[doc(hidden)]
+    pub invariants: Vec<Invariant>,
+}
+
+impl<'a> SimulationParams<'a> {
+    /// Default-empty invariants constructor for tests and callers that
+    /// have not plumbed the adapter-derived list through yet. Prefer
+    /// setting `invariants` explicitly from `adapter.invariants.clone()`.
+    pub fn with_defaults(
+        run_config: &'a RunConfig,
+        policies: Vec<Policy>,
+        agent_personas: Vec<usize>,
+        available_actions: Vec<RuntimeAction>,
+        starting_balance: f64,
+        starting_price: f64,
+        simulation_boundaries: Vec<String>,
+    ) -> Self {
+        Self {
+            run_config,
+            policies,
+            agent_personas,
+            available_actions,
+            starting_balance,
+            starting_price,
+            simulation_boundaries,
+            invariants: Vec::new(),
+        }
+    }
 }
 
 /// Errors that abort the whole run (infra failures after the single retry,
@@ -94,8 +127,15 @@ pub fn build_agent_personas(
             .iter()
             .position(|p| &p.persona_id == persona)
             .ok_or_else(|| {
+                let mut available: Vec<&str> =
+                    policies.iter().map(|p| p.persona_id.as_str()).collect();
+                available.sort_unstable();
                 SimulationAbort::BadInput(format!(
-                    "run_config.personas references unknown persona '{persona}' (not in policies file)"
+                    "run_config.personas references unknown persona `{persona}` — \
+                     not declared in the policies file.\n\
+                     Available personas: {available:?}.\n\
+                     Fix `personas` in your run-config JSON (or `--personas` on the CLI) \
+                     to one of the listed ids."
                 ))
             })?;
         resolved.push(idx);
@@ -153,6 +193,7 @@ where
         starting_balance,
         starting_price,
         simulation_boundaries,
+        invariants,
     } = params;
 
     if harness.agent_count() != agent_personas.len() {
@@ -165,6 +206,8 @@ where
     if policies.is_empty() {
         return Err(SimulationAbort::BadInput("empty policies".into()));
     }
+
+    let mut invariant_violations: Vec<InvariantViolation> = Vec::new();
 
     // Master RNG for scenario + per-agent runtime derivation. Everything that
     // touches randomness in this loop pulls from here (or from a runtime
@@ -243,6 +286,7 @@ where
             "cumulative_liquidations".into(),
             Value::from(cumulative_liquidations),
         );
+        evaluate_invariants(&invariants, 0, &baseline, &mut invariant_violations, &mut events);
         timeseries.push(baseline);
     }
 
@@ -504,6 +548,7 @@ where
                 "cumulative_liquidations".into(),
                 Value::from(cumulative_liquidations),
             );
+            evaluate_invariants(&invariants, tick, &snap, &mut invariant_violations, &mut events);
             timeseries.push(snap);
         }
 
@@ -545,6 +590,17 @@ where
         "total_liquidations".into(),
         Value::from(cumulative_liquidations),
     );
+
+    // Sprint 5 T01 (spec literal): the summary carries a top-level
+    // `invariants_fired` list when any invariant is declared. Keys stay
+    // absent for runs with no invariants so the Sprint 4 hero-grid
+    // determinism hash stays byte-stable.
+    if !invariants.is_empty() {
+        summary.insert(
+            "invariants_fired".into(),
+            build_invariants_summary(&invariants, &invariant_violations),
+        );
+    }
 
     Ok(SimulationResult {
         run_config: run_config.clone(),
@@ -689,6 +745,7 @@ where
         starting_balance,
         starting_price,
         simulation_boundaries,
+        invariants,
     } = params;
 
     if harness.agent_count() != agent_personas.len() {
@@ -701,6 +758,8 @@ where
     if policies.is_empty() {
         return Err(SimulationAbort::BadInput("empty policies".into()));
     }
+
+    let mut invariant_violations: Vec<InvariantViolation> = Vec::new();
 
     let mut master_rng = StdRng::seed_from_u64(run_config.seed);
 
@@ -726,10 +785,12 @@ where
 
     // tick 0 baseline. Adapter-declared metrics only; the generic
     // path no longer synthesizes zero-valued lending columns.
-    timeseries.push(
-        build_snapshot(harness, 0, &agents)
-            .map_err(|e| SimulationAbort::Infra(e.to_string()))?,
-    );
+    {
+        let baseline = build_snapshot(harness, 0, &agents)
+            .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+        evaluate_invariants(&invariants, 0, &baseline, &mut invariant_violations, &mut events);
+        timeseries.push(baseline);
+    }
     let _ = starting_price;
 
     for tick in 1..=run_config.ticks {
@@ -814,10 +875,12 @@ where
             });
         }
 
-        timeseries.push(
-            build_snapshot(harness, tick, &agents)
-                .map_err(|e| SimulationAbort::Infra(e.to_string()))?,
-        );
+        {
+            let snap = build_snapshot(harness, tick, &agents)
+                .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+            evaluate_invariants(&invariants, tick, &snap, &mut invariant_violations, &mut events);
+            timeseries.push(snap);
+        }
         let _ = oracle_price;
 
         last_executed_tick = tick;
@@ -830,8 +893,15 @@ where
         .map(|a| a.final_state(starting_price))
         .collect();
 
-    let summary = build_summary(harness, &timeseries, &agent_finals)
+    let mut summary = build_summary(harness, &timeseries, &agent_finals)
         .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+
+    if !invariants.is_empty() {
+        summary.insert(
+            "invariants_fired".into(),
+            build_invariants_summary(&invariants, &invariant_violations),
+        );
+    }
 
     Ok(SimulationResult {
         run_config: run_config.clone(),
@@ -843,6 +913,149 @@ where
         summary,
         simulation_boundaries,
     })
+}
+
+/// Look up an observation field in a tick snapshot and coerce it to
+/// f64. Tries `as_f64()` first, then `as_i64()` and `as_u64()` fallbacks.
+/// Returns `None` when the key is absent or its value is non-numeric —
+/// the caller skips the comparison in that case so a missing field does
+/// not force the whole run to abort.
+///
+/// Lending-primitive alias table: the Solend-fork snapshot emits
+/// engine-facing metric names (`cumulative_bad_debt`,
+/// `cumulative_liquidations`, ...) while adapter authors legitimately
+/// want to write invariants against the canonical *logical* observation
+/// names from the schema (`bad_debt`, `liquidated`). Snapshot shape is
+/// load-bearing for the Sprint 4 hero-grid determinism hash, so the
+/// alias is applied here at lookup time instead of rewriting what the
+/// primitive emits. The mapping is intentionally tiny — add new entries
+/// only when a new logical name lands in `LENDING_OBSERVATIONS` without
+/// a direct snapshot counterpart.
+fn snapshot_f64(snapshot: &TickSnapshot, field: &str) -> Option<f64> {
+    if let Some(v) = snapshot.get(field).and_then(value_to_f64) {
+        return Some(v);
+    }
+    match field {
+        "bad_debt" => snapshot.get("cumulative_bad_debt").and_then(value_to_f64),
+        "liquidated" => snapshot.get("cumulative_liquidations").and_then(value_to_f64),
+        _ => None,
+    }
+}
+
+fn value_to_f64(v: &Value) -> Option<f64> {
+    if let Some(f) = v.as_f64() {
+        return Some(f);
+    }
+    if let Some(i) = v.as_i64() {
+        return Some(i as f64);
+    }
+    if let Some(u) = v.as_u64() {
+        return Some(u as f64);
+    }
+    None
+}
+
+/// Evaluate every declared invariant against a single tick snapshot.
+/// Missing-field ticks are logged to stderr but do not panic or record
+/// a violation. Values are coerced to f64 via `snapshot_f64`. Each
+/// violation is appended both to the dedicated `violations` index and
+/// to the main `events` stream as a structured `SimEvent` with a
+/// synthetic engine-owned agent id so downstream consumers that scan
+/// `events` see invariant firings alongside action outcomes.
+fn evaluate_invariants(
+    invariants: &[Invariant],
+    tick: u32,
+    snapshot: &TickSnapshot,
+    violations: &mut Vec<InvariantViolation>,
+    events: &mut Vec<SimEvent>,
+) {
+    for (idx, inv) in invariants.iter().enumerate() {
+        match snapshot_f64(snapshot, &inv.field) {
+            Some(observed) => {
+                if !inv.op.apply(observed, inv.value) {
+                    let name = inv.display_name(idx);
+                    violations.push(InvariantViolation {
+                        tick,
+                        index: idx,
+                        name: name.clone(),
+                        field: inv.field.clone(),
+                        op: inv.op.as_str().to_string(),
+                        observed,
+                        expected: inv.value,
+                    });
+                    let mut params = BTreeMap::new();
+                    params.insert("field".into(), Value::from(inv.field.clone()));
+                    params.insert("op".into(), Value::from(inv.op.as_str()));
+                    params.insert(
+                        "observed".into(),
+                        serde_json::Number::from_f64(observed)
+                            .map(Value::Number)
+                            .unwrap_or(Value::Null),
+                    );
+                    params.insert(
+                        "expected".into(),
+                        serde_json::Number::from_f64(inv.value)
+                            .map(Value::Number)
+                            .unwrap_or(Value::Null),
+                    );
+                    params.insert("index".into(), Value::from(idx as u64));
+                    events.push(SimEvent {
+                        tick,
+                        agent_id: "__engine__".into(),
+                        persona_id: "invariant".into(),
+                        persona_label: "invariant".into(),
+                        action: format!("invariant_violation:{name}"),
+                        params,
+                        outcome: SimOutcome::Failed,
+                        outcome_detail: Some(format!(
+                            "invariant `{name}`: {} {} {} (observed vs expected)",
+                            observed,
+                            inv.op.as_str(),
+                            inv.value
+                        )),
+                        triggered_by: None,
+                    });
+                }
+            }
+            None => {
+                eprintln!(
+                    "warn: invariant `{}` skipped at tick {tick}: field `{}` missing from snapshot",
+                    inv.display_name(idx),
+                    inv.field
+                );
+            }
+        }
+    }
+}
+
+/// Build the per-invariant summary rollup emitted as
+/// `summary["invariants_fired"]`. Shape: array of
+/// `{ name, field, op, value, firings }` objects, one per declared
+/// invariant, matching the declaration order.
+fn build_invariants_summary(
+    invariants: &[Invariant],
+    violations: &[InvariantViolation],
+) -> Value {
+    let entries: Vec<Value> = invariants
+        .iter()
+        .enumerate()
+        .map(|(idx, inv)| {
+            let firings = violations.iter().filter(|v| v.index == idx).count();
+            let mut entry = serde_json::Map::new();
+            entry.insert("name".into(), Value::from(inv.display_name(idx)));
+            entry.insert("field".into(), Value::from(inv.field.clone()));
+            entry.insert("op".into(), Value::from(inv.op.as_str()));
+            entry.insert(
+                "value".into(),
+                serde_json::Number::from_f64(inv.value)
+                    .map(Value::Number)
+                    .unwrap_or(Value::Null),
+            );
+            entry.insert("firings".into(), Value::from(firings as u64));
+            Value::Object(entry)
+        })
+        .collect();
+    Value::Array(entries)
 }
 
 #[cfg(test)]
@@ -906,6 +1119,7 @@ mod tests {
             starting_balance: 10_000.0,
             starting_price: 100.0,
             simulation_boundaries: vec!["mock harness".into()],
+            invariants: Vec::new(),
         }
     }
 
@@ -1063,6 +1277,7 @@ mod tests {
             starting_balance: 10_000.0,
             starting_price: 1.0,
             simulation_boundaries: vec!["t".into()],
+            invariants: Vec::new(),
         };
         let result = run_simulation(&mut h, &mut scenario, params).unwrap();
         // Repaid amount on chain = min(10_000, 200) = 200; cash debit must
@@ -1114,6 +1329,7 @@ mod tests {
             starting_balance: 10_000.0,
             starting_price: 100.0,
             simulation_boundaries: vec!["t".into()],
+            invariants: Vec::new(),
         };
         let result = run_simulation(&mut h, &mut scenario, params).unwrap();
         // The liquidation was applied at the init observe (tick 0) — but the

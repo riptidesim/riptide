@@ -982,6 +982,7 @@ mod tests {
                 starting_balance: 10_000.0,
                 starting_price: 100.0,
                 simulation_boundaries: vec!["litesvm".into()],
+                invariants: Vec::new(),
             };
             run_simulation(&mut harness, &mut scenario, params).unwrap()
         }
@@ -1106,6 +1107,7 @@ mod tests {
             actions: BTreeMap::new(),
             observations: BTreeMap::new(),
             personas: BTreeMap::new(),
+            invariants: Vec::new(),
         }
     }
 

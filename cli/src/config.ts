@@ -52,8 +52,36 @@ export function buildSimulateOptions(raw: Record<string, unknown>): { config: Si
   let adapterProtocol: "lending" | "generic" | undefined;
   if (typeof raw.adapter === "string" && raw.adapter.length > 0) {
     adapterPath = path.resolve(raw.adapter);
-    const rawToml = readFileSync(adapterPath, "utf8");
-    const parsedToml = TOML.parse(rawToml);
+    let rawToml: string;
+    try {
+      rawToml = readFileSync(adapterPath, "utf8");
+    } catch (err) {
+      // Wrap the raw ENOENT / EACCES into a message a cold user can act
+      // on: name the file, say what was expected, point at a concrete
+      // next step. The CLI's top-level handler prints the .message as-is.
+      const nodeErr = err as NodeJS.ErrnoException;
+      if (nodeErr && nodeErr.code === "ENOENT") {
+        throw new Error(
+          `adapter TOML not found at ${adapterPath}\n` +
+            `Expected a path to a Riptide adapter file.\n` +
+            `Try one of the shipped examples: fixtures/adapters/solend-fork.toml ` +
+            `or fixtures/adapters/resource-grinder.toml, or drop --adapter to use the default lending primitive.`
+        );
+      }
+      throw new Error(
+        `failed to read adapter TOML at ${adapterPath}: ${nodeErr.message ?? err}`
+      );
+    }
+    let parsedToml: unknown;
+    try {
+      parsedToml = TOML.parse(rawToml);
+    } catch (err) {
+      const parseErr = err as Error;
+      throw new Error(
+        `${adapterPath}: TOML parse failed: ${parseErr.message}\n` +
+          `Check for an unclosed bracket, a missing quote, or a stray comma near the reported line/column.`
+      );
+    }
     // Throws on validation failure. Message includes file + key.
     adapterProtocol = validateAdapter(parsedToml, adapterPath).protocol;
   }

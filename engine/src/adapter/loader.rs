@@ -6,7 +6,9 @@
 
 use std::{fmt, path::Path};
 
-use crate::adapter::schema::{Adapter, Protocol, LENDING_ACTIONS, LENDING_OBSERVATIONS};
+use crate::adapter::schema::{
+    Adapter, Protocol, LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS,
+};
 
 /// Errors returned by `load_adapter`. Every variant carries enough
 /// context to point at the file and key that caused the failure.
@@ -35,8 +37,24 @@ pub enum AdapterError {
 impl fmt::Display for AdapterError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Io { path, source } => write!(f, "{path}: read failed: {source}"),
-            Self::Parse { path, source } => write!(f, "{path}: TOML parse failed: {source}"),
+            Self::Io { path, source } => {
+                if source.kind() == std::io::ErrorKind::NotFound {
+                    write!(
+                        f,
+                        "adapter TOML not found at {path}\n\
+                         Expected a path to an adapter file (e.g. fixtures/adapters/solend-fork.toml).\n\
+                         Check that --adapter points at a readable file, or drop the flag to use the default lending primitive."
+                    )
+                } else {
+                    write!(f, "{path}: read failed: {source}")
+                }
+            }
+            Self::Parse { path, source } => write!(
+                f,
+                "{path}: TOML parse failed: {source}\n\
+                 Check for an unclosed bracket, a missing quote, or a stray comma near the \
+                 reported line/column."
+            ),
             Self::Validation { path, key, reason } => {
                 write!(f, "{path}: `{key}`: {reason}")
             }
@@ -68,7 +86,120 @@ pub fn load_adapter(path: &Path) -> Result<Adapter, AdapterError> {
 
     validate(&adapter, &path_str)?;
     resolve_generic_paths(&mut adapter, path);
+    validate_resolved_paths(&adapter, &path_str)?;
     Ok(adapter)
+}
+
+/// Post-resolution existence check. Runs after `resolve_generic_paths`
+/// so the message reports the absolute, adapter-relative path the engine
+/// will actually try to load — not whatever shorthand the TOML author
+/// typed. Only runs for generic adapters (the lending primitive has its
+/// own `.so` discovery path in `harness::setup`).
+fn validate_resolved_paths(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
+    if !matches!(adapter.protocol, Protocol::Generic) {
+        return Ok(());
+    }
+    if let Some(program_so) = adapter.program_so.as_deref() {
+        if !std::path::Path::new(program_so).exists() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: "program_so".into(),
+                reason: format!(
+                    "program .so not found at {program_so}\n\
+                     Expected a compiled SBF artifact on disk.\n\
+                     Run: cargo build-sbf --manifest-path <program>/Cargo.toml \
+                     (or fix the `program_so` path in the adapter TOML) and retry."
+                ),
+            });
+        }
+    }
+    if let Some(idl_path) = adapter.idl_path.as_deref() {
+        if !std::path::Path::new(idl_path).exists() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: "idl_path".into(),
+                reason: format!(
+                    "IDL file not found at {idl_path}\n\
+                     Expected a JSON IDL describing the program's instructions.\n\
+                     Fix the `idl_path` entry in the adapter TOML to point at a readable file."
+                ),
+            });
+        }
+        // Cross-check declared `[accounts].*.space` against the fixed-
+        // field minimum byte count computed from the IDL's account
+        // declarations. T03 acceptance criterion: "declared vs expected".
+        // Variable-length fields (vec/option/defined) short-circuit the
+        // check for an account; the minimum byte floor in
+        // `validate_generic` still applies. If the IDL is unparseable
+        // here we silently fall back — the dedicated parse-fail path
+        // catches it at bootstrap time.
+        if let Ok(raw) = std::fs::read_to_string(idl_path) {
+            if let Ok(idl_json) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(idl_accounts) = idl_json.get("accounts").and_then(|v| v.as_array()) {
+                    for idl_account in idl_accounts {
+                        let Some(name) = idl_account.get("name").and_then(|v| v.as_str()) else {
+                            continue;
+                        };
+                        let Some(declared) = adapter.accounts.get(name) else {
+                            continue;
+                        };
+                        let Some(expected) = idl_fixed_min_size(idl_account) else {
+                            // Variable-length (vec/option/defined)
+                            // account — no tight minimum available.
+                            continue;
+                        };
+                        if declared.space < expected {
+                            return Err(AdapterError::Validation {
+                                path: path.to_string(),
+                                key: format!("[accounts].{name}.space"),
+                                reason: format!(
+                                    "account `{name}` declared as {declared_space} bytes but the \
+                                     program expects at least {expected} bytes (fixed-field \
+                                     minimum computed from `{idl_path}` account layout).\n\
+                                     Fix `[accounts.{name}].space` in the adapter TOML to be >= {expected}, \
+                                     or verify the account struct in the program source.",
+                                    declared_space = declared.space,
+                                ),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Compute the minimum byte count needed to hold an IDL-declared
+/// account's fixed-size fields. Returns `None` if any field's type
+/// is variable-length (vec/option/defined) — in that case the loader
+/// can't assert a tight minimum and falls back to the generic floor.
+fn idl_fixed_min_size(idl_account: &serde_json::Value) -> Option<usize> {
+    let fields = idl_account.get("fields").and_then(|v| v.as_array())?;
+    let mut total: usize = 0;
+    for field in fields {
+        let ty = field.get("type")?;
+        let size = primitive_type_size(ty)?;
+        total = total.checked_add(size)?;
+    }
+    Some(total)
+}
+
+/// Primitive field size lookup. Returns `None` for any non-primitive
+/// (vec/option/defined/array), forcing the caller to skip the account.
+fn primitive_type_size(ty: &serde_json::Value) -> Option<usize> {
+    if let Some(name) = ty.as_str() {
+        return match name {
+            "bool" | "u8" | "i8" => Some(1),
+            "u16" | "i16" => Some(2),
+            "u32" | "i32" | "f32" => Some(4),
+            "u64" | "i64" | "f64" => Some(8),
+            "u128" | "i128" => Some(16),
+            "pubkey" | "publicKey" => Some(32),
+            _ => None,
+        };
+    }
+    None
 }
 
 /// Parse adapter TOML from a string without touching the filesystem.
@@ -300,6 +431,104 @@ fn validate_lending(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
         }
     }
 
+    validate_invariants_lending(adapter, path)?;
+
+    Ok(())
+}
+
+/// Validate `[[invariants]]` entries against the lending snapshot shape.
+/// Accepts field names from either `LENDING_SNAPSHOT_METRICS` (engine-
+/// emitted metric keys) or the adapter's declared logical observations
+/// (state_mapping values — i.e. `LENDING_OBSERVATIONS`). Also checks the
+/// optional `name` is a safe identifier and the value is finite.
+fn validate_invariants_lending(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
+    let declared_logical: std::collections::BTreeSet<&str> = adapter
+        .state_mapping
+        .values()
+        .map(|v| v.as_str())
+        .collect();
+    for (idx, inv) in adapter.invariants.iter().enumerate() {
+        let key = format!("[[invariants]][{idx}].field");
+        if inv.field.is_empty() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key,
+                reason: "invariant `field` must be non-empty".into(),
+            });
+        }
+        check_ident(path, &key, &inv.field)?;
+        let ok = LENDING_SNAPSHOT_METRICS.contains(&inv.field.as_str())
+            || LENDING_OBSERVATIONS.contains(&inv.field.as_str())
+            || declared_logical.contains(inv.field.as_str());
+        if !ok {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key,
+                reason: format!(
+                    "unknown invariant field `{}`; expected a snapshot metric ({:?}) \
+                     or a lending observation ({:?})",
+                    inv.field, LENDING_SNAPSHOT_METRICS, LENDING_OBSERVATIONS
+                ),
+            });
+        }
+        if let Some(name) = inv.name.as_deref() {
+            check_ident(
+                path,
+                &format!("[[invariants]][{idx}].name"),
+                name,
+            )?;
+        }
+        if !inv.value.is_finite() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[[invariants]][{idx}].value"),
+                reason: "invariant `value` must be a finite numeric literal".into(),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Validate `[[invariants]]` entries against a generic adapter's declared
+/// observations. Generic invariant fields must name an entry in the
+/// `[observations]` block (the same keys the generic primitive emits
+/// to every tick snapshot).
+fn validate_invariants_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
+    for (idx, inv) in adapter.invariants.iter().enumerate() {
+        let key = format!("[[invariants]][{idx}].field");
+        if inv.field.is_empty() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key,
+                reason: "invariant `field` must be non-empty".into(),
+            });
+        }
+        check_ident(path, &key, &inv.field)?;
+        if !adapter.observations.contains_key(&inv.field) {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key,
+                reason: format!(
+                    "unknown invariant field `{}`; declare it under `[observations]`",
+                    inv.field
+                ),
+            });
+        }
+        if let Some(name) = inv.name.as_deref() {
+            check_ident(
+                path,
+                &format!("[[invariants]][{idx}].name"),
+                name,
+            )?;
+        }
+        if !inv.value.is_finite() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[[invariants]][{idx}].value"),
+                reason: "invariant `value` must be a finite numeric literal".into(),
+            });
+        }
+    }
     Ok(())
 }
 
@@ -354,11 +583,34 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
     }
 
     for (account_name, account) in &adapter.accounts {
+        // Solana accounts at minimum carry an 8-byte Anchor/Borsh
+        // discriminator; anything smaller cannot hold a usable program
+        // state and almost always means the adapter author typed the
+        // wrong number (e.g. `8` confused with `0`, or bits vs bytes).
+        const MIN_ACCOUNT_SPACE: usize = 8;
         if account.space == 0 {
             return Err(AdapterError::Validation {
                 path: path.to_string(),
                 key: format!("[accounts].{account_name}.space"),
-                reason: "account space must be greater than zero".into(),
+                reason: format!(
+                    "account `{account_name}` declared `space = 0` but Solana accounts must reserve \
+                     at least {MIN_ACCOUNT_SPACE} bytes for the program discriminator.\n\
+                     Set `[accounts.{account_name}].space` to the on-chain struct size the program \
+                     expects (check the program source or IDL)."
+                ),
+            });
+        }
+        if account.space < MIN_ACCOUNT_SPACE {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[accounts].{account_name}.space"),
+                reason: format!(
+                    "account `{account_name}` declared `space = {}` but Solana accounts must reserve \
+                     at least {MIN_ACCOUNT_SPACE} bytes for the program discriminator.\n\
+                     Set `[accounts.{account_name}].space` to the on-chain struct size the program \
+                     expects (check the program source or IDL).",
+                    account.space
+                ),
             });
         }
     }
@@ -459,7 +711,13 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
                     ),
                 });
             }
-            validate_trigger_condition(path, persona_name, idx, &trigger.condition)?;
+            validate_trigger_condition(
+                path,
+                persona_name,
+                idx,
+                &trigger.condition,
+                &adapter.observations,
+            )?;
             if !trigger.weight_boost.is_finite() {
                 return Err(AdapterError::Validation {
                     path: path.to_string(),
@@ -469,6 +727,8 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
             }
         }
     }
+
+    validate_invariants_generic(adapter, path)?;
 
     Ok(())
 }
@@ -511,6 +771,7 @@ fn validate_trigger_condition(
     persona_name: &str,
     idx: usize,
     condition: &str,
+    observations: &std::collections::BTreeMap<String, crate::adapter::schema::ObservationDefinition>,
 ) -> Result<(), AdapterError> {
     let parts: Vec<_> = condition.split_whitespace().collect();
     if parts.len() != 3 {
@@ -518,7 +779,8 @@ fn validate_trigger_condition(
             path: path.to_string(),
             key: format!("[personas].{persona_name}.triggers[{idx}].if"),
             reason:
-                "generic trigger conditions must be `<observation> <op> <constant>`"
+                "generic trigger conditions must be `<observation> <op> <constant>` \
+                 (e.g. `player.wood < 10`)"
                     .into(),
         });
     }
@@ -528,9 +790,28 @@ fn validate_trigger_condition(
             return Err(AdapterError::Validation {
                 path: path.to_string(),
                 key: format!("[personas].{persona_name}.triggers[{idx}].if"),
-                reason: format!("unsupported generic trigger operator `{other}`; expected one of [\"<\", \">\", \"==\"]"),
+                reason: format!(
+                    "unsupported generic trigger operator `{other}`; expected one of [\"<\", \">\", \"==\"]"
+                ),
             });
         }
+    }
+    // Observation must be declared under `[observations]` — otherwise
+    // the tick-time lookup will always miss and the trigger is dead
+    // code. Fail loudly at load time with the declared set in hand.
+    if !observations.contains_key(parts[0]) {
+        let mut known: Vec<&str> = observations.keys().map(String::as_str).collect();
+        known.sort_unstable();
+        return Err(AdapterError::Validation {
+            path: path.to_string(),
+            key: format!("[personas].{persona_name}.triggers[{idx}].if"),
+            reason: format!(
+                "unknown observation `{}` in trigger condition; \
+                 declare it under `[observations]` first. \
+                 Declared observations: {:?}",
+                parts[0], known
+            ),
+        });
     }
     Ok(())
 }

@@ -65,6 +65,20 @@ export const PersonaDefinitionSchema = z.object({
   triggers: z.array(PersonaTriggerSchema).default([]),
 });
 
+// Sprint 5 T01: declarative invariants block. Flat `{ name?, field, op,
+// value }` triples evaluated by the engine after every tick snapshot.
+// Intentionally tiny — no AND/OR, no math, no user functions.
+export const InvariantOpSchema = z.enum(["==", "!=", ">=", "<=", ">", "<"]);
+export type InvariantOp = z.infer<typeof InvariantOpSchema>;
+
+export const InvariantSchema = z.object({
+  name: z.string().min(1).optional(),
+  field: z.string().min(1),
+  op: InvariantOpSchema,
+  value: z.number().finite(),
+});
+export type Invariant = z.infer<typeof InvariantSchema>;
+
 export const AdapterSchema = z.object({
   protocol: ProtocolSchema,
   instructions: z.record(z.string(), InstructionMappingSchema),
@@ -75,6 +89,7 @@ export const AdapterSchema = z.object({
   actions: z.record(z.string(), ActionDefinitionSchema).default({}),
   observations: z.record(z.string(), ObservationDefinitionSchema).default({}),
   personas: z.record(z.string(), PersonaDefinitionSchema).default({}),
+  invariants: z.array(InvariantSchema).default([]),
 });
 export type Adapter = z.infer<typeof AdapterSchema>;
 
