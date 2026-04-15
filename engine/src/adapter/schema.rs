@@ -195,6 +195,22 @@ pub struct Adapter {
     /// existing adapter continues to parse unchanged.
     #[serde(default)]
     pub invariants: Vec<Invariant>,
+
+    /// Declarative oracle block (Sprint 5 T05). Each entry declares an
+    /// oracle account layout the engine can target for shock injection.
+    /// Adapters that leave this empty keep the legacy hardcoded Solend
+    /// oracle path (harness-owned admin-mock layout). New protocol classes
+    /// (perps, AMM, etc.) declare `[[oracles]]` so the engine can dispatch
+    /// shocks through a typed layout without primitive-level changes.
+    #[serde(default)]
+    pub oracles: Vec<OracleDefinition>,
+
+    /// Engine-triggered scheduled actions (Sprint 5 T06). Each entry
+    /// declares an instruction the engine fires automatically between
+    /// persona ticks at a fixed cadence. Empty by default so every
+    /// existing adapter continues to parse unchanged.
+    #[serde(default)]
+    pub scheduled_actions: Vec<ScheduledAction>,
 }
 
 /// Supported comparison operators for declarative invariants.
@@ -264,6 +280,127 @@ impl Invariant {
         self.name
             .clone()
             .unwrap_or_else(|| format!("inv_{idx}"))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 5 T05 — Generic oracle injection
+// ---------------------------------------------------------------------------
+
+/// Supported oracle account layouts. Selects which concrete
+/// [`crate::scenario::oracle::OracleLayout`] implementation the engine
+/// uses when it encodes a price shock. Keep this small — add new
+/// variants as new oracle kinds (Pyth, Switchboard, …) ship with their
+/// own account layout + mock program.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OracleKind {
+    /// Admin-settable mock oracle. This is the layout Sprint 4's
+    /// Solend-fork hero grid drives through
+    /// `programs/lending_pool`'s bundled oracle state, now ships as a
+    /// standalone program at `programs/admin_mock_oracle/` so
+    /// non-lending adapters can depend on it directly.
+    AdminMock,
+    /// Pyth-compatible mock (placeholder variant — the layout impl is
+    /// reserved for a Sprint 6 drop where the full Borsh shape lands).
+    Pyth,
+}
+
+/// Declarative oracle entry from the adapter TOML's `[[oracles]]`
+/// block. Each entry names a logical oracle and the account layout
+/// kind the engine should target when shocking that oracle. Optional
+/// fields carry layout-specific defaults the engine can consume at
+/// bootstrap time.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OracleDefinition {
+    /// Stable logical identifier used by proposals and scenarios to
+    /// reference this oracle. Must be a safe identifier.
+    pub name: String,
+    /// Which concrete account layout the engine encodes into when
+    /// writing a shock.
+    pub kind: OracleKind,
+    /// Optional reference into `[accounts]` (generic path) naming the
+    /// program-owned price account. Lending adapters typically leave
+    /// this absent — the lending primitive already knows where its
+    /// oracle state account lives.
+    #[serde(default)]
+    pub account: Option<String>,
+    /// Starting price this oracle should report when the simulation
+    /// boots. Defaults to `100.0` so a bare `{ name, kind }` entry is
+    /// still bootable.
+    #[serde(default = "default_oracle_base_price")]
+    pub base_price: f64,
+    /// Price exponent (e.g. `-2` for "report cents"). Defaults to `0`.
+    #[serde(default)]
+    pub exponent: i8,
+    /// Optional Pyth-style confidence. Accepted for forward compat with
+    /// the Pyth kind; ignored by the AdminMock layout.
+    #[serde(default)]
+    pub confidence: Option<u64>,
+}
+
+fn default_oracle_base_price() -> f64 {
+    100.0
+}
+
+/// Canonical set of oracle kinds, for error messages and documentation.
+pub const ORACLE_KINDS: &[&str] = &["admin-mock", "pyth"];
+
+// ---------------------------------------------------------------------------
+// Sprint 5 T06 — Engine-triggered scheduled actions
+// ---------------------------------------------------------------------------
+
+/// Declarative scheduled action entry from the adapter TOML's
+/// `[[scheduled_actions]]` block. Each entry tells the engine to fire a
+/// named instruction automatically between persona ticks at a fixed
+/// cadence.
+///
+/// **Execution ordering per tick** (load-bearing — do not change
+/// without also changing the documentation in `sim::run::run_simulation`
+/// and `run_generic_simulation`):
+///
+/// 1. Scheduled actions fire FIRST — world state updates before
+///    persona actions react.
+/// 2. Persona actions fire SECOND.
+/// 3. Invariants evaluate LAST on the post-persona snapshot.
+///
+/// Multiple scheduled actions due on the same tick fire in
+/// **declaration order** from the adapter TOML (i.e. the index they
+/// appear at in `Adapter.scheduled_actions`). This keeps the tie-break
+/// deterministic across same-seed runs.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScheduledAction {
+    /// Optional human-readable name. Defaults to `scheduled_<idx>` at
+    /// display time if absent.
+    #[serde(default)]
+    pub name: Option<String>,
+    /// The instruction the engine should fire. Must correspond to a
+    /// key of the adapter's `[instructions]` block so the loader can
+    /// cross-check the reference at parse time.
+    pub instruction: String,
+    /// Tick cadence. The engine fires on every tick where
+    /// `tick % interval_ticks == 0`. Must be a positive integer; the
+    /// loader rejects zero.
+    pub interval_ticks: u32,
+    /// Optional account references (names from `[accounts]` for the
+    /// generic path). The engine passes these through to the primitive's
+    /// scheduled-action hook; Sprint 5's primitives treat them as
+    /// observable metadata only.
+    #[serde(default)]
+    pub accounts: Vec<String>,
+    /// Static instruction arguments. The engine passes these verbatim
+    /// to the primitive's scheduled-action hook.
+    #[serde(default)]
+    pub args: BTreeMap<String, serde_json::Value>,
+}
+
+impl ScheduledAction {
+    /// Resolve a stable display name, falling back to `scheduled_<idx>`
+    /// when the adapter did not supply one.
+    pub fn display_name(&self, idx: usize) -> String {
+        self.name
+            .clone()
+            .unwrap_or_else(|| format!("scheduled_{idx}"))
     }
 }
 

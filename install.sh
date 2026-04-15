@@ -175,11 +175,13 @@ build_program_so() {
   ok   "$so_name ready at $so_path"
 }
 
-build_program_so lending_pool     lending_pool.so
-build_program_so resource_grinder resource_grinder.so
+build_program_so lending_pool       lending_pool.so
+build_program_so resource_grinder   resource_grinder.so
+build_program_so admin_mock_oracle  admin_mock_oracle.so
 
 LENDING_SO_PATH="$REPO_ROOT/programs/lending_pool/target/deploy/lending_pool.so"
 GENERIC_SO_PATH="$REPO_ROOT/programs/resource_grinder/target/deploy/resource_grinder.so"
+ADMIN_MOCK_ORACLE_SO_PATH="$REPO_ROOT/programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so"
 
 # ---------- Step 4: npm install ----------
 banner "installing CLI dependencies (npm install)"

@@ -464,6 +464,7 @@ fn t03_happy_path_lending_run_still_succeeds_with_improved_errors() {
         starting_price: 100.0,
         simulation_boundaries: vec!["t03 happy".into()],
         invariants: Vec::new(),
+        scheduled_actions: Vec::new(),
     };
     let result = run_simulation(&mut harness, &mut scenario, params).unwrap();
     assert_eq!(result.seed, 42);

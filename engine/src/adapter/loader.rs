@@ -8,6 +8,7 @@ use std::{fmt, path::Path};
 
 use crate::adapter::schema::{
     Adapter, Protocol, LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS,
+    ORACLE_KINDS,
 };
 
 /// Errors returned by `load_adapter`. Every variant carries enough
@@ -432,6 +433,8 @@ fn validate_lending(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
     }
 
     validate_invariants_lending(adapter, path)?;
+    validate_oracles(adapter, path)?;
+    validate_scheduled_actions(adapter, path)?;
 
     Ok(())
 }
@@ -729,7 +732,162 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
     }
 
     validate_invariants_generic(adapter, path)?;
+    validate_oracles(adapter, path)?;
+    validate_scheduled_actions(adapter, path)?;
 
+    Ok(())
+}
+
+/// Validate the `[[oracles]]` block shared between lending and generic
+/// adapters (Sprint 5 T05). Checks:
+///   1. `name` is a safe identifier.
+///   2. `base_price` is finite.
+///   3. Optional `account` reference (generic adapters) resolves to a
+///      declared account.
+///   4. Oracle `name`s are unique within the adapter.
+fn validate_oracles(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
+    use std::collections::BTreeSet;
+    use crate::adapter::schema::OracleKind;
+    let mut seen: BTreeSet<&str> = BTreeSet::new();
+    for (idx, oracle) in adapter.oracles.iter().enumerate() {
+        if matches!(oracle.kind, OracleKind::Pyth) {
+            // Sprint 5 T05 ships `kind = "pyth"` as a
+            // forward-compatible placeholder that reuses the
+            // admin-mock Borsh layout. Full Pyth byte compatibility
+            // (confidence intervals, EMA windows, multi-publisher
+            // aggregation) is a Sprint 6 drop. Warn loudly so an
+            // adapter author who declares Pyth knows the layout they
+            // get is NOT real Pyth shape yet — a program built
+            // against `pyth-sdk-solana` that relies on fields beyond
+            // `{ price, exponent }` will misread the mock.
+            eprintln!(
+                "warn: {path}: `[[oracles]][{idx}]` declares `kind = \"pyth\"` — \
+                 Sprint 5 ships this variant as an admin-mock layout alias. \
+                 Programs that read only `price` / `exponent` boot fine; programs \
+                 that depend on the full Pyth Borsh shape (confidence, EMA, \
+                 publish_slot, publisher aggregation) will misread the mock. \
+                 Full Pyth layout lands in Sprint 6."
+            );
+        }
+        let key_name = format!("[[oracles]][{idx}].name");
+        if oracle.name.is_empty() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: key_name,
+                reason: "oracle `name` must be non-empty".into(),
+            });
+        }
+        check_ident(path, &key_name, &oracle.name)?;
+        if !seen.insert(oracle.name.as_str()) {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: key_name,
+                reason: format!(
+                    "duplicate oracle `name` `{}`; every `[[oracles]]` entry \
+                     must declare a unique name",
+                    oracle.name
+                ),
+            });
+        }
+        if !oracle.base_price.is_finite() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[[oracles]][{idx}].base_price"),
+                reason: format!(
+                    "oracle `{}`: `base_price` must be a finite numeric literal",
+                    oracle.name
+                ),
+            });
+        }
+        if matches!(adapter.protocol, Protocol::Generic) {
+            if let Some(account) = oracle.account.as_deref() {
+                if !adapter.accounts.contains_key(account) {
+                    let mut declared: Vec<&str> =
+                        adapter.accounts.keys().map(String::as_str).collect();
+                    declared.sort_unstable();
+                    return Err(AdapterError::Validation {
+                        path: path.to_string(),
+                        key: format!("[[oracles]][{idx}].account"),
+                        reason: format!(
+                            "oracle `{}`: `account` references unknown account `{}`; \
+                             declare it under `[accounts]`. Declared: {:?}. \
+                             Supported oracle kinds: {:?}.",
+                            oracle.name, account, declared, ORACLE_KINDS
+                        ),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Validate the `[[scheduled_actions]]` block shared between lending
+/// and generic adapters (Sprint 5 T06).
+fn validate_scheduled_actions(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
+    for (idx, sa) in adapter.scheduled_actions.iter().enumerate() {
+        let key_instr = format!("[[scheduled_actions]][{idx}].instruction");
+        if sa.instruction.is_empty() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: key_instr,
+                reason: "scheduled action `instruction` must be non-empty".into(),
+            });
+        }
+        check_ident(path, &key_instr, &sa.instruction)?;
+        if !adapter.instructions.contains_key(&sa.instruction) {
+            let mut declared: Vec<&str> =
+                adapter.instructions.keys().map(String::as_str).collect();
+            declared.sort_unstable();
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: key_instr,
+                reason: format!(
+                    "unknown instruction `{}`; scheduled actions must reference a key \
+                     of `[instructions]`. Declared: {:?}. \
+                     Fix `[[scheduled_actions]][{idx}].instruction` or add the instruction \
+                     to `[instructions]`.",
+                    sa.instruction, declared
+                ),
+            });
+        }
+        if sa.interval_ticks == 0 {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[[scheduled_actions]][{idx}].interval_ticks"),
+                reason: format!(
+                    "scheduled action `{}`: `interval_ticks` must be a positive integer \
+                     (the engine fires on every tick where `tick %% interval_ticks == 0`)",
+                    sa.display_name(idx),
+                ),
+            });
+        }
+        if let Some(name) = sa.name.as_deref() {
+            check_ident(path, &format!("[[scheduled_actions]][{idx}].name"), name)?;
+        }
+        for (acc_idx, account) in sa.accounts.iter().enumerate() {
+            let key = format!("[[scheduled_actions]][{idx}].accounts[{acc_idx}]");
+            check_ident(path, &key, account)?;
+            if matches!(adapter.protocol, Protocol::Generic)
+                && !adapter.accounts.contains_key(account)
+            {
+                let mut declared: Vec<&str> =
+                    adapter.accounts.keys().map(String::as_str).collect();
+                declared.sort_unstable();
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key,
+                    reason: format!(
+                        "scheduled action `{}`: account reference `{}` is not declared under \
+                         `[accounts]`. Declared: {:?}.",
+                        sa.display_name(idx),
+                        account,
+                        declared
+                    ),
+                });
+            }
+        }
+    }
     Ok(())
 }
 

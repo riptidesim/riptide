@@ -145,6 +145,7 @@ fn main() {
         starting_price: 100.0,
         simulation_boundaries: vec!["LiteSVM benchmark run".into()],
         invariants: Vec::new(),
+        scheduled_actions: Vec::new(),
     };
 
     // --- Run simulation ---

@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use super::harness::{Harness, HarnessError, PositionObservation};
 use crate::{
-    adapter::Invariant,
+    adapter::{Invariant, ScheduledAction},
     agent::{
         policy::RuntimeAction,
         state::Agent,
@@ -49,6 +49,14 @@ pub struct SimulationParams<'a> {
     /// not declare any invariants.
     #[doc(hidden)]
     pub invariants: Vec<Invariant>,
+    /// Sprint 5 T06: declarative scheduled actions pulled from the
+    /// adapter TOML `[[scheduled_actions]]` block. The tick loop fires
+    /// each entry on every tick where `tick %% interval_ticks == 0`,
+    /// in declaration order, **before** persona actions. Empty by
+    /// default so existing adapters keep producing byte-identical
+    /// output.
+    #[doc(hidden)]
+    pub scheduled_actions: Vec<ScheduledAction>,
 }
 
 impl<'a> SimulationParams<'a> {
@@ -73,6 +81,7 @@ impl<'a> SimulationParams<'a> {
             starting_price,
             simulation_boundaries,
             invariants: Vec::new(),
+            scheduled_actions: Vec::new(),
         }
     }
 }
@@ -194,6 +203,7 @@ where
         starting_price,
         simulation_boundaries,
         invariants,
+        scheduled_actions,
     } = params;
 
     if harness.agent_count() != agent_personas.len() {
@@ -308,6 +318,16 @@ where
                 "oracle push rejected by program (unexpected): {msg}"
             )),
         })?;
+
+        // 2b. Sprint 5 T06: fire declared scheduled actions BEFORE the
+        //     persona loop so any world-state update they perform lands
+        //     before agents observe. Declaration order is the tiebreak
+        //     for same-tick firings. Invariants still evaluate LAST at
+        //     the post-persona snapshot — documented in the module
+        //     header. Scheduled actions produce engine-owned SimEvents
+        //     so tests can assert firing counts without instrumenting
+        //     the primitive.
+        dispatch_scheduled_actions(&scheduled_actions, tick, harness, &mut events)?;
 
         // Read pool state once at the top of the tick for observations.
         let pool_obs = match harness.pool_state() {
@@ -746,6 +766,7 @@ where
         starting_price,
         simulation_boundaries,
         invariants,
+        scheduled_actions,
     } = params;
 
     if harness.agent_count() != agent_personas.len() {
@@ -805,6 +826,10 @@ where
                 "oracle push rejected by program (unexpected): {msg}"
             )),
         })?;
+
+        // Sprint 5 T06: scheduled actions fire before persona ticks
+        // (generic path).
+        dispatch_scheduled_actions(&scheduled_actions, tick, harness, &mut events)?;
 
         let oracle_price = oracle_update.price;
 
@@ -1028,6 +1053,85 @@ fn evaluate_invariants(
     }
 }
 
+/// Sprint 5 T06 — Fire every scheduled action whose cadence lands on
+/// the current tick. Ordering contract:
+///
+/// 1. **Time**: this runs BEFORE the per-agent persona loop so any
+///    world-state update lands before agents observe.
+/// 2. **Ties**: when two scheduled actions are due on the same tick
+///    (e.g. intervals 3 and 6 at tick 6), they fire in
+///    **declaration order** — the index they appear at in the adapter
+///    TOML. This is what keeps the sequence deterministic across
+///    same-seed runs.
+///
+/// Every firing pushes an engine-owned `SimEvent` onto the main
+/// `events` stream with `agent_id = "__engine__"` and
+/// `persona_id = "scheduled"`, AND invokes the primitive's
+/// [`Primitive::on_scheduled_action`] hook so the backend can perform
+/// any on-chain side effect it needs. Lending/mock primitives leave
+/// the hook as the trait default (no-op); T07's perps-fork overrides
+/// it to dispatch the real `update_funding_rate` instruction.
+///
+/// A primitive failure in the hook maps to a `SimulationAbort::Infra`
+/// on the tick-loop side. The event emission happens BEFORE the hook
+/// call so the failed firing is still visible in the event stream
+/// even if the primitive rejected it.
+fn dispatch_scheduled_actions<H: crate::primitive::Primitive + ?Sized>(
+    scheduled_actions: &[ScheduledAction],
+    tick: u32,
+    harness: &mut H,
+    events: &mut Vec<SimEvent>,
+) -> Result<(), SimulationAbort> {
+    if scheduled_actions.is_empty() || tick == 0 {
+        return Ok(());
+    }
+    for (idx, sa) in scheduled_actions.iter().enumerate() {
+        if sa.interval_ticks == 0 {
+            continue; // loader guarantees this, defensive skip.
+        }
+        if tick % sa.interval_ticks != 0 {
+            continue;
+        }
+        let name = sa.display_name(idx);
+        let mut params: BTreeMap<String, Value> = BTreeMap::new();
+        params.insert("instruction".into(), Value::from(sa.instruction.clone()));
+        params.insert("interval_ticks".into(), Value::from(sa.interval_ticks));
+        params.insert("index".into(), Value::from(idx as u64));
+        if !sa.accounts.is_empty() {
+            params.insert(
+                "accounts".into(),
+                Value::Array(sa.accounts.iter().cloned().map(Value::from).collect()),
+            );
+        }
+        if !sa.args.is_empty() {
+            params.insert(
+                "args".into(),
+                Value::Object(sa.args.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+            );
+        }
+        events.push(SimEvent {
+            tick,
+            agent_id: "__engine__".into(),
+            persona_id: "scheduled".into(),
+            persona_label: "scheduled".into(),
+            action: format!("scheduled:{name}"),
+            params,
+            outcome: SimOutcome::Success,
+            outcome_detail: None,
+            triggered_by: None,
+        });
+        // Primitive-level hook — lets backends react to the firing
+        // (T07 perps-fork uses this to dispatch the on-chain
+        // `update_funding_rate` ix). Default impl is a no-op.
+        harness
+            .on_scheduled_action(&name, &sa.instruction, &sa.accounts, &sa.args)
+            .map_err(|e| SimulationAbort::Infra(format!(
+                "scheduled action `{name}` primitive hook failed: {e:?}"
+            )))?;
+    }
+    Ok(())
+}
+
 /// Build the per-invariant summary rollup emitted as
 /// `summary["invariants_fired"]`. Shape: array of
 /// `{ name, field, op, value, firings }` objects, one per declared
@@ -1120,6 +1224,7 @@ mod tests {
             starting_price: 100.0,
             simulation_boundaries: vec!["mock harness".into()],
             invariants: Vec::new(),
+            scheduled_actions: Vec::new(),
         }
     }
 
@@ -1278,6 +1383,7 @@ mod tests {
             starting_price: 1.0,
             simulation_boundaries: vec!["t".into()],
             invariants: Vec::new(),
+            scheduled_actions: Vec::new(),
         };
         let result = run_simulation(&mut h, &mut scenario, params).unwrap();
         // Repaid amount on chain = min(10_000, 200) = 200; cash debit must
@@ -1330,6 +1436,7 @@ mod tests {
             starting_price: 100.0,
             simulation_boundaries: vec!["t".into()],
             invariants: Vec::new(),
+            scheduled_actions: Vec::new(),
         };
         let result = run_simulation(&mut h, &mut scenario, params).unwrap();
         // The liquidation was applied at the init observe (tick 0) — but the

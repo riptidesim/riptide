@@ -4,6 +4,8 @@
 //! loop's happy path, error-handling, and determinism properties can all be
 //! exercised without ever booting a validator.
 
+use std::collections::BTreeMap;
+
 use crate::primitive::{
     dispatch_lending_action, HarnessError, LendingPrimitive, PoolState, PositionHealth, Primitive,
     PrimitiveError,
@@ -38,6 +40,11 @@ pub struct MockHarness {
     /// next op returns `Infra`; `false` is a no-op slot. Used by tests to
     /// script specific infra-error sequences.
     scripted_infra_failures: Vec<bool>,
+    /// Sprint 5 T06: per-instruction count of scheduled-action hook
+    /// invocations the tick loop has driven through this harness.
+    /// Tests use this to assert primitive-level side effects beyond the
+    /// engine-emitted event stream.
+    scheduled_action_calls: BTreeMap<String, u32>,
 }
 
 impl MockHarness {
@@ -56,7 +63,23 @@ impl MockHarness {
             liquidation_bonus_bps: 500,
             positions: vec![MockPosition::default(); agent_count],
             scripted_infra_failures: Vec::new(),
+            scheduled_action_calls: BTreeMap::new(),
         }
+    }
+
+    /// Number of times the tick loop fired the named scheduled-action
+    /// hook against this harness. Zero if the loop never invoked it
+    /// (either because no scheduled actions were declared or because
+    /// the cadence hasn't landed on any executed tick yet).
+    pub fn scheduled_action_calls(&self, name: &str) -> u32 {
+        self.scheduled_action_calls.get(name).copied().unwrap_or(0)
+    }
+
+    /// Total number of primitive-level scheduled-action hook
+    /// invocations across every declared name. Sum of the per-name
+    /// counters.
+    pub fn total_scheduled_action_calls(&self) -> u32 {
+        self.scheduled_action_calls.values().sum()
     }
 
     pub fn with_pool_limits(mut self, deposit_limit: u64, borrow_limit: u64) -> Self {
@@ -137,6 +160,20 @@ impl Primitive for MockHarness {
         self.maybe_infra_fail()?;
         self.price_u64 = update.as_u64();
         self.price_exponent = update.exponent;
+        Ok(())
+    }
+
+    fn on_scheduled_action(
+        &mut self,
+        name: &str,
+        _instruction: &str,
+        _accounts: &[String],
+        _args: &BTreeMap<String, serde_json::Value>,
+    ) -> Result<(), PrimitiveError> {
+        *self
+            .scheduled_action_calls
+            .entry(name.to_string())
+            .or_insert(0) += 1;
         Ok(())
     }
 

@@ -79,6 +79,34 @@ export const InvariantSchema = z.object({
 });
 export type Invariant = z.infer<typeof InvariantSchema>;
 
+// Sprint 5 T05: generic oracle injection. Adapters can declare
+// `[[oracles]]` entries that the engine uses to dispatch price shocks
+// through a typed account layout.
+export const OracleKindSchema = z.enum(["admin-mock", "pyth"]);
+export type OracleKind = z.infer<typeof OracleKindSchema>;
+
+export const OracleDefinitionSchema = z.object({
+  name: z.string().min(1),
+  kind: OracleKindSchema,
+  account: z.string().min(1).optional(),
+  base_price: z.number().finite().default(100),
+  exponent: z.number().int().min(-128).max(127).default(0),
+  confidence: z.number().int().nonnegative().optional(),
+});
+export type OracleDefinition = z.infer<typeof OracleDefinitionSchema>;
+
+// Sprint 5 T06: engine-triggered scheduled actions. Each entry tells
+// the engine to fire an instruction at a fixed cadence (declaration
+// order is the tie-break for same-tick firings). Empty by default.
+export const ScheduledActionSchema = z.object({
+  name: z.string().min(1).optional(),
+  instruction: z.string().min(1),
+  interval_ticks: z.number().int().positive(),
+  accounts: z.array(z.string().min(1)).default([]),
+  args: z.record(z.string(), z.unknown()).default({}),
+});
+export type ScheduledAction = z.infer<typeof ScheduledActionSchema>;
+
 export const AdapterSchema = z.object({
   protocol: ProtocolSchema,
   instructions: z.record(z.string(), InstructionMappingSchema),
@@ -90,6 +118,8 @@ export const AdapterSchema = z.object({
   observations: z.record(z.string(), ObservationDefinitionSchema).default({}),
   personas: z.record(z.string(), PersonaDefinitionSchema).default({}),
   invariants: z.array(InvariantSchema).default([]),
+  oracles: z.array(OracleDefinitionSchema).default([]),
+  scheduled_actions: z.array(ScheduledActionSchema).default([]),
 });
 export type Adapter = z.infer<typeof AdapterSchema>;
 
@@ -220,7 +250,60 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
     validateGeneric(adapter, path);
   }
 
+  validateOracles(adapter, path);
+  validateScheduledActions(adapter, path);
+
   return adapter;
+}
+
+function validateOracles(adapter: Adapter, path: string): void {
+  const seen = new Set<string>();
+  adapter.oracles.forEach((oracle, idx) => {
+    const nameKey = `[[oracles]][${idx}].name`;
+    if (!isSafeAdapterIdentifier(oracle.name)) rejectIdentifier(path, nameKey, oracle.name);
+    if (seen.has(oracle.name)) {
+      throw new Error(
+        `${path}: \`${nameKey}\`: duplicate oracle name \`${oracle.name}\``
+      );
+    }
+    seen.add(oracle.name);
+    if (adapter.protocol === "generic" && oracle.account !== undefined) {
+      if (!(oracle.account in adapter.accounts)) {
+        throw new Error(
+          `${path}: \`[[oracles]][${idx}].account\`: unknown account \`${oracle.account}\`; declare it under \`[accounts]\``
+        );
+      }
+    }
+  });
+}
+
+function validateScheduledActions(adapter: Adapter, path: string): void {
+  adapter.scheduled_actions.forEach((sa, idx) => {
+    const instrKey = `[[scheduled_actions]][${idx}].instruction`;
+    if (!isSafeAdapterIdentifier(sa.instruction)) rejectIdentifier(path, instrKey, sa.instruction);
+    if (!(sa.instruction in adapter.instructions)) {
+      throw new Error(
+        `${path}: \`${instrKey}\`: unknown instruction \`${sa.instruction}\`; scheduled actions must reference a key of \`[instructions]\``
+      );
+    }
+    if (sa.interval_ticks <= 0) {
+      throw new Error(
+        `${path}: \`[[scheduled_actions]][${idx}].interval_ticks\`: must be a positive integer`
+      );
+    }
+    if (sa.name !== undefined && !isSafeAdapterIdentifier(sa.name)) {
+      rejectIdentifier(path, `[[scheduled_actions]][${idx}].name`, sa.name);
+    }
+    sa.accounts.forEach((account, accIdx) => {
+      const key = `[[scheduled_actions]][${idx}].accounts[${accIdx}]`;
+      if (!isSafeAdapterIdentifier(account)) rejectIdentifier(path, key, account);
+      if (adapter.protocol === "generic" && !(account in adapter.accounts)) {
+        throw new Error(
+          `${path}: \`${key}\`: unknown account \`${account}\`; declare it under \`[accounts]\``
+        );
+      }
+    });
+  });
 }
 
 function validateLending(adapter: Adapter, path: string): void {

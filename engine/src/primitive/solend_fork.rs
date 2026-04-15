@@ -20,7 +20,7 @@ use solana_sdk::{
 use solana_transaction::Transaction;
 
 use crate::{
-    adapter::Adapter,
+    adapter::{Adapter, OracleKind},
     harness::{
         lending::{LendingPoolConfig, LendingPoolState, LendingProgramClient, PositionState},
         setup::{
@@ -29,7 +29,7 @@ use crate::{
         },
     },
     primitive::{LendingPrimitive, PoolState, PositionHealth, PrimitiveError},
-    scenario::OracleUpdate,
+    scenario::{oracle_layout_for, OracleUpdate},
 };
 
 /// Configuration for bootstrapping a LiteSVM-backed Solend-fork primitive.
@@ -151,6 +151,14 @@ pub struct LiteSvmHarness {
     /// re-reading the oracle account every tick. Initialized to the
     /// bootstrap starting price.
     last_oracle_price: f64,
+    /// Sprint 5 T05: oracle layout kind selected from the adapter's
+    /// `[[oracles]]` block. `push_oracle_price` uses
+    /// [`oracle_layout_for`] to decode the post-update account bytes
+    /// and verify they match the requested (price, exponent) pair —
+    /// this is what makes the declared kind load-bearing at runtime.
+    /// Defaults to `AdminMock` when the adapter declares no oracles
+    /// (preserves the Sprint 4 hero-grid determinism path).
+    oracle_kind: OracleKind,
 }
 
 impl LiteSvmHarness {
@@ -328,6 +336,18 @@ impl LiteSvmHarness {
                 * 10f64.powi(i32::from(config.price_exponent))
         };
 
+        // Sprint 5 T05: select the oracle layout kind from the
+        // adapter's `[[oracles]]` block. An adapter with no declared
+        // oracles (e.g. the shipped Sprint 4 solend-fork.toml) keeps
+        // the `AdminMock` default, which is byte-identical to the
+        // layout the on-chain program already writes — so the hero
+        // grid's determinism hash stays byte-stable.
+        let oracle_kind = config
+            .adapter
+            .as_ref()
+            .and_then(|a| a.oracles.first().map(|o| o.kind))
+            .unwrap_or(OracleKind::AdminMock);
+
         Ok(Self {
             svm,
             client,
@@ -339,6 +359,7 @@ impl LiteSvmHarness {
             positions: position_pubkeys,
             current_slot: 0,
             last_oracle_price: starting_oracle_price,
+            oracle_kind,
         })
     }
 }
@@ -371,6 +392,53 @@ impl crate::primitive::Primitive for LiteSvmHarness {
             update.exponent,
         );
         self.send_harness(&self.admin.insecure_clone(), ix, None)?;
+
+        // Sprint 5 T05: verify the post-update oracle account bytes
+        // are byte-identical to what `oracle_layout_for(self.oracle_kind)`
+        // produces. This is the load-bearing call site for the layout
+        // dispatch — every lending run consults it, and a layout drift
+        // / kind mismatch surfaces as an Infra failure on the next tick.
+        // Declaring `[[oracles]] kind = "..."` on an adapter has a real
+        // runtime effect: it selects which layout encodes the expected
+        // byte shape AND which decoder validates every on-chain write.
+        //
+        // Byte-level comparison (not float-level) is load-bearing: the
+        // on-chain `SetOraclePrice` ix takes `price: u64`, quantizing
+        // the scenario's f64 price via `update.as_u64()`. Comparing
+        // the decoded float back against the original float would
+        // catch that quantization as a drift. The correct contract
+        // is: "given the same admin + quantized update, the on-chain
+        // program and the engine-side layout produce identical bytes".
+        let layout = oracle_layout_for(self.oracle_kind);
+        let account = self
+            .svm
+            .get_account(&self.oracle)
+            .ok_or_else(|| PrimitiveError::Infra("oracle account missing after push".into()))?;
+        // Sanity-check the decode path actually resolves cleanly.
+        let _decoded = layout.decode(&account.data).map_err(|e| {
+            PrimitiveError::Infra(format!(
+                "oracle layout `{:?}` failed to decode post-update bytes: {e}",
+                self.oracle_kind
+            ))
+        })?;
+        let expected_bytes = layout
+            .encode(self.admin.pubkey().to_bytes(), update)
+            .map_err(|e| {
+                PrimitiveError::Infra(format!(
+                    "oracle layout `{:?}` encode failed: {e}",
+                    self.oracle_kind
+                ))
+            })?;
+        if account.data.len() < expected_bytes.len()
+            || account.data[..expected_bytes.len()] != expected_bytes[..]
+        {
+            return Err(PrimitiveError::Infra(format!(
+                "oracle layout `{:?}` post-update bytes diverged from engine \
+                 encode (on-chain vs engine-side layout mirror drifted)",
+                self.oracle_kind
+            )));
+        }
+
         self.last_oracle_price = update.price;
         Ok(())
     }
@@ -983,6 +1051,7 @@ mod tests {
                 starting_price: 100.0,
                 simulation_boundaries: vec!["litesvm".into()],
                 invariants: Vec::new(),
+                scheduled_actions: Vec::new(),
             };
             run_simulation(&mut harness, &mut scenario, params).unwrap()
         }
@@ -1108,6 +1177,8 @@ mod tests {
             observations: BTreeMap::new(),
             personas: BTreeMap::new(),
             invariants: Vec::new(),
+            oracles: Vec::new(),
+            scheduled_actions: Vec::new(),
         }
     }
 

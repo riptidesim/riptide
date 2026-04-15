@@ -293,6 +293,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
                     "Custom actions do not mutate engine cash/PnL by default; only on-chain account observations are authoritative.".into(),
                 ],
                 invariants: adapter.invariants.clone(),
+                scheduled_actions: adapter.scheduled_actions.clone(),
             };
 
             eprintln!("running tick loop ...");
@@ -315,6 +316,10 @@ fn run(cli: Cli) -> anyhow::Result<()> {
             let lending_invariants = adapter
                 .as_ref()
                 .map(|a| a.invariants.clone())
+                .unwrap_or_default();
+            let lending_scheduled_actions = adapter
+                .as_ref()
+                .map(|a| a.scheduled_actions.clone())
                 .unwrap_or_default();
 
             eprintln!("bootstrapping LiteSVM backend ...");
@@ -356,6 +361,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
                     "Agents funded via deterministic airdrop, not realistic onboarding.".into(),
                 ],
                 invariants: lending_invariants,
+                scheduled_actions: lending_scheduled_actions,
             };
 
             eprintln!("running tick loop ...");

@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
 
+use crate::adapter::OracleKind;
+
 /// Engine-side mirror of the on-chain oracle account layout.
 ///
 /// **SSOT note:** this struct is a byte-for-byte Borsh mirror
@@ -45,6 +47,105 @@ impl OracleUpdate {
 
 pub fn decode_oracle(bytes: &[u8]) -> Result<OracleSnapshot> {
     OracleSnapshot::try_from_slice(bytes).map_err(|error| anyhow!(error))
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 5 T05 — Generic oracle injection dispatch
+// ---------------------------------------------------------------------------
+//
+// The legacy path (kept above) is the admin-mock-shaped
+// `OracleSnapshot` the Solend-fork lending primitive writes directly
+// through its harness. The dispatch layer below adds a single entry
+// point the engine uses when an adapter's `[[oracles]]` block declares
+// a non-implicit oracle kind. The Solend hero grid does not go through
+// this path (it keeps writing `OracleSnapshot` bytes via the harness
+// directly), so the Sprint 4 determinism hash stays byte-stable.
+
+/// Account layout contract every concrete oracle kind implements.
+///
+/// The engine calls `encode` to produce a byte blob it can drop onto a
+/// program-owned account, and `decode` to verify what the program saw.
+/// Round-trip equality on (price, exponent) must hold for every kind.
+pub trait OracleLayout: Send + Sync {
+    /// Stable byte length this layout serializes to. Used by the
+    /// engine to validate adapter account space declarations before
+    /// booting the program.
+    fn byte_len(&self) -> usize;
+    /// Serialize an admin-owned price update to raw account bytes.
+    fn encode(&self, admin: [u8; 32], update: &OracleUpdate) -> Result<Vec<u8>>;
+    /// Decode account bytes back into a normalized update for
+    /// verification / invariant checks.
+    fn decode(&self, bytes: &[u8]) -> Result<OracleUpdate>;
+}
+
+/// Resolve the layout implementation for a declared oracle kind.
+pub fn oracle_layout_for(kind: OracleKind) -> Box<dyn OracleLayout> {
+    match kind {
+        OracleKind::AdminMock => Box::new(AdminMockOracleLayout),
+        OracleKind::Pyth => Box::new(PythMockOracleLayout),
+    }
+}
+
+/// Admin-mock account layout. Byte-identical to the legacy
+/// `OracleSnapshot` so adapters that declare
+/// `kind = "admin-mock"` point at the same on-chain bytes Sprint 4's
+/// Solend-fork grid already writes. This is the shipping oracle kind
+/// for Sprint 5 — T07 (perps-fork) reads from it.
+pub struct AdminMockOracleLayout;
+
+impl OracleLayout for AdminMockOracleLayout {
+    fn byte_len(&self) -> usize {
+        // is_initialized (1) + admin (32) + price (8) + exponent (1) + reserved (8) = 50
+        50
+    }
+    fn encode(&self, admin: [u8; 32], update: &OracleUpdate) -> Result<Vec<u8>> {
+        let snapshot = OracleSnapshot {
+            is_initialized: true,
+            admin,
+            price: update.as_u64(),
+            exponent: update.exponent,
+            reserved: [0; 8],
+        };
+        borsh::to_vec(&snapshot).map_err(|e| anyhow!(e))
+    }
+    fn decode(&self, bytes: &[u8]) -> Result<OracleUpdate> {
+        let snapshot = decode_oracle(bytes)?;
+        let scale = 10f64.powi(i32::from(-snapshot.exponent));
+        let price = if snapshot.exponent < 0 {
+            snapshot.price as f64 / scale
+        } else {
+            snapshot.price as f64 * 10f64.powi(i32::from(snapshot.exponent))
+        };
+        Ok(OracleUpdate {
+            price,
+            exponent: snapshot.exponent,
+        })
+    }
+}
+
+/// Pyth-compatible mock layout placeholder. Reuses the admin-mock
+/// byte layout for Sprint 5 so `kind = "pyth"` is still bootable; a
+/// future sprint replaces `encode` / `decode` with the full Pyth Borsh
+/// shape (exponent, confidence, publish slot, aggregate price).
+///
+/// **Scope note:** shipping a byte-for-byte Pyth-compatible layout is a
+/// full day of work on its own (confidence intervals, EMA windows,
+/// multi-publisher aggregation). Sprint 5 took the explicit
+/// "admin-mock fallback" path documented in the task note — the
+/// dispatch architecture supports adding Pyth as a second kind in
+/// Sprint 6 without reshaping this module.
+pub struct PythMockOracleLayout;
+
+impl OracleLayout for PythMockOracleLayout {
+    fn byte_len(&self) -> usize {
+        AdminMockOracleLayout.byte_len()
+    }
+    fn encode(&self, admin: [u8; 32], update: &OracleUpdate) -> Result<Vec<u8>> {
+        AdminMockOracleLayout.encode(admin, update)
+    }
+    fn decode(&self, bytes: &[u8]) -> Result<OracleUpdate> {
+        AdminMockOracleLayout.decode(bytes)
+    }
 }
 
 #[cfg(test)]

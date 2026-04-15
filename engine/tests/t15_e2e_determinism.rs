@@ -109,6 +109,7 @@ fn run_lending_fixture(seed: u64) -> SimulationResult {
         starting_price: 100.0,
         simulation_boundaries: vec!["t15 lending".into()],
         invariants: Vec::new(),
+        scheduled_actions: Vec::new(),
     };
     run_simulation(&mut harness, &mut scenario, params).unwrap()
 }
@@ -146,6 +147,7 @@ fn run_generic_fixture(seed: u64) -> SimulationResult {
         starting_price: 100.0,
         simulation_boundaries: vec!["t15 generic".into()],
         invariants: Vec::new(),
+        scheduled_actions: Vec::new(),
     };
     run_generic_simulation(&mut harness, &mut scenario, params).unwrap()
 }

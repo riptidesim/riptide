@@ -1,0 +1,25 @@
+[package]
+name = "admin-mock-oracle"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal admin-settable oracle program. Shipped as the first concrete `OracleKind::AdminMock` target for Sprint 5 T05 (generic oracle injection)."
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+borsh = "=0.10.4"
+borsh-derive = "=0.10.4"
+solana-program = "=1.18.26"
+thiserror = "=1.0.69"
+
+[features]
+no-entrypoint = []
+
+[workspace]
+
+[patch.crates-io]
+blake3 = { path = "../../vendor/blake3" }
+borsh = { path = "../../vendor/borsh" }
+borsh-derive = { path = "../../vendor/borsh-derive" }
+cpufeatures = { path = "../../vendor/cpufeatures" }

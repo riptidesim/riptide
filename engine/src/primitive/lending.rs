@@ -158,6 +158,29 @@ pub trait Primitive {
         Ok(())
     }
 
+    /// Sprint 5 T06: invoked by the tick loop when a declared
+    /// scheduled action fires. `instruction` is the adapter's
+    /// `[[scheduled_actions]][…].instruction` value and `name` is the
+    /// action's display name. Default impl is a no-op so lending and
+    /// generic primitives continue to work without any scheduled
+    /// actions declared. T07's perps-fork primitive overrides this
+    /// to dispatch the on-chain instruction directly.
+    ///
+    /// Implementations are observed by
+    /// `sim::run::dispatch_scheduled_actions` AFTER the engine-owned
+    /// `SimEvent` is emitted, so a primitive-level failure is
+    /// reported through the caller's tick-loop error path while the
+    /// event stream still records the attempted firing.
+    fn on_scheduled_action(
+        &mut self,
+        _name: &str,
+        _instruction: &str,
+        _accounts: &[String],
+        _args: &BTreeMap<String, Value>,
+    ) -> Result<(), PrimitiveError> {
+        Ok(())
+    }
+
     /// Execute an adapter-level action for `agent_idx`. `action` is
     /// the logical action name (e.g. "deposit", "mine");
     /// `target_idx` is only populated for lending-style pairwise
