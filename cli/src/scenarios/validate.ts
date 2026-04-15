@@ -141,50 +141,70 @@ export async function validateScenario(
     return { exit: 2, reason: manifestResult.reason };
   }
   const manifest: Manifest = manifestResult.value;
-  // Security: manifest.adapter must stay inside monorepoRoot.
+  // Security + cold-user ergonomics: manifest.adapter must resolve
+  // to a real file inside a "containment root" derived from the
+  // scenario directory being validated. Two layouts are supported:
   //
-  // Without this check, a hostile scenario directory could ship a
-  // manifest with `adapter: "/etc/hosts"` (or `"../../../../etc/
-  // hosts"`) and the validator would happily read that file during
-  // the generic persona-id cross-check AND pass it as `--adapter`
-  // to the engine. That turns `riptide scenarios --validate` into
-  // an arbitrary-local-file read primitive and leaks path info into
-  // the engine spawn.
+  //   1. In-tree (this monorepo, or any repo that mirrors the
+  //      `fixtures/scenarios/<stem>/<slug>/` layout): the
+  //      containment root is the directory above `fixtures/` —
+  //      i.e. the project root that contains both
+  //      `fixtures/scenarios/` and `fixtures/adapters/`.
+  //   2. Out-of-tree (a cold-user working directory, e.g.
+  //      `/tmp/my-program/fixtures/scenarios/…/manifest.json`
+  //      with the adapter sitting alongside as
+  //      `/tmp/my-program/adapter.toml`): same rule — the
+  //      containment root is `/tmp/my-program`.
   //
-  // The containment check has two layers:
-  //   1. Lexical: after `path.resolve` against monorepoRoot, the
-  //      result must be inside monorepoRoot. This catches raw
-  //      absolute paths and `..` escapes.
-  //   2. Canonical: `realpath` both sides and re-check. This
-  //      catches a path that *looks* inside the repo but walks out
-  //      through a symlink mid-component. Example: `target/
-  //      evil.toml` where `target/evil.toml` is a symlink to
-  //      `/etc/hosts`. A purely lexical check would let that read
-  //      `/etc/hosts`, defeating the whole guarantee.
+  // If the scenario directory is not under a `fixtures/scenarios/`
+  // ancestry (as in the unit tests, which drop scenarios into raw
+  // tmp directories), fall back to `options.monorepoRoot`. This
+  // keeps the existing test suite green while unlocking the cold
+  // path.
   //
-  // The canonical check requires the file (and every directory on
-  // the path) to exist. If it doesn't, `realpath` throws ENOENT and
-  // we fall through to the "missing file" branch with the raw
-  // resolved path, which still gives the user a clear error
-  // without widening the attack surface.
-  const resolvedAdapter = path.resolve(options.monorepoRoot, manifest.adapter);
-  if (!isInside(options.monorepoRoot, resolvedAdapter)) {
+  // Adapter resolution, given the containment root:
+  //   - absolute path: use as-is
+  //   - relative path: try `scenarioDir/adapter` first (sibling
+  //     layout a cold skill might emit), then
+  //     `containmentRoot/adapter` (the in-tree monorepo layout)
+  //
+  // After resolution the path must:
+  //   1. Exist on disk
+  //   2. Lexically land inside the containment root
+  //   3. Canonically (realpath) still land inside the containment
+  //      root — guards against symlink escape
+  //
+  // Without these checks, a hostile scenario directory could ship
+  // a manifest with `adapter: "/etc/hosts"` (or `"../../etc/hosts"`
+  // or a `target/link` symlink to `/etc/hosts`) and the validator
+  // would happily read that file during the generic persona-id
+  // cross-check AND pass it as `--adapter` to the engine. That
+  // turns `riptide scenarios --validate` into an
+  // arbitrary-local-file read primitive.
+  const containmentRoot =
+    findProjectRoot(scenarioDir.dir) ?? options.monorepoRoot;
+  const resolvedAdapter = resolveAdapterPath(
+    manifest.adapter,
+    scenarioDir.dir,
+    containmentRoot
+  );
+  if (!isInside(containmentRoot, resolvedAdapter)) {
     return {
       exit: 2,
-      reason: `manifest.adapter must resolve to a path inside the monorepo root (${options.monorepoRoot}), got: "${manifest.adapter}" → ${resolvedAdapter}`
+      reason: `manifest.adapter must resolve to a path inside the containment root (${containmentRoot}), got: "${manifest.adapter}" → ${resolvedAdapter}`
     };
   }
   if (!existsSync(resolvedAdapter)) {
     return {
       exit: 2,
-      reason: `manifest.adapter points at missing file: ${resolvedAdapter} (resolved from "${manifest.adapter}" under ${options.monorepoRoot})`
+      reason: `manifest.adapter points at missing file: ${resolvedAdapter} (resolved from "${manifest.adapter}" under ${containmentRoot})`
     };
   }
   let canonicalAdapter: string;
   let canonicalRoot: string;
   try {
     canonicalAdapter = await realpath(resolvedAdapter);
-    canonicalRoot = await realpath(options.monorepoRoot);
+    canonicalRoot = await realpath(containmentRoot);
   } catch (err) {
     return {
       exit: 2,
@@ -194,7 +214,7 @@ export async function validateScenario(
   if (!isInside(canonicalRoot, canonicalAdapter)) {
     return {
       exit: 2,
-      reason: `manifest.adapter resolves inside the monorepo root lexically but canonicalizes outside it — refusing to follow a symlink escape. raw: "${manifest.adapter}" → lexical: ${resolvedAdapter} → canonical: ${canonicalAdapter} (root canonical: ${canonicalRoot})`
+      reason: `manifest.adapter resolves inside the containment root lexically but canonicalizes outside it — refusing to follow a symlink escape. raw: "${manifest.adapter}" → lexical: ${resolvedAdapter} → canonical: ${canonicalAdapter} (root canonical: ${canonicalRoot})`
     };
   }
   // Use the canonical path for downstream reads + the engine spawn,
@@ -222,7 +242,7 @@ export async function validateScenario(
     const source =
       policies.length > 0
         ? "policies.json"
-        : `adapter TOML [personas.*] at ${path.relative(options.monorepoRoot, adapterPath)}`;
+        : `adapter TOML [personas.*] at ${path.relative(containmentRoot, adapterPath)}`;
     return {
       exit: 2,
       reason: `run-config.personas references persona ids not declared in ${source}: ${[
@@ -265,7 +285,7 @@ export async function validateScenario(
     return {
       exit: 1,
       reason: `engine exited with code ${spawnResult.code} booting ${path.relative(
-        options.monorepoRoot,
+        containmentRoot,
         scenarioDir.dir
       )} (tick 1 of 1)`,
       engineStderr: spawnResult.stderr
@@ -295,7 +315,7 @@ export async function validateScenario(
 
   return {
     exit: 0,
-    reason: `boot ok — engine ran one tick against ${path.relative(options.monorepoRoot, adapterPath)}`
+    reason: `boot ok — engine ran one tick against ${path.relative(containmentRoot, adapterPath)}`
   };
 }
 
@@ -481,6 +501,47 @@ function hasAtLeastOneTick(output: unknown): boolean {
   }
   const tick = (first as Record<string, unknown>)["tick"];
   return typeof tick === "number" && Number.isFinite(tick) && tick >= 0;
+}
+
+// Derive a "project root" from a scenario directory by looking for
+// a `fixtures/scenarios/` ancestry. A scenario at
+// `/tmp/cold/fixtures/scenarios/lending_pool/whale-shock-grid`
+// yields `/tmp/cold`; a monorepo scenario at
+// `/home/.../riptide/fixtures/scenarios/solend-fork/whale-share-sweep`
+// yields `/home/.../riptide`. Returns null if the scenario
+// directory has no `fixtures/scenarios/` ancestry — the caller
+// then falls back to `options.monorepoRoot`, which keeps raw-tmp
+// unit-test scenarios resolving from the monorepo root.
+function findProjectRoot(scenarioDir: string): string | null {
+  const marker = `${path.sep}fixtures${path.sep}scenarios${path.sep}`;
+  const idx = scenarioDir.indexOf(marker);
+  if (idx <= 0) {
+    return null;
+  }
+  return scenarioDir.slice(0, idx);
+}
+
+// Resolve a manifest.adapter path into an absolute filesystem path.
+// Absolute paths are returned as-is (containment is checked later).
+// Relative paths are tried first against the scenario directory
+// (the cold-user / sibling layout), then against the containment
+// root (the in-tree monorepo layout). The first variant that
+// exists on disk wins; if neither exists, the containment-root
+// variant is returned so the downstream "missing file" branch
+// reports a path anchored in the root, not in /tmp.
+function resolveAdapterPath(
+  adapter: string,
+  scenarioDir: string,
+  containmentRoot: string
+): string {
+  if (path.isAbsolute(adapter)) {
+    return path.resolve(adapter);
+  }
+  const viaScenario = path.resolve(scenarioDir, adapter);
+  if (existsSync(viaScenario)) {
+    return viaScenario;
+  }
+  return path.resolve(containmentRoot, adapter);
 }
 
 // Containment check: returns true iff `child` resolves to the same
