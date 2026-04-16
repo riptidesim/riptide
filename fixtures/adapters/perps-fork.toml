@@ -108,6 +108,24 @@ takes = ["amount"]
 "position.leverage_bps"             = "uint"
 "position.liquidated"               = "bool"
 
+[[invariants]]
+name = "no_socialized_loss"
+field = "market.cumulative_socialized_loss"
+op = "=="
+value = 0
+
+[[invariants]]
+name = "max_leverage_respected"
+field = "position.leverage_bps"
+op = "<="
+value = 100000
+
+[[invariants]]
+name = "market_config_initialized"
+field = "market.max_leverage_bps"
+op = ">"
+value = 0
+
 # === SIDECAR-CUT ===
 # `scripts/sprint5-perps-scratch.sh` truncates this file at the
 # `# === SIDECAR-CUT ===` line above and appends

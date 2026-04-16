@@ -246,6 +246,154 @@ of a whale-share sweep (5% / 15% / 25%) — the classification
 flagged concentration because the adapter exposes a single shared
 reserve with no per-account borrow cap".
 
+## Perps-specific proposal rules
+
+The spec (R3.5) originally listed four perps proposal templates,
+one per category. One was dropped as a downstream consequence of
+the T07 perps-lite scope cut:
+
+- **`funding-rate-oscillation` — DROPPED.** The
+  `funding_rate_manipulation` classification category was removed
+  because the perps-fork program shipped without
+  `update_funding_rate` (Sprint 5 scope cut). No funding rate
+  instruction or observation exists, so no proposal can target it.
+  This template will be added in a future sprint when funding rate
+  lands.
+
+The following three rules apply when classification flags one or
+more of the remaining perps-specific categories
+(`margin_cascade_from_oracle_shock`, `open_interest_imbalance`,
+`socialized_loss_accumulation`). These rules are additive — they
+do not replace or modify Rules 1–7 above.
+
+### Rule 8 — Depositor-shock grid (perps adapters)
+
+When classification flagged **`margin_cascade_from_oracle_shock`**,
+you **must** emit a `depositor-shock-grid` proposal — a 2D grid
+that crosses a **depositor-share axis** with a
+**shock-magnitude axis**.
+
+**Why depositor-share × shock instead of leverage × shock.** The
+perps adapter's runtime-dispatchable actions may be limited to
+`deposit` and `withdraw` (the generic runtime encodes only
+single-u64-arg instructions). `open_position` (which takes
+leverage + notional args) may not be runtime-dispatchable. The
+depositor-share axis is the closest runtime-achievable proxy for
+exposure: more agents depositing more collateral = higher total
+collateral at risk when the oracle shocks. Sprint 6 can upgrade
+to a true leverage axis when the generic runtime supports
+multi-arg instructions.
+
+**Axis encoding:**
+
+- **Depositor-share axis** — the proportion of agents whose
+  persona is weighted toward heavy deposits (simulating
+  high-exposure participants). With 20 agents: d25 = 5 heavy
+  depositors, d50 = 10 heavy depositors, d75 = 15 heavy
+  depositors. Encoded in each cell's `run-config.json::personas`
+  list by varying the ratio of a `heavy-depositor` persona vs a
+  `light-depositor` persona.
+- **Shock-magnitude axis** — same encoding as the lending
+  `whale-shock-grid`: the engine reads shock magnitude from the
+  `RIPTIDE_PRICE_SHOCK_DROP` env var. Each cell's
+  `run-config.json` sets `"scenario": "price-shock"` and the
+  s20/s30/s40 distinction lives in the cell name, the cell's
+  `output_path`, and the manifest rationale.
+
+**Grid layout** mirrors the `whale-shock-grid` pattern exactly:
+
+    fixtures/scenarios/<adapter-stem>/depositor-shock-grid/
+      manifest.json          # grid-level metadata (not bootable)
+      d25-s20/               # one subdir per (depositor%, shock%) cell
+        run-config.json
+        policies.json
+        manifest.json
+      d25-s30/
+        …
+      d75-s40/               # high-exposure + severe shock corner
+        run-config.json
+        policies.json
+        manifest.json
+
+Cell naming: `d<depositor_pct>-s<shock_pct>` using bare integer
+percentages with no leading zero. Each cell is a full bootable
+scenario triple and must validate on its own via
+`riptide scenarios --validate <cell-dir>`.
+
+**Cell manifests.** Each cell's `manifest.json` uses
+`failure_mode: "margin_cascade_from_oracle_shock"` and the
+one-sentence rationale cites the cell's coordinates and explains
+how depositor share proxies for exposure under the
+runtime-dispatchable constraint.
+
+**Materialize every cell.** Same discipline as the lending
+`whale-shock-grid` — if the grid has 9 cells, all 9 must be
+bootable sub-scenarios on disk. Midpoint-only grids are not
+acceptable.
+
+This grid counts as the composite from Rule 2. Do not also emit
+another composite on top of it.
+
+**Policies shape for perps grid cells.** Each cell's
+`policies.json` declares two persona types:
+
+- `heavy-depositor` — high `risk_tolerance`, deposit-weighted
+  `action_weights` (e.g. `{ "deposit": 0.9, "withdraw": 0.1 }`),
+  large `position_sizing.params.amount`.
+- `light-depositor` — low `risk_tolerance`, balanced
+  `action_weights` (e.g. `{ "deposit": 0.5, "withdraw": 0.5 }`),
+  small `position_sizing.params.amount`.
+
+Action names must match the target adapter's `[actions]` keys
+(typically `deposit` and `withdraw` for a generic perps adapter).
+
+### Rule 9 — OI-imbalance sweep (perps adapters)
+
+When classification flagged **`open_interest_imbalance`**, emit an
+`oi-imbalance-sweep` proposal — a 1D sweep varying the ratio of
+deposit-heavy agents (proxying for long-biased participants) vs
+withdraw-heavy agents (proxying for short-biased or cautious
+participants).
+
+Axis: `depositor_ratio ∈ {0.25, 0.50, 0.75}` — the proportion of
+agents assigned the deposit-heavy persona. With 20 agents:
+0.25 = 5 heavy depositors, 0.50 = 10, 0.75 = 15.
+
+Write only the middle point (0.50) as the representative
+run-config, following the 1D sweep convention. The rationale notes
+the full sweep range and explains that depositor ratio proxies for
+OI directional bias under the runtime-dispatchable constraint
+(deposit-heavy agents push `total_oi_long` up indirectly via
+collateral accumulation; withdraw-heavy agents pull it back).
+
+`failure_mode: "open_interest_imbalance"` in the manifest.
+
+### Rule 10 — Socialized-loss stress sweep (perps adapters)
+
+When classification flagged **`socialized_loss_accumulation`**, emit
+a `socialized-loss-stress` proposal — a 1D sweep of shock severity
+under fixed agent composition, measuring whether
+`market.cumulative_socialized_loss` climbs.
+
+Axis: shock magnitude via `RIPTIDE_PRICE_SHOCK_DROP` env var,
+values `{20, 40, 60}` (percent). Fixed population of 20 agents
+with balanced persona mix.
+
+Write only the middle point (40%) as the representative
+run-config. The rationale notes the full sweep range and explains
+that this experiment isolates the shock-severity → socialized-loss
+relationship: at some shock level, liquidation proceeds can no
+longer cover the position's debt and losses socialize.
+
+`failure_mode: "socialized_loss_accumulation"` in the manifest.
+
+### Perps manifest failure_mode values
+
+For perps proposals, `failure_mode` in `manifest.json` must be one
+of: `margin_cascade_from_oracle_shock`,
+`open_interest_imbalance`, `socialized_loss_accumulation`. These
+are the perps-specific category names from `classify.md`.
+
 ## Self-check before writing files
 
 - Does every proposal I am about to write cite an adapter-side
