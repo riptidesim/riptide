@@ -65,7 +65,10 @@ const ManifestSchema = z.object({
     "shock_cascades",
     "utilization_stress",
     "persona_mix_instability",
-    "oracle_lag"
+    "oracle_lag",
+    "margin_cascade_from_oracle_shock",
+    "open_interest_imbalance",
+    "socialized_loss_accumulation"
   ]),
   rationale: z.string().min(1)
 });
