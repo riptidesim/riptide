@@ -1,0 +1,16 @@
+# Perps persona — delta-neutral farmer.
+#
+# Sprint 5 T09. Rebalances between deposit and withdraw to keep the
+# position's free collateral near a target band. Under full perps
+# (Sprint 6+) this persona holds balanced long + short legs and
+# harvests the funding rate; today it trades purely through
+# collateral flows — still enough to generate open-interest-dynamics
+# observations without crashing.
+
+[personas.delta-neutral-farmer]
+label = "Delta-neutral farmer"
+action_rate_multiplier = 1.0
+action_weights = { deposit = 0.5, withdraw = 0.5 }
+triggers = [
+  { if = "position.collateral > 2000", then = "withdraw", weight_boost = 2.0 },
+]

@@ -1,0 +1,137 @@
+# Perps-fork generic adapter.
+#
+# Sprint 5 T08 — the first non-lending protocol-class bundle. Drives
+# `programs/perps-fork/` (the perps-lite target from T07) through the
+# engine's generic primitive path.
+#
+# **Scope calls (documented in Obsidian Tasks/Sprint 5/T07 note):**
+#
+# - `protocol = "generic"` (not `"perps"`). The `Protocol` enum has
+#   `Lending`/`Generic` variants in Sprint 5; adding `Perps` would be a
+#   cosmetic 5-file ripple with no dispatch behavior change. T10's
+#   `classify.md` discrimination hooks read instruction/observation
+#   names — not the protocol field — so the classification story still
+#   works. A Sprint 6 drop can add `Protocol::Perps` when something
+#   depends on it.
+# - Runtime-dispatchable actions: **only `deposit` and `withdraw`**.
+#   The generic `GenericInstructionBuilder::build_action_data` encoder
+#   only supports single-u64-arg instructions today; `open_position`
+#   (side + leverage + notional) / `close_position` (zero args + oracle
+#   sequencing) / `liquidate_position` (zero args + oracle sequencing)
+#   cannot be encoded through the stock generic path, and `open_position`
+#   also requires a pre-initialized oracle account which GenericHarness'
+#   bootstrap does not express. Those instructions are still declared in
+#   the shipping IDL (`fixtures/idls/perps-fork.json`) so T10/T11 can
+#   classify the full perps surface from the IDL — they are execution-
+#   shape metadata rather than runtime action bindings. Sprint 5 t17
+#   integration test covers the full 6-instruction round trip against
+#   LiteSVM directly, so execution correctness is gated elsewhere.
+# - Oracle account is NOT declared in `[accounts]`. Perps-fork reads the
+#   admin-mock oracle layout (`programs/admin_mock_oracle`), which is
+#   owned by a different on-chain program. GenericHarness creates each
+#   declared account with `owner = program_id` which is wrong for an
+#   oracle owned by a sibling program; declaring it here would break
+#   the account-owner invariant and silently produce wrong prices.
+#   The deposit/withdraw runtime path does not read the oracle so this
+#   omission is load-bearing only for the open/close/liquidate
+#   instructions, which (per above) are not runtime-dispatched in Sprint 5.
+# - `[[scheduled_actions]]` is **empty**. Funding rate is a Sprint 6
+#   addition. The T06 engine-triggered actions infrastructure is still
+#   load-bearing: perps-fork.toml parses with zero scheduled actions, the
+#   engine's `Primitive::on_scheduled_action` default no-op hook handles
+#   the path, and Sprint 6 can declare `update_funding_rate` here
+#   without reshaping any engine code.
+# - No `[invariants]` block — T12 (Phase 3) declares the perps
+#   invariants on top of this adapter.
+#
+# Layer 2 personas — the T09 persona library (`leveraged-long.toml`,
+# `leveraged-short.toml`, `delta-neutral-farmer.toml`, `liquidator.toml`)
+# — live at `fixtures/personas/*.toml`. The T09 sidecar scratch script
+# at `scripts/sprint5-perps-scratch.sh` merges them into a runtime copy
+# of this adapter with inline `[personas]` before invoking the engine,
+# matching the Sprint 4 sidecar-runner pattern.
+
+protocol = "generic"
+program_so = "../../programs/perps-fork/target/deploy/perps_fork.so"
+idl_path = "../idls/perps-fork.json"
+
+[accounts.market]
+kind = "shared"
+space = 113
+
+[accounts.position]
+kind = "agent"
+space = 106
+
+# The generic runtime can encode deposit_collateral and withdraw_collateral
+# through `GenericInstructionBuilder::build_action_data` (single u64 arg).
+# open_position / close_position / liquidate_position are declared in the
+# IDL (classification surface) but have no `[instructions]` mapping here
+# — the generic runtime cannot dispatch them in Sprint 5.
+[instructions]
+deposit_collateral  = { action = "deposit",  amount = "amount" }
+withdraw_collateral = { action = "withdraw", amount = "amount" }
+
+[state_mapping]
+"market.max_leverage_bps"          = "market.max_leverage_bps"
+"market.liquidation_threshold_bps" = "market.liquidation_threshold_bps"
+"market.total_oi_long"             = "market.total_oi_long"
+"market.total_oi_short"            = "market.total_oi_short"
+"market.total_collateral"          = "market.total_collateral"
+"market.cumulative_socialized_loss" = "market.cumulative_socialized_loss"
+"position.side"       = "position.side"
+"position.collateral" = "position.collateral"
+"position.notional"   = "position.notional"
+"position.entry_price" = "position.entry_price"
+"position.leverage_bps" = "position.leverage_bps"
+"position.liquidated" = "position.liquidated"
+
+[actions.deposit]
+label = "Deposit collateral"
+takes = ["amount"]
+
+[actions.withdraw]
+label = "Withdraw collateral"
+takes = ["amount"]
+
+[observations]
+"market.max_leverage_bps"           = "uint"
+"market.liquidation_threshold_bps"  = "uint"
+"market.total_oi_long"              = "uint"
+"market.total_oi_short"             = "uint"
+"market.total_collateral"           = "uint"
+"market.cumulative_socialized_loss" = "uint"
+"position.side"                     = "uint"
+"position.collateral"               = "uint"
+"position.notional"                 = "uint"
+"position.entry_price"              = "uint"
+"position.leverage_bps"             = "uint"
+"position.liquidated"               = "bool"
+
+# === SIDECAR-CUT ===
+# `scripts/sprint5-perps-scratch.sh` truncates this file at the
+# `# === SIDECAR-CUT ===` line above and appends
+# `fixtures/personas/*.toml` for the real perps persona library
+# (leveraged-long, leveraged-short, delta-neutral-farmer, liquidator)
+# before handing the result to the engine. The block below is the
+# smoke-test persona set used by `riptide adapt --adapter …` with
+# names that match `cli/src/adapt/smoke.ts`'s generic run-config
+# (`grinder` / `botter` / `casual`), so the shipping adapter clears
+# the smoke gate without CLI changes.
+[personas.grinder]
+label = "Perps baseline (smoke)"
+action_rate_multiplier = 1.0
+action_weights = { deposit = 0.9, withdraw = 0.1 }
+triggers = []
+
+[personas.botter]
+label = "Perps high-rate (smoke)"
+action_rate_multiplier = 2.0
+action_weights = { deposit = 0.7, withdraw = 0.3 }
+triggers = []
+
+[personas.casual]
+label = "Perps low-rate (smoke)"
+action_rate_multiplier = 0.5
+action_weights = { deposit = 0.5, withdraw = 0.5 }
+triggers = []
