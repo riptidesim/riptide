@@ -27,6 +27,7 @@
 // end-to-end against the local LiteSVM engine.
 
 import chalk from "chalk";
+import ora from "ora";
 import { Command } from "commander";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -70,13 +71,17 @@ export async function runAdapt(
   deps: AdaptCommandDeps = {}
 ): Promise<number> {
   const adapterPath = path.resolve(options.adapter);
+  const isTTY = process.stderr.isTTY;
+
   process.stderr.write(chalk.bold(`riptide adapt: smoke-testing ${adapterPath}\n`));
 
   // --- 1. Load ---
+  const loadSpinner = isTTY ? ora({ text: "Loading adapter TOML...", stream: process.stderr }).start() : null;
   let raw: string;
   try {
     raw = await readFile(adapterPath, "utf8");
   } catch (err) {
+    if (loadSpinner) loadSpinner.fail("Failed to load adapter");
     process.stderr.write(
       chalk.red(`riptide adapt: could not read adapter at ${adapterPath}: ${errMessage(err)}\n`)
     );
@@ -89,28 +94,33 @@ export async function runAdapt(
     const parsed = TOML.parse(raw);
     adapter = validateAdapter(parsed, adapterPath);
   } catch (err) {
+    if (loadSpinner) loadSpinner.fail("Adapter validation failed");
     process.stderr.write(
       chalk.red(`riptide adapt: adapter failed validation: ${errMessage(err)}\n`)
     );
     process.stderr.write(chalk.yellow(`  adapter file: ${adapterPath}\n`));
     return 2;
   }
+  if (loadSpinner) loadSpinner.succeed("Adapter loaded and validated");
 
   // --- 3. Resolve engine binary ---
+  const engineSpinner = isTTY ? ora({ text: "Resolving engine binary...", stream: process.stderr }).start() : null;
   let engineBinary: string;
   try {
     engineBinary =
       deps.engineBinary ?? (await resolveEngineBinary(process.env, process.cwd()));
   } catch (err) {
+    if (engineSpinner) engineSpinner.fail("Engine binary not found");
     process.stderr.write(chalk.red(`riptide adapt: ${errMessage(err)}\n`));
     return 1;
   }
+  if (engineSpinner) engineSpinner.succeed("Engine binary resolved");
 
   // --- 4-6. Smoke test ---
-  // Default fixtures root: walk from cwd up to the monorepo layout.
   const fixturesRoot = deps.fixturesRoot ?? defaultFixturesRoot();
   const smokeFn = deps.runSmokeTestImpl ?? runSmokeTest;
 
+  const smokeSpinner = isTTY ? ora({ text: "Running smoke test...", stream: process.stderr }).start() : null;
   let result: SmokeTestResult;
   try {
     result = await smokeFn({
@@ -120,19 +130,22 @@ export async function runAdapt(
       fixturesRoot
     });
   } catch (err) {
+    if (smokeSpinner) smokeSpinner.fail("Smoke test crashed");
     process.stderr.write(chalk.red(`riptide adapt: smoke runner crashed: ${errMessage(err)}\n`));
     process.stderr.write(chalk.yellow(`  adapter file: ${adapterPath}\n`));
     return 1;
   }
 
   if (result.passed) {
-    process.stderr.write(chalk.green(`riptide adapt: PASS (${result.reason})\n`));
+    if (smokeSpinner) smokeSpinner.succeed(chalk.green(`PASS (${result.reason})`));
+    else process.stderr.write(chalk.green(`riptide adapt: PASS (${result.reason})\n`));
     process.stderr.write(chalk.gray(`  adapter: ${adapterPath}\n`));
     process.stderr.write(chalk.gray(`  engine output: ${result.outputPath}\n`));
     return 0;
   }
 
-  process.stderr.write(chalk.red(`riptide adapt: FAIL — ${result.reason}\n`));
+  if (smokeSpinner) smokeSpinner.fail(chalk.red(`FAIL — ${result.reason}`));
+  else process.stderr.write(chalk.red(`riptide adapt: FAIL — ${result.reason}\n`));
   process.stderr.write(chalk.yellow(`  adapter file: ${adapterPath}\n`));
   if (result.engineStderr.trim().length > 0) {
     const tail = result.engineStderr.trim().split("\n").slice(-8).join("\n");

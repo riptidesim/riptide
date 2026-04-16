@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import Table from "cli-table3";
 
 import type { SimulationResult } from "../compiler/schema.js";
 
@@ -155,4 +156,98 @@ export function renderSummary(result: SimulationResult): string {
     lines.push(`- ${sanitizeStringCell(boundary)}`);
   }
   return lines.join("\n");
+}
+
+/**
+ * Renders a colored bordered table for TTY output (T15).
+ * Same data as renderSummary but in a visual table format.
+ */
+export function renderColoredTable(result: SimulationResult): string {
+  const { run_config, summary } = result;
+  const summaryRecord = summary as Record<string, SummaryCell>;
+
+  const header = [
+    chalk.bold("Riptide Simulation Summary"),
+    `Scenario: ${run_config.scenario} | Agents: ${run_config.agents} | Ticks: ${result.total_ticks} | Seed: ${result.seed}`
+  ].join("\n");
+
+  const table = new Table({
+    head: [chalk.bold("Metric"), chalk.bold("Value")],
+    style: { head: [], border: [] }
+  });
+
+  // Lending-shaped keys with color heuristics
+  const hasLending = LENDING_KEY_LABELS.some(([key]) => key in summaryRecord);
+  if (hasLending) {
+    const utilization = toNumber(summaryRecord.final_utilization);
+    const badDebt = toNumber(summaryRecord.total_bad_debt);
+
+    for (const [key, label] of LENDING_KEY_LABELS) {
+      if (!(key in summaryRecord)) continue;
+      const cell = summaryRecord[key];
+      let formatted = formatCell(cell);
+      if (key === "final_utilization" && utilization !== undefined) {
+        formatted = utilization >= 0.85
+          ? chalk.red(utilization.toFixed(2))
+          : chalk.green(utilization.toFixed(2));
+      } else if (key === "total_bad_debt" && badDebt !== undefined) {
+        formatted = badDebt > 0
+          ? chalk.red(badDebt.toFixed(2))
+          : chalk.green(badDebt.toFixed(2));
+      } else if (key === "total_liquidations") {
+        const liq = toNumber(cell);
+        formatted = liq !== undefined && liq > 0
+          ? chalk.yellow(liq.toString())
+          : chalk.green(formatCell(cell));
+      } else if (typeof cell === "number") {
+        formatted = chalk.green(formatCell(cell));
+      }
+      table.push([label, formatted]);
+    }
+  }
+
+  // Lifecycle counters
+  for (const key of LIFECYCLE_KEYS) {
+    if (key in summaryRecord) {
+      const cell = summaryRecord[key];
+      const label = key.replace("agents_", "Agents ");
+      const val = toNumber(cell);
+      let formatted = formatCell(cell);
+      if (key === "agents_liquidated" && val !== undefined && val > 0) {
+        formatted = chalk.red(formatted);
+      } else if (key === "agents_depleted" && val !== undefined && val > 0) {
+        formatted = chalk.yellow(formatted);
+      } else {
+        formatted = chalk.green(formatted);
+      }
+      table.push([label, formatted]);
+    }
+  }
+
+  // Generic / extra keys
+  const handled = new Set<string>([
+    ...LENDING_KEY_LABELS.map(([key]) => key),
+    ...LIFECYCLE_KEYS
+  ]);
+  const extraKeys = Object.keys(summaryRecord)
+    .filter((key) => !handled.has(key))
+    .sort();
+  for (const key of extraKeys) {
+    const cell = summaryRecord[key];
+    table.push([sanitizeKey(key), formatCell(cell)]);
+  }
+
+  // Invariant violations in events
+  const invariantEvents = result.events.filter(
+    (e) => e.agent_id === "__engine__" && e.action.startsWith("invariant_violation:")
+  );
+  if (invariantEvents.length > 0) {
+    const names = new Set(invariantEvents.map((e) => e.action.slice("invariant_violation:".length)));
+    table.push([
+      chalk.yellow("Invariant violations"),
+      chalk.yellow(`${invariantEvents.length} (${[...names].join(", ")})`)
+    ]);
+  }
+
+  return `${header}\n${table.toString()}`;
 }

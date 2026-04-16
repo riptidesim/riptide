@@ -9,6 +9,7 @@
 //    exits 0/1/2 — same convention as `riptide adapt`.
 
 import chalk from "chalk";
+import ora from "ora";
 import { Command } from "commander";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -77,6 +78,8 @@ export async function runScenariosValidate(
   deps: ScenariosCommandDeps = {}
 ): Promise<number> {
   const scenarioPath = path.resolve(options.path);
+  const isTTY = process.stderr.isTTY;
+
   process.stderr.write(
     chalk.bold(`riptide scenarios: validating ${scenarioPath}\n`)
   );
@@ -84,18 +87,22 @@ export async function runScenariosValidate(
   const monorepoRoot =
     deps.monorepoRoot ?? defaultMonorepoRoot();
 
+  const engineSpinner = isTTY ? ora({ text: "Resolving engine binary...", stream: process.stderr }).start() : null;
   let engineBinary: string;
   try {
     engineBinary =
       deps.engineBinary ??
       (await resolveEngineBinary(process.env, process.cwd()));
   } catch (err) {
+    if (engineSpinner) engineSpinner.fail("Engine binary not found");
     process.stderr.write(
       chalk.red(`riptide scenarios: ${errMessage(err)}\n`)
     );
     return 1;
   }
+  if (engineSpinner) engineSpinner.succeed("Engine binary resolved");
 
+  const validateSpinner = isTTY ? ora({ text: "Validating scenario (1-tick boot)...", stream: process.stderr }).start() : null;
   const validate = deps.validateImpl ?? validateScenario;
   let result: ValidateScenarioResult;
   try {
@@ -104,6 +111,7 @@ export async function runScenariosValidate(
       deps.spawnEngineImpl
     );
   } catch (err) {
+    if (validateSpinner) validateSpinner.fail("Validator crashed");
     process.stderr.write(
       chalk.red(`riptide scenarios: validator crashed: ${errMessage(err)}\n`)
     );
@@ -111,18 +119,17 @@ export async function runScenariosValidate(
   }
 
   if (result.exit === 0) {
-    process.stderr.write(chalk.green(`riptide scenarios: PASS — ${result.reason}\n`));
+    if (validateSpinner) validateSpinner.succeed(chalk.green(`PASS — ${result.reason}`));
+    else process.stderr.write(chalk.green(`riptide scenarios: PASS — ${result.reason}\n`));
     return 0;
   }
   if (result.exit === 2) {
-    process.stderr.write(
-      chalk.red(`riptide scenarios: SCHEMA — ${result.reason}\n`)
-    );
+    if (validateSpinner) validateSpinner.fail(chalk.red(`SCHEMA — ${result.reason}`));
+    else process.stderr.write(chalk.red(`riptide scenarios: SCHEMA — ${result.reason}\n`));
     return 2;
   }
-  process.stderr.write(
-    chalk.red(`riptide scenarios: FAIL — ${result.reason}\n`)
-  );
+  if (validateSpinner) validateSpinner.fail(chalk.red(`FAIL — ${result.reason}`));
+  else process.stderr.write(chalk.red(`riptide scenarios: FAIL — ${result.reason}\n`));
   if (result.engineStderr && result.engineStderr.trim().length > 0) {
     const tail = result.engineStderr.trim().split("\n").slice(-8).join("\n");
     process.stderr.write(chalk.gray(`  engine stderr (tail):\n${tail}\n`));
