@@ -28,6 +28,11 @@ export function createRunCommand(): Command {
       "Adapter TOML path (defaults to fixtures/adapters/solend-fork.toml if omitted)"
     )
     .option("--format <format>", "Output format: human (default) or json", "human")
+    .option(
+      "--allow-invariant-violations",
+      "Exit 0 even if declared invariants fire during the run (default: exit 1 on any firing)",
+      false
+    )
     .action(async (configArg: string, cliOpts: Record<string, unknown>) => {
       const formatJson = cliOpts.format === "json";
       const isTTY = process.stdout.isTTY && !formatJson;
@@ -113,7 +118,8 @@ export function createRunCommand(): Command {
       try {
         result = await runOrchestrator(runConfig, {
           llmUrl: config.llm_url,
-          adapterPath: config.adapter_path
+          adapterPath: config.adapter_path,
+          allowInvariantViolations: Boolean(cliOpts.allowInvariantViolations)
         });
       } catch (err) {
         if (spinner) spinner.fail(chalk.red("Simulation failed"));

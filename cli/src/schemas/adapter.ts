@@ -25,9 +25,26 @@ export const LENDING_OBSERVATIONS = [
 export const ProtocolSchema = z.enum(["lending", "generic"]);
 export type Protocol = z.infer<typeof ProtocolSchema>;
 
+// Sprint 6 T01 — literal-bound IDL args for multi-arg dispatch.
+// Accepts natural TOML primitives: numbers (integer literals, no
+// floats), booleans, and strings (used for base58-encoded pubkey
+// literals). Mirrors `engine/src/adapter/schema.rs::ArgLiteral`.
+export const ArgLiteralSchema = z.union([
+  z.boolean(),
+  z.number().int(),
+  z.string()
+]);
+export type ArgLiteral = z.infer<typeof ArgLiteralSchema>;
+
 export const InstructionMappingSchema = z.object({
   action: z.string().min(1),
   amount: z.string().min(1).optional(),
+  // Sprint 6 T01 — literal constants for non-runtime IDL args of a
+  // multi-arg instruction. Keys are IDL arg names; values are
+  // Borsh-encodable literals (u64/i64/u32/u8 encoded as integers;
+  // bool as boolean; pubkey as base58 string). Empty by default so
+  // every Sprint 5 single-arg adapter continues to parse byte-for-byte.
+  args: z.record(z.string(), ArgLiteralSchema).default({})
 });
 export type InstructionMapping = z.infer<typeof InstructionMappingSchema>;
 
@@ -63,6 +80,13 @@ export const PersonaDefinitionSchema = z.object({
   action_rate_multiplier: z.number().finite().nonnegative().default(1),
   action_weights: z.record(z.string(), z.number()).default({}),
   triggers: z.array(PersonaTriggerSchema).default([]),
+  // Sprint 6 T01 — per-persona named values the generic encoder
+  // substitutes into `args = { <ix-arg> = "@persona.<name>" }`
+  // references. Each agent running under this persona supplies its
+  // own side/leverage/etc. without forking into one action per
+  // variant. Empty by default to preserve byte-stable parsing of
+  // Sprint 4/5 adapters.
+  persona_args: z.record(z.string(), ArgLiteralSchema).default({})
 });
 
 // Sprint 5 T01: declarative invariants block. Flat `{ name?, field, op,
@@ -189,6 +213,11 @@ function validateAdapterIdentifiers(adapter: Adapter, path: string): void {
     checkIdentifier(path, `[instructions].${ixName}.action`, mapping.action);
     if (mapping.amount !== undefined) {
       checkIdentifier(path, `[instructions].${ixName}.amount`, mapping.amount);
+    }
+    // Sprint 6 T01 — literal-bound arg names go through the same
+    // identifier allow-list as every other adapter-supplied name.
+    for (const argName of Object.keys(mapping.args)) {
+      checkIdentifier(path, `[instructions].${ixName}.args`, argName);
     }
   }
   for (const [key, logical] of Object.entries(adapter.state_mapping)) {
@@ -347,20 +376,41 @@ function validateGeneric(adapter: Adapter, path: string): void {
     }
   }
 
+  // Sprint 6 T01 — multi-arg validation mirrors
+  // `engine/src/adapter/loader.rs::validate_generic`. Every `takes`
+  // entry must be bound via runtime `amount` or a literal in `args`
+  // (but not both) on a SINGLE instruction mapping. Round 4 enforces
+  // exactly-one mapping per action to close the split-binding
+  // loophole where the old union-across-mappings logic silently
+  // accepted amount_in on one mapping + min_out/direction on another
+  // while the runtime only dispatches through the first match.
   for (const [actionName, action] of Object.entries(adapter.actions)) {
-    if (action.takes.length > 1) {
+    const mappingsForAction = Object.entries(adapter.instructions).filter(
+      ([, mapping]) => mapping.action === actionName
+    );
+    if (mappingsForAction.length > 1) {
+      const names = mappingsForAction.map(([name]) => name);
       throw new Error(
-        `${path}: \`[actions].${actionName}.takes\`: generic actions support either zero args or one numeric arg`
+        `${path}: \`[actions].${actionName}\`: action \`${actionName}\` is targeted by multiple \`[instructions]\` entries (${JSON.stringify(names)}); only one mapping per action is allowed because the runtime resolves by first match and any later mappings become dead code. If two on-chain instructions genuinely implement the same behavior, expose them as two separate adapter actions.`
       );
     }
-    const expectedArg = action.takes[0];
-    if (expectedArg) {
-      const hasBinding = Object.values(adapter.instructions).some(
-        (mapping) => mapping.action === actionName && mapping.amount === expectedArg
-      );
-      if (!hasBinding) {
+    const mapping = mappingsForAction[0]?.[1];
+    const boundViaAmount = new Set<string>();
+    if (mapping?.amount !== undefined) boundViaAmount.add(mapping.amount);
+    const boundViaLiterals = new Set<string>(
+      mapping ? Object.keys(mapping.args) : []
+    );
+    for (const expectedArg of action.takes) {
+      const inAmount = boundViaAmount.has(expectedArg);
+      const inLiterals = boundViaLiterals.has(expectedArg);
+      if (!inAmount && !inLiterals) {
         throw new Error(
-          `${path}: \`[actions].${actionName}.takes\`: action \`${actionName}\` expects arg \`${expectedArg}\` but no matching \`[instructions].*.amount\` binding was found`
+          `${path}: \`[actions].${actionName}.takes\`: action \`${actionName}\` declares arg \`${expectedArg}\` but no matching \`[instructions].*.amount\` or \`[instructions].*.args.${expectedArg}\` binding was found`
+        );
+      }
+      if (inAmount && inLiterals) {
+        throw new Error(
+          `${path}: \`[actions].${actionName}.takes\`: action \`${actionName}\` arg \`${expectedArg}\` is bound both as the runtime amount AND as a literal constant in \`args\` — pick one`
         );
       }
     }

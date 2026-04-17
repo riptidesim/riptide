@@ -316,6 +316,20 @@ fn validate_identifiers(adapter: &Adapter, path: &str) -> Result<(), AdapterErro
                 amount,
             )?;
         }
+        // Sprint 6 T01 — literal-bound args (for multi-arg dispatch).
+        // Each key is an IDL arg name the encoder later resolves
+        // against the program's declared args; the value is a TOML
+        // literal the encoder coerces into the matching Borsh type.
+        // The key passes through `snapshot_metrics` / CLI output only
+        // via debug paths, but we keep the same identifier allow-list
+        // applied to every adapter-supplied name for consistency.
+        for arg_name in mapping.args.keys() {
+            check_ident(
+                path,
+                &format!("[instructions].{ix_name}.args"),
+                arg_name,
+            )?;
+        }
     }
     // state_mapping: keys are dotted paths — validate each segment —
     // and the logical-name values must themselves be safe identifiers,
@@ -633,25 +647,82 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
     }
 
     for (action_name, action) in &adapter.actions {
-        if action.takes.len() > 1 {
+        // Sprint 6 T01 — multi-arg actions are allowed. Each arg listed
+        // in `takes` must be bound either through `[instructions].*.amount`
+        // (the single runtime-bound arg) or through
+        // `[instructions].*.args.<name>` (a literal or `@persona.<field>`
+        // ref). Zero-arg actions stay legal (empty `takes`).
+        //
+        // **Per-mapping binding check (Round 4 tighten).** The runtime
+        // resolves `action → instruction` by picking the first
+        // `[instructions]` entry whose `action` matches — so split
+        // bindings across multiple duplicate mappings (e.g. one
+        // mapping binds `amount_in`, another binds `min_out`) would
+        // silently pass load-time validation under the old
+        // "union across mappings" logic and then fail mid-dispatch
+        // when the first-picked mapping's bindings are incomplete.
+        // Round 4 enforces: exactly ONE `[instructions]` entry per
+        // action, and that entry must fully bind every arg the action
+        // declares in `takes`.
+        //
+        // At most ONE arg may be bound to the runtime amount per
+        // instruction — the tick loop passes a single `u64` amount
+        // per decision and splitting it across multiple IDL args
+        // would be ambiguous.
+        let mappings_for_action: Vec<(&String, &crate::adapter::InstructionMapping)> = adapter
+            .instructions
+            .iter()
+            .filter(|(_, mapping)| mapping.action == *action_name)
+            .collect();
+        if mappings_for_action.len() > 1 {
+            let names: Vec<&str> = mappings_for_action
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect();
             return Err(AdapterError::Validation {
                 path: path.to_string(),
-                key: format!("[actions].{action_name}.takes"),
-                reason:
-                    "generic actions support either zero args or one numeric arg"
-                        .into(),
+                key: format!("[actions].{action_name}"),
+                reason: format!(
+                    "action `{action_name}` is targeted by multiple `[instructions]` entries ({names:?}); \
+                     only one mapping per action is allowed because the runtime resolves by first match \
+                     and any later mappings become dead code. If two on-chain instructions genuinely \
+                     implement the same behavior, expose them as two separate adapter actions."
+                ),
             });
         }
-        if let Some(expected_arg) = action.takes.first() {
-            let has_bound_arg = adapter.instructions.values().any(|mapping| {
-                mapping.action == *action_name && mapping.amount.as_deref() == Some(expected_arg)
-            });
-            if !has_bound_arg {
+        let mapping = mappings_for_action.first().map(|(_, m)| *m);
+        let bound_via_amount: std::collections::BTreeSet<&str> = mapping
+            .and_then(|m| m.amount.as_deref())
+            .into_iter()
+            .collect();
+        let bound_via_literals: std::collections::BTreeSet<&str> = mapping
+            .map(|m| m.args.keys().map(String::as_str).collect())
+            .unwrap_or_default();
+        for expected_arg in &action.takes {
+            let in_amount = bound_via_amount.contains(expected_arg.as_str());
+            let in_literals = bound_via_literals.contains(expected_arg.as_str());
+            if !in_amount && !in_literals {
                 return Err(AdapterError::Validation {
                     path: path.to_string(),
                     key: format!("[actions].{action_name}.takes"),
                     reason: format!(
-                        "action `{action_name}` expects arg `{expected_arg}` but no matching `[instructions].*.amount` binding was found"
+                        "action `{action_name}` declares arg `{expected_arg}` but no matching \
+                         `[instructions].*.amount` or `[instructions].*.args.{expected_arg}` \
+                         binding was found.\nEither bind the arg to the runtime amount via \
+                         `amount = \"{expected_arg}\"` on the mapping instruction, or declare \
+                         a literal constant under `args` on the mapping."
+                    ),
+                });
+            }
+            if in_amount && in_literals {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[actions].{action_name}.takes"),
+                    reason: format!(
+                        "action `{action_name}` arg `{expected_arg}` is bound both as the \
+                         runtime amount AND as a literal constant in `args` — pick one. \
+                         Runtime amount → tick-loop decision drives the value; literal → \
+                         adapter-declared constant."
                     ),
                 });
             }
@@ -751,22 +822,23 @@ fn validate_oracles(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
     let mut seen: BTreeSet<&str> = BTreeSet::new();
     for (idx, oracle) in adapter.oracles.iter().enumerate() {
         if matches!(oracle.kind, OracleKind::Pyth) {
-            // Sprint 5 T05 ships `kind = "pyth"` as a
-            // forward-compatible placeholder that reuses the
-            // admin-mock Borsh layout. Full Pyth byte compatibility
-            // (confidence intervals, EMA windows, multi-publisher
-            // aggregation) is a Sprint 6 drop. Warn loudly so an
-            // adapter author who declares Pyth knows the layout they
-            // get is NOT real Pyth shape yet — a program built
-            // against `pyth-sdk-solana` that relies on fields beyond
-            // `{ price, exponent }` will misread the mock.
+            // Sprint 6 T02 ships a real Pyth `PriceAccount` byte
+            // layout for the aggregate-price read path (magic, ver,
+            // atype=Price, expo, agg.{price,conf,status,pub_slot},
+            // ema_price.val). A program built against
+            // `pyth-sdk-solana` and limited to
+            // `load_price_feed_from_account_info`'s aggregate path
+            // will boot unchanged. SMA window, multi-publisher
+            // aggregation, and the full per-publisher component
+            // array are still out of scope (the comp[] slots stay
+            // zero-filled in Sprint 6). Adapters that depend on those
+            // extended fields should track the Sprint 7+ follow-up.
             eprintln!(
-                "warn: {path}: `[[oracles]][{idx}]` declares `kind = \"pyth\"` — \
-                 Sprint 5 ships this variant as an admin-mock layout alias. \
-                 Programs that read only `price` / `exponent` boot fine; programs \
-                 that depend on the full Pyth Borsh shape (confidence, EMA, \
-                 publish_slot, publisher aggregation) will misread the mock. \
-                 Full Pyth layout lands in Sprint 6."
+                "info: {path}: `[[oracles]][{idx}]` declares `kind = \"pyth\"` — \
+                 Sprint 6 ships the aggregate-price read path. Programs that read \
+                 `agg.price` / `agg.conf` / `expo` / `agg.pub_slot` via \
+                 `pyth-sdk-solana` boot unchanged. Extended fields (SMA, \
+                 multi-publisher aggregation) stay zero-filled until Sprint 7+."
             );
         }
         let key_name = format!("[[oracles]][{idx}].name");
@@ -1057,6 +1129,7 @@ triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
             Some(&InstructionMapping {
                 action: "deposit".to_string(),
                 amount: Some("amount".to_string()),
+                args: std::collections::BTreeMap::new(),
             })
         );
         assert_eq!(adapter.state_mapping.len(), 6);

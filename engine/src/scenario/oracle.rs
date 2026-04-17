@@ -123,29 +123,186 @@ impl OracleLayout for AdminMockOracleLayout {
     }
 }
 
-/// Pyth-compatible mock layout placeholder. Reuses the admin-mock
-/// byte layout for Sprint 5 so `kind = "pyth"` is still bootable; a
-/// future sprint replaces `encode` / `decode` with the full Pyth Borsh
-/// shape (exponent, confidence, publish slot, aggregate price).
+/// Pyth-compatible mock account layout.
 ///
-/// **Scope note:** shipping a byte-for-byte Pyth-compatible layout is a
-/// full day of work on its own (confidence intervals, EMA windows,
-/// multi-publisher aggregation). Sprint 5 took the explicit
-/// "admin-mock fallback" path documented in the task note — the
-/// dispatch architecture supports adding Pyth as a second kind in
-/// Sprint 6 without reshaping this module.
+/// Sprint 6 T02 — ships the byte offsets `pyth-sdk-solana`'s
+/// `load_price_feed_from_account_info` expects for the aggregate-price
+/// read path. Any program built against `pyth-sdk-solana` that only
+/// cares about `price`/`conf`/`expo`/`publish_slot` can boot unchanged
+/// against a mock oracle account we write with this layout.
+///
+/// **Supported read path (Sprint 6 scope):**
+/// - `price` → `agg.price` at offset `0xD0` (`i64`)
+/// - `conf` → `agg.conf` at offset `0xD8` (`u64`)
+/// - `expo` → `expo` at offset `0x14` (`i32`)
+/// - `publish_slot` → `agg.pub_slot` at offset `0xE8` (`u64`)
+/// - `status` → `agg.status` at offset `0xE0` (`u8`) — always written
+///   as `Trading` (1) so readers do not fall through to the
+///   `prev_*` path.
+/// - `magic`/`ver`/`atype` validation constants at offsets `0x00`/`0x04`/`0x08`.
+///
+/// **Explicitly out of scope (Sprint 7+):**
+/// - SMA window (`ema_price`, `ema_conf` at `0x30`/`0x48`) — zero-filled.
+/// - Timestamp (`timestamp` at `0x60`, `prev_timestamp` at `0xC8`) — zero-filled.
+/// - Product / next price account refs (`prod` at `0x70`, `next` at `0x90`) — zero-filled.
+/// - Per-publisher component array at `0xF0` (32 × 96 bytes = 3072 bytes) — zero-filled.
+///
+/// **Layout reference:** `pyth-sdk-solana` `GenericPriceAccount<32, ()>`
+/// is `#[repr(C)]` with 8-byte alignment; total fixed size 3312 bytes.
+/// The constants below (`PYTH_MAGIC`, `PYTH_VERSION`, `PYTH_ATYPE_PRICE`,
+/// `PYTH_STATUS_TRADING`) come straight from `pyth-sdk-solana/src/state.rs`.
+/// A Borsh-style derive is not usable here — the Pyth struct uses
+/// `bytemuck::Pod` with C repr, so we hand-assemble the bytes with
+/// explicit little-endian writes at absolute offsets.
 pub struct PythMockOracleLayout;
+
+pub const PYTH_ACCOUNT_SIZE: usize = 3312;
+pub const PYTH_MAGIC: u32 = 0xa1b2c3d4;
+pub const PYTH_VERSION: u32 = 2;
+pub const PYTH_ATYPE_PRICE: u32 = 3;
+pub const PYTH_STATUS_TRADING: u8 = 1;
+
+// Load-bearing byte offsets. Each constant is the absolute byte index
+// into the `SolanaPriceAccount` Pod struct where the named field
+// starts, computed from the `#[repr(C)]` declaration in
+// `pyth-sdk-solana/src/state.rs`. The aggregate-price read path
+// touches the subset annotated below; the rest are documented for
+// clarity but stay zero-filled in Sprint 6.
+pub const PYTH_OFFSET_MAGIC: usize = 0x00;
+pub const PYTH_OFFSET_VER: usize = 0x04;
+pub const PYTH_OFFSET_ATYPE: usize = 0x08;
+pub const PYTH_OFFSET_SIZE: usize = 0x0C;
+pub const PYTH_OFFSET_PTYPE: usize = 0x10; // u8 + 3 pad
+pub const PYTH_OFFSET_EXPO: usize = 0x14; // i32
+pub const PYTH_OFFSET_NUM: usize = 0x18;
+pub const PYTH_OFFSET_NUM_QT: usize = 0x1C;
+pub const PYTH_OFFSET_LAST_SLOT: usize = 0x20;
+pub const PYTH_OFFSET_VALID_SLOT: usize = 0x28;
+pub const PYTH_OFFSET_EMA_PRICE_VAL: usize = 0x30; // i64
+pub const PYTH_OFFSET_EMA_CONF_VAL: usize = 0x48;  // i64
+pub const PYTH_OFFSET_TIMESTAMP: usize = 0x60;     // i64
+pub const PYTH_OFFSET_AGG_PRICE: usize = 0xD0;     // i64
+pub const PYTH_OFFSET_AGG_CONF: usize = 0xD8;      // u64
+pub const PYTH_OFFSET_AGG_STATUS: usize = 0xE0;    // u8
+pub const PYTH_OFFSET_AGG_PUB_SLOT: usize = 0xE8;  // u64
 
 impl OracleLayout for PythMockOracleLayout {
     fn byte_len(&self) -> usize {
-        AdminMockOracleLayout.byte_len()
+        PYTH_ACCOUNT_SIZE
     }
-    fn encode(&self, admin: [u8; 32], update: &OracleUpdate) -> Result<Vec<u8>> {
-        AdminMockOracleLayout.encode(admin, update)
+
+    fn encode(&self, _admin: [u8; 32], update: &OracleUpdate) -> Result<Vec<u8>> {
+        // Hand-assemble a byte buffer that matches
+        // `pyth-sdk-solana::SolanaPriceAccount` at the byte-level. We
+        // do NOT derive or use `bytemuck` directly — pulling the full
+        // Pod struct into the engine crate would require vendoring a
+        // solana-program version match against pyth-sdk-solana, which
+        // is a Sprint 7+ dep-surface change. Explicit offset writes
+        // are equally byte-correct and leave the dep tree untouched.
+        let mut buf = vec![0u8; PYTH_ACCOUNT_SIZE];
+        let price_raw = update.as_u64() as i64;
+        let pub_slot: u64 = 0; // Sprint 6 ships with implicit slot=0;
+                               // callers that care about slot ordering
+                               // can wrap this layout with their own
+                               // slot-tracking in Sprint 7+.
+
+        write_u32_le(&mut buf, PYTH_OFFSET_MAGIC, PYTH_MAGIC);
+        write_u32_le(&mut buf, PYTH_OFFSET_VER, PYTH_VERSION);
+        write_u32_le(&mut buf, PYTH_OFFSET_ATYPE, PYTH_ATYPE_PRICE);
+        write_u32_le(&mut buf, PYTH_OFFSET_SIZE, PYTH_ACCOUNT_SIZE as u32);
+        write_i32_le(&mut buf, PYTH_OFFSET_EXPO, i32::from(update.exponent));
+        // Populate EMA as a stable stand-in for the aggregate so
+        // programs that read `ema_price.val` (a common safety fallback
+        // alongside agg.price) see a sensible value rather than zero.
+        write_i64_le(&mut buf, PYTH_OFFSET_EMA_PRICE_VAL, price_raw);
+        write_i64_le(&mut buf, PYTH_OFFSET_EMA_CONF_VAL, 0);
+        write_i64_le(&mut buf, PYTH_OFFSET_TIMESTAMP, 0);
+        write_i64_le(&mut buf, PYTH_OFFSET_AGG_PRICE, price_raw);
+        write_u64_le(&mut buf, PYTH_OFFSET_AGG_CONF, 0);
+        buf[PYTH_OFFSET_AGG_STATUS] = PYTH_STATUS_TRADING;
+        write_u64_le(&mut buf, PYTH_OFFSET_AGG_PUB_SLOT, pub_slot);
+        Ok(buf)
     }
+
     fn decode(&self, bytes: &[u8]) -> Result<OracleUpdate> {
-        AdminMockOracleLayout.decode(bytes)
+        if bytes.len() < PYTH_ACCOUNT_SIZE {
+            return Err(anyhow!(
+                "pyth layout decode: expected at least {PYTH_ACCOUNT_SIZE} bytes, got {}",
+                bytes.len()
+            ));
+        }
+        // Integrity checks — a program reader (`pyth-sdk-solana`) also
+        // runs these, so it's useful to fail loudly locally if a
+        // caller hands us foreign bytes.
+        let magic = read_u32_le(bytes, PYTH_OFFSET_MAGIC);
+        if magic != PYTH_MAGIC {
+            return Err(anyhow!(
+                "pyth layout decode: magic mismatch (got 0x{magic:08x}, expected 0x{PYTH_MAGIC:08x})"
+            ));
+        }
+        let ver = read_u32_le(bytes, PYTH_OFFSET_VER);
+        if ver != PYTH_VERSION {
+            return Err(anyhow!(
+                "pyth layout decode: version mismatch (got {ver}, expected {PYTH_VERSION})"
+            ));
+        }
+        let atype = read_u32_le(bytes, PYTH_OFFSET_ATYPE);
+        if atype != PYTH_ATYPE_PRICE {
+            return Err(anyhow!(
+                "pyth layout decode: account type is {atype}, expected Price ({PYTH_ATYPE_PRICE})"
+            ));
+        }
+        let expo = read_i32_le(bytes, PYTH_OFFSET_EXPO);
+        let agg_price = read_i64_le(bytes, PYTH_OFFSET_AGG_PRICE);
+        // Sprint 6 bails on invalid expo widths — Pyth expo is i32 but
+        // our `OracleUpdate.exponent` is i8 (admin-mock historical).
+        // Narrow and bail on overflow so a caller that accidentally
+        // writes a weird expo fails loudly rather than silently wraps.
+        let narrow_expo: i8 = i8::try_from(expo).map_err(|_| {
+            anyhow!("pyth layout decode: expo {expo} out of i8 range (admin-mock mirror)")
+        })?;
+        let price = if narrow_expo < 0 {
+            let scale = 10f64.powi(i32::from(-narrow_expo));
+            agg_price as f64 / scale
+        } else if narrow_expo > 0 {
+            let scale = 10f64.powi(i32::from(narrow_expo));
+            agg_price as f64 * scale
+        } else {
+            agg_price as f64
+        };
+        Ok(OracleUpdate {
+            price,
+            exponent: narrow_expo,
+        })
     }
+}
+
+fn write_u32_le(buf: &mut [u8], offset: usize, value: u32) {
+    buf[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+}
+
+fn write_i32_le(buf: &mut [u8], offset: usize, value: i32) {
+    buf[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+}
+
+fn write_u64_le(buf: &mut [u8], offset: usize, value: u64) {
+    buf[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
+}
+
+fn write_i64_le(buf: &mut [u8], offset: usize, value: i64) {
+    buf[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
+}
+
+fn read_u32_le(buf: &[u8], offset: usize) -> u32 {
+    u32::from_le_bytes(buf[offset..offset + 4].try_into().unwrap())
+}
+
+fn read_i32_le(buf: &[u8], offset: usize) -> i32 {
+    i32::from_le_bytes(buf[offset..offset + 4].try_into().unwrap())
+}
+
+fn read_i64_le(buf: &[u8], offset: usize) -> i64 {
+    i64::from_le_bytes(buf[offset..offset + 8].try_into().unwrap())
 }
 
 #[cfg(test)]

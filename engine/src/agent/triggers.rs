@@ -117,6 +117,7 @@ mod tests {
                     params: BTreeMap::from([("amount".into(), 100.0)]),
                 },
                 max_exposure: 0.4,
+                persona_args: BTreeMap::new(),
             },
             1_000.0,
         )

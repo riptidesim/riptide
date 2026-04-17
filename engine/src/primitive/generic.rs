@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use anyhow::{anyhow, bail, Context, Result};
 
 use crate::{
-    adapter::{AccountKind, Adapter, InstructionMapping, ObservationType},
+    adapter::{AccountKind, Adapter, ArgLiteral, InstructionMapping, ObservationType},
     agent::policy::RuntimeAction,
     types::{
         ComparisonOp, ObservationValue, Policy, PositionSizing, PositionSizingStrategy, Trigger,
@@ -162,6 +162,11 @@ where
                 params: BTreeMap::from([("amount".into(), 1.0)]),
             },
             max_exposure: 1.0,
+            // Sprint 6 T01 — carry persona-supplied named args into the
+            // compiled policy so the tick loop can hand them to the
+            // encoder when dispatching a multi-runtime-arg action. Empty
+            // for personas that only use single-arg dispatch.
+            persona_args: persona.persona_args.clone(),
         });
     }
 
@@ -215,33 +220,109 @@ impl<'a> GenericInstructionBuilder<'a> {
         Self { idl, adapter }
     }
 
-    pub fn build_action_data(&self, action_name: &str, amount: u64) -> Result<Vec<u8>> {
+    /// Build the raw instruction-data blob for a dispatched action.
+    ///
+    /// Sprint 5 semantics (preserved byte-for-byte for single-arg
+    /// adapters): the IDL's instruction has at most one arg; the
+    /// adapter binds it via `[instructions].<ix>.amount = "<name>"`;
+    /// the engine encodes the runtime-supplied `amount` into that
+    /// arg's declared Borsh type.
+    ///
+    /// Sprint 6 T01 extension — three binding forms per IDL arg:
+    ///
+    /// 1. **Runtime amount** — `mapping.amount = "<arg-name>"` binds
+    ///    the tick-loop's decision amount (a `u64`) into the named
+    ///    IDL arg. At most one IDL arg can be amount-bound per
+    ///    instruction.
+    /// 2. **Adapter literal** — `mapping.args.<arg-name> = <literal>`
+    ///    declares a constant value the encoder emits for every
+    ///    dispatch. Types: u64/i64/u32/u8/bool (naturally), pubkey
+    ///    (base58 string).
+    /// 3. **Persona-supplied runtime value** —
+    ///    `mapping.args.<arg-name> = "@persona.<field>"` resolves
+    ///    at dispatch time against the executing agent's
+    ///    `policy.persona_args.<field>`. Every agent running under
+    ///    that persona supplies its own value, so one adapter can
+    ///    parameterize `open_position(side, leverage, notional)`
+    ///    across dozens of persona archetypes without forking into
+    ///    one action per variant.
+    ///
+    /// Walks IDL args in declaration order (Borsh is position-
+    /// dependent). Supported Borsh types: `u64`, `i64`, `u32`, `u8`,
+    /// `bool`, `pubkey`. Wider scalars, Option, Vec, and user-
+    /// defined structs are out of scope for Sprint 6.
+    ///
+    /// Sprint 5 callers that passed a single `amount` and nothing
+    /// else continue to work via the
+    /// `build_action_data_single_arg` shim. Sprint 6 callers that
+    /// dispatch against multi-arg instructions call through here
+    /// with the active persona's `persona_args` map.
+    pub fn build_action_data(
+        &self,
+        action_name: &str,
+        amount: u64,
+        persona_args: &BTreeMap<String, ArgLiteral>,
+    ) -> Result<Vec<u8>> {
         let (instruction_name, mapping, instruction) =
             resolve_instruction_for_action(self.idl, self.adapter, action_name)?;
 
-        let action = self
-            .adapter
-            .actions
-            .get(action_name)
-            .ok_or_else(|| anyhow!("generic adapter missing action `{action_name}`"))?;
-        if action.takes.len() > 1 {
-            bail!("generic adapter actions support at most one arg");
-        }
-
         let mut encoded = instruction.discriminator.clone();
         for arg in &instruction.args {
-            match mapping.amount.as_deref() {
-                Some(bound_name) if bound_name == arg.name => {
-                    encode_numeric_arg(&mut encoded, &arg.ty, amount)?;
-                }
-                _ => bail!(
-                    "generic instruction `{instruction_name}` arg `{}` is not bound in the adapter",
-                    arg.name
-                ),
+            if mapping.amount.as_deref() == Some(arg.name.as_str()) {
+                encode_runtime_amount(&mut encoded, &arg.ty, amount, instruction_name, &arg.name)?;
+                continue;
             }
+            if let Some(binding) = mapping.args.get(&arg.name) {
+                // `@persona.<field>` in a String literal is not a
+                // pubkey — it's a runtime reference into the
+                // executing agent's `persona_args`. Resolve first,
+                // then encode with the same type-coercion rules
+                // every other literal goes through.
+                let resolved = match binding {
+                    ArgLiteral::String(s) if s.starts_with("@persona.") => {
+                        let field = &s["@persona.".len()..];
+                        persona_args.get(field).ok_or_else(|| {
+                            anyhow!(
+                                "generic instruction `{instruction_name}` arg `{}` references \
+                                 `@persona.{field}` but the executing persona has no `persona_args.{field}` \
+                                 value. Declare it under `[personas.<id>.persona_args]` in the adapter.",
+                                arg.name
+                            )
+                        })?
+                    }
+                    other => other,
+                };
+                encode_literal_arg(&mut encoded, &arg.ty, resolved, instruction_name, &arg.name)?;
+                continue;
+            }
+            bail!(
+                "generic instruction `{instruction_name}` arg `{}` is not bound in the adapter. \
+                 Either add `amount = \"{}\"` (runtime-bound), `args.{} = <literal>` \
+                 (adapter constant), or `args.{} = \"@persona.<field>\"` (per-persona \
+                 runtime value) to `[instructions.{instruction_name}]`.",
+                arg.name,
+                arg.name,
+                arg.name,
+                arg.name,
+            );
         }
 
         Ok(encoded)
+    }
+
+    /// Convenience wrapper for single-arg call sites (Sprint 5
+    /// shape). Calls through to `build_action_data` with an empty
+    /// `persona_args` map. Prefer `build_action_data` directly in
+    /// Sprint 6+ code paths so the persona context is explicit.
+    pub fn build_action_data_single_arg(
+        &self,
+        action_name: &str,
+        amount: u64,
+    ) -> Result<Vec<u8>> {
+        static EMPTY: std::sync::OnceLock<BTreeMap<String, ArgLiteral>> =
+            std::sync::OnceLock::new();
+        let empty = EMPTY.get_or_init(BTreeMap::new);
+        self.build_action_data(action_name, amount, empty)
     }
 }
 
@@ -307,17 +388,178 @@ fn parse_trigger_value(raw: &str) -> TriggerValue {
     TriggerValue::String(raw.trim_matches('"').to_string())
 }
 
-fn encode_numeric_arg(out: &mut Vec<u8>, ty: &GenericTypeRef, amount: u64) -> Result<()> {
+/// Encode the runtime-computed `amount` (always a `u64` at the
+/// decision layer) into the byte slot an IDL arg of type `ty`
+/// occupies. Mirrors the Sprint 5 single-arg code path plus the
+/// Sprint 6 T01 scalar additions (`u32`, `u8`). Range overflow
+/// surfaces as an adapter error — a u64 amount wider than the
+/// declared target type is always a misconfiguration.
+fn encode_runtime_amount(
+    out: &mut Vec<u8>,
+    ty: &GenericTypeRef,
+    amount: u64,
+    instruction_name: &str,
+    arg_name: &str,
+) -> Result<()> {
     match ty {
         GenericTypeRef::Primitive(name) if name == "u64" => {
             out.extend_from_slice(&amount.to_le_bytes());
             Ok(())
         }
         GenericTypeRef::Primitive(name) if name == "i64" => {
+            // Match Sprint 5 behavior: bit-pattern cast, no range check.
+            // The runtime amount is `u64` but the IDL arg is signed;
+            // adapters that genuinely need a signed runtime arg in the
+            // upper half of u64 should declare `u64` on the IDL side.
             out.extend_from_slice(&(amount as i64).to_le_bytes());
             Ok(())
         }
-        other => bail!("unsupported generic action arg type `{other:?}`"),
+        GenericTypeRef::Primitive(name) if name == "u32" => {
+            if amount > u64::from(u32::MAX) {
+                bail!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `u32` \
+                     but runtime amount {amount} exceeds u32::MAX"
+                );
+            }
+            out.extend_from_slice(&(amount as u32).to_le_bytes());
+            Ok(())
+        }
+        GenericTypeRef::Primitive(name) if name == "u8" => {
+            if amount > u64::from(u8::MAX) {
+                bail!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `u8` \
+                     but runtime amount {amount} exceeds u8::MAX"
+                );
+            }
+            out.push(amount as u8);
+            Ok(())
+        }
+        other => bail!(
+            "instruction `{instruction_name}` arg `{arg_name}`: runtime-bound args only \
+             support `u64`/`i64`/`u32`/`u8` (got `{other:?}`). For `bool`/`pubkey` args, \
+             declare a literal under `[instructions].{instruction_name}.args.{arg_name}`."
+        ),
+    }
+}
+
+/// Encode an adapter-declared literal constant into the byte slot an
+/// IDL arg of type `ty` occupies. Sprint 6 T01 — enables multi-arg
+/// dispatch where the runtime amount flows into one IDL arg and every
+/// other IDL arg's value is fixed at adapter load time.
+fn encode_literal_arg(
+    out: &mut Vec<u8>,
+    ty: &GenericTypeRef,
+    literal: &ArgLiteral,
+    instruction_name: &str,
+    arg_name: &str,
+) -> Result<()> {
+    match ty {
+        GenericTypeRef::Primitive(name) if name == "u64" => {
+            let value = literal_as_u64(literal, instruction_name, arg_name, "u64")?;
+            out.extend_from_slice(&value.to_le_bytes());
+            Ok(())
+        }
+        GenericTypeRef::Primitive(name) if name == "i64" => {
+            let value = literal_as_i64(literal, instruction_name, arg_name, "i64")?;
+            out.extend_from_slice(&value.to_le_bytes());
+            Ok(())
+        }
+        GenericTypeRef::Primitive(name) if name == "u32" => {
+            let value = literal_as_u64(literal, instruction_name, arg_name, "u32")?;
+            if value > u64::from(u32::MAX) {
+                bail!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `u32` \
+                     but literal value {value} exceeds u32::MAX"
+                );
+            }
+            out.extend_from_slice(&(value as u32).to_le_bytes());
+            Ok(())
+        }
+        GenericTypeRef::Primitive(name) if name == "u8" => {
+            let value = literal_as_u64(literal, instruction_name, arg_name, "u8")?;
+            if value > u64::from(u8::MAX) {
+                bail!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `u8` \
+                     but literal value {value} exceeds u8::MAX"
+                );
+            }
+            out.push(value as u8);
+            Ok(())
+        }
+        GenericTypeRef::Primitive(name) if name == "bool" => {
+            let value = match literal {
+                ArgLiteral::Bool(b) => *b,
+                other => bail!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `bool` \
+                     but literal was `{other:?}`; expected `true` / `false`"
+                ),
+            };
+            out.push(if value { 1 } else { 0 });
+            Ok(())
+        }
+        GenericTypeRef::Primitive(name) if name == "pubkey" => {
+            let encoded = match literal {
+                ArgLiteral::String(s) => bs58::decode(s)
+                    .into_vec()
+                    .map_err(|e| anyhow!(
+                        "instruction `{instruction_name}` arg `{arg_name}` declared as `pubkey` \
+                         but literal `{s}` is not base58-decodable: {e}"
+                    ))?,
+                other => bail!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `pubkey` \
+                     but literal was `{other:?}`; expected a base58-encoded 32-byte key"
+                ),
+            };
+            if encoded.len() != 32 {
+                bail!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `pubkey` \
+                     but literal decoded to {} bytes (expected 32)",
+                    encoded.len()
+                );
+            }
+            out.extend_from_slice(&encoded);
+            Ok(())
+        }
+        other => bail!(
+            "instruction `{instruction_name}` arg `{arg_name}`: unsupported IDL arg type \
+             `{other:?}` for literal binding. Sprint 6 supports \
+             u64/i64/u32/u8/bool/pubkey — punt wider scalars, Option, Vec, and user-defined \
+             structs to a future sprint."
+        ),
+    }
+}
+
+fn literal_as_u64(
+    literal: &ArgLiteral,
+    instruction_name: &str,
+    arg_name: &str,
+    target_ty: &str,
+) -> Result<u64> {
+    match literal {
+        ArgLiteral::Int(v) if *v >= 0 => Ok(*v as u64),
+        ArgLiteral::Int(v) => bail!(
+            "instruction `{instruction_name}` arg `{arg_name}` declared as `{target_ty}` \
+             but literal `{v}` is negative"
+        ),
+        other => bail!(
+            "instruction `{instruction_name}` arg `{arg_name}` declared as `{target_ty}` \
+             but literal was `{other:?}`; expected a non-negative integer"
+        ),
+    }
+}
+
+fn literal_as_i64(
+    literal: &ArgLiteral,
+    instruction_name: &str,
+    arg_name: &str,
+    target_ty: &str,
+) -> Result<i64> {
+    match literal {
+        ArgLiteral::Int(v) => Ok(*v),
+        other => bail!(
+            "instruction `{instruction_name}` arg `{arg_name}` declared as `{target_ty}` \
+             but literal was `{other:?}`; expected an integer"
+        ),
     }
 }
 
@@ -622,12 +864,32 @@ impl crate::primitive::Primitive for GenericHarness {
         agent_idx: usize,
         action: &str,
         amount: u64,
+        target_idx: Option<usize>,
+    ) -> Result<(), crate::primitive::PrimitiveError> {
+        // Default dispatch with no persona-supplied args — used by
+        // Sprint 5 single-arg adapters and by the integration tests
+        // that drive GenericHarness directly.
+        self.execute_action_with_persona_args(
+            agent_idx,
+            action,
+            amount,
+            target_idx,
+            &BTreeMap::new(),
+        )
+    }
+
+    fn execute_action_with_persona_args(
+        &mut self,
+        agent_idx: usize,
+        action: &str,
+        amount: u64,
         _target_idx: Option<usize>,
+        persona_args: &BTreeMap<String, crate::adapter::ArgLiteral>,
     ) -> Result<(), crate::primitive::PrimitiveError> {
         let (_, _, instruction) = resolve_instruction_for_action(&self.idl, &self.adapter, action)
             .map_err(|error| crate::primitive::PrimitiveError::ProgramRejected(error.to_string()))?;
         let data = GenericInstructionBuilder::new(&self.idl, &self.adapter)
-            .build_action_data(action, amount)
+            .build_action_data(action, amount, persona_args)
             .map_err(|error| crate::primitive::PrimitiveError::ProgramRejected(error.to_string()))?;
         let accounts = instruction
             .accounts
@@ -1036,7 +1298,7 @@ triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
         let adapter = sample_generic_adapter();
         let builder = GenericInstructionBuilder::new(&idl, &adapter);
 
-        let bytes = builder.build_action_data("mine", 7).unwrap();
+        let bytes = builder.build_action_data_single_arg("mine", 7).unwrap();
         assert_eq!(&bytes[..8], &[109, 105, 110, 101, 0, 0, 0, 0]);
         assert_eq!(u64::from_le_bytes(bytes[8..16].try_into().unwrap()), 7);
     }

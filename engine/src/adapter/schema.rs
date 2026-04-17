@@ -23,17 +23,27 @@ pub enum Protocol {
 }
 
 /// Mapping of an on-chain instruction name to a logical action + its
-/// amount argument name.
+/// argument bindings.
 ///
 /// `action` is the canonical action label the engine dispatches on.
-/// `amount` names the instruction argument that carries the numeric
-/// amount the engine will pass in when the action is sized dynamically.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// `amount` names the single IDL argument the runtime-computed amount
+/// flows into (kept for backwards compat with single-arg adapters).
+/// `args` (Sprint 6 T01) declares literal constants for the remaining
+/// IDL arguments of a multi-arg instruction; the encoder walks the IDL
+/// args in order and resolves each by name from either `amount` (one
+/// runtime-bound arg) or `args` (any number of literal-bound args).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstructionMapping {
     pub action: String,
     /// Optional because zero-arg instructions may omit it.
     #[serde(default)]
     pub amount: Option<String>,
+    /// Sprint 6 T01 — literal constants for non-runtime IDL args.
+    /// Keys are IDL argument names (must match a `GenericArg.name`);
+    /// values are Borsh-encodable literals. Empty by default so every
+    /// single-arg and zero-arg adapter keeps parsing byte-for-byte.
+    #[serde(default)]
+    pub args: std::collections::BTreeMap<String, ArgLiteral>,
 }
 
 /// How a generic adapter account is instantiated at bootstrap time.
@@ -59,11 +69,37 @@ pub struct ActionDefinition {
     /// Optional human-readable label for reports/debugging.
     #[serde(default)]
     pub label: Option<String>,
-    /// Ordered list of instruction args the action supplies. v0 supports
-    /// either zero args or a single numeric arg bound via
-    /// `[instructions].<ix>.amount`.
+    /// Ordered list of IDL instruction args the adapter declares for
+    /// this action. Each entry must bind to either the runtime-computed
+    /// amount (via `[instructions].<ix>.amount`) or a literal constant
+    /// (via `[instructions].<ix>.args.<entry>`). Sprint 5 v0 only
+    /// supported zero-arg or single-runtime-bound-arg forms; Sprint 6
+    /// T01 lifts the `len <= 1` cap so multi-arg Borsh instructions
+    /// (e.g. AMM `swap(amount_in, min_out, direction)`) can declare all
+    /// of their args here.
     #[serde(default)]
     pub takes: Vec<String>,
+}
+
+/// Sprint 6 T01 — Borsh-encodable literal values for `[instructions].<ix>.args`.
+///
+/// The adapter-loader accepts natural TOML primitives (integers, bools,
+/// quoted base58 strings) and the encoder coerces each literal into the
+/// byte layout the matching IDL arg declares. Supported target IDL
+/// types: `u64`/`i64`/`u32`/`u8`/`bool`/`pubkey`. Range overflow on
+/// encode is surfaced as an adapter error so a typo in the TOML fails
+/// loudly rather than silently wrapping.
+///
+/// Untagged so a TOML entry like `min_out = 0` naturally parses as
+/// `Int(0)`, `direction = false` as `Bool(false)`, and
+/// `recipient = "4NBcG..."` as `String("4NBcG...")` (which the encoder
+/// decodes as base58 into a 32-byte pubkey).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ArgLiteral {
+    Bool(bool),
+    Int(i64),
+    String(String),
 }
 
 /// Supported observation types for the generic primitive.
@@ -139,6 +175,22 @@ pub struct PersonaDefinition {
     /// Trigger DSL. Parsed into runtime triggers by the generic primitive.
     #[serde(default)]
     pub triggers: Vec<PersonaTriggerDefinition>,
+    /// Sprint 6 T01 — per-persona named values the encoder substitutes
+    /// into multi-runtime-arg instructions.
+    ///
+    /// An instruction's `args = { leverage = "@persona.leverage_bps", ... }`
+    /// reference resolves against this map at dispatch time, so every
+    /// agent running under this persona supplies its own `leverage`
+    /// value into `open_position(side, leverage, notional)` without
+    /// forking the adapter into one action per leverage level.
+    ///
+    /// Empty by default — adapters that only use single-runtime-arg
+    /// dispatch (Sprint 5 perps, lending) keep parsing byte-for-byte
+    /// and serialize without the key. Type-checking happens at encode
+    /// time against the target IDL arg's Borsh type (same coercion
+    /// rules as literal-bound args).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub persona_args: BTreeMap<String, ArgLiteral>,
 }
 
 /// Parsed adapter TOML.

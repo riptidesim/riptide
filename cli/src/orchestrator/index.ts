@@ -26,6 +26,14 @@ export interface OrchestratorOptions {
   llmUrl?: string;
   /** Absolute path to a pre-validated adapter TOML, or undefined. */
   adapterPath?: string;
+  /**
+   * Sprint 6 T03 — forward the `--allow-invariant-violations` flag
+   * into the engine. When true, the engine exits 0 even if one or
+   * more declared invariants fired during the run. When false
+   * (default), an invariant firing exits 1. Setup errors always exit
+   * 2 regardless. Match the engine-side flag semantics.
+   */
+  allowInvariantViolations?: boolean;
   warn?: (message: string) => void;
   /**
    * Override the module-root lookup. Pass `null` to disable it entirely
@@ -106,11 +114,38 @@ export async function runOrchestrator(
     if (options.adapterPath) {
       args.push("--adapter", options.adapterPath);
     }
+    if (options.allowInvariantViolations) {
+      args.push("--allow-invariant-violations");
+    }
 
     const { code, stderrTail } = await spawner(enginePath, args);
     if (code !== 0) {
       const tail = stderrTail.trim();
       const suffix = tail ? `\n--- engine stderr (tail) ---\n${tail}` : "";
+      // Sprint 6 T03 — when the engine exits with the invariant-firing
+      // code (1) and the caller has not passed --allow-invariant-violations,
+      // still surface the engine's JSON output if it was written. Doing
+      // so lets exploratory callers inspect `summary.invariants_fired`
+      // after the non-zero exit. Parse failures here fall back to the
+      // generic error message so callers get a coherent diagnostic in
+      // both "engine died setting up" and "engine ran but fired" paths.
+      if (code === 1) {
+        try {
+          const raw = await readFile(outputPath, "utf8");
+          const parsed = SimulationResultSchema.parse(JSON.parse(raw));
+          const error = new Error(
+            `riptide-engine exited with code 1 — invariant violation(s) recorded.${suffix}`
+          ) as Error & { simulationResult?: SimulationResult; exitCode?: number };
+          error.simulationResult = parsed;
+          error.exitCode = 1;
+          throw error;
+        } catch (readErr) {
+          if ((readErr as Error).message?.startsWith("riptide-engine exited")) {
+            throw readErr;
+          }
+          // fall through to the generic error below.
+        }
+      }
       throw new Error(`riptide-engine exited with code ${code}.${suffix}`);
     }
 

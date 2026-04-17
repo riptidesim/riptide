@@ -78,19 +78,81 @@ struct Cli {
     /// lending primitive (Solend fork) so existing callers keep working.
     #[arg(long, value_name = "FILE")]
     adapter: Option<PathBuf>,
+
+    /// Sprint 6 T03 — override the invariant-violation exit code back
+    /// to 0. By default the engine exits 1 whenever one or more
+    /// declared invariants fired during the run (machine-checkable
+    /// validation). This flag is for exploratory runs where invariant
+    /// firings are expected findings rather than failures.
+    #[arg(long, default_value_t = false)]
+    allow_invariant_violations: bool,
 }
 
-fn main() -> ExitCode {
-    match run(Cli::parse()) {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(err) => {
-            eprintln!("error: {err:#}");
-            ExitCode::FAILURE
+/// Sprint 6 T03 — structured engine outcomes.
+///
+/// The engine uses three distinct exit codes to give CI (and humans)
+/// a machine-checkable signal:
+///   - `0` = clean run, all declared invariants held.
+///   - `1` = at least one declared invariant fired during the run.
+///   - `2` = setup error before the tick loop ran to completion
+///           (adapter parse/validation error, missing program `.so`,
+///           invariant references unknown field, …). Any non-setup
+///           runtime failure (LiteSVM infra error, panic in primitive)
+///           also maps to `2`, since the engine never reached a clean
+///           declared-invariant verdict.
+///
+/// Empty-adapter runs (no `[[invariants]]` block declared) always
+/// exit `0` on a successful tick loop, matching the Sprint 4 and
+/// Sprint 5 default behavior byte-for-byte. This is load-bearing for
+/// the Sprint 4 hero-grid determinism hash.
+enum EngineOutcome {
+    Clean,
+    InvariantFired(u64),
+    SetupError,
+}
+
+impl EngineOutcome {
+    fn exit_code(&self, allow_invariant_violations: bool) -> ExitCode {
+        match self {
+            Self::Clean => ExitCode::SUCCESS,
+            Self::SetupError => ExitCode::from(2),
+            Self::InvariantFired(_) if allow_invariant_violations => ExitCode::SUCCESS,
+            Self::InvariantFired(_) => ExitCode::FAILURE,
         }
     }
 }
 
-fn run(cli: Cli) -> anyhow::Result<()> {
+fn main() -> ExitCode {
+    let cli = Cli::parse();
+    let allow_invariant_violations = cli.allow_invariant_violations;
+    match run(cli) {
+        Ok(outcome) => {
+            match &outcome {
+                EngineOutcome::InvariantFired(count) => {
+                    if allow_invariant_violations {
+                        eprintln!(
+                            "riptide-engine: {count} invariant violation(s) recorded; \
+                             --allow-invariant-violations restores exit 0"
+                        );
+                    } else {
+                        eprintln!(
+                            "riptide-engine: {count} invariant violation(s); exiting 1. \
+                             Pass --allow-invariant-violations to treat as exit 0."
+                        );
+                    }
+                }
+                EngineOutcome::Clean | EngineOutcome::SetupError => {}
+            }
+            outcome.exit_code(allow_invariant_violations)
+        }
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            EngineOutcome::SetupError.exit_code(allow_invariant_violations)
+        }
+    }
+}
+
+fn run(cli: Cli) -> anyhow::Result<EngineOutcome> {
     let run_config: RunConfig = load_json(&cli.config)?;
     let loaded_policies: Vec<Policy> = load_policies(&cli.policies)?;
 
@@ -372,7 +434,38 @@ fn run(cli: Cli) -> anyhow::Result<()> {
 
     write_result(&cli.output, &result)?;
     eprintln!("wrote {}", cli.output.display());
-    Ok(())
+
+    // Sprint 6 T03 — derive exit code from invariant violations. The
+    // count is the total number of events the tick loop emitted via
+    // `evaluate_invariants` (one event per falsified comparison per
+    // tick), which matches what `summary["invariants_fired"]` rolls up.
+    // Runs with no declared invariants never emit an `invariants_fired`
+    // key, so `firing_count` stays 0 and the exit code stays 0 — this
+    // is the Sprint 4 / Sprint 5 regression-gate contract.
+    let firing_count = count_invariant_firings(&result);
+    if firing_count > 0 {
+        Ok(EngineOutcome::InvariantFired(firing_count))
+    } else {
+        Ok(EngineOutcome::Clean)
+    }
+}
+
+/// Count invariant firings across the whole run by summing the
+/// per-invariant `firings` entries in `summary["invariants_fired"]`.
+/// A fresh run with no declared invariants skips the summary key
+/// entirely and returns 0.
+fn count_invariant_firings(result: &SimulationResult) -> u64 {
+    result
+        .summary
+        .get("invariants_fired")
+        .and_then(|v| v.as_array())
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| entry.get("firings").and_then(|v| v.as_u64()))
+                .sum()
+        })
+        .unwrap_or(0)
 }
 
 /// Look up a preset by dispatch key, matching either the exact `name`

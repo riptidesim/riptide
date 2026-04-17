@@ -35,3 +35,14 @@ name = "t7_litesvm_benchmark"
 [dev-dependencies]
 litesvm = "0.11.0"
 tempfile = "3.27.0"
+# Sprint 6 T02 — note: pyth-sdk-solana CANNOT be added as a direct
+# dev-dep. The crate is built against borsh 0.10 (pre-breaking-change)
+# while the engine's dep graph pins borsh 1.6 transitively through
+# solana-sdk 4.0.1. Mixing the two produces a compile-time trait
+# conflict (solana_address::Address carries borsh 0.10 impls through
+# solana_hash, but the engine's code path expects borsh 1.6 derives).
+# Instead, Sprint 6 isolates pyth-sdk-solana in a separate helper crate
+# at `../pyth_consumer_test_helper/` (outside the workspace, separate
+# Cargo.lock). The engine test spawns the compiled helper binary over
+# stdin/stdout — see engine/tests/t23_pyth_real_layout.rs for the wire
+# format and the "REAL pyth-sdk-solana consumer" acceptance test.

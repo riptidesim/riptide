@@ -115,6 +115,7 @@ fn main() {
             params: BTreeMap::from([("amount".into(), 50.0)]),
         },
         max_exposure: 0.8,
+        persona_args: BTreeMap::new(),
     };
 
     let run_config = RunConfig {

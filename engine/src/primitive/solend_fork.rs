@@ -1021,6 +1021,7 @@ mod tests {
                     params: BTreeMap::from([("amount".into(), 50.0)]),
                 },
                 max_exposure: 0.8,
+                persona_args: BTreeMap::new(),
             }
         }
 
@@ -1152,6 +1153,7 @@ mod tests {
                 InstructionMapping {
                     action: name.to_string(),
                     amount: Some("amount".to_string()),
+                    args: BTreeMap::new(),
                 },
             );
         }

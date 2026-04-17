@@ -79,6 +79,7 @@ fn lending_policy() -> Policy {
             params: BTreeMap::from([("amount".into(), 50.0)]),
         },
         max_exposure: 0.8,
+        persona_args: BTreeMap::new(),
     }
 }
 

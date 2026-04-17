@@ -249,6 +249,7 @@ fn trivial_policy(id: &str) -> Policy {
             params: BTreeMap::new(),
         },
         max_exposure: 0.5,
+        persona_args: BTreeMap::new(),
     }
 }
 

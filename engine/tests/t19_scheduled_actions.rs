@@ -52,6 +52,7 @@ fn policy() -> Policy {
             params: BTreeMap::from([("amount".into(), 100.0)]),
         },
         max_exposure: 0.8,
+        persona_args: BTreeMap::new(),
     }
 }
 

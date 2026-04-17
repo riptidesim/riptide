@@ -25,6 +25,15 @@ pub struct Policy {
     pub triggers: Vec<Trigger>,
     pub position_sizing: PositionSizing,
     pub max_exposure: f64,
+    /// Sprint 6 T01 — per-persona named values the generic encoder
+    /// substitutes into multi-runtime-arg instruction calls. Compiled
+    /// from the adapter TOML's `[personas.<name>].persona_args` block.
+    /// Empty for lending policies (which don't use multi-arg
+    /// dispatch) and for generic policies that don't vary args by
+    /// persona. `skip_serializing_if` keeps the policies.json shape
+    /// byte-stable for Sprint 4 hero grid callers that never set this.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub persona_args: BTreeMap<String, crate::adapter::ArgLiteral>,
 }
 
 fn default_action_rate_multiplier() -> f64 {

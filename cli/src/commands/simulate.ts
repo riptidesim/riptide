@@ -15,6 +15,11 @@ export function createSimulateCommand(): Command {
 
   registerRunConfigOptions(command);
   command.option("--format <format>", "Output format: human (default) or json", "human");
+  command.option(
+    "--allow-invariant-violations",
+    "Exit 0 even if declared invariants fire during the run (default: exit 1 on any firing)",
+    false
+  );
 
   return command.action(async (options) => {
     const formatJson = (options as Record<string, unknown>).format === "json";
@@ -41,7 +46,10 @@ export function createSimulateCommand(): Command {
     try {
       result = await runOrchestrator(runConfig, {
         llmUrl: config.llm_url,
-        adapterPath: config.adapter_path
+        adapterPath: config.adapter_path,
+        allowInvariantViolations: Boolean(
+          (options as Record<string, unknown>).allowInvariantViolations
+        )
       });
     } catch (err) {
       if (spinner) spinner.fail(chalk.red("Simulation failed"));

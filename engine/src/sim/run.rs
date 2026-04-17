@@ -496,6 +496,7 @@ where
                     &action,
                     on_chain_amount,
                     liquidate_target,
+                    &agents[idx].policy.persona_args,
                 ) {
                     Ok(pair) => pair,
                     Err(msg) => return Err(SimulationAbort::Infra(msg)),
@@ -711,24 +712,36 @@ fn pick_liquidation_target(idx: usize, agents: &[Agent], oracle_price: f64) -> O
 /// program-rejected error returns `(Failed, Some(reason))`. On an infra
 /// failure that survived the single retry inside `with_retry`, returns
 /// `Err(msg)` so the caller can abort the whole run.
+///
+/// Sprint 6 T01 — `persona_args` carries the executing agent's
+/// `policy.persona_args` map for multi-runtime-arg dispatch. Empty
+/// for lending/mock callers and for generic adapters that don't use
+/// `@persona.<field>` references.
 fn submit_action_to_target<H: crate::primitive::Primitive>(
     harness: &mut H,
     idx: usize,
     action: &RuntimeAction,
     amount: u64,
     liquidate_target: Option<usize>,
+    persona_args: &std::collections::BTreeMap<String, crate::adapter::ArgLiteral>,
 ) -> Result<(SimOutcome, Option<String>), String> {
     let result = match action {
         RuntimeAction::Deposit
         | RuntimeAction::Withdraw
         | RuntimeAction::Borrow
         | RuntimeAction::Repay
-        | RuntimeAction::Custom(_) => {
-            with_retry(harness, |h| h.execute_action(idx, action.as_str(), amount, None))
-        }
+        | RuntimeAction::Custom(_) => with_retry(harness, |h| {
+            h.execute_action_with_persona_args(idx, action.as_str(), amount, None, persona_args)
+        }),
         RuntimeAction::Liquidate => match liquidate_target {
             Some(t) => with_retry(harness, |h| {
-                h.execute_action(idx, action.as_str(), amount, Some(t))
+                h.execute_action_with_persona_args(
+                    idx,
+                    action.as_str(),
+                    amount,
+                    Some(t),
+                    persona_args,
+                )
             }),
             None => return Ok((SimOutcome::Skipped, Some("no liquidation target".into()))),
         },
@@ -871,7 +884,14 @@ where
             let (outcome, detail) = if matches!(action, RuntimeAction::NoOp) || amount == 0 {
                 (SimOutcome::Skipped, None)
             } else {
-                match submit_action_to_target(harness, idx, &action, amount, None) {
+                match submit_action_to_target(
+                    harness,
+                    idx,
+                    &action,
+                    amount,
+                    None,
+                    &agents[idx].policy.persona_args,
+                ) {
                     Ok(pair) => pair,
                     Err(msg) => return Err(SimulationAbort::Infra(msg)),
                 }
@@ -1198,6 +1218,7 @@ mod tests {
                 params: BTreeMap::from([("amount".into(), 100.0)]),
             },
             max_exposure: 0.8,
+            persona_args: BTreeMap::new(),
         }
     }
 
@@ -1355,6 +1376,7 @@ mod tests {
                 params: BTreeMap::from([("amount".into(), 10_000.0)]),
             },
             max_exposure: 0.8,
+            persona_args: BTreeMap::new(),
         };
         let cfg = RunConfig {
             agents: 1,

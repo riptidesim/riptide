@@ -86,13 +86,15 @@ test("AdapterSchema produces the same shape the serde side expects", async () =>
 
   for (const mapping of Object.values(adapter.instructions)) {
     const keys = Object.keys(mapping).sort();
-    // `amount` is optional, so we only require `action`
+    // `amount` and `args` (Sprint 6 T01) are optional; only `action` is required.
     assert.ok(keys.includes("action"));
-    const illegal = keys.filter((k) => k !== "action" && k !== "amount");
+    const illegal = keys.filter(
+      (k) => k !== "action" && k !== "amount" && k !== "args"
+    );
     assert.deepEqual(
       illegal,
       [],
-      "InstructionMapping should only carry action/amount fields"
+      "InstructionMapping should only carry action/amount/args fields"
     );
   }
 });

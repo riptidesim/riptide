@@ -193,6 +193,31 @@ pub trait Primitive {
         target_idx: Option<usize>,
     ) -> Result<(), PrimitiveError>;
 
+    /// Sprint 6 T01 — multi-runtime-arg dispatch.
+    ///
+    /// Called by the tick loop with the executing agent's
+    /// `policy.persona_args` map. Generic primitives override this
+    /// to feed the map into `GenericInstructionBuilder::build_action_data`
+    /// so multi-arg Borsh instructions can resolve `@persona.<field>`
+    /// references at dispatch time.
+    ///
+    /// Default implementation ignores `persona_args` and dispatches
+    /// through the single-arg `execute_action`. Lending primitives
+    /// and the test `MockHarness` inherit this default — they neither
+    /// use multi-arg Borsh dispatch nor carry persona-supplied arg
+    /// maps, so the Sprint 4/5 byte-identical behavior is preserved.
+    fn execute_action_with_persona_args(
+        &mut self,
+        agent_idx: usize,
+        action: &str,
+        amount: u64,
+        target_idx: Option<usize>,
+        persona_args: &std::collections::BTreeMap<String, crate::adapter::ArgLiteral>,
+    ) -> Result<(), PrimitiveError> {
+        let _ = persona_args;
+        self.execute_action(agent_idx, action, amount, target_idx)
+    }
+
     /// Read adapter-defined observations for `agent_idx`. Lending
     /// impls keep the default empty map; generic impls return the
     /// decoded state of every account bound in the adapter's

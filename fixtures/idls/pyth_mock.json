@@ -1,0 +1,52 @@
+{
+  "version": "0.1.0",
+  "name": "pyth_mock",
+  "description": "Pyth PriceAccount mock — Sprint 6 T02 byte layout compatible with pyth-sdk-solana's load_price_feed_from_account_info aggregate-price read path. Total size 3312 bytes (#[repr(C)], 8-byte aligned). Only the aggregate-price subset is populated; SMA (ema_price/ema_conf), multi-publisher comp[] array, prod/next account refs, and per-publisher metadata remain zero-filled in Sprint 6 (Sprint 7+ follow-up).\n\nLayout mirrors pyth-sdk-solana::GenericPriceAccount<32, ()>. When the layout drifts upstream, update engine/src/scenario/oracle.rs::PythMockOracleLayout in lock-step with this IDL and the t23_pyth_real_layout test's MockPriceAccountPrefix mirror struct.",
+  "instructions": [],
+  "accounts": [
+    {
+      "name": "priceAccount",
+      "description": "Pyth `PriceAccount` aggregate-price layout. Fixed fields at their byte offsets — this IDL lists them in declaration order. All integers little-endian, #[repr(C)] padding preserved. Use this as the reference when authoring adapters that declare `[[oracles]] kind = \"pyth\"`.",
+      "fields": [
+        { "name": "magic", "type": "u32", "offset": 0, "value": "0xa1b2c3d4" },
+        { "name": "ver", "type": "u32", "offset": 4, "value": "2" },
+        { "name": "atype", "type": "u32", "offset": 8, "value": "3 (Price)" },
+        { "name": "size", "type": "u32", "offset": 12 },
+        { "name": "ptype", "type": "u8", "offset": 16 },
+        { "name": "_pad0", "type": "u8", "offset": 17, "description": "3 bytes padding to align expo" },
+        { "name": "expo", "type": "i32", "offset": 20, "description": "Price exponent (negative to report sub-integer prices)" },
+        { "name": "num", "type": "u32", "offset": 24 },
+        { "name": "num_qt", "type": "u32", "offset": 28 },
+        { "name": "last_slot", "type": "u64", "offset": 32 },
+        { "name": "valid_slot", "type": "u64", "offset": 40 },
+        { "name": "ema_price_val", "type": "i64", "offset": 48, "description": "Sprint 6 ships this as a stable mirror of agg.price for readers that fall back to EMA." },
+        { "name": "ema_price_numer", "type": "i64", "offset": 56 },
+        { "name": "ema_price_denom", "type": "i64", "offset": 64 },
+        { "name": "ema_conf_val", "type": "i64", "offset": 72 },
+        { "name": "ema_conf_numer", "type": "i64", "offset": 80 },
+        { "name": "ema_conf_denom", "type": "i64", "offset": 88 },
+        { "name": "timestamp", "type": "i64", "offset": 96, "description": "Sprint 6 zero-fills; a future drop may populate from engine slot clock." },
+        { "name": "min_pub", "type": "u8", "offset": 104 },
+        { "name": "drv2", "type": "u8", "offset": 105 },
+        { "name": "drv3", "type": "u16", "offset": 106 },
+        { "name": "drv4", "type": "u32", "offset": 108 },
+        { "name": "prod", "type": "pubkey", "offset": 112 },
+        { "name": "next", "type": "pubkey", "offset": 144 },
+        { "name": "prev_slot", "type": "u64", "offset": 176 },
+        { "name": "prev_price", "type": "i64", "offset": 184 },
+        { "name": "prev_conf", "type": "u64", "offset": 192 },
+        { "name": "prev_timestamp", "type": "i64", "offset": 200 },
+        { "name": "agg_price", "type": "i64", "offset": 208, "description": "Aggregate price. This is what load_price_feed_from_account_info returns as PriceFeed.price when agg_status == Trading." },
+        { "name": "agg_conf", "type": "u64", "offset": 216 },
+        { "name": "agg_status", "type": "u8", "offset": 224, "value": "1 (Trading, so readers don't fall through to prev_*)" },
+        { "name": "agg_corp_act", "type": "u8", "offset": 225 },
+        { "name": "_pad_agg", "type": "u8", "offset": 226, "description": "6 bytes padding to align pub_slot" },
+        { "name": "agg_pub_slot", "type": "u64", "offset": 232 }
+      ],
+      "comp_array_start": 240,
+      "comp_array_entries": 32,
+      "comp_entry_size": 96,
+      "total_size": 3312
+    }
+  ]
+}

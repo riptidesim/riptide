@@ -1,0 +1,36 @@
+[package]
+name = "pyth-consumer-test-helper"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = """
+Sprint 6 T02 helper binary — the canonical `pyth-sdk-solana` consumer that
+the engine's `t23_pyth_real_layout` test spawns as a subprocess. Lives
+outside the engine workspace so its borsh 0.10 / legacy solana-program
+dep tree can coexist with the engine's borsh 1.6 / solana-sdk 4.0.1
+world. Stdin accepts 3312 bytes of raw Pyth `SolanaPriceAccount` data;
+stdout emits a one-line JSON blob of `{price,conf,expo,publish_slot,
+status,ema_price,magic,version,account_type}` so the engine test can
+assert equivalence with what its own encoder produced.
+"""
+
+[dependencies]
+# pyth-sdk-solana 0.10.x uses borsh 0.10's derive macro on its
+# PriceAccount struct. The macro only works when every field's
+# transitive type impls borsh 0.10's BorshDeserialize. solana-program
+# 2.x/3.x/4.x ship types (Pubkey = Address) that only impl borsh 1.6,
+# so we force solana-program back to the 1.x line (last minor that
+# still ships borsh 0.10 impls on its vendored types). This pin lives
+# only in the helper crate's dep tree; the main engine workspace is
+# unaffected.
+solana-program = "=1.18.26"
+pyth-sdk-solana = "0.10.6"
+serde_json = "1.0.149"
+
+[[bin]]
+name = "pyth-consumer-test-helper"
+path = "src/main.rs"
+
+# Keep this out of any parent workspace so its dep graph is fully
+# independent. (The parent Cargo.toml also excludes this directory.)
+[workspace]
