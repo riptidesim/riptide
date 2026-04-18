@@ -18,7 +18,15 @@ Deterministic multi-agent simulator for Solana programs. `riptide-engine` is the
 
 Most users want the full Riptide experience (CLI wrapper + adapter-generation skill + scenario-proposal skill) rather than the engine in isolation. For that, see the [parent repo](https://github.com/riptidesim/riptide).
 
-Direct engine usage:
+> **Pre-publish notice.** `riptide-engine` is not yet published to crates.io — it lands in an upcoming release after one more cold-eyes validation pass. Until then, build from source:
+>
+> ```bash
+> git clone https://github.com/riptidesim/riptide
+> cd riptide && cargo build --release -p riptide-engine
+> # binary: target/release/riptide-engine
+> ```
+
+Once published, the crates.io path will be:
 
 ```bash
 cargo install riptide-engine
