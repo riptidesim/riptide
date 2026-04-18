@@ -9,6 +9,7 @@ import { runReplayOrchestrator } from "../orchestrator/index.js";
 import { writeArtifacts } from "../report/artifacts.js";
 import { renderSummary, renderColoredTable } from "../report/summary.js";
 import { renderTimeline } from "../report/timeline.js";
+import { blockUntilSignal, startDashboardServer } from "../serve/index.js";
 
 interface ReplayConfigFile {
   adapter?: string;
@@ -24,6 +25,11 @@ export function createReplayCommand(): Command {
     .option(
       "--allow-invariant-violations",
       "Exit 0 even if declared invariants fire during the replay (default: exit 1 on any firing)",
+      false
+    )
+    .option(
+      "--serve",
+      "After the replay completes, start the Riptide web dashboard (default port 4173) serving the artifacts. Blocks on Ctrl-C.",
       false
     )
     .action(async (configArg: string, cliOpts: Record<string, unknown>) => {
@@ -176,6 +182,13 @@ export function createReplayCommand(): Command {
 
       if (invariantFiring) {
         process.exitCode = 1;
+      }
+
+      if (cliOpts.serve) {
+        const handle = await startDashboardServer(path.dirname(artifactPath));
+        process.stderr.write(chalk.cyan(`Dashboard: ${handle.url}\n`));
+        process.stderr.write(chalk.gray(`  (Ctrl-C to stop)\n`));
+        await blockUntilSignal(handle);
       }
     });
 }
