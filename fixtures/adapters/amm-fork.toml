@@ -1,0 +1,184 @@
+# AMM-fork generic adapter.
+#
+# Sprint 6 T12 — the third protocol-class bundle under the 6-layer stack
+# growth rhythm after Sprint 4 (Solend lending) and Sprint 5 (perps).
+# Drives `programs/amm-fork/` (the AMM-lite target from T11) through the
+# engine's generic primitive path.
+#
+# **Scope calls (documented in Obsidian Tasks/Sprint 6/T11-T12 notes):**
+#
+# - `protocol = "generic"` (not `"amm"`). Same rationale as Sprint 5
+#   perps-fork: `Protocol::Amm` would be a cosmetic 5-file ripple with
+#   no dispatch behavior change. T14's `classify.md` discrimination hooks
+#   read instruction/observation names, not the protocol field.
+# - Runtime-dispatchable actions: `add_liquidity` (2-arg),
+#   `remove_liquidity` (1-arg), `swap` (3-arg). All three exercise the
+#   Sprint 6 T01 multi-arg builder. `initialize_pool` is IDL-only — the
+#   processor's lazy-init path seeds a 1_000_000 / 1_000_000 pool at
+#   30 bps on first touch, which matches `add_liquidity` and `swap` at
+#   simulation start so explicit init is not needed in the scenario loop.
+#   Mapping `initialize_pool` as a runtime action would have every agent
+#   racing to re-init the pool and most calls failing with
+#   `PoolAlreadyInitialized`. Sprint 4 + Sprint 5 precedent.
+# - **No `[[oracles]]` block**. AMM prices derive from pool reserves.
+#   This is load-bearing for the Sprint 6 pitch: three protocol classes
+#   where only two need a mocked oracle, widening the generic-primitive
+#   claim.
+# - **No `[[scheduled_actions]]`**. AMM has no time-dependent state.
+# - `pool` is a shared account, `lp_position` is per-agent — same account
+#   kinds Sprint 5 perps-fork used (`market` shared, `position` agent).
+#
+# Layer 2 personas — the T13 persona library (`lp-provider.toml`,
+# `arbitrageur.toml`, `sandwich-attacker.toml`, `swapper.toml`,
+# `rug-puller.toml`) — live at `fixtures/personas/*.toml`. The T13
+# sidecar scratch script at `scripts/sprint6-amm-scratch.sh` truncates
+# this file at the `# === SIDECAR-CUT ===` marker and appends the real
+# persona library, matching the Sprint 4/5 sidecar-runner pattern.
+
+protocol = "generic"
+program_so = "../../programs/amm-fork/target/deploy/amm_fork.so"
+idl_path = "../idls/amm-fork.json"
+
+[accounts.pool]
+kind = "shared"
+space = 161
+
+[accounts.lp_position]
+kind = "agent"
+space = 73
+
+# All three runtime-dispatchable actions go through the T01 Sprint 6
+# multi-arg builder. `amount` is runtime-bound per-decision by the
+# persona; `args` carry the per-persona or literal extras.
+#
+# - add_liquidity: amount_a runtime, amount_b per-persona
+# - remove_liquidity: shares runtime
+# - swap: amount_in runtime, min_amount_out literal=1 (permissive — the
+#   invariants + taxonomy hooks are where pathological behavior is
+#   caught, not at instruction level), direction per-persona so
+#   arb-long / arb-short / sandwich personas each pick a side.
+[instructions.add_liquidity]
+action = "add_liquidity"
+amount = "amount_a"
+args = { amount_b = "@persona.amount_b" }
+
+[instructions.remove_liquidity]
+action = "remove_liquidity"
+amount = "shares"
+
+[instructions.swap]
+action = "swap"
+amount = "amount_in"
+args = { min_amount_out = 1, direction = "@persona.direction" }
+
+[state_mapping]
+"pool.reserve_a"          = "pool.reserve_a"
+"pool.reserve_b"          = "pool.reserve_b"
+"pool.total_lp_supply"    = "pool.total_lp_supply"
+"pool.last_swap_price"    = "pool.last_swap_price"
+"pool.cumulative_volume"  = "pool.cumulative_volume"
+"pool.cumulative_fees"    = "pool.cumulative_fees"
+"pool.fee_bps"            = "pool.fee_bps"
+"pool.k_last"             = "pool.k_last"
+"lp_position.lp_shares"   = "lp_position.lp_shares"
+
+[actions.add_liquidity]
+label = "Add liquidity to the pool"
+takes = ["amount_a", "amount_b"]
+
+[actions.remove_liquidity]
+label = "Burn LP shares and withdraw pro-rata reserves"
+takes = ["shares"]
+
+[actions.swap]
+label = "Swap one reserve side for the other"
+takes = ["amount_in", "min_amount_out", "direction"]
+
+[observations]
+"pool.reserve_a"          = "uint"
+"pool.reserve_b"          = "uint"
+"pool.total_lp_supply"    = "uint"
+"pool.last_swap_price"    = "uint"
+"pool.cumulative_volume"  = "uint"
+"pool.cumulative_fees"    = "uint"
+"pool.fee_bps"            = "uint"
+"pool.k_last"             = "uint"
+"lp_position.lp_shares"   = "uint"
+
+# Sprint 6 T16 invariants. Per the T16 task note (default to option 2:
+# simple structural bounds) we ship three upper-bound sanity checks
+# that pass at tick 0 (zero-byte harness bootstrap — reserves / lp
+# supply / fee_bps all read as 0 before the processor's lazy-init
+# path fires on the first instruction) AND in normal operation, but
+# fire under pathological runaway (fee overflow, LP share explosion,
+# supply drift to an unrealistic ceiling).
+#
+# **Why not floor invariants like `reserve_a >= 1`.** Same constraint
+# perps-fork documented in its Sprint 6 T03 block: floor invariants
+# fire at tick 0 on the zero-byte generic-harness account, before
+# any instruction writes state. With T03's exit-code wiring, a
+# tick-0 false-positive turns any scratch-run gate red. The honest
+# fix at source is either (a) harness-level eager init (scheduled
+# action at tick 0, which the current engine loop does not expose —
+# scheduled actions fire from tick 1 onward) or (b) a tick-0-skip
+# option on the invariant framework. Both are Sprint 7 territory.
+# The `reserve_depletion` T14 taxonomy category is still machine-
+# catchable via discovery proposals (T15 `reserve-depletion-stress`)
+# — the observation is in the adapter, it just is not an invariant.
+#
+# Constant-product exact equality (`k_last == reserve_a * reserve_b`)
+# is also deferred — it compares two observations, not an observation
+# to a literal, and the T01 DSL is observation-to-literal only. A
+# tolerance-based `approx_eq` operator is Sprint 7 territory.
+
+[[invariants]]
+name = "fee_bps_bounded"
+field = "pool.fee_bps"
+op = "<="
+value = 10000
+
+[[invariants]]
+name = "lp_shares_bounded"
+field = "lp_position.lp_shares"
+op = "<="
+value = 100000000000000
+
+[[invariants]]
+name = "total_lp_supply_bounded"
+field = "pool.total_lp_supply"
+op = "<="
+value = 100000000000000
+
+# === SIDECAR-CUT ===
+# `scripts/sprint6-amm-scratch.sh` truncates this file at the
+# `# === SIDECAR-CUT ===` line above and appends
+# `fixtures/personas/{lp-provider,arbitrageur,sandwich-attacker,swapper,rug-puller}.toml`
+# for the real AMM persona library before handing the result to the
+# engine. The block below is the smoke-test persona set used by
+# `riptide adapt --adapter …` with names that match `cli/src/adapt/smoke.ts`'s
+# generic run-config (`grinder` / `botter` / `casual`), so the shipping
+# adapter clears the smoke gate without CLI changes.
+#
+# Smoke personas only exercise add_liquidity + swap (not remove_liquidity —
+# a first-touch simulation has no LP shares to burn). direction=0 (a→b)
+# and amount_b=1000 are safe against the lazy-init 1M/1M pool.
+[personas.grinder]
+label = "AMM baseline (smoke)"
+action_rate_multiplier = 1.0
+action_weights = { add_liquidity = 0.5, swap = 0.5 }
+triggers = []
+persona_args = { amount_b = 1000, direction = 0 }
+
+[personas.botter]
+label = "AMM high-rate (smoke)"
+action_rate_multiplier = 2.0
+action_weights = { add_liquidity = 0.3, swap = 0.7 }
+triggers = []
+persona_args = { amount_b = 500, direction = 1 }
+
+[personas.casual]
+label = "AMM low-rate (smoke)"
+action_rate_multiplier = 0.5
+action_weights = { add_liquidity = 0.6, swap = 0.4 }
+triggers = []
+persona_args = { amount_b = 1500, direction = 0 }

@@ -18,6 +18,10 @@ The goal is to produce a short working-memory note of the form:
       margin_cascade_from_oracle_shock:   flagged | not-applicable   # with reason
       open_interest_imbalance:            flagged | not-applicable   # with reason
       socialized_loss_accumulation:       flagged | not-applicable   # with reason
+      price_manipulation_via_swap:        flagged | not-applicable   # with reason
+      impermanent_loss_spike:             flagged | not-applicable   # with reason
+      jit_liquidity:                      flagged | not-applicable   # with reason
+      reserve_depletion:                  flagged | not-applicable   # with reason
 
 Every `flagged` line must carry a one-sentence justification that
 points at a concrete feature of the adapter or IDL. Every
@@ -287,6 +291,154 @@ Hooks that rule it out:
   a different mechanism already covered by `shock_cascades`.
 - The IDL has no liquidation instruction. Without forced closure,
   there is no path to shortfall.
+
+## AMM-specific categories
+
+Four categories apply to constant-product AMM-shaped programs (x*y=k
+pools with `swap`, `add_liquidity`, `remove_liquidity` instructions).
+Like the perps hooks, their adapter-side + IDL hooks read the **IDL
+instruction list** (at `idl_path`) alongside the adapter's
+`[observations]` and `[state_mapping]`, not just the `[actions]`
+block — the AMM interesting shape is in which reserves + swap args
+exist, not in whether every instruction is runtime-dispatchable.
+
+**How to read the IDL for AMM classification:** same as perps. Load
+`idl_path`, inspect `instructions[].name` and each instruction's
+`args` list. Key signals: a `swap` instruction with both an
+`amount_in`-shaped arg **and** a `direction` (or equivalent
+boolean/u64) arg; an `add_liquidity` / `remove_liquidity` pair;
+account-side fields for `reserve_a` + `reserve_b` + `total_lp_supply`.
+
+### price_manipulation_via_swap
+
+> "What happens if a large trader pushes the pool price with a
+> single swap, exploits the displacement, and settles the pool on
+> the way back — or simply exits at a better off-chain price?"
+
+Adapter-side + IDL hooks that justify flagging:
+
+- The IDL declares a `swap` instruction whose args include both an
+  `amount_in`-shaped u64 AND a `direction`-shaped arg (u64 / bool
+  side tag). The combination confirms a directional swap with
+  caller-sized input — the surface adversarial price moves ride.
+- The adapter's `[observations]` expose BOTH `pool.reserve_a` AND
+  `pool.reserve_b` (price is derivable) AND `pool.last_swap_price`
+  (post-swap price is directly observable without re-deriving from
+  reserves each tick).
+- The adapter's `[observations]` expose `pool.cumulative_volume` —
+  lets the taxonomy discriminator see swap-volume-driven behavior
+  rather than only end-of-tick price.
+
+All three sub-hooks must be present to flag. Pure-price observation
+without a swap arg is `oracle_lag` shape, not `price_manipulation_via_swap`.
+
+Hooks that rule it out:
+
+- The IDL has no `swap` instruction (lending / perps / marketplace
+  shape). The category is specifically the AMM swap-based move.
+- The adapter exposes only one reserve observation, or a combined
+  "price" field instead of the two reserve legs. A single-sided
+  observation cannot capture the asymmetric displacement that makes
+  price manipulation visible.
+- `protocol = "lending"` with a collateral-price observation —
+  lending's price-move failure is `shock_cascades`; do not
+  double-flag.
+
+### impermanent_loss_spike
+
+> "What happens when one side of the pool becomes volatile or
+> drifts sharply — do LPs lose value on the reserve imbalance, and
+> can the loss spike past reasonable bounds?"
+
+Adapter-side + IDL hooks that justify flagging:
+
+- The adapter's `[observations]` expose BOTH `pool.reserve_a` AND
+  `pool.reserve_b` AND `pool.total_lp_supply`. The LP-value math
+  (per-share reserves = reserves / total_lp_supply) is observable.
+- The IDL declares both `add_liquidity` AND `remove_liquidity`
+  instructions — confirming LPs can enter and exit, which is what
+  makes impermanent loss a *realized* failure mode rather than a
+  notional one.
+- The adapter declares at least one persona that writes to
+  `add_liquidity` or `remove_liquidity` (an LP-provider-shaped
+  persona) — confirming the population has participants who would
+  experience the loss.
+
+All three sub-hooks must be present. A pool with no LP entry/exit
+path (pre-sealed reserves) has no impermanent-loss *realization*
+surface; the loss is purely theoretical.
+
+Hooks that rule it out:
+
+- The IDL has no `add_liquidity`/`remove_liquidity` pair. Participants
+  cannot realize the loss.
+- `total_lp_supply` is not observable in the adapter. LP-value math
+  is not expressible.
+- `protocol = "lending"` — lending's LP-analog failure is bad debt,
+  not impermanent loss.
+
+### jit_liquidity
+
+> "What happens when an adversarial LP times large deposits
+> immediately before high-fee windows and withdraws right after,
+> extracting fees without bearing inventory risk?"
+
+Adapter-side + IDL hooks that justify flagging:
+
+- The IDL declares `add_liquidity` AND `remove_liquidity` as
+  directly-callable instructions. JIT requires paired entry/exit.
+- The adapter's `[observations]` expose `pool.cumulative_fees`
+  (fee accrual is trackable) AND `pool.total_lp_supply` (share-of-pool
+  is trackable). The discriminator needs both to see who captured
+  which slice of the fees.
+- The adapter declares at least one persona whose action_weights
+  put significant weight on BOTH `add_liquidity` AND `remove_liquidity`
+  — a persona that churns LP depth is the behavioral fingerprint
+  JIT exploits.
+
+All three sub-hooks must be present.
+
+Hooks that rule it out:
+
+- The IDL lacks `remove_liquidity`. LPs cannot exit → JIT is
+  impossible by construction.
+- No `cumulative_fees` observation. Without a fee accrual counter,
+  the category's "extract fees" claim is not observable.
+- All adapter personas that touch `add_liquidity` have zero weight
+  on `remove_liquidity`, or vice versa — no one in the population
+  is shaped like a JIT attacker.
+
+### reserve_depletion
+
+> "What happens when sustained one-directional swap pressure drains
+> one side of the pool to effectively zero, making the pool
+> unusable or forcing it into a degenerate price regime?"
+
+Adapter-side + IDL hooks that justify flagging:
+
+- The IDL declares a `swap` instruction with a `direction`-shaped
+  arg — one-sided flow is expressible.
+- The adapter's `[observations]` expose BOTH `pool.reserve_a` AND
+  `pool.reserve_b` separately (not a combined aggregate). The
+  depletion shape is the *ratio* between the two, and only
+  separately-tracked reserves make it visible.
+- The adapter declares at least one persona whose swap-direction
+  persona arg is fixed to a single side (e.g. `direction = 0`) AND
+  whose action_weights put most of the weight on `swap` — a
+  one-directional-pressure persona. A balanced-direction swapper
+  population is not a reserve-depletion shape.
+
+All three sub-hooks must be present.
+
+Hooks that rule it out:
+
+- The IDL's `swap` is bidirectional-only (no direction arg), or the
+  adapter's personas all run with mixed / randomized directions —
+  the population shape cannot sustain one-way pressure.
+- The adapter exposes only an aggregate reserve / tvl field, not
+  separate legs. Depletion of one side is not measurable.
+- `protocol = "lending"` — lending's analogous failure is utilization
+  stress, not reserve depletion.
 
 ## Output
 

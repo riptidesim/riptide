@@ -68,7 +68,11 @@ const ManifestSchema = z.object({
     "oracle_lag",
     "margin_cascade_from_oracle_shock",
     "open_interest_imbalance",
-    "socialized_loss_accumulation"
+    "socialized_loss_accumulation",
+    "price_manipulation_via_swap",
+    "impermanent_loss_spike",
+    "jit_liquidity",
+    "reserve_depletion"
   ]),
   rationale: z.string().min(1)
 });

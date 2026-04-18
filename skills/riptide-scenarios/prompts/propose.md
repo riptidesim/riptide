@@ -195,7 +195,7 @@ genuinely new.
 {
   "adapter":       "fixtures/adapters/<adapter-stem>.toml",
   "slug":          "<same as directory name>",
-  "failure_mode":  "<one of: whale_concentration | shock_cascades | utilization_stress | persona_mix_instability | oracle_lag>",
+  "failure_mode":  "<one of: whale_concentration | shock_cascades | utilization_stress | persona_mix_instability | oracle_lag | margin_cascade_from_oracle_shock | open_interest_imbalance | socialized_loss_accumulation | price_manipulation_via_swap | impermanent_loss_spike | jit_liquidity | reserve_depletion>",
   "rationale":     "<one sentence — why this experiment, tying back to the classification hook>"
 }
 ```
@@ -393,6 +393,163 @@ For perps proposals, `failure_mode` in `manifest.json` must be one
 of: `margin_cascade_from_oracle_shock`,
 `open_interest_imbalance`, `socialized_loss_accumulation`. These
 are the perps-specific category names from `classify.md`.
+
+## AMM-specific proposal rules
+
+Four rules apply when classification flags one or more of the
+AMM-specific categories (`price_manipulation_via_swap`,
+`impermanent_loss_spike`, `jit_liquidity`, `reserve_depletion`).
+These rules are additive — they do not replace or modify Rules 1–7
+or the perps Rules 8–10 above. The AMM adapter exposes `swap`
+(3-arg via the T01 multi-arg builder), `add_liquidity` (2-arg), and
+`remove_liquidity` (1-arg) as runtime-dispatchable actions.
+
+### Rule 11 — Trade-size × volume grid (AMM adapters)
+
+When classification flagged **`price_manipulation_via_swap`**, you
+**must** emit a `trade-size-volume-grid` proposal — a 2D grid that
+crosses a **trade-size axis** with a **swap-volume axis**. This
+grid counts as the composite from Rule 2.
+
+**Why trade-size × volume.** `price_manipulation_via_swap` is about
+*how much* the pool price moves per swap (trade-size) and *how
+often* the attacker can compound that move (volume). A 1D sweep on
+either axis alone misses the interaction: a single large trade on
+a thin-volume pool leaves one price footprint; many small trades
+on a heavy-volume pool leave another; their product is where real
+adversarial price manipulation lives. Matches the Sprint 4 whale-
+shock and Sprint 5 depositor-shock 2D discipline.
+
+**Axis encoding:**
+
+- **Trade-size axis** — the per-swap `amount_in` a trader persona
+  sends, encoded via `position_sizing.params.amount` on a
+  swapper-shaped persona in `policies.json`. Standard points:
+  `t100`, `t1000`, `t10000` (bare integer amounts, no scale
+  suffix).
+- **Volume axis** — total swap throughput, encoded via `ticks` in
+  each cell's `run-config.json`. More ticks = more swaps fired by
+  the same population = higher cumulative volume. Standard points:
+  `v10`, `v30`, `v60`.
+
+**Grid layout** mirrors the Sprint 4 whale-shock and Sprint 5
+depositor-shock patterns exactly:
+
+    fixtures/scenarios/<adapter-stem>/trade-size-volume-grid/
+      manifest.json          # grid-level metadata (not bootable)
+      t100-v10/              # one subdir per (trade-size, volume) cell
+        run-config.json
+        policies.json
+        manifest.json
+      t100-v30/
+        …
+      t10000-v60/            # high-trade-size + high-volume corner
+        run-config.json
+        policies.json
+        manifest.json
+
+Cell naming: `t<trade_size>-v<tick_count>` using bare integer values
+with no scale suffix. Each cell is a full bootable scenario triple
+and must validate on its own via `riptide scenarios --validate <cell-dir>`.
+
+**Cell contents.** Each cell's:
+
+- `run-config.json` sets `"ticks": <v-value>`, `"scenario": "baseline"`
+  (AMM has no oracle so `price-shock` does not apply), fixed seed
+  42, `agents: 20`, `personas: [...]` list weighted toward the
+  swapper persona (e.g. 16 swappers + 4 lp-providers for a 20-agent
+  population).
+- `policies.json` declares a `swapper` persona with
+  `position_sizing.params.amount: <t-value>` and `action_weights:
+  { "swap": 1.0 }`. Plus a baseline `lp-provider` persona with the
+  standard add-liquidity weighting.
+- `manifest.json` sets `failure_mode: "price_manipulation_via_swap"`
+  and the one-sentence rationale cites the cell's coordinates — e.g.
+  "Cell (trade-size 10000, volume 60 ticks) of the trade-size × volume
+  grid — the corner where cumulative price impact from one-directional
+  swap pressure is largest and adversarial price manipulation most
+  visible."
+
+**Materialize every cell.** Same discipline as the lending
+`whale-shock-grid` — if the grid has 9 cells, all 9 must be
+bootable sub-scenarios on disk. Midpoint-only grids are not
+acceptable. The grid-level `manifest.json` at the slug root carries
+axes + cell list + combined rationale and is NOT a bootable
+scenario manifest (no `failure_mode` field there).
+
+### Rule 12 — Impermanent-loss sweep (AMM adapters)
+
+When classification flagged **`impermanent_loss_spike`**, emit an
+`impermanent-loss-sweep` proposal — a 1D sweep varying the balance
+of LP churn (add_liquidity:remove_liquidity weight ratio) in the
+LP persona, under fixed heavy-swap traffic.
+
+Axis: `lp_churn_ratio ∈ {0.2, 0.5, 0.8}` — the remove-liquidity
+weight on the LP persona (add_liquidity weight is `1 - churn_ratio`).
+Higher churn = LPs cycle in/out more, realizing impermanent loss
+against the prevailing reserve ratio.
+
+Write only the middle point (0.5) as the representative
+`run-config.json` + `policies.json` + `manifest.json` triple. The
+rationale notes the full sweep range and explains that churn rate
+is the realized-vs-notional knob: 0.0 churn = theoretical-only loss
+(no exit), high churn = frequent realization against volatile
+reserves. `failure_mode: "impermanent_loss_spike"` in the manifest.
+
+### Rule 13 — JIT liquidity sweep (AMM adapters)
+
+When classification flagged **`jit_liquidity`**, emit a
+`jit-liquidity-sweep` proposal — a 1D sweep varying the proportion
+of JIT-shaped agents (high-churn, opportunistic LP) against a fixed
+baseline of stable LP + swapper populations.
+
+Axis: `jit_ratio ∈ {0.10, 0.25, 0.50}` — the proportion of agents
+assigned the JIT / rug-puller-shaped persona. With 20 agents:
+0.10 = 2 JIT agents, 0.25 = 5, 0.50 = 10.
+
+Write only the middle point (0.25) as the representative
+`run-config.json` + `policies.json` + `manifest.json` triple. The
+rationale notes the full sweep range and explains that JIT
+extraction scales non-linearly with attacker share: below some
+threshold, baseline LPs absorb fees normally; above it, JIT agents
+capture a disproportionate slice. `failure_mode: "jit_liquidity"`
+in the manifest.
+
+### Rule 14 — Reserve-depletion stress (AMM adapters)
+
+When classification flagged **`reserve_depletion`**, emit a
+`reserve-depletion-stress` proposal — a 1D sweep of one-directional
+swap size under a fixed swapper population biased to a single
+swap direction.
+
+Axis: per-swap `amount_in ∈ {1000, 10000, 100000}` on a swapper
+persona whose `persona_args.direction` is fixed (e.g. `0` = a→b)
+and whose `action_weights` are `{ "swap": 1.0 }`. Fixed population
+of 20 agents with 16 one-directional swappers + 4 LP providers.
+
+Write only the middle point (10000) as the representative
+`run-config.json` + `policies.json` + `manifest.json` triple. The
+rationale notes the full sweep range and explains that sustained
+one-sided pressure is the depletion shape: small amounts leave
+reserves mostly intact; large amounts drain the thin side toward
+zero where swap math degenerates. `failure_mode: "reserve_depletion"`
+in the manifest.
+
+### AMM manifest failure_mode values
+
+For AMM proposals, `failure_mode` in `manifest.json` must be one
+of: `price_manipulation_via_swap`, `impermanent_loss_spike`,
+`jit_liquidity`, `reserve_depletion`. These are the AMM-specific
+category names from `classify.md`.
+
+### AMM policies.json action names
+
+For AMM experiments, action names in `action_weights` must match
+the amm-fork adapter's `[actions]` keys: `swap`, `add_liquidity`,
+`remove_liquidity`. Persona-varying multi-arg fields (`direction`
+for `swap`, `amount_b` for `add_liquidity`) live on the persona's
+`persona_args` block in the same shape as the Sprint 6 T13 persona
+library (`fixtures/personas/{lp-provider,arbitrageur,sandwich-attacker,swapper,rug-puller}.toml`).
 
 ## Self-check before writing files
 

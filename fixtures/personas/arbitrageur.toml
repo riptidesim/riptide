@@ -1,0 +1,17 @@
+# AMM persona — arbitrageur.
+#
+# Sprint 6 T13. Swaps A→B aggressively when `pool.last_swap_price`
+# drifts below a reference (interpreted as a price-gap signal versus
+# some off-chain fair value). Pure trader — never touches liquidity.
+# The `direction = 0` arg fixes the swap side so all arb txs from this
+# persona push the pool in one direction, which is what drives the
+# `reserve_depletion` failure mode the T14 taxonomy targets.
+[personas.arbitrageur]
+label = "Arbitrageur (one-sided swapper)"
+action_rate_multiplier = 1.5
+action_weights = { add_liquidity = 0.0, swap = 1.0, remove_liquidity = 0.0 }
+triggers = [
+  { if = "pool.last_swap_price < 990000", then = "swap", weight_boost = 3.0 },
+  { if = "pool.reserve_a > pool.reserve_b", then = "swap", weight_boost = 2.0 },
+]
+persona_args = { amount_b = 0, direction = 0 }

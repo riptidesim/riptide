@@ -1,0 +1,25 @@
+[package]
+name = "amm-fork"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal constant-product AMM fork (x*y=k). Sprint 6 T11 target for the third protocol-class bundle after lending_pool and perps-fork."
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+borsh = "=0.10.4"
+borsh-derive = "=0.10.4"
+solana-program = "=1.18.26"
+thiserror = "=1.0.69"
+
+[features]
+no-entrypoint = []
+
+[workspace]
+
+[patch.crates-io]
+blake3 = { path = "../../vendor/blake3" }
+borsh = { path = "../../vendor/borsh" }
+borsh-derive = { path = "../../vendor/borsh-derive" }
+cpufeatures = { path = "../../vendor/cpufeatures" }

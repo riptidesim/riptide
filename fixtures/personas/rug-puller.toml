@@ -1,0 +1,18 @@
+# AMM persona — rug-puller (large LP exit).
+#
+# Sprint 6 T13. Large LP who burns all accumulated shares when the
+# pool has drifted to a favorable state (`pool.cumulative_fees`
+# past a threshold) or when volume spikes (`pool.cumulative_volume`
+# surges, indicating heavy swap traffic the LP wants to front-run out
+# of). Probes the T14 `jit_liquidity` hook — "adversarial LP adds
+# depth then pulls" — by coupling a small initial add_liquidity with
+# opportunistic remove_liquidity once conditions meet the threshold.
+[personas.rug-puller]
+label = "Rug-puller (opportunistic LP exit)"
+action_rate_multiplier = 0.7
+action_weights = { add_liquidity = 0.15, swap = 0.0, remove_liquidity = 0.85 }
+triggers = [
+  { if = "pool.cumulative_fees > 2000", then = "remove_liquidity", weight_boost = 5.0 },
+  { if = "pool.cumulative_volume > 100000", then = "remove_liquidity", weight_boost = 3.0 },
+]
+persona_args = { amount_b = 2000, direction = 0 }
