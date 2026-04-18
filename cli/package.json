@@ -1,14 +1,45 @@
 {
-  "name": "riptide-cli",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@riptide/cli",
+  "version": "0.6.0",
+  "description": "Riptide CLI — deterministic multi-agent simulator for Solana programs. Runs hundreds of adversarial personas against your code in LiteSVM and maps the knife edge before mainnet does.",
   "type": "module",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/riptidesim/riptide.git",
+    "directory": "cli"
+  },
+  "homepage": "https://github.com/riptidesim/riptide",
+  "bugs": {
+    "url": "https://github.com/riptidesim/riptide/issues"
+  },
+  "keywords": [
+    "solana",
+    "simulation",
+    "litesvm",
+    "agent-based",
+    "defi",
+    "riptide"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "riptide": "dist/src/index.js"
   },
+  "files": [
+    "dist/src",
+    "dist/src/**/*.d.ts",
+    "assets",
+    "scripts/install-binary.js",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json && node ./scripts/copy-personas.mjs",
-    "test": "npm run build && node --test dist/test/*.test.js"
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "postinstall": "node scripts/install-binary.js"
   },
   "engines": {
     "node": ">=20"

@@ -51,6 +51,13 @@ export interface ReplayOrchestratorInput {
 }
 
 const ENGINE_REL_PATH = path.join("target", "release", "riptide-engine");
+// npm-published layout: <package-root>/bin/riptide-engine, where
+// <package-root> = cli/. The postinstall script in
+// cli/scripts/install-binary.js drops the binary here, and the runtime
+// resolver checks this path before falling back to the monorepo-root
+// target/release layout. This is what lets `npm i -g @riptide/cli`
+// users call `riptide` without having built the engine themselves.
+const ENGINE_NPM_REL_PATH = path.join("bin", "riptide-engine");
 const STDERR_TAIL_BYTES = 8192;
 
 // Derive the monorepo root from *this file's* real location on disk. The
@@ -76,6 +83,34 @@ export function monorepoRootFromModule(): string | undefined {
     return root;
   } catch {
     cachedMonorepoRoot = "";
+    return undefined;
+  }
+}
+
+// npm-published installations land the compiled CLI at
+// <pkg-root>/dist/src/orchestrator/index.js. Four dirname steps up is
+// the package root, which is where the postinstall script (scripts/
+// install-binary.js) drops the binary at `bin/riptide-engine`.
+//
+// This is distinct from `monorepoRootFromModule` — in monorepo runs
+// the pkg root is `<monorepo>/cli`, but the engine binary lives at
+// `<monorepo>/target/release/riptide-engine`. In npm runs the engine
+// binary lives at `<pkg-root>/bin/riptide-engine`. Both paths are
+// checked.
+let cachedPkgRoot: string | undefined;
+export function cliPackageRootFromModule(): string | undefined {
+  if (cachedPkgRoot !== undefined) {
+    return cachedPkgRoot || undefined;
+  }
+  try {
+    const here = realpathSync(fileURLToPath(import.meta.url));
+    // here = <pkg-root>/dist/src/orchestrator/index.js
+    //        ^4^       ^3^ ^2^          ^1^
+    const root = path.resolve(here, "..", "..", "..", "..");
+    cachedPkgRoot = root;
+    return root;
+  } catch {
+    cachedPkgRoot = "";
     return undefined;
   }
 }
@@ -245,6 +280,15 @@ export async function resolveEngineBinary(
   // to cwd-relative layouts for historical compatibility (tests and
   // anyone running the raw built CLI from inside the monorepo).
   const relativeCandidates: string[] = [];
+
+  // npm-published layout: the postinstall script drops the prebuilt
+  // engine binary at <cli-pkg-root>/bin/riptide-engine. Check this
+  // first when we're running from inside an installed package.
+  const pkgRoot = cliPackageRootFromModule();
+  if (pkgRoot) {
+    relativeCandidates.push(path.resolve(pkgRoot, ENGINE_NPM_REL_PATH));
+  }
+
   if (moduleRoot) {
     relativeCandidates.push(path.resolve(moduleRoot, ENGINE_REL_PATH));
   }

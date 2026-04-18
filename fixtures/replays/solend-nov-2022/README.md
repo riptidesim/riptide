@@ -4,13 +4,13 @@ This directory ships the first historical replay artifact for Riptide's replay m
 
 ## Date correction
 
-The Sprint 6 task file inherited the name `solend-nov-2022`, but the public Solend whale-risk incident this replay is based on happened in **June 2022**:
+The directory name is `solend-nov-2022` for historical naming stability, but the public Solend whale-risk incident this replay is based on happened in **June 2022**:
 
 - June 19, 2022: Solend published `SLND1: Mitigate Risk From Whale`, disclosing a whale with 5.7M SOL deposited, 108M USDC/USDT borrowed, and a liquidation price of $22.30.
 - June 20, 2022: the emergency-powers proposal was reversed via `SLND2`.
 - June 27, 2022: public reporting described the whale as having reduced the risk after private coordination.
 
-The directory name stays aligned with the sprint-plan/task-id surface, but the fixture metadata and this README use the corrected June 2022 framing.
+The directory name stays aligned with its original tag for reproducibility, but the fixture metadata and this README use the corrected June 2022 framing.
 
 ## What this replay is
 
@@ -30,7 +30,7 @@ So this replay captures the economically relevant shape Riptide can represent ho
 - liquidations delayed until the discrete stress point,
 - bad debt realized once collateral can no longer cover the liquidator's repay plus bonus.
 
-Concretely, the fixture replays the same discrete mapping already established by the sealed Sprint 4 hero grid's `w25-s40` cell:
+Concretely, the fixture replays the same discrete mapping already established by the sealed hero grid's `w25-s40` cell:
 
 - 5 whale accounts,
 - each whale starts with `collateral = 100`, `debt = 6400`,

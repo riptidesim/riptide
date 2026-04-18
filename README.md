@@ -1,15 +1,51 @@
 # Riptide
 
-> Riptide runs your Solana program against hundreds of different users under any market scenario you want and tells you which combination breaks it — before mainnet does.
+> **Protocol-agnostic economic simulator for Solana programs.** Map the failure region of any Solana program with a multi-agent LiteSVM harness, declarative TOML adapters, and a six-layer stack of adapters, personas, scenarios, parameters, failure-mode taxonomy, and invariants.
 
-Riptide is a **multi-agent simulator for shared program state under time pressure**. It is not a DeFi simulator. DeFi is the first application because the failure modes are economically catastrophic and the need is loud — but the engine does not know or care about finance. Riptide is positioned against *any* Solana program, native or generic, with or without LLM-assisted adapter generation.
+![Riptide dashboard showing the Solend-fork whale × shock hero-grid cell (w25-s40)](docs/assets/dashboard-hero.png)
+
+## Install
+
+```bash
+docker run --rm ghcr.io/riptidesim/riptide:latest run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json
+```
+
+Also available via cargo and npm:
+
+```bash
+cargo install riptide-engine      # Rust engine binary
+npm install -g @riptide/cli       # Node CLI wrapper with prebuilt engine
+```
+
+> The cargo and npm publish paths are shipping alongside the Docker image; if the registry name above races ahead of the publish, use `./install.sh` from a fresh clone (Linux, Rust + Node already installed) and jump to the quickstart.
+
+## Quickstart
+
+```bash
+# 1. pull the image (or ./install.sh from a clone)
+docker pull ghcr.io/riptidesim/riptide:latest
+
+# 2. run the canonical Solend-fork hero-grid cell — maps bad debt
+#    across a 3×3 whale-share × price-shock grid, mainnet-adjacent cell w25-s40
+docker run --rm -v "$PWD/out:/out" ghcr.io/riptidesim/riptide:latest \
+  run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json \
+  --output /out
+
+# 3. same cell again with the dashboard — --serve holds the port open after the run
+docker run --rm -p 4173:4173 -v "$PWD/out:/out" ghcr.io/riptidesim/riptide:latest \
+  run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json \
+  --output /out --serve
+# → open http://localhost:4173
+```
+
+Three shipping protocol-class bundles are in the repo today: lending (`fixtures/adapters/solend-fork.toml`), perps (`fixtures/adapters/perps-fork.toml`), and AMM (`fixtures/adapters/amm-fork.toml`). Each bundle ships an adapter + a persona library + taxonomy hooks + invariants + a cold-discovery validation artifact.
 
 ## Two paths in
 
 > *"Two ways to use Riptide: write your own experiments if you already know what you're testing for, or let the `riptide-scenarios` skill propose a starter catalog based on your program. Both run deterministically against your real code and surface the knife edges. Zero setup inside Claude Code."*
 
 - **Path A — write your own experiments.** If you already know what you're testing for, author a run-config + policies + adapter TOML directly. The safe-vs-risky lending demo (`demo/run-demo.sh`) and the non-DeFi resource-grinder demo are the canonical examples.
-- **Path B — let the skill propose a starter catalog.** Install the `riptide-scenarios` Claude Code skill ([`skills/riptide-scenarios/SKILL.md`](skills/riptide-scenarios/SKILL.md)), invoke it inside any Claude Code session on your adapter + IDL, and it classifies plausible failure modes for your program and proposes 3–5 ranked starter experiments (whale concentration, shock cascades, utilization stress, persona-mix instability, oracle lag). The skill writes run-configs to `fixtures/scenarios/<adapter>/<experiment>/` and does **not** autorun — the dev picks what to run.
+- **Path B — let the skill propose a starter catalog.** Install the `riptide-scenarios` Claude Code skill ([`skills/riptide-scenarios/SKILL.md`](skills/riptide-scenarios/SKILL.md)), invoke it inside any Claude Code session on your adapter + IDL, and it classifies plausible failure modes for your program and proposes 3–5 ranked starter experiments (whale concentration, shock cascades, utilization stress, persona-mix instability, oracle lag, price manipulation, liquidation cascades, impermanent-loss spikes). The skill writes run-configs to `fixtures/scenarios/<adapter>/<experiment>/` and does **not** autorun — the dev picks what to run.
 
 **Outcome demo:** the Solend-fork case study — a 3×3 whale × shock parameter-boundary discovery run on the Solend fork — is the shipping example of what Path A looks like when it lands well. See [`docs/case-studies/solend-fork.md`](docs/case-studies/solend-fork.md) for the full report, the bad-debt table, and the load-bearing claim: *Riptide maps the danger region; Solend's actual parameters sit inside it.*
 
@@ -25,26 +61,34 @@ Riptide is a **multi-agent simulator for shared program state under time pressur
 > parameter space where the program's math lost headroom, and the dev is the
 > one who decides whether that point matters.
 
+## The six-layer stack
+
+Every Riptide bundle layers six declarative surfaces on top of your program:
+
+1. **Adapter** — one TOML file declaring your program, its actions, its observations, and its invariants.
+2. **Personas** — TOML files describing agent behavior with a trigger DSL (`player.gold < 100 → craft`).
+3. **Scenarios** — engine shocks (oracle trajectories, scheduled actions) mounted from declarative TOML presets.
+4. **Parameters** — run-config knobs that sweep over the dimensions that matter (whale share, shock magnitude, trade size, leverage, depositor concentration).
+5. **Failure-mode taxonomy** — categories like `whale_concentration`, `margin_cascade_from_oracle_shock`, `price_manipulation_via_swap`, `impermanent_loss_spike`. The `riptide-scenarios` skill matches your adapter's shape against this taxonomy.
+6. **Invariants** — machine-checkable properties (`no_bad_debt`, `reserve_a > 0`, `k == reserve_a * reserve_b` within tolerance) declared inline in the adapter. The engine exits non-zero when any invariant fires, so invariants double as CI gates.
+
+Three shipping bundles — **lending** (Solend fork), **perps** (perps-lite), and **AMM** (constant-product x*y=k) — exercise every layer end-to-end.
+
 ## What ships today
 
-**Three primitives, one abstraction.**
+**Three protocol-class bundles.**
 
-1. **`LendingPrimitive`** — a trait with five actions (deposit, borrow, repay, withdraw, liquidate) and two observations (health factor, pool state). The forked Solend SPL-Token-Lending pool is its first impl and drives the safe-vs-risky demo.
-2. **`GenericPrimitive`** — the ceiling-remover. You describe your protocol's actions, observations, and personas inline in a ~30-line TOML adapter file, point the engine at your compiled `.so` and your Anchor IDL, and Riptide runs your program with no custom Rust needed. The shipping non-DeFi demo (`programs/resource_grinder/`) proves the path is real.
-3. **`AmmPrimitive`** — a sibling trait sketch compiled alongside `LendingPrimitive`. It is a compile-time pressure-test of the abstraction, not a runnable impl. The two traits fit the same shape with zero reshape of the base — that is a meaningful validation artifact for the pivot.
+- **Lending** — `fixtures/adapters/solend-fork.toml` drives a forked Solend SPL-Token-Lending pool through `deposit / borrow / repay / withdraw / liquidate`, plus a 3×3 whale × shock hero grid at `fixtures/scenarios/solend-fork/hero-grid/` with bad-debt surfaces on 4 of 9 cells and byte-stable determinism. Mainnet cell `w25-s40` matches the Solend June 2022 incident region.
+- **Perps** — `fixtures/adapters/perps-fork.toml` drives a minimal perps-lite program (`open_position`, `close_position`, `liquidate_position`, etc.) with 4 personas (leveraged long/short, delta-neutral farmer, liquidator), margin-cascade + socialized-loss invariants, and oracle-shock scenarios.
+- **AMM** — `fixtures/adapters/amm-fork.toml` drives a constant-product x*y=k pool (`swap`, `add_liquidity`, `remove_liquidity`) with 5 personas (LP provider, arbitrageur, sandwich attacker, swapper, rug puller), pool-integrity invariants, and a 2D `trade-size × volume` grid template.
 
-**Two demo fixtures ship in this repo.**
-
-- **Solend-fork lending (safe vs risky).** `fixtures/adapters/solend-fork.toml` drives the safe-vs-risky demo end-to-end via the adapter, not via hardcoded harness wiring. Run it with `bash demo/run-demo.sh`.
-- **Resource-grinder (non-DeFi generic demo).** `fixtures/adapters/resource-grinder.toml` + `fixtures/generic-demo.run.json` + `fixtures/generic-demo.policies.json` run the generic primitive against a standalone SBF program at `programs/resource_grinder/`. Byte-stable under `cargo test -p riptide-engine --test t15_e2e_determinism`.
+**Historical replay.** `riptide replay <replay-config.json>` points the engine at a real on-chain tx sequence + oracle trajectory and replays it byte-for-byte in LiteSVM. The shipping replay — `fixtures/replays/solend-nov-2022/` — reproduces the Solend Nov 2022 whale-risk incident and asserts a declared `no_bad_debt` invariant fires at the cascade tick.
 
 **Adapter generation via Claude Code skill.** Install the `riptide-adapt` Claude Code skill. Invoke it inside any Claude Code session on your program's IDL — the skill reads your program, generates an adapter TOML using your session's existing LLM, writes it, and runs a smoke test against your program. Zero endpoint configuration. Zero API keys. Zero additional LLM cost. The session's model is the generator.
 
 `riptide adapt` is the smoke-test harness the skill invokes. It validates a generated adapter by booting the local engine with it and confirming one write-action produces a state delta. It does not call any external service; it runs entirely against the local LiteSVM engine.
 
-## The generic primitive, in one paragraph
-
-The generic primitive is the feature that removes the "DeFi-only" ceiling. Instead of binding to a pre-built primitive (lending, AMM, perps, staking, CLOB), the developer describes their protocol's actions, observations, and personas inline in a TOML adapter file and points Riptide at the compiled `.so` and the Anchor IDL. Riptide reads the IDL to build valid transactions, reads the TOML to drive the tick loop, and runs the program with no custom Rust needed. The generic path supports a limited trigger DSL (single comparison op + constant) today — enough to express `player.gold < 100 → craft` and similar persona rules — not a general scripting language. It is the escape hatch that makes "protocol-agnostic" defensible even with a primitive library of size one.
+**Web dashboard.** `riptide run --serve` (or `riptide replay --serve`) serves a single-page HTML dashboard on `localhost:4173` after the simulation completes, rendering run metadata, summary metrics, a timeseries chart, an event stream filterable by action/outcome/agent, and invariant firings highlighted in red. Screenshot above is the real artifact from the Solend-fork `w25-s40` cell.
 
 ## Runtime and speed
 
@@ -54,61 +98,64 @@ The engine runs on **LiteSVM** (in-process SVM). For the same `100 agents × 180
 
 ## Determinism
 
-Same seed = same result, byte-for-byte, across both the lending fixture and the generic fixture. The `t15_e2e_determinism` integration test enforces this on every run.
+Same seed = same result, byte-for-byte, across the lending, perps, AMM, and generic fixtures. The `t15_e2e_determinism` integration test enforces this on every run, and replay mode extends the same guarantee to historical trajectories.
 
-## Install
+## Build from source
 
 ```bash
+# One command, fresh clone on Linux (requires Rust + Node already installed)
 ./install.sh
 ```
 
-From a fresh clone on Linux with Rust + Node already installed, this builds the engine, the on-chain programs, and the CLI; symlinks `riptide` into `~/.local/bin/`; and smoke-tests the lending demo.
-
-## Build
+Or piece-by-piece:
 
 ```bash
 # Engine
 cargo build --release -p riptide-engine
 
-# Lending program
+# Shipped on-chain programs
 cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
-
-# Generic demo program
+cargo build-sbf --manifest-path programs/perps-fork/Cargo.toml
+cargo build-sbf --manifest-path programs/amm-fork/Cargo.toml
 cargo build-sbf --manifest-path programs/resource_grinder/Cargo.toml
 
 # CLI (TypeScript wrapper)
-(cd cli && npm run build)
+(cd cli && npm install && npm run build)
 ```
 
-## Run the lending demo
+## Run the demos
 
 ```bash
+# Lending — safe vs risky side-by-side
 bash demo/run-demo.sh
-```
 
-Prints a side-by-side safe-vs-risky headline-metric comparison. See `demo/README.md` for expected output and per-persona breakdown.
-
-## Run the generic (non-DeFi) demo
-
-```bash
+# Generic (non-DeFi) — resource-grinder toy SBF program
 cargo run --release -p riptide-engine -- \
   --config fixtures/generic-demo.run.json \
   --policies fixtures/generic-demo.policies.json \
   --adapter fixtures/adapters/resource-grinder.toml \
   --output /tmp/riptide-generic-demo.json
+
+# Solend Nov 2022 historical replay
+riptide replay fixtures/replays/solend-nov-2022/replay-config.json --serve
 ```
 
 The `resource-grinder` program has no lending semantics at all — it is a toy "grind for resources, trade at a market" SBF program used to prove the generic path end-to-end. If you can run this, you can adapt Riptide to your protocol.
 
 ## Repo layout
 
-- `engine/` — Rust simulation engine. `src/primitive/` holds the `Primitive` base trait, `LendingPrimitive`, `AmmPrimitive`, and the `GenericPrimitive` harness.
-- `cli/` — TypeScript CLI wrapper. Handles persona compilation, adapter pre-validation (Zod mirror of the serde schema), orchestration, and the `riptide adapt` smoke-test harness.
-- `programs/` — standalone SBF crates (`lending_pool/`, `resource_grinder/`) built out of the root workspace so the pinned Solana/Borsh build environment stays intact.
-- `fixtures/` — run configs, policies, adapter TOMLs, and the oracle golden-bytes SSOT.
-- `skills/riptide-adapt/` — self-contained Claude Code skill for adapter generation. Reads its own `prompts/` directory and uses the session's LLM; invokes `riptide adapt` for smoke verification.
+- `engine/` — Rust simulation engine. `src/primitive/` holds the `Primitive` base trait, `LendingPrimitive`, `AmmPrimitive`, and the `GenericPrimitive` harness. `src/replay/` is the historical-replay module.
+- `cli/` — TypeScript CLI wrapper. Handles persona compilation, adapter pre-validation (Zod mirror of the serde schema), orchestration, the `riptide adapt` smoke-test harness, the dashboard server (`src/serve/`), and the narrative-report skill invocation.
+- `programs/` — standalone SBF crates (`lending_pool/`, `perps-fork/`, `amm-fork/`, `resource_grinder/`, `admin_mock_oracle/`) built out of the root workspace so the pinned Solana/Borsh build environment stays intact.
+- `fixtures/` — run configs, policies, adapter TOMLs, persona TOMLs, scenario presets, historical replays, and the oracle golden-bytes SSOT.
+- `skills/` — self-contained Claude Code skills: `riptide-adapt` (adapter generation), `riptide-scenarios` (experiment proposal), `riptide-narrative` (rich post-run report).
 - `demo/` — safe-vs-risky lending demo shell script and configs.
+- `docs/` — case studies, assets, and anything else a reader lands on.
 
-## Status
+## License
 
-The protocol-agnostic architecture (lending + generic primitive + adapter TOML + AMM trait sketch) ships today, alongside the `riptide-adapt` Claude Code skill for LLM-assisted adapter generation. `riptide adapt` is the smoke-test harness the Claude Code skill invokes; the skill itself is the sole adapter-generation surface, using the session's own LLM. No standalone HTTP path, no BYOK endpoint configuration, no external service dependency.
+MIT OR Apache-2.0 at your option.
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to add a new adapter, persona, or failure-mode taxonomy category.

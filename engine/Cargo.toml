@@ -1,7 +1,17 @@
 [package]
 name = "riptide-engine"
-version = "0.1.0"
+version = "0.6.0"
 edition = "2021"
+description = "Deterministic multi-agent simulator for Solana programs: run hundreds of adversarial personas against your code in LiteSVM and map the knife edge before mainnet does."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/riptidesim/riptide"
+documentation = "https://github.com/riptidesim/riptide"
+homepage = "https://github.com/riptidesim/riptide"
+keywords = ["solana", "simulation", "litesvm", "agent-based", "defi"]
+categories = ["simulation", "development-tools::testing"]
+readme = "README.md"
+# Publish allow-list — crates.io only (not a private registry).
+publish = ["crates-io"]
 
 [dependencies]
 anyhow = "1.0.102"

@@ -1,0 +1,45 @@
+# Build context hygiene — keep the Docker build context small.
+#
+# Everything we actually need is source; the .so artifacts and
+# node_modules are rebuilt inside the image. The host `target/`
+# alone is 21GB — leaving it in the context would blow out the
+# build, and worse, shadow the clean in-container build.
+
+# Rust / Cargo build artifacts (rebuilt in the build stage)
+target/
+programs/*/target/
+**/target/
+
+# Node build artifacts (rebuilt in the build stage)
+**/node_modules/
+cli/dist/
+
+# Local ledger / runtime droppings
+test-ledger/
+**/test-ledger/
+demo/outputs/
+
+# VCS + editor noise
+.git/
+.gitignore
+.gitattributes
+.github/
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Docker files themselves don't need to be in the context
+Dockerfile
+.dockerignore
+
+# Local env / secrets (defensive — not expected to exist at the repo root)
+.env
+.env.*
+*.pem
+*.key
+
+# Logs + tmp dirs that may accumulate during local dev
+*.log
+/tmp-*

@@ -38,10 +38,10 @@ the replay needs configuration or invariants that the shipped
 adapter under `fixtures/adapters/` does not carry — for example,
 the Solend whale-risk replay under `solend-nov-2022/` ships a
 replay-scoped `adapter.toml` with a `no_bad_debt` invariant so the
-T05 credibility gate can assert the cascade fires on a
+credibility gate can assert the cascade fires on a
 machine-checkable invariant event, without mutating the shipped
-`fixtures/adapters/solend-fork.toml` and breaking Sprint 4
-hero-grid byte-stability. Replays that do not need custom
+`fixtures/adapters/solend-fork.toml` and breaking the hero-grid
+byte-stability. Replays that do not need custom
 configuration can point the replay-config JSON directly at a
 shipped adapter and skip the sibling `adapter.toml`.
 
@@ -116,4 +116,4 @@ This keeps replay fixtures declarative while avoiding raw account snapshot impor
 
 ## `expected-summary.json`
 
-Optional. Stored after the first successful replay and used as the regression baseline for replay integration tests. The Phase 1 fixtures capture the exact bytes the engine produced so replay determinism is CI-checkable.
+Optional. Stored after the first successful replay and used as the regression baseline for replay integration tests. The fixtures capture the exact bytes the engine produced so replay determinism is CI-checkable.

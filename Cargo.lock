@@ -3355,7 +3355,7 @@ dependencies = [
 
 [[package]]
 name = "riptide-engine"
-version = "0.1.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "borsh",
@@ -3815,9 +3815,9 @@ dependencies = [
 
 [[package]]
 name = "solana-account"
-version = "4.2.0"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bbea62563f5143b29fff5aa6af57426bc1beb77c6416b5c1c8e7d1266272c21"
+checksum = "87c1b95bd432efb92837bc38001365e5acb5c0175b199bc447b08a8c320ecf6c"
 dependencies = [
  "bincode",
  "serde",
@@ -5282,7 +5282,7 @@ dependencies = [
  "bincode",
  "bs58",
  "serde",
- "solana-account 4.2.0",
+ "solana-account 4.3.0",
  "solana-epoch-info",
  "solana-epoch-rewards-hasher",
  "solana-fee-structure",
