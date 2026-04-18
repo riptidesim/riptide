@@ -281,17 +281,28 @@ export async function resolveEngineBinary(
   // anyone running the raw built CLI from inside the monorepo).
   const relativeCandidates: string[] = [];
 
+  // Monorepo layout first — this is a provenance guarantee for anyone
+  // working in a source checkout. If a contributor has `cargo build
+  // --release -p riptide-engine` output sitting at
+  // `<repo>/target/release/riptide-engine`, we MUST prefer that over an
+  // `<cli-pkg-root>/bin/riptide-engine` stub (which a future npm
+  // postinstall or a malicious/mistaken drop could plant in `cli/bin/`).
+  // Source-checkout testing always resolves to the locally-built engine.
+  if (moduleRoot) {
+    relativeCandidates.push(path.resolve(moduleRoot, ENGINE_REL_PATH));
+  }
+
   // npm-published layout: the postinstall script drops the prebuilt
-  // engine binary at <cli-pkg-root>/bin/riptide-engine. Check this
-  // first when we're running from inside an installed package.
+  // engine binary at <cli-pkg-root>/bin/riptide-engine. Checked AFTER
+  // the monorepo candidate so source checkouts keep their provenance.
+  // End-users installing via `npm install -g @riptide/cli` have no
+  // monorepo target/release/ to shadow this, so they still resolve
+  // correctly.
   const pkgRoot = cliPackageRootFromModule();
   if (pkgRoot) {
     relativeCandidates.push(path.resolve(pkgRoot, ENGINE_NPM_REL_PATH));
   }
 
-  if (moduleRoot) {
-    relativeCandidates.push(path.resolve(moduleRoot, ENGINE_REL_PATH));
-  }
   relativeCandidates.push(
     path.resolve(cwd, ENGINE_REL_PATH),
     path.resolve(cwd, "..", ENGINE_REL_PATH),

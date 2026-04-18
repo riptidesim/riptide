@@ -52,19 +52,37 @@ RUN apt-get update \
         python3 jq \
  && rm -rf /var/lib/apt/lists/*
 
-# --- Node 24.11.1 + npm 11.6.2 via NodeSource --------------------------------
-# NodeSource ships the 24.x line; we then pin npm to 11.6.2 exactly.
-RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
- && apt-get install -y --no-install-recommends nodejs \
+# --- Node 24.11.1 + npm 11.6.2 via sha256-pinned tarball ---------------------
+# Download the official Node tarball from nodejs.org directly instead of
+# piping NodeSource's installer to bash (which pulls a live script + apt
+# key that the repo has no diff-visibility into, and which only pins the
+# major line "24.x" rather than the exact 24.11.1 the TOOLCHAIN.md
+# contract claims). NODE_SHA256 is the tarball hash from the published
+# SHASUMS256.txt for v24.11.1 — if the upstream file changes, the build
+# fails rather than silently shipping drift.
+ENV NODE_VERSION=24.11.1 \
+    NODE_SHA256=60e3b0a8500819514aca603487c254298cd776de0698d3cd08f11dba5b8289a8
+RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
+      -o /tmp/node.tar.xz \
+ && echo "${NODE_SHA256}  /tmp/node.tar.xz" | sha256sum -c - \
+ && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
+ && rm /tmp/node.tar.xz \
  && npm install -g npm@11.6.2 \
  && node --version \
- && npm --version \
- && rm -rf /var/lib/apt/lists/*
+ && npm --version
 
-# --- Solana CLI 3.0.13 via Anza installer ------------------------------------
-# This lands `solana`, `cargo-build-sbf`, `platform-tools v1.51`, and the
-# bundled SBF rustc 1.84.1 under ~/.local/share/solana.
-RUN sh -c "$(curl -sSfL https://release.anza.xyz/v3.0.13/install)"
+# --- Solana CLI 3.0.13 via sha256-pinned Anza installer ----------------------
+# Download the Anza installer script to disk, sha256-verify against the
+# value captured at 2026-04-18 for v3.0.13, then execute it. The installer
+# in turn lands `solana`, `cargo-build-sbf`, `platform-tools v1.51`, and
+# the bundled SBF rustc 1.84.1 under ~/.local/share/solana. The downstream
+# artifacts that installer fetches are not pinned here (Sprint 7 follow-up
+# item), but the installer script itself is no longer a live-fetch-and-bash.
+ENV ANZA_INSTALL_SHA256=dfab59a5773be04a284501f276a58a7856e2f42ae6ea68564140d0b3a56ce8c6
+RUN curl -fsSL https://release.anza.xyz/v3.0.13/install -o /tmp/anza-install.sh \
+ && echo "${ANZA_INSTALL_SHA256}  /tmp/anza-install.sh" | sha256sum -c - \
+ && sh /tmp/anza-install.sh \
+ && rm /tmp/anza-install.sh
 
 # Put the Solana toolchain on PATH for every subsequent layer + the
 # resulting shell. `$HOME/.local/share/solana/install/active_release/bin`
@@ -181,29 +199,26 @@ RUN ln -s /src/target/release/riptide-engine /usr/local/bin/riptide-engine
 # why that lookup lands correctly without env-var hints.
 COPY --from=build /src/cli /src/cli
 
-# --- Shipped Solana programs (.so artifacts only — not full cargo trees) -----
-# Only the `target/deploy/*.so` files are load-bearing. The source
-# trees, Cargo.lock, vendored crates are all build-time concerns.
+# --- Shipped Solana programs (.so artifacts only — NEVER keypairs) -----------
+# Only the `target/deploy/*.so` files are load-bearing for the runtime
+# image. The matching `*-keypair.json` files that `cargo build-sbf`
+# generates are private key material consumed only by the validator-parity
+# path (`engine/src/harness/setup.rs::deploy_program`, which shells out
+# to the real `solana` CLI for a live on-chain deploy). The LiteSVM
+# in-process harness — which is the only path that runs inside this
+# container — never reads them, and the runtime stage ships no `solana`
+# CLI. Shipping them would be unnecessary secret disclosure in a public
+# distribution artifact, so the copies are explicitly omitted here.
 COPY --from=build /src/programs/lending_pool/target/deploy/lending_pool.so \
                   /src/programs/lending_pool/target/deploy/lending_pool.so
-COPY --from=build /src/programs/lending_pool/target/deploy/lending_pool-keypair.json \
-                  /src/programs/lending_pool/target/deploy/lending_pool-keypair.json
 COPY --from=build /src/programs/resource_grinder/target/deploy/resource_grinder.so \
                   /src/programs/resource_grinder/target/deploy/resource_grinder.so
-COPY --from=build /src/programs/resource_grinder/target/deploy/resource_grinder-keypair.json \
-                  /src/programs/resource_grinder/target/deploy/resource_grinder-keypair.json
 COPY --from=build /src/programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so \
                   /src/programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so
-COPY --from=build /src/programs/admin_mock_oracle/target/deploy/admin_mock_oracle-keypair.json \
-                  /src/programs/admin_mock_oracle/target/deploy/admin_mock_oracle-keypair.json
 COPY --from=build /src/programs/perps-fork/target/deploy/perps_fork.so \
                   /src/programs/perps-fork/target/deploy/perps_fork.so
-COPY --from=build /src/programs/perps-fork/target/deploy/perps_fork-keypair.json \
-                  /src/programs/perps-fork/target/deploy/perps_fork-keypair.json
 COPY --from=build /src/programs/amm-fork/target/deploy/amm_fork.so \
                   /src/programs/amm-fork/target/deploy/amm_fork.so
-COPY --from=build /src/programs/amm-fork/target/deploy/amm_fork-keypair.json \
-                  /src/programs/amm-fork/target/deploy/amm_fork-keypair.json
 
 # --- Fixtures + demo + scripts -----------------------------------------------
 # Fixtures are read from disk by every engine invocation; demo/configs
