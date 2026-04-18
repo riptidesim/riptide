@@ -31,7 +31,12 @@
 # ---------------------------------------------------------------------------
 # Build stage — heavy toolchains. Discarded at the end.
 # ---------------------------------------------------------------------------
-FROM rust:1.91.1-bookworm AS build
+# Base pinned via @sha256: digest instead of the mutable `rust:1.91.1-bookworm`
+# tag, so the repo has full diff-visibility into which manifest the build
+# actually resolves. The tag is kept for human readability; Docker uses the
+# digest for resolution. Captured 2026-04-18 via `docker buildx imagetools
+# inspect rust:1.91.1-bookworm`.
+FROM rust:1.91.1-bookworm@sha256:c1e5f19e773b7878c3f7a805dd00a495e747acbdc76fb2337a4ebf0418896b33 AS build
 
 # Avoid interactive apt prompts and cap apt's cache footprint.
 ENV DEBIAN_FRONTEND=noninteractive
@@ -152,7 +157,10 @@ RUN cargo build-sbf --manifest-path programs/amm-fork/Cargo.toml \
 # built against without reinstalling apt + NodeSource in the runtime
 # layer. It's ~200MB base which is fine — the multi-GB weight of this
 # image comes from the cargo .so artifacts the engine needs, not Node.
-FROM node:24.11.1-bookworm-slim AS runtime
+# Pinned via @sha256: digest for the same supply-chain reason as the
+# build stage base. Captured 2026-04-18 via `docker buildx imagetools
+# inspect node:24.11.1-bookworm-slim`.
+FROM node:24.11.1-bookworm-slim@sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57 AS runtime
 
 # Minimal runtime OS deps:
 #   - ca-certificates: TLS for outbound tooling (rare, but keeps
