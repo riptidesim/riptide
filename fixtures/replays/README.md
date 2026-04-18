@@ -1,9 +1,9 @@
 # Replay Fixture Format
 
-The user-facing CLI takes a replay-config JSON:
+The user-facing CLI takes a replay-config JSON (shipped examples are named `config.json`, but any path works):
 
 ```text
-riptide replay <replay-config.json>
+riptide replay <config.json>
 ```
 
 The config JSON is a thin wrapper that points at the adapter + the

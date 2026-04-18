@@ -35,7 +35,7 @@ riptide adapt --adapter path/to/adapter.toml
 riptide scenarios --validate path/to/scenario-dir
 
 # Replay a real on-chain trajectory tick-by-tick
-riptide replay path/to/replay-config.json
+riptide replay path/to/config.json
 ```
 
 See the [main Riptide repo](https://github.com/riptidesim/riptide) for the full tour, the Solend-fork case study, and the two Claude Code skills (`riptide-adapt`, `riptide-scenarios`).

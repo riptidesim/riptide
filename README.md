@@ -85,7 +85,7 @@ Three shipping bundles — **lending** (Solend fork), **perps** (perps-lite), an
 - **Perps** — `fixtures/adapters/perps-fork.toml` drives a minimal perps-lite program (`open_position`, `close_position`, `liquidate_position`, etc.) with 4 personas (leveraged long/short, delta-neutral farmer, liquidator), margin-cascade + socialized-loss invariants, and oracle-shock scenarios.
 - **AMM** — `fixtures/adapters/amm-fork.toml` drives a constant-product x*y=k pool (`swap`, `add_liquidity`, `remove_liquidity`) with 5 personas (LP provider, arbitrageur, sandwich attacker, swapper, rug puller), pool-integrity invariants, and a 2D `trade-size × volume` grid template.
 
-**Historical replay.** `riptide replay <replay-config.json>` points the engine at a real on-chain tx sequence + oracle trajectory and replays it byte-for-byte in LiteSVM. The shipping replay — `fixtures/replays/solend-nov-2022/` — reproduces the Solend Nov 2022 whale-risk incident and asserts a declared `no_bad_debt` invariant fires at the cascade tick.
+**Historical replay.** `riptide replay <config.json>` points the engine at a real on-chain tx sequence + oracle trajectory and replays it byte-for-byte in LiteSVM. The shipping replay — `fixtures/replays/solend-nov-2022/` — reproduces the Solend June 2022 whale-risk incident (directory name preserves the historical tag) and asserts a declared `no_bad_debt` invariant fires at the cascade tick.
 
 **Adapter generation via Claude Code skill.** Install the `riptide-adapt` Claude Code skill. Invoke it inside any Claude Code session on your program's IDL — the skill reads your program, generates an adapter TOML using your session's existing LLM, writes it, and runs a smoke test against your program. Zero endpoint configuration. Zero API keys. Zero additional LLM cost. The session's model is the generator.
 
@@ -140,7 +140,7 @@ cargo run --release -p riptide-engine -- \
   --output /tmp/riptide-generic-demo.json
 
 # Solend Nov 2022 historical replay
-riptide replay fixtures/replays/solend-nov-2022/replay-config.json --serve
+riptide replay fixtures/replays/solend-nov-2022/config.json --serve
 ```
 
 The `resource-grinder` program has no lending semantics at all — it is a toy "grind for resources, trade at a market" SBF program used to prove the generic path end-to-end. If you can run this, you can adapt Riptide to your protocol.
