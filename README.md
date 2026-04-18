@@ -6,35 +6,38 @@
 
 ## Install
 
-```bash
-docker run --rm ghcr.io/riptidesim/riptide:latest run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json
-```
-
-Also available via cargo and npm:
+Build from source — one command from a fresh clone (Linux, Rust + Node + `cargo-build-sbf` on `$PATH`):
 
 ```bash
-cargo install riptide-engine      # Rust engine binary
-npm install -g @riptide/cli       # Node CLI wrapper with prebuilt engine
+git clone https://github.com/riptidesim/riptide
+cd riptide
+./install.sh
 ```
 
-> The cargo and npm publish paths are shipping alongside the Docker image; if the registry name above races ahead of the publish, use `./install.sh` from a fresh clone (Linux, Rust + Node already installed) and jump to the quickstart.
+That compiles the engine + CLI + five on-chain SBF programs and puts `riptide` on your `$PATH`.
+
+Prefer a container? The repo ships a multi-stage `Dockerfile` pinned to the full [`TOOLCHAIN.md`](TOOLCHAIN.md) stack:
+
+```bash
+docker build -t riptide .   # ~280 MB image, ~15 min cold build
+docker run --rm riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json
+```
+
+> **Public distribution (GHCR `ghcr.io/riptidesim/riptide`, crates.io `riptide-engine`, npm `@riptide/cli`) is wired up and dry-run-verified in the repo but has not been published yet — it lands in an upcoming release after one more cold-eyes validation pass.** Until then, use the build-from-source or local-Docker paths above.
 
 ## Quickstart
 
 ```bash
-# 1. pull the image (or ./install.sh from a clone)
-docker pull ghcr.io/riptidesim/riptide:latest
+# 1. build from a fresh clone
+./install.sh            # or: docker build -t riptide .
 
-# 2. run the canonical Solend-fork hero-grid cell — maps bad debt
-#    across a 3×3 whale-share × price-shock grid, mainnet-adjacent cell w25-s40
-docker run --rm -v "$PWD/out:/out" ghcr.io/riptidesim/riptide:latest \
-  run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json \
-  --output /out
+# 2. run the canonical Solend-fork hero-grid cell —
+#    maps bad debt across a 3×3 whale-share × price-shock grid;
+#    the w25-s40 cell is mainnet-adjacent
+riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json
 
 # 3. same cell again with the dashboard — --serve holds the port open after the run
-docker run --rm -p 4173:4173 -v "$PWD/out:/out" ghcr.io/riptidesim/riptide:latest \
-  run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json \
-  --output /out --serve
+riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json --serve
 # → open http://localhost:4173
 ```
 

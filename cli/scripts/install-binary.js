@@ -30,6 +30,11 @@ const VERSION = PKG_JSON.version;
 // Release base URL. Default points at the public GitHub repo. The env
 // var lets us retarget at a pre-release mirror, a private org, or a
 // local file:// URL for testing before a release is cut.
+//
+// Pre-publish era: the v0.6.0 GitHub Release has NOT been cut yet — it
+// ships in the first public distribution pass. Running this script
+// against the default URL during the pre-publish window 404s; the error
+// path below guides the user at the build-from-source flow.
 const DEFAULT_BASE = `https://github.com/riptidesim/riptide/releases/download/v${VERSION}`;
 const BASE_URL = process.env.RIPTIDE_RELEASE_BASE_URL || DEFAULT_BASE;
 
@@ -117,9 +122,9 @@ async function main() {
     fail(
       `no prebuilt riptide-engine binary for platform "${key}". ` +
       `Supported: ${Object.keys(TARGET_TRIPLES).join(', ')}. ` +
-      `Workarounds: (a) install via Docker (docker run ghcr.io/riptidesim/riptide), ` +
-      `(b) build from source (cargo install riptide-engine), ` +
-      `(c) open an issue at https://github.com/riptidesim/riptide/issues.`
+      `Build from source: clone https://github.com/riptidesim/riptide and run ./install.sh, ` +
+      `or build the repo's Dockerfile locally (docker build -t riptide .). ` +
+      `Track platform support at https://github.com/riptidesim/riptide/issues.`
     );
   }
 
@@ -144,8 +149,9 @@ async function main() {
     if (existsSync(destPath)) { try { unlinkSync(destPath); } catch {} }
     fail(
       `failed to download ${url}: ${e.message}. ` +
-      `If the release is not yet published, set RIPTIDE_RELEASE_BASE_URL ` +
-      `to a pre-release mirror, or install via cargo (cargo install riptide-engine).`
+      `The v${VERSION} release may not be cut yet — during the pre-publish window, ` +
+      `build from source: clone https://github.com/riptidesim/riptide and run ./install.sh. ` +
+      `For pre-release mirrors, set RIPTIDE_RELEASE_BASE_URL to an alternate endpoint.`
     );
   }
 
