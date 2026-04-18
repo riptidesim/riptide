@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "name": "solend-june-2022-whale-risk",
+    "description": "Abstracted June 2022 Solend whale-risk incident reproduction using the hero-grid w25-s40 discrete mapping.",
+    "source": "https://blog.save.finance/slnd1-mitigate-risk-from-whale-1504285ab4d2"
+  },
+  "ticks": [
+    {
+      "tick": 4,
+      "instructions": [
+        { "name": "liquidate", "agent": "otc-liquidator-0", "args": { "amount": 6400, "target": "whale-0" } },
+        { "name": "liquidate", "agent": "otc-liquidator-1", "args": { "amount": 6400, "target": "whale-1" } },
+        { "name": "liquidate", "agent": "otc-liquidator-2", "args": { "amount": 6400, "target": "whale-2" } },
+        { "name": "liquidate", "agent": "otc-liquidator-3", "args": { "amount": 6400, "target": "whale-3" } },
+        { "name": "liquidate", "agent": "otc-liquidator-4", "args": { "amount": 6400, "target": "whale-4" } }
+      ]
+    }
+  ]
+}

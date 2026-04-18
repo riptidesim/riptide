@@ -218,6 +218,41 @@ pub trait Primitive {
         self.execute_action(agent_idx, action, amount, target_idx)
     }
 
+    /// Replay-mode action dispatch. Default contract:
+    /// - `args.amount` is treated as the runtime amount when present
+    /// - every other arg is ignored by the default implementation
+    /// - primitives with richer inline-arg semantics (generic
+    ///   adapter-driven programs) override this method
+    fn execute_replay_action(
+        &mut self,
+        agent_idx: usize,
+        action: &str,
+        args: &BTreeMap<String, crate::adapter::ArgLiteral>,
+        target_idx: Option<usize>,
+    ) -> Result<(), PrimitiveError> {
+        let amount = match args.get("amount") {
+            Some(crate::adapter::ArgLiteral::Int(value)) if *value >= 0 => *value as u64,
+            Some(crate::adapter::ArgLiteral::Int(value)) => {
+                return Err(PrimitiveError::ProgramRejected(format!(
+                    "replay action `{action}` expected non-negative args.amount, got {value}"
+                )));
+            }
+            Some(other) => {
+                return Err(PrimitiveError::ProgramRejected(format!(
+                    "replay action `{action}` expected integer args.amount, got `{other:?}`"
+                )));
+            }
+            None => 0,
+        };
+        self.execute_action_with_persona_args(
+            agent_idx,
+            action,
+            amount,
+            target_idx,
+            &BTreeMap::new(),
+        )
+    }
+
     /// Read adapter-defined observations for `agent_idx`. Lending
     /// impls keep the default empty map; generic impls return the
     /// decoded state of every account bound in the adapter's

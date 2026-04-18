@@ -113,6 +113,25 @@ export const AgentFinalStateSchema = z.object({
   liquidated_at_tick: z.number().int().nonnegative().optional()
 });
 
+// Sprint 6 T03 invariant rollup row. The engine's
+// `build_invariants_summary` emits one object per declared adapter
+// invariant, in declaration order, with `firings` counting how many
+// ticks the invariant was violated during the run. Mirrors the shape
+// pinned in `engine/src/sim/run.rs :: build_invariants_summary`.
+export const InvariantFiredRowSchema = z.object({
+  name: z.string(),
+  field: z.string(),
+  op: z.string(),
+  // `value` is JSON-number-or-null — the engine emits `Value::Null`
+  // when the invariant's threshold cannot be cleanly represented as a
+  // finite f64 (NaN/Infinity collapse to null via serde_json).
+  value: z.union([z.number(), z.null()]),
+  firings: z
+    .number()
+    .int()
+    .nonnegative()
+});
+
 // `SimulationSummary` is a primitive-agnostic key/value map. Lending
 // runs emit `final_tvl`/`final_utilization`/`total_liquidations`/
 // `total_bad_debt`/`largest_single_tick_drawdown`; generic runs emit
@@ -122,10 +141,22 @@ export const AgentFinalStateSchema = z.object({
 // lifecycle counters (`agents_active`, `agents_liquidated`,
 // `agents_depleted`) are required and must be nonnegative integers so
 // malformed payloads can't slip through the CLI gate.
+//
+// Array-valued keys are allowed for the Sprint 6 T03 invariant
+// rollup (`summary.invariants_fired`). Each element of such an array
+// must match `InvariantFiredRowSchema`; extending the value union
+// with a plain `z.array(z.unknown())` would let any shape through
+// and defeat the schema gate.
 export const SimulationSummarySchema = z
   .record(
     z.string(),
-    z.union([z.number(), z.boolean(), z.string(), z.null()])
+    z.union([
+      z.number(),
+      z.boolean(),
+      z.string(),
+      z.null(),
+      z.array(InvariantFiredRowSchema)
+    ])
   )
   .refine((summary) => isNonNegativeInteger(summary.agents_active), {
     message: "summary `agents_active` must be a nonnegative integer"
@@ -157,6 +188,7 @@ export type SimEvent = z.infer<typeof SimEventSchema>;
 export type TickSnapshot = z.infer<typeof TickSnapshotSchema>;
 export type AgentFinalState = z.infer<typeof AgentFinalStateSchema>;
 export type SimulationResult = z.infer<typeof SimulationResultSchema>;
+export type InvariantFiredRow = z.infer<typeof InvariantFiredRowSchema>;
 
 export function validatePolicy(input: unknown): Policy {
   return PolicySchema.parse(input);

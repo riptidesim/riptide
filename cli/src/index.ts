@@ -3,6 +3,7 @@
 import { Command } from "commander";
 
 import { createAdaptCommand } from "./commands/adapt.js";
+import { createReplayCommand } from "./commands/replay.js";
 import { createRunCommand } from "./commands/run.js";
 import { createScenariosCommand } from "./commands/scenarios.js";
 import { createSimulateCommand } from "./commands/simulate.js";
@@ -16,6 +17,7 @@ program
 
 program.addCommand(createSimulateCommand());
 program.addCommand(createRunCommand());
+program.addCommand(createReplayCommand());
 program.addCommand(createScenariosCommand());
 program.addCommand(createAdaptCommand());
 

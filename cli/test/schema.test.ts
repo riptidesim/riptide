@@ -117,6 +117,64 @@ test("SimulationSummarySchema accepts a well-formed generic summary", () => {
   assert.equal(parsed.success, true);
 });
 
+test("SimulationSummarySchema accepts an invariants_fired array (T03 replay surface)", () => {
+  // Sprint 6 re-review #1: the Solend replay exits 1 with this shape
+  // in `summary.invariants_fired`. Previously the CLI Zod schema only
+  // allowed scalar union values and choked on the array, which broke
+  // the user-facing `riptide replay` wrapper. Lock the fix so future
+  // schema drift surfaces here first.
+  const parsed = SimulationSummarySchema.safeParse({
+    agents_active: 10,
+    agents_liquidated: 0,
+    agents_depleted: 0,
+    final_tvl: 500.0,
+    total_bad_debt: 3600.0,
+    invariants_fired: [
+      {
+        name: "no_bad_debt",
+        field: "bad_debt",
+        op: "==",
+        value: 0,
+        firings: 1
+      }
+    ]
+  });
+  assert.equal(parsed.success, true);
+});
+
+test("SimulationSummarySchema rejects a malformed invariants_fired row", () => {
+  // Array-of-unknown would defeat the gate — every row must match
+  // InvariantFiredRowSchema. Drop a required field and confirm the
+  // schema rejects rather than silently passing.
+  const parsed = SimulationSummarySchema.safeParse({
+    agents_active: 10,
+    agents_liquidated: 0,
+    agents_depleted: 0,
+    invariants_fired: [
+      { name: "no_bad_debt", field: "bad_debt", op: "==", value: 0 }
+    ]
+  });
+  assert.equal(parsed.success, false);
+});
+
+test("SimulationSummarySchema rejects a negative firings count", () => {
+  const parsed = SimulationSummarySchema.safeParse({
+    agents_active: 10,
+    agents_liquidated: 0,
+    agents_depleted: 0,
+    invariants_fired: [
+      {
+        name: "no_bad_debt",
+        field: "bad_debt",
+        op: "==",
+        value: 0,
+        firings: -1
+      }
+    ]
+  });
+  assert.equal(parsed.success, false);
+});
+
 test("SimulationSummarySchema rejects a fractional agents_active", () => {
   const parsed = SimulationSummarySchema.safeParse({
     agents_active: -3.5,

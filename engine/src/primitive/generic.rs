@@ -324,6 +324,138 @@ impl<'a> GenericInstructionBuilder<'a> {
         let empty = EMPTY.get_or_init(BTreeMap::new);
         self.build_action_data(action_name, amount, empty)
     }
+
+    /// Replay-mode dispatch.
+    ///
+    /// Resolution rules:
+    /// 1. If `name` matches an adapter action, use that action's mapped
+    ///    instruction. Inline replay args are matched against the IDL arg
+    ///    names and override any `@persona.*` mapping that would
+    ///    otherwise require persona state.
+    /// 2. If `name` does not match an adapter action but does match an IDL
+    ///    instruction, dispatch the raw instruction directly. Every IDL arg
+    ///    must then be supplied inline under `args`.
+    pub fn build_replay_data(
+        &self,
+        name: &str,
+        replay_args: &BTreeMap<String, ArgLiteral>,
+    ) -> Result<Vec<u8>> {
+        match resolve_replay_instruction(self.idl, self.adapter, name)? {
+            ReplayInstructionResolution::Mapped {
+                action_name,
+                instruction_name,
+                mapping,
+                instruction,
+            } => {
+                let mut encoded = instruction.discriminator.clone();
+                for arg in &instruction.args {
+                    if let Some(literal) = replay_args.get(&arg.name) {
+                        encode_literal_arg(
+                            &mut encoded,
+                            &arg.ty,
+                            literal,
+                            instruction_name,
+                            &arg.name,
+                        )?;
+                        continue;
+                    }
+                    if let Some(binding) = mapping.args.get(&arg.name) {
+                        match binding {
+                            ArgLiteral::String(s) if s.starts_with("@persona.") => {
+                                bail!(
+                                    "replay action `{action_name}` must supply inline arg `{}` \
+                                     because the adapter mapping resolves it from persona state",
+                                    arg.name
+                                );
+                            }
+                            other => {
+                                encode_literal_arg(
+                                    &mut encoded,
+                                    &arg.ty,
+                                    other,
+                                    instruction_name,
+                                    &arg.name,
+                                )?;
+                                continue;
+                            }
+                        }
+                    }
+                    if mapping.amount.as_deref() == Some(arg.name.as_str()) {
+                        bail!(
+                            "replay action `{action_name}` missing inline arg `{}` required by \
+                             adapter instruction `{instruction_name}`",
+                            arg.name
+                        );
+                    }
+                    bail!(
+                        "replay action `{action_name}` cannot bind IDL arg `{}` for instruction \
+                         `{instruction_name}`; supply it inline under `args.{}`",
+                        arg.name,
+                        arg.name
+                    );
+                }
+                Ok(encoded)
+            }
+            ReplayInstructionResolution::Raw { instruction } => {
+                let mut encoded = instruction.discriminator.clone();
+                for arg in &instruction.args {
+                    let literal = replay_args.get(&arg.name).ok_or_else(|| {
+                        anyhow!(
+                            "replay instruction `{name}` missing inline arg `{}`",
+                            arg.name
+                        )
+                    })?;
+                    encode_literal_arg(&mut encoded, &arg.ty, literal, &instruction.name, &arg.name)?;
+                }
+                Ok(encoded)
+            }
+        }
+    }
+
+    pub fn resolve_instruction_for_replay<'b>(
+        &'b self,
+        name: &'b str,
+    ) -> Result<&'b GenericInstruction> {
+        match resolve_replay_instruction(self.idl, self.adapter, name)? {
+            ReplayInstructionResolution::Mapped { instruction, .. } => Ok(instruction),
+            ReplayInstructionResolution::Raw { instruction } => Ok(instruction),
+        }
+    }
+}
+
+enum ReplayInstructionResolution<'a> {
+    Mapped {
+        action_name: &'a str,
+        instruction_name: &'a str,
+        mapping: &'a InstructionMapping,
+        instruction: &'a GenericInstruction,
+    },
+    Raw {
+        instruction: &'a GenericInstruction,
+    },
+}
+
+fn resolve_replay_instruction<'a>(
+    idl: &'a GenericIdl,
+    adapter: &'a Adapter,
+    name: &'a str,
+) -> Result<ReplayInstructionResolution<'a>> {
+    if let Ok((instruction_name, mapping, instruction)) =
+        resolve_instruction_for_action(idl, adapter, name)
+    {
+        return Ok(ReplayInstructionResolution::Mapped {
+            action_name: name,
+            instruction_name,
+            mapping,
+            instruction,
+        });
+    }
+    let instruction = idl
+        .instructions
+        .iter()
+        .find(|instruction| instruction.name == name)
+        .ok_or_else(|| anyhow!("generic adapter/IDL missing action or instruction `{name}`"))?;
+    Ok(ReplayInstructionResolution::Raw { instruction })
 }
 
 fn resolve_instruction_for_action<'a>(
@@ -890,6 +1022,39 @@ impl crate::primitive::Primitive for GenericHarness {
             .map_err(|error| crate::primitive::PrimitiveError::ProgramRejected(error.to_string()))?;
         let data = GenericInstructionBuilder::new(&self.idl, &self.adapter)
             .build_action_data(action, amount, persona_args)
+            .map_err(|error| crate::primitive::PrimitiveError::ProgramRejected(error.to_string()))?;
+        let accounts = instruction
+            .accounts
+            .iter()
+            .map(|account| self.resolve_account_meta(agent_idx, account))
+            .collect::<Result<Vec<_>>>()
+            .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
+        let payer = self
+            .payer_for_instruction(agent_idx, instruction)
+            .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
+        self.send_instruction(
+            &payer,
+            Instruction {
+                program_id: self.program_id,
+                accounts,
+                data,
+            },
+        )
+    }
+
+    fn execute_replay_action(
+        &mut self,
+        agent_idx: usize,
+        action: &str,
+        args: &BTreeMap<String, crate::adapter::ArgLiteral>,
+        _target_idx: Option<usize>,
+    ) -> Result<(), crate::primitive::PrimitiveError> {
+        let builder = GenericInstructionBuilder::new(&self.idl, &self.adapter);
+        let instruction = builder
+            .resolve_instruction_for_replay(action)
+            .map_err(|error| crate::primitive::PrimitiveError::ProgramRejected(error.to_string()))?;
+        let data = builder
+            .build_replay_data(action, args)
             .map_err(|error| crate::primitive::PrimitiveError::ProgramRejected(error.to_string()))?;
         let accounts = instruction
             .accounts

@@ -31,8 +31,10 @@ use riptide_engine::{
     primitive::{
         build_generic_policies, generic_runtime_actions, GenericBootstrapConfig, GenericHarness,
     },
+    replay::{load_replay_bundle, run_replay},
     scenario::{
-        load_presets_dir, BaselineScenario, PresetSpec, PriceShockScenario, Scenario, ScenarioKind,
+        load_presets_dir, BaselineScenario, OracleUpdate, PresetSpec, PriceShockScenario, Scenario,
+        ScenarioKind,
     },
     sim::{
         build_agent_personas,
@@ -52,7 +54,7 @@ use riptide_engine::{
                   required) against a native lending primitive or a generic primitive \
                   driven by an adapter TOML; writes a SimulationResult JSON to --output."
 )]
-struct Cli {
+struct SimulateCli {
     /// Path to the run configuration JSON file.
     #[arg(long, value_name = "FILE")]
     config: PathBuf,
@@ -84,6 +86,37 @@ struct Cli {
     /// declared invariants fired during the run (machine-checkable
     /// validation). This flag is for exploratory runs where invariant
     /// firings are expected findings rather than failures.
+    #[arg(long, default_value_t = false)]
+    allow_invariant_violations: bool,
+}
+
+#[derive(Debug, Parser)]
+#[command(
+    name = "riptide-engine replay",
+    version,
+    about = "Replay a declared instruction/oracle trajectory against a Riptide adapter",
+    long_about = "Boots the adapter's program in LiteSVM, replays trajectory.json + optional \
+                  oracle-trajectory.json / initial-state.json from a replay fixture directory, \
+                  and writes a SimulationResult JSON to --output."
+)]
+struct ReplayCli {
+    /// Adapter TOML to boot for the replay.
+    #[arg(value_name = "ADAPTER")]
+    adapter: PathBuf,
+
+    /// Directory containing trajectory.json and optional oracle-trajectory.json / initial-state.json.
+    #[arg(value_name = "TRAJECTORY_DIR")]
+    trajectory_dir: PathBuf,
+
+    /// Path where the replay result JSON should be written.
+    #[arg(long, value_name = "FILE")]
+    output: PathBuf,
+
+    /// Optional override for the compiled program `.so`.
+    #[arg(long, value_name = "FILE")]
+    program_so: Option<PathBuf>,
+
+    /// Restore exit 0 when declared invariants fire.
     #[arg(long, default_value_t = false)]
     allow_invariant_violations: bool,
 }
@@ -123,9 +156,22 @@ impl EngineOutcome {
 }
 
 fn main() -> ExitCode {
-    let cli = Cli::parse();
-    let allow_invariant_violations = cli.allow_invariant_violations;
-    match run(cli) {
+    let args: Vec<_> = std::env::args_os().collect();
+    if matches!(args.get(1).and_then(|arg| arg.to_str()), Some("replay")) {
+        let cli = ReplayCli::parse_from(
+            std::iter::once(args[0].clone()).chain(args.iter().skip(2).cloned()),
+        );
+        return finish_main(cli.allow_invariant_violations, run_replay_command(cli));
+    }
+    let cli = SimulateCli::parse_from(args);
+    finish_main(cli.allow_invariant_violations, run_simulation_command(cli))
+}
+
+fn finish_main(
+    allow_invariant_violations: bool,
+    result: anyhow::Result<EngineOutcome>,
+) -> ExitCode {
+    match result {
         Ok(outcome) => {
             match &outcome {
                 EngineOutcome::InvariantFired(count) => {
@@ -152,7 +198,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(cli: Cli) -> anyhow::Result<EngineOutcome> {
+fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
     let run_config: RunConfig = load_json(&cli.config)?;
     let loaded_policies: Vec<Policy> = load_policies(&cli.policies)?;
 
@@ -442,6 +488,107 @@ fn run(cli: Cli) -> anyhow::Result<EngineOutcome> {
     // Runs with no declared invariants never emit an `invariants_fired`
     // key, so `firing_count` stays 0 and the exit code stays 0 — this
     // is the Sprint 4 / Sprint 5 regression-gate contract.
+    let firing_count = count_invariant_firings(&result);
+    if firing_count > 0 {
+        Ok(EngineOutcome::InvariantFired(firing_count))
+    } else {
+        Ok(EngineOutcome::Clean)
+    }
+}
+
+fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
+    let adapter = load_adapter(&cli.adapter).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let bundle = load_replay_bundle(&cli.trajectory_dir, &adapter)
+        .map_err(|e| anyhow::anyhow!("load replay bundle: {e:#}"))?;
+    let actor_count = bundle.actor_ids.len();
+
+    eprintln!(
+        "riptide-engine replay: adapter={} trajectory={} actors={} ticks={}",
+        cli.adapter.display(),
+        cli.trajectory_dir.display(),
+        actor_count,
+        bundle.total_ticks,
+    );
+
+    let result = match adapter.protocol {
+        Protocol::Generic => {
+            let program_so = cli.program_so.unwrap_or_else(|| {
+                PathBuf::from(
+                    adapter
+                        .program_so
+                        .as_deref()
+                        .expect("generic adapter validation requires program_so"),
+                )
+            });
+            let idl_path = PathBuf::from(
+                adapter
+                    .idl_path
+                    .as_deref()
+                    .expect("generic adapter validation requires idl_path"),
+            );
+
+            eprintln!("bootstrapping LiteSVM backend (generic replay) ...");
+            let mut harness = GenericHarness::bootstrap(GenericBootstrapConfig {
+                program_so,
+                idl_path,
+                agent_count: actor_count,
+                adapter: adapter.clone(),
+            })
+            .map_err(|e| anyhow::anyhow!("LiteSVM generic replay bootstrap failed: {e:#}"))?;
+            run_replay(
+                &mut harness,
+                &adapter,
+                &bundle,
+                cli.output.display().to_string(),
+            )
+            .map_err(|e| anyhow::anyhow!("{e}"))?
+        }
+        Protocol::Lending => {
+            let program_so = cli.program_so.unwrap_or_else(default_program_so_path);
+            if !program_so.exists() {
+                anyhow::bail!(
+                    "program .so missing at {} (run `cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml` first)",
+                    program_so.display()
+                );
+            }
+            let bootstrap_price = OracleUpdate {
+                price: bundle.starting_price,
+                exponent: bundle.starting_exponent,
+            };
+            let mut harness = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
+                program_so,
+                agent_count: actor_count,
+                starting_price: bootstrap_price.as_u64(),
+                price_exponent: bootstrap_price.exponent,
+                pool_config: LendingPoolConfig {
+                    ltv_bps: 7_000,
+                    liquidation_threshold_bps: 8_000,
+                    liquidation_bonus_bps: 500,
+                    interest_bps: 250,
+                    deposit_limit: u64::MAX / 4,
+                    borrow_limit: u64::MAX / 4,
+                },
+                // Replay state must come only from the declared
+                // trajectory bundle. Auto-seeding each actor would
+                // silently mutate the starting state before
+                // `initial-state.json` runs.
+                seed_deposit: 0,
+                adapter: Some(adapter.clone()),
+            })
+            .map_err(|e| anyhow::anyhow!("LiteSVM replay bootstrap failed: {e:#}"))?;
+            run_replay(
+                &mut harness,
+                &adapter,
+                &bundle,
+                cli.output.display().to_string(),
+            )
+            .map_err(|e| anyhow::anyhow!("{e}"))?
+        }
+    };
+
+    write_result(&cli.output, &result)?;
+    eprintln!("wrote {}", cli.output.display());
+
     let firing_count = count_invariant_firings(&result);
     if firing_count > 0 {
         Ok(EngineOutcome::InvariantFired(firing_count))

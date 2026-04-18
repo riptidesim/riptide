@@ -34,6 +34,7 @@ name = "t7_litesvm_benchmark"
 
 [dev-dependencies]
 litesvm = "0.11.0"
+sha2 = "0.10.9"
 tempfile = "3.27.0"
 # Sprint 6 T02 — note: pyth-sdk-solana CANNOT be added as a direct
 # dev-dep. The crate is built against borsh 0.10 (pre-breaking-change)

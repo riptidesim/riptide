@@ -288,17 +288,20 @@ where
     // tick they could plausibly have happened on, not the configured max.
     let mut last_executed_tick: u32 = 0;
 
-    // tick 0 snapshot (pre-run baseline).
-    {
-        let mut baseline = build_snapshot(harness, 0, &agents)
-            .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
-        baseline.insert(
+    record_tick_snapshot(
+        harness,
+        0,
+        &agents,
+        &invariants,
+        &mut invariant_violations,
+        &mut events,
+        std::iter::once((
             "cumulative_liquidations".into(),
             Value::from(cumulative_liquidations),
-        );
-        evaluate_invariants(&invariants, 0, &baseline, &mut invariant_violations, &mut events);
-        timeseries.push(baseline);
-    }
+        )),
+        &mut timeseries,
+    )
+    .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
 
     for tick in 1..=run_config.ticks {
         eprintln!("TICK {tick}/{}", run_config.ticks);
@@ -562,16 +565,20 @@ where
         }
 
         // 4. Post-tick snapshot.
-        {
-            let mut snap = build_snapshot(harness, tick, &agents)
-                .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
-            snap.insert(
+        record_tick_snapshot(
+            harness,
+            tick,
+            &agents,
+            &invariants,
+            &mut invariant_violations,
+            &mut events,
+            std::iter::once((
                 "cumulative_liquidations".into(),
                 Value::from(cumulative_liquidations),
-            );
-            evaluate_invariants(&invariants, tick, &snap, &mut invariant_violations, &mut events);
-            timeseries.push(snap);
-        }
+            )),
+            &mut timeseries,
+        )
+        .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
 
         last_executed_tick = tick;
 
@@ -642,7 +649,7 @@ where
 ///
 /// Both tick loops funnel through this helper so the snapshot shape
 /// is consistent across lending and generic paths.
-fn build_snapshot<H: crate::primitive::Primitive + ?Sized>(
+pub(crate) fn build_snapshot<H: crate::primitive::Primitive + ?Sized>(
     harness: &H,
     tick: u32,
     agents: &[Agent],
@@ -658,7 +665,7 @@ fn build_snapshot<H: crate::primitive::Primitive + ?Sized>(
 /// `summarize_metrics` and the engine-side lifecycle counters the tick
 /// loop owns (agents_active / agents_liquidated / agents_depleted /
 /// total_liquidations).
-fn build_summary<H: crate::primitive::Primitive + ?Sized>(
+pub(crate) fn build_summary<H: crate::primitive::Primitive + ?Sized>(
     harness: &H,
     timeseries: &[TickSnapshot],
     agent_finals: &[crate::types::AgentFinalState],
@@ -819,12 +826,17 @@ where
 
     // tick 0 baseline. Adapter-declared metrics only; the generic
     // path no longer synthesizes zero-valued lending columns.
-    {
-        let baseline = build_snapshot(harness, 0, &agents)
-            .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
-        evaluate_invariants(&invariants, 0, &baseline, &mut invariant_violations, &mut events);
-        timeseries.push(baseline);
-    }
+    record_tick_snapshot(
+        harness,
+        0,
+        &agents,
+        &invariants,
+        &mut invariant_violations,
+        &mut events,
+        std::iter::empty::<(String, Value)>(),
+        &mut timeseries,
+    )
+    .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
     let _ = starting_price;
 
     for tick in 1..=run_config.ticks {
@@ -920,12 +932,17 @@ where
             });
         }
 
-        {
-            let snap = build_snapshot(harness, tick, &agents)
-                .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
-            evaluate_invariants(&invariants, tick, &snap, &mut invariant_violations, &mut events);
-            timeseries.push(snap);
-        }
+        record_tick_snapshot(
+            harness,
+            tick,
+            &agents,
+            &invariants,
+            &mut invariant_violations,
+            &mut events,
+            std::iter::empty::<(String, Value)>(),
+            &mut timeseries,
+        )
+        .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
         let _ = oracle_price;
 
         last_executed_tick = tick;
@@ -1007,7 +1024,7 @@ fn value_to_f64(v: &Value) -> Option<f64> {
 /// to the main `events` stream as a structured `SimEvent` with a
 /// synthetic engine-owned agent id so downstream consumers that scan
 /// `events` see invariant firings alongside action outcomes.
-fn evaluate_invariants(
+pub(crate) fn evaluate_invariants(
     invariants: &[Invariant],
     tick: u32,
     snapshot: &TickSnapshot,
@@ -1071,6 +1088,29 @@ fn evaluate_invariants(
             }
         }
     }
+}
+
+pub(crate) fn record_tick_snapshot<H, I>(
+    harness: &H,
+    tick: u32,
+    agents: &[Agent],
+    invariants: &[Invariant],
+    violations: &mut Vec<InvariantViolation>,
+    events: &mut Vec<SimEvent>,
+    extra_metrics: I,
+    timeseries: &mut Vec<TickSnapshot>,
+) -> Result<(), HarnessError>
+where
+    H: crate::primitive::Primitive + ?Sized,
+    I: IntoIterator<Item = (String, Value)>,
+{
+    let mut snapshot = build_snapshot(harness, tick, agents)?;
+    for (key, value) in extra_metrics {
+        snapshot.insert(key, value);
+    }
+    evaluate_invariants(invariants, tick, &snapshot, violations, events);
+    timeseries.push(snapshot);
+    Ok(())
 }
 
 /// Sprint 5 T06 — Fire every scheduled action whose cadence lands on
@@ -1156,7 +1196,7 @@ fn dispatch_scheduled_actions<H: crate::primitive::Primitive + ?Sized>(
 /// `summary["invariants_fired"]`. Shape: array of
 /// `{ name, field, op, value, firings }` objects, one per declared
 /// invariant, matching the declaration order.
-fn build_invariants_summary(
+pub(crate) fn build_invariants_summary(
     invariants: &[Invariant],
     violations: &[InvariantViolation],
 ) -> Value {

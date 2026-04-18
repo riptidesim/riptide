@@ -44,6 +44,12 @@ export interface OrchestratorOptions {
   moduleRoot?: string | null;
 }
 
+export interface ReplayOrchestratorInput {
+  adapterPath: string;
+  trajectoryDir: string;
+  outputPath: string;
+}
+
 const ENGINE_REL_PATH = path.join("target", "release", "riptide-engine");
 const STDERR_TAIL_BYTES = 8192;
 
@@ -151,6 +157,61 @@ export async function runOrchestrator(
 
     const raw = await readFile(outputPath, "utf8");
     return SimulationResultSchema.parse(JSON.parse(raw));
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
+export async function runReplayOrchestrator(
+  replay: ReplayOrchestratorInput,
+  options: OrchestratorOptions = {}
+): Promise<SimulationResult> {
+  const env = options.env ?? process.env;
+  const cwd = options.cwd ?? process.cwd();
+  const spawner = options.spawner ?? defaultSpawner;
+
+  const enginePath = await resolveEngineBinary(
+    env,
+    cwd,
+    options.moduleRoot === undefined ? monorepoRootFromModule() ?? null : options.moduleRoot
+  );
+
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), "riptide-replay-"));
+  try {
+    const outputPath = path.join(tmpDir, "simulation-result.json");
+    const args = ["replay", replay.adapterPath, replay.trajectoryDir, "--output", outputPath];
+    if (options.allowInvariantViolations) {
+      args.push("--allow-invariant-violations");
+    }
+
+    const { code, stderrTail } = await spawner(enginePath, args);
+    if (code !== 0) {
+      const tail = stderrTail.trim();
+      const suffix = tail ? `\n--- engine stderr (tail) ---\n${tail}` : "";
+      if (code === 1) {
+        try {
+          const raw = await readFile(outputPath, "utf8");
+          const parsed = SimulationResultSchema.parse(JSON.parse(raw));
+          parsed.run_config.output_path = replay.outputPath;
+          const error = new Error(
+            `riptide-engine replay exited with code 1 — invariant violation(s) recorded.${suffix}`
+          ) as Error & { simulationResult?: SimulationResult; exitCode?: number };
+          error.simulationResult = parsed;
+          error.exitCode = 1;
+          throw error;
+        } catch (readErr) {
+          if ((readErr as Error).message?.startsWith("riptide-engine replay exited")) {
+            throw readErr;
+          }
+        }
+      }
+      throw new Error(`riptide-engine replay exited with code ${code}.${suffix}`);
+    }
+
+    const raw = await readFile(outputPath, "utf8");
+    const parsed = SimulationResultSchema.parse(JSON.parse(raw));
+    parsed.run_config.output_path = replay.outputPath;
+    return parsed;
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }
