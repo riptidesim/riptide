@@ -62,7 +62,29 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--text-dim);
-      margin: 0 0 12px;
+      margin: 0 0 6px;
+    }
+    section > .section-subtitle {
+      color: var(--text-dim);
+      font-size: 12px;
+      line-height: 1.45;
+      margin: 0 0 14px;
+      max-width: 72ch;
+      opacity: 0.82;
+    }
+    .run-stats {
+      color: var(--text-dim);
+      font-size: 12px;
+      font-family: var(--mono);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+    }
+    .run-stats strong {
+      color: var(--text);
+      font-weight: 500;
     }
     .meta-grid {
       display: grid;
@@ -247,11 +269,14 @@
   <main>
     <section id="meta">
       <h2>Run metadata</h2>
+      <p class="section-subtitle">How this run was configured — the scenario, the random seed, how many ticks it covered, and which agent personas took part. Use this to tell at a glance what kind of simulation you're looking at (lending, perps, AMM, or a historical replay) and how to reproduce it.</p>
       <div id="metaGrid" class="meta-grid"></div>
     </section>
 
     <section id="summary">
       <h2>Summary metrics</h2>
+      <p class="section-subtitle">End-of-run aggregate numbers emitted by the adapter. Units and field names come from the adapter itself, so a lending run surfaces things like TVL and bad debt, a perps run surfaces open-interest and PnL, and so on. "Normal" depends on the scenario — compare across seeds to see what holds.</p>
+      <div id="runStats" class="run-stats" hidden></div>
       <table class="kv" id="summaryTable">
         <tbody></tbody>
       </table>
@@ -259,11 +284,13 @@
 
     <section id="invariants">
       <h2>Invariants <span id="invariantBadge"></span></h2>
+      <p class="section-subtitle">Machine-checkable rules the run is watching. Red rows mean a rule fired during this run — the condition was violated at least once. A clean run shows every rule at zero firings.</p>
       <div id="invariantBlock"></div>
     </section>
 
     <section id="timeseries">
       <h2>Timeseries</h2>
+      <p class="section-subtitle">Per-tick values recorded as the simulation advanced. Pick a series to plot against tick number. Flat means the metric held steady; sharp moves line up with events below. Adapter decides which fields are numeric and chart-worthy.</p>
       <div class="controls">
         <label for="seriesSelect">Series</label>
         <select id="seriesSelect"></select>
@@ -273,6 +300,7 @@
 
     <section id="events">
       <h2>Event stream</h2>
+      <p class="section-subtitle">Every action an agent attempted, in tick order. Green outcomes succeeded, red ones failed, amber ones were skipped (e.g. precondition not met). Filter by action, outcome, or agent substring to zoom in. Large runs are capped at 2000 rendered rows — the raw stream is linked below.</p>
       <div class="controls">
         <label for="actionFilter">Action</label>
         <select id="actionFilter"><option value="">all</option></select>
@@ -353,6 +381,27 @@
       tbody.innerHTML = keys
         .map((k) => `<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(fmtValue(summary[k]))}</td></tr>`)
         .join("");
+    }
+
+    function renderRunStats(result) {
+      const el = document.getElementById("runStats");
+      if (!el) return;
+      const rc = result.run_config || {};
+      const events = Array.isArray(result.events) ? result.events : [];
+      const eventCount = events.length;
+      // Prefer the configured agent count; fall back to distinct agent_ids seen
+      // in the event stream so adapters that don't echo `agents` still render.
+      let agents = rc.agents;
+      if (typeof agents !== "number" || !Number.isFinite(agents)) {
+        agents = new Set(events.map((e) => e && e.agent_id).filter(Boolean)).size;
+      }
+      const ticks = result.total_ticks ?? rc.ticks ?? "?";
+      const fmt = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : String(n));
+      el.innerHTML =
+        `<strong>${fmt(eventCount)}</strong> events across ` +
+        `<strong>${fmt(agents)}</strong> agents across ` +
+        `<strong>${fmt(ticks)}</strong> ticks`;
+      el.hidden = false;
     }
 
     function renderInvariants(result) {
@@ -537,6 +586,7 @@
         const result = await res.json();
         renderMeta(result);
         renderSummary(result);
+        renderRunStats(result);
         renderInvariants(result);
         renderTimeseries(result);
         renderEvents(result);
