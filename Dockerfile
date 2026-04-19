@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 #
-# Riptide — Sprint 6 T18 Docker image.
+# Riptide Docker image.
 #
 # Produces a single runnable image that ships the engine, the
 # TypeScript CLI, and all five on-chain programs pre-built as `.so`
@@ -81,7 +81,7 @@ RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-l
 # value captured at 2026-04-18 for v3.0.13, then execute it. The installer
 # in turn lands `solana`, `cargo-build-sbf`, `platform-tools v1.51`, and
 # the bundled SBF rustc 1.84.1 under ~/.local/share/solana. The downstream
-# artifacts that installer fetches are not pinned here (Sprint 7 follow-up
+# artifacts that installer fetches are not pinned here (follow-up
 # item), but the installer script itself is no longer a live-fetch-and-bash.
 ENV ANZA_INSTALL_SHA256=dfab59a5773be04a284501f276a58a7856e2f42ae6ea68564140d0b3a56ce8c6
 RUN curl -fsSL https://release.anza.xyz/v3.0.13/install -o /tmp/anza-install.sh \
@@ -121,7 +121,7 @@ RUN cargo build --release -p riptide-engine \
 # script runs tsc and then copy-personas.mjs (which also copies the
 # dashboard assets into cli/dist/assets).
 #
-# `--ignore-scripts` skips the T19 postinstall binary downloader. That
+# `--ignore-scripts` skips the postinstall binary downloader. That
 # script fetches a prebuilt `riptide-engine` from GitHub Releases for
 # end-users installing `@riptide/cli` via npm. Inside this image we
 # already have a locally-built engine at /src/target/release/riptide-
@@ -230,7 +230,7 @@ COPY --from=build /src/programs/amm-fork/target/deploy/amm_fork.so \
 
 # --- Fixtures + examples + scripts -------------------------------------------
 # Fixtures are read from disk by every engine invocation; examples/configs
-# is referenced by the README; scripts/ carries the Sprint 5 + Sprint 6
+# is referenced by the README; scripts/ carries the
 # scratch runners.
 COPY --from=build /src/fixtures /src/fixtures
 COPY --from=build /src/examples /src/examples
@@ -244,7 +244,7 @@ COPY --from=build /src/TOOLCHAIN.md /src/TOOLCHAIN.md
 # compiled CLI entry point. `RIPTIDE_ENGINE_BIN` is exported so the CLI
 # always picks up the right engine without walking the filesystem.
 RUN printf '#!/usr/bin/env bash\n\
-# Riptide CLI launcher — baked into the T18 Docker image\n\
+# Riptide CLI launcher — baked into the Docker image\n\
 : "${RIPTIDE_ENGINE_BIN:=/src/target/release/riptide-engine}"\n\
 export RIPTIDE_ENGINE_BIN\n\
 exec node /src/cli/dist/src/index.js "$@"\n' > /usr/local/bin/riptide \

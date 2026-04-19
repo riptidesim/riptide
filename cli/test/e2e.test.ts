@@ -6,15 +6,15 @@
 // Mirrors the gating pattern used by engine/tests/engine_cli_e2e.rs.
 //
 // Preconditions to run:
-//   1. CLI built:             npm run build            (in cli/)
-//   2. Engine built:           cargo build --release -p riptide-engine
-//   3. Lending program built:  cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
+// 1. CLI built: npm run build (in cli/)
+// 2. Engine built: cargo build --release -p riptide-engine
+// 3. Lending program built: cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
 //
 // No external validator or funded payer keypair is required — the engine
 // runs an in-process LiteSVM backend.
 //
 // Invoke:
-//   RIPTIDE_RUN_E2E=1 npm test
+// RIPTIDE_RUN_E2E=1 npm test
 
 import test from "node:test";
 import assert from "node:assert/strict";

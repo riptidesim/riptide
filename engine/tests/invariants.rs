@@ -1,4 +1,4 @@
-//! T01 — Invariant Declaration Framework (Sprint 5 Phase 0)
+//! Invariant Declaration Framework
 //!
 //! End-to-end coverage for the declarative `[[invariants]]` layer added
 //! to the adapter TOML schema. The engine exposes it via a new
@@ -7,15 +7,15 @@
 //!
 //! 1. Adapter TOML with an `[[invariants]]` block parses cleanly.
 //! 2. A satisfied invariant produces zero violation events and a
-//!    summary rollup with `firings = 0`.
+//! summary rollup with `firings = 0`.
 //! 3. A falsified invariant emits one engine-owned `SimEvent` per tick,
-//!    and the summary rollup count matches.
+//! and the summary rollup count matches.
 //! 4. A run with no declared invariants keeps the serialized output
-//!    byte-stable (no `invariants_fired` summary key, no engine-owned
-//!    invariant events). This is the Sprint 4 determinism contract.
+//! byte-stable (no `invariants_fired` summary key, no engine-owned
+//! invariant events). This is the determinism contract.
 //! 5. The `bad_debt` logical name resolves against the lending
-//!    primitive's `cumulative_bad_debt` snapshot key via the alias
-//!    table in `sim::run::snapshot_f64`.
+//! primitive's `cumulative_bad_debt` snapshot key via the alias
+//! table in `sim::run::snapshot_f64`.
 //! 6. Missing-from-snapshot fields are skipped, not fatal.
 
 use std::collections::BTreeMap;
@@ -261,7 +261,7 @@ fn violations_are_emitted_as_structured_sim_events() {
     // Violations land in the main `events` stream as engine-owned
     // `SimEvent`s with `agent_id = "__engine__"` / `persona_id = "invariant"`.
     // The dedicated top-level `invariant_violations` field was removed
-    // (Sprint 5 Phase 0 re-review): the spec calls for "structured
+    // ( re-review): the spec calls for "structured
     // events in the simulation result", and those events ARE the
     // structured record.
     let invariants = vec![Invariant {
@@ -309,7 +309,7 @@ fn bad_debt_logical_name_resolves_against_cumulative_bad_debt_snapshot_key() {
     // Spec literal (tasks.md:34 / spec.md:37): the Solend fork adapter
     // can declare `bad_debt == 0` and the engine must fire it on cells
     // where bad debt accrues. The lending primitive emits the snapshot
-    // key as `cumulative_bad_debt` (load-bearing for the Sprint 4 hero
+    // key as `cumulative_bad_debt` (load-bearing for the hero
     // grid hash), so `snapshot_f64` applies a tiny alias table to
     // resolve `bad_debt` → `cumulative_bad_debt` at lookup time.
     //

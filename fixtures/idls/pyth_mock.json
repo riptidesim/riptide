@@ -1,7 +1,7 @@
 {
   "version": "0.1.0",
   "name": "pyth_mock",
-  "description": "Pyth PriceAccount mock — Sprint 6 T02 byte layout compatible with pyth-sdk-solana's load_price_feed_from_account_info aggregate-price read path. Total size 3312 bytes (#[repr(C)], 8-byte aligned). Only the aggregate-price subset is populated; SMA (ema_price/ema_conf), multi-publisher comp[] array, prod/next account refs, and per-publisher metadata remain zero-filled in Sprint 6 (Sprint 7+ follow-up).\n\nLayout mirrors pyth-sdk-solana::GenericPriceAccount<32, ()>. When the layout drifts upstream, update engine/src/scenario/oracle.rs::PythMockOracleLayout in lock-step with this IDL and the t23_pyth_real_layout test's MockPriceAccountPrefix mirror struct.",
+  "description": "Pyth PriceAccount mock — byte layout compatible with pyth-sdk-solana's load_price_feed_from_account_info aggregate-price read path. Total size 3312 bytes (#[repr(C)], 8-byte aligned). Only the aggregate-price subset is populated; SMA (ema_price/ema_conf), multi-publisher comp[] array, prod/next account refs, and per-publisher metadata remain zero-filled (follow-up).\n\nLayout mirrors pyth-sdk-solana::GenericPriceAccount<32, ()>. When the layout drifts upstream, update engine/src/scenario/oracle.rs::PythMockOracleLayout in lock-step with this IDL and the pyth_real_layout test's MockPriceAccountPrefix mirror struct.",
   "instructions": [],
   "accounts": [
     {
@@ -19,13 +19,13 @@
         { "name": "num_qt", "type": "u32", "offset": 28 },
         { "name": "last_slot", "type": "u64", "offset": 32 },
         { "name": "valid_slot", "type": "u64", "offset": 40 },
-        { "name": "ema_price_val", "type": "i64", "offset": 48, "description": "Sprint 6 ships this as a stable mirror of agg.price for readers that fall back to EMA." },
+        { "name": "ema_price_val", "type": "i64", "offset": 48, "description": "Stable mirror of agg.price for readers that fall back to EMA." },
         { "name": "ema_price_numer", "type": "i64", "offset": 56 },
         { "name": "ema_price_denom", "type": "i64", "offset": 64 },
         { "name": "ema_conf_val", "type": "i64", "offset": 72 },
         { "name": "ema_conf_numer", "type": "i64", "offset": 80 },
         { "name": "ema_conf_denom", "type": "i64", "offset": 88 },
-        { "name": "timestamp", "type": "i64", "offset": 96, "description": "Sprint 6 zero-fills; a future drop may populate from engine slot clock." },
+        { "name": "timestamp", "type": "i64", "offset": 96, "description": "Zero-filled; a future drop may populate from engine slot clock." },
         { "name": "min_pub", "type": "u8", "offset": 104 },
         { "name": "drv2", "type": "u8", "offset": 105 },
         { "name": "drv3", "type": "u16", "offset": 106 },

@@ -43,13 +43,13 @@ pub struct SimulationParams<'a> {
     pub starting_balance: f64,
     pub starting_price: f64,
     pub simulation_boundaries: Vec<String>,
-    /// Sprint 5 T01: declarative invariants pulled from the adapter TOML
-    /// `[[invariants]]` block. Empty by default so the Sprint 4 hero-grid
+    /// declarative invariants pulled from the adapter TOML
+    /// `[[invariants]]` block. Empty by default so the hero-grid
     /// determinism hash stays byte-stable for every adapter that does
     /// not declare any invariants.
     #[doc(hidden)]
     pub invariants: Vec<Invariant>,
-    /// Sprint 5 T06: declarative scheduled actions pulled from the
+    /// declarative scheduled actions pulled from the
     /// adapter TOML `[[scheduled_actions]]` block. The tick loop fires
     /// each entry on every tick where `tick %% interval_ticks == 0`,
     /// in declaration order, **before** persona actions. Empty by
@@ -307,8 +307,8 @@ where
         eprintln!("TICK {tick}/{}", run_config.ticks);
 
         // 0. Advance synthetic chain state (slot, blockhash, clock).
-        //    No-op for backends that manage their own progression (validator,
-        //    mock). LiteSVM overrides this to keep tick semantics consistent.
+        // No-op for backends that manage their own progression (validator,
+        // mock). LiteSVM overrides this to keep tick semantics consistent.
         harness.advance_tick();
 
         // 1. Advance scenario (deterministic via master_rng).
@@ -322,14 +322,14 @@ where
             )),
         })?;
 
-        // 2b. Sprint 5 T06: fire declared scheduled actions BEFORE the
-        //     persona loop so any world-state update they perform lands
-        //     before agents observe. Declaration order is the tiebreak
-        //     for same-tick firings. Invariants still evaluate LAST at
-        //     the post-persona snapshot — documented in the module
-        //     header. Scheduled actions produce engine-owned SimEvents
-        //     so tests can assert firing counts without instrumenting
-        //     the primitive.
+        // 2b. fire declared scheduled actions BEFORE the
+        // persona loop so any world-state update they perform lands
+        // before agents observe. Declaration order is the tiebreak
+        // for same-tick firings. Invariants still evaluate LAST at
+        // the post-persona snapshot — documented in the module
+        // header. Scheduled actions produce engine-owned SimEvents
+        // so tests can assert firing counts without instrumenting
+        // the primitive.
         dispatch_scheduled_actions(&scheduled_actions, tick, harness, &mut events)?;
 
         // Read pool state once at the top of the tick for observations.
@@ -619,9 +619,9 @@ where
         Value::from(cumulative_liquidations),
     );
 
-    // Sprint 5 T01 (spec literal): the summary carries a top-level
+    // (spec literal): the summary carries a top-level
     // `invariants_fired` list when any invariant is declared. Keys stay
-    // absent for runs with no invariants so the Sprint 4 hero-grid
+    // absent for runs with no invariants so the hero-grid
     // determinism hash stays byte-stable.
     if !invariants.is_empty() {
         summary.insert(
@@ -720,7 +720,7 @@ fn pick_liquidation_target(idx: usize, agents: &[Agent], oracle_price: f64) -> O
 /// failure that survived the single retry inside `with_retry`, returns
 /// `Err(msg)` so the caller can abort the whole run.
 ///
-/// Sprint 6 T01 — `persona_args` carries the executing agent's
+/// `persona_args` carries the executing agent's
 /// `policy.persona_args` map for multi-runtime-arg dispatch. Empty
 /// for lending/mock callers and for generic adapters that don't use
 /// `@persona.<field>` references.
@@ -852,7 +852,7 @@ where
             )),
         })?;
 
-        // Sprint 5 T06: scheduled actions fire before persona ticks
+        // scheduled actions fire before persona ticks
         // (generic path).
         dispatch_scheduled_actions(&scheduled_actions, tick, harness, &mut events)?;
 
@@ -985,10 +985,10 @@ where
 ///
 /// Lending-primitive alias table: the Solend-fork snapshot emits
 /// engine-facing metric names (`cumulative_bad_debt`,
-/// `cumulative_liquidations`, ...) while adapter authors legitimately
+/// `cumulative_liquidations`,...) while adapter authors legitimately
 /// want to write invariants against the canonical *logical* observation
 /// names from the schema (`bad_debt`, `liquidated`). Snapshot shape is
-/// load-bearing for the Sprint 4 hero-grid determinism hash, so the
+/// load-bearing for the hero-grid determinism hash, so the
 /// alias is applied here at lookup time instead of rewriting what the
 /// primitive emits. The mapping is intentionally tiny — add new entries
 /// only when a new logical name lands in `LENDING_OBSERVATIONS` without
@@ -1113,23 +1113,23 @@ where
     Ok(())
 }
 
-/// Sprint 5 T06 — Fire every scheduled action whose cadence lands on
+/// Fire every scheduled action whose cadence lands on
 /// the current tick. Ordering contract:
 ///
 /// 1. **Time**: this runs BEFORE the per-agent persona loop so any
-///    world-state update lands before agents observe.
+/// world-state update lands before agents observe.
 /// 2. **Ties**: when two scheduled actions are due on the same tick
-///    (e.g. intervals 3 and 6 at tick 6), they fire in
-///    **declaration order** — the index they appear at in the adapter
-///    TOML. This is what keeps the sequence deterministic across
-///    same-seed runs.
+/// (e.g. intervals 3 and 6 at tick 6), they fire in
+/// **declaration order** — the index they appear at in the adapter
+/// TOML. This is what keeps the sequence deterministic across
+/// same-seed runs.
 ///
 /// Every firing pushes an engine-owned `SimEvent` onto the main
 /// `events` stream with `agent_id = "__engine__"` and
 /// `persona_id = "scheduled"`, AND invokes the primitive's
 /// [`Primitive::on_scheduled_action`] hook so the backend can perform
 /// any on-chain side effect it needs. Lending/mock primitives leave
-/// the hook as the trait default (no-op); T07's perps-fork overrides
+/// the hook as the trait default (no-op); 's perps-fork overrides
 /// it to dispatch the real `update_funding_rate` instruction.
 ///
 /// A primitive failure in the hook maps to a `SimulationAbort::Infra`
@@ -1181,7 +1181,7 @@ fn dispatch_scheduled_actions<H: crate::primitive::Primitive + ?Sized>(
             triggered_by: None,
         });
         // Primitive-level hook — lets backends react to the firing
-        // (T07 perps-fork uses this to dispatch the on-chain
+        // ( perps-fork uses this to dispatch the on-chain
         // `update_funding_rate` ix). Default impl is a no-op.
         harness
             .on_scheduled_action(&name, &sa.instruction, &sa.accounts, &sa.args)

@@ -1,6 +1,6 @@
 //! Dedicated end-to-end determinism gate.
 //!
-//! `t06_litesvm_parity::litesvm_deterministic_same_seed` remains in place as
+//! `litesvm_parity::litesvm_deterministic_same_seed` remains in place as
 //! the lending-path regression test. This file adds byte-stable output
 //! assertions for both the shipped lending fixture shape and the
 //! generic/resource-grinder fixture.

@@ -1,18 +1,18 @@
-//! T06 — Engine-Triggered Scheduled Actions (Sprint 5 Phase 1)
+//! Engine-Triggered Scheduled Actions
 //!
 //! End-to-end coverage for the declarative `[[scheduled_actions]]`
 //! adapter block and the tick-loop scheduler dispatch.
 //!
 //! Covered:
 //! 1. Adapter TOML parse of `[[scheduled_actions]]`, including
-//!    malformed input rejection (unknown instruction, zero interval).
+//! malformed input rejection (unknown instruction, zero interval).
 //! 2. Scheduling: interval=5 over 30 ticks fires exactly 6 times
-//!    (ticks 5, 10, 15, 20, 25, 30).
+//! (ticks 5, 10, 15, 20, 25, 30).
 //! 3. Deterministic ordering when two scheduled actions overlap on
-//!    the same tick (intervals 3 and 5).
+//! the same tick (intervals 3 and 5).
 //! 4. Determinism across back-to-back same-seed runs.
 //! 5. Backwards compat: an adapter with no `[[scheduled_actions]]`
-//!    block runs without firing anything.
+//! block runs without firing anything.
 
 use std::collections::BTreeMap;
 
@@ -150,7 +150,7 @@ interval_ticks = 5
         "error should name the offending key: {msg}"
     );
     assert!(msg.contains("not_a_real_ix"), "got: {msg}");
-    // T03-style actionable message — names the declared set.
+    // -style actionable message — names the declared set.
     assert!(msg.contains("[instructions]"), "got: {msg}");
 }
 
@@ -243,7 +243,7 @@ fn scheduler_fires_every_n_ticks_exactly() {
         assert_eq!(e.params["instruction"], "deposit");
     }
 
-    // Sprint 5 T06 (review fix #3): the primitive-level hook must
+    // (review fix #3): the primitive-level hook must
     // observe every firing, not just the event stream. MockHarness
     // increments a counter in `on_scheduled_action`, and the total
     // must equal the number of events the tick loop emitted. This is
@@ -328,7 +328,7 @@ fn no_scheduled_actions_declared_leaves_event_stream_clean() {
         "zero scheduled_actions → zero engine-owned scheduled events: {:?}",
         events
     );
-    // Byte-identical shape guard (matches the T01 determinism contract).
+    // Byte-identical shape guard (matches the determinism contract).
     let json = serde_json::to_string(&result).expect("serialize");
     assert!(
         !json.contains("\"scheduled:"),

@@ -21,14 +21,14 @@ Both paths produce the same artifact shape on disk, and both run deterministical
 
 ## What Riptide is explicitly not
 
-- **Not a validator fork.** Riptide runs on LiteSVM in-process. It does not model gossip, vote, PoH, or any consensus-layer behavior. When validator-level parity matters, the `solana-test-validator` parity path at `engine/tests/t05_lending_integration.rs` is the diagnostic reference — see [`architecture.md`](architecture.md).
+- **Not a validator fork.** Riptide runs on LiteSVM in-process. It does not model gossip, vote, PoH, or any consensus-layer behavior. When validator-level parity matters, the `solana-test-validator` parity path at `engine/tests/lending_integration.rs` is the diagnostic reference — see [`architecture.md`](architecture.md).
 - **Not a MEV bot simulator.** Agents are declarative personas with a trigger DSL, not searchers racing for tx ordering. Riptide simulates economic stress on program logic, not adversarial sequencing.
 - **Not a fuzzer or static analyzer.** Riptide does not generate bytes looking for panics; it runs bounded scenarios the dev declared. Use a fuzzer for input-space coverage; use Riptide for parameter-region mapping.
 - **Not an audit replacement.** Riptide maps a region. An audit reasons about the program. Both are useful; they answer different questions.
 
 ## Adversarial-review posture
 
-Every claim Riptide ships is meant to survive an adversarial reviewer asking "prove it." That shapes the engine in three concrete ways: (1) determinism is enforced by the `t15_e2e_determinism` integration test, not left as a design intent; (2) replay mode reproduces the Solend June 2022 whale-risk incident byte-for-byte and asserts a declared `no_bad_debt` invariant fires at the cascade tick, so historical claims are re-runnable on the reviewer's machine; (3) adapter TOMLs and persona TOMLs carry the full experiment — no hidden state in the binary, no drift between the artifact and the code.
+Every claim Riptide ships is meant to survive an adversarial reviewer asking "prove it." That shapes the engine in three concrete ways: (1) determinism is enforced by the `e2e_determinism` integration test, not left as a design intent; (2) replay mode reproduces the Solend June 2022 whale-risk incident byte-for-byte and asserts a declared `no_bad_debt` invariant fires at the cascade tick, so historical claims are re-runnable on the reviewer's machine; (3) adapter TOMLs and persona TOMLs carry the full experiment — no hidden state in the binary, no drift between the artifact and the code.
 
 When Riptide shows a grid, a reviewer can re-derive it. That is the whole posture.
 

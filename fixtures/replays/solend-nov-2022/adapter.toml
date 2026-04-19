@@ -2,26 +2,26 @@
 #
 # Identical to `fixtures/adapters/solend-fork.toml` except for the
 # trailing `[[invariants]]` block: this variant ships the `no_bad_debt`
-# invariant so the T05 Solend June 2022 replay can prove "bad_debt
+# invariant so the Solend June 2022 replay can prove "bad_debt
 # invariant fires at the expected tick" on a CI gate, rather than only
 # showing bad-debt accrual as a summary number.
 #
 # **Why a replay-specific adapter.** Adding this invariant to the
 # shipped `fixtures/adapters/solend-fork.toml` would change the output
 # shape of every lending run (invariants_fired gains a row), which
-# breaks the Sprint 4 hero grid determinism hash
+# breaks the hero grid determinism hash
 # `89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11`
 # for the `w25-s40` cell — that cell specifically produces bad debt,
 # so the invariant would fire there too and the canonical summary
 # would diverge. Keeping the invariant scoped to the replay fixture
-# preserves the hero grid hash while satisfying the T05 Done-when
-# clause "The bad_debt invariant (from T01 Sprint 5) fires at the
+# preserves the hero grid hash while satisfying the Done-when
+# clause "The bad_debt invariant (from ) fires at the
 # expected tick" (see `.specs/features/sprint-6-amm-replay/tasks.md`
-# T05 and spec R2.3).
+# and spec R2.3).
 #
 # The `riptide replay` CLI's replay-config JSON (at
 # `fixtures/replays/solend-nov-2022/config.json`) points at this
-# adapter directly; engine test `t21_replay_solend_nov_2022.rs` loads
+# adapter directly; engine test `replay_solend_nov_2022.rs` loads
 # it via `load_adapter(fixture_dir().join("adapter.toml"))`.
 
 protocol = "lending"
@@ -47,7 +47,7 @@ liquidate = { action = "liquidate", amount = "repay_amount" }
 
 [personas]
 
-# T05 credibility invariant. Reads `cumulative_bad_debt` through the
+# credibility invariant. Reads `cumulative_bad_debt` through the
 # lending-side observation alias (`bad_debt` in this adapter). Passes
 # at tick 0 (cumulative_bad_debt = 0 after bootstrap deposits, pre any
 # liquidation) and through tick 3; fires at tick 4 when the replay's

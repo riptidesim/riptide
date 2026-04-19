@@ -1,13 +1,13 @@
 // `riptide scenarios --validate` harness tests.
 //
 // Covers the three exit paths of the one-tick boot validator:
-//   - exit 2 when the scenario directory is missing
-//   - exit 2 when run-config.json parses but fails schema
-//   - exit 2 when manifest.json is missing
-//   - exit 2 when policies.json persona_id set doesn't match run-config.personas
-//   - exit 1 when the engine spawn reports a non-zero code
-//   - exit 1 when the engine exits 0 but produces no timeseries
-//   - exit 0 on a stubbed clean one-tick boot
+// - exit 2 when the scenario directory is missing
+// - exit 2 when run-config.json parses but fails schema
+// - exit 2 when manifest.json is missing
+// - exit 2 when policies.json persona_id set doesn't match run-config.personas
+// - exit 1 when the engine spawn reports a non-zero code
+// - exit 1 when the engine exits 0 but produces no timeseries
+// - exit 0 on a stubbed clean one-tick boot
 
 import test from "node:test";
 import assert from "node:assert/strict";

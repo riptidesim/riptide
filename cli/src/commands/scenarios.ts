@@ -1,12 +1,12 @@
 // `riptide scenarios` — two modes.
 //
 // 1. No args: list the built-in scenario presets (legacy behavior,
-//    preserved for the demo README + any scripts that depend on it).
+// preserved for the demo README + any scripts that depend on it).
 // 2. `--validate <path>`: one-tick-boot harness for scenarios generated
-//    by the `riptide-scenarios` Claude Code skill. Loads the scenario
-//    directory's run-config + policies + manifest, resolves the adapter
-//    from the manifest, boots the engine for exactly one tick, and
-//    exits 0/1/2 — same convention as `riptide adapt`.
+// by the `riptide-scenarios` Claude Code skill. Loads the scenario
+// directory's run-config + policies + manifest, resolves the adapter
+// from the manifest, boots the engine for exactly one tick, and
+// exits 0/1/2 — same convention as `riptide adapt`.
 
 import chalk from "chalk";
 import ora from "ora";

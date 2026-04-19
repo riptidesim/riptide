@@ -1,9 +1,9 @@
 //! On-chain account layouts for `amm-fork`.
 //!
-//! Sprint 6 T11 ships an **AMM-lite** instruction set: initialize_pool,
+//! ships an **AMM-lite** instruction set: initialize_pool,
 //! add_liquidity, remove_liquidity, swap. Constant-product math
 //! (`reserve_a * reserve_b = k`) over virtual u64 reserves — no real SPL
-//! tokens, no LP mint, no oracle. T11 task note carries the scope-cut
+//! tokens, no LP mint, no oracle. task note carries the scope-cut
 //! rationale.
 //!
 //! Every non-identity field is widened to u64/bool so the generic
@@ -201,9 +201,9 @@ pub fn compute_swap_output(
 
 /// AMM-fork instruction surface.
 ///
-/// Sprint 6 T11 ships the minimum that supports the four AMM failure
-/// modes Sprint 6 T14 targets (price manipulation via swap, impermanent
-/// loss spike, jit liquidity, reserve depletion). See the T11 task note
+/// ships the minimum that supports the four AMM failure
+/// modes targets (price manipulation via swap, impermanent
+/// loss spike, jit liquidity, reserve depletion). See the task note
 /// for the full scope-cut rationale.
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub enum AmmInstructionData {

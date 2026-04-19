@@ -86,7 +86,7 @@ test("AdapterSchema produces the same shape the serde side expects", async () =>
 
   for (const mapping of Object.values(adapter.instructions)) {
     const keys = Object.keys(mapping).sort();
-    // `amount` and `args` (Sprint 6 T01) are optional; only `action` is required.
+    // `amount` and `args` are optional; only `action` is required.
     assert.ok(keys.includes("action"));
     const illegal = keys.filter(
       (k) => k !== "action" && k !== "amount" && k !== "args"

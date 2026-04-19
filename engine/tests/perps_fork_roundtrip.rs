@@ -1,26 +1,26 @@
-//! T17 — Perps-fork LiteSVM round-trip (Sprint 5 Phase 2 · T07 gate).
+//! Perps-fork LiteSVM round-trip ( · gate).
 //!
 //! End-to-end coverage that the shipped `perps-fork.so` loads in
 //! LiteSVM and exercises every surviving instruction of the perps-lite
 //! scope (init_market, deposit/withdraw_collateral, open/close_position,
 //! liquidate_position) against the real `admin_mock_oracle.so` oracle.
 //!
-//! Scope cuts (documented in the T07 task note):
-//! - No `update_funding_rate` — funding rate is a Sprint 6 follow-up.
-//!   The shipping `perps-fork.toml` leaves `[[scheduled_actions]]`
-//!   empty so the engine's scheduled-action dispatch goes through
-//!   `Primitive::on_scheduled_action`'s default no-op hook.
+//! Scope cuts (documented in the task note):
+//! - No `update_funding_rate` — funding rate is a follow-up.
+//! The shipping `perps-fork.toml` leaves `[[scheduled_actions]]`
+//! empty so the engine's scheduled-action dispatch goes through
+//! `Primitive::on_scheduled_action`'s default no-op hook.
 //! - No insurance fund. Losses beyond posted margin land in
-//!   `MarketState.cumulative_socialized_loss`.
+//! `MarketState.cumulative_socialized_loss`.
 //!
 //! Three tests:
 //! 1. `perps_fork_roundtrip_long_path` — init → deposit → open (long)
-//!    → close on flat oracle → withdraw. Asserts PnL is ~0, collateral
-//!    round-trips, OI returns to zero.
+//! → close on flat oracle → withdraw. Asserts PnL is ~0, collateral
+//! round-trips, OI returns to zero.
 //! 2. `perps_fork_liquidation_cascade` — init → deposit → open (long, 5x)
-//!    → oracle shock → liquidate → inspect cumulative_socialized_loss.
+//! → oracle shock → liquidate → inspect cumulative_socialized_loss.
 //! 3. `perps_fork_is_deterministic` — two fresh instances replay the
-//!    long path and produce byte-identical final market+position state.
+//! long path and produce byte-identical final market+position state.
 //!
 //! All three tests are gated on both `.so` artifacts existing; a
 //! missing `.so` prints a skip message (same pattern as t18's
@@ -464,7 +464,7 @@ fn perps_fork_liquidation_cascade() {
     h.open_position(SIDE_LONG, 100_000, 10_000);
     assert_eq!(h.read_market().total_oi_long, 10_000);
 
-    // Oracle shock: price drops 40% (Sprint 4 hero-grid w25-s40 magnitude).
+    // Oracle shock: price drops 40% ( hero-grid w25-s40 magnitude).
     h.set_oracle_price(60);
 
     // A liquidator not owning the position can call liquidate_position.

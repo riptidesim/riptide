@@ -216,7 +216,7 @@ test("renderSummary sanitizes simulation boundary lines", () => {
   assert.equal(containsControlBytes(clean), false);
 });
 
-// --- T14 renderNarrative tests ---
+// --- renderNarrative tests ---
 
 function narrativeResult(
   summary: Record<string, number | string | boolean | null>,
@@ -371,7 +371,7 @@ test("renderNarrative uses custom reproCommand when provided", () => {
   assert.match(md, /riptide run examples\/configs\/safe\.json/);
 });
 
-// --- T15 renderColoredTable tests ---
+// --- renderColoredTable tests ---
 
 test("renderColoredTable renders a table with lending metrics", () => {
   const result = baseResult({
@@ -426,7 +426,7 @@ test("renderColoredTable highlights invariant violations", () => {
   assert.match(clean, /test_inv/);
 });
 
-// --- T15 writeArtifacts with narrative ---
+// --- writeArtifacts with narrative ---
 
 test("writeArtifacts writes report.md when narrativeConfig provided", async () => {
   const result = await loadFixture();

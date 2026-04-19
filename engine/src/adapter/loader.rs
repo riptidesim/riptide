@@ -128,7 +128,7 @@ fn validate_resolved_paths(adapter: &Adapter, path: &str) -> Result<(), AdapterE
         }
         // Cross-check declared `[accounts].*.space` against the fixed-
         // field minimum byte count computed from the IDL's account
-        // declarations. T03 acceptance criterion: "declared vs expected".
+        // declarations. acceptance criterion: "declared vs expected".
         // Variable-length fields (vec/option/defined) short-circuit the
         // check for an account; the minimum byte floor in
         // `validate_generic` still applies. If the IDL is unparseable
@@ -316,7 +316,7 @@ fn validate_identifiers(adapter: &Adapter, path: &str) -> Result<(), AdapterErro
                 amount,
             )?;
         }
-        // Sprint 6 T01 — literal-bound args (for multi-arg dispatch).
+        // literal-bound args (for multi-arg dispatch).
         // Each key is an IDL arg name the encoder later resolves
         // against the program's declared args; the value is a TOML
         // literal the encoder coerces into the matching Borsh type.
@@ -647,7 +647,7 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
     }
 
     for (action_name, action) in &adapter.actions {
-        // Sprint 6 T01 — multi-arg actions are allowed. Each arg listed
+        // multi-arg actions are allowed. Each arg listed
         // in `takes` must be bound either through `[instructions].*.amount`
         // (the single runtime-bound arg) or through
         // `[instructions].*.args.<name>` (a literal or `@persona.<field>`
@@ -810,19 +810,19 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
 }
 
 /// Validate the `[[oracles]]` block shared between lending and generic
-/// adapters (Sprint 5 T05). Checks:
-///   1. `name` is a safe identifier.
-///   2. `base_price` is finite.
-///   3. Optional `account` reference (generic adapters) resolves to a
-///      declared account.
-///   4. Oracle `name`s are unique within the adapter.
+/// adapters. Checks:
+/// 1. `name` is a safe identifier.
+/// 2. `base_price` is finite.
+/// 3. Optional `account` reference (generic adapters) resolves to a
+/// declared account.
+/// 4. Oracle `name`s are unique within the adapter.
 fn validate_oracles(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
     use std::collections::BTreeSet;
     use crate::adapter::schema::OracleKind;
     let mut seen: BTreeSet<&str> = BTreeSet::new();
     for (idx, oracle) in adapter.oracles.iter().enumerate() {
         if matches!(oracle.kind, OracleKind::Pyth) {
-            // Sprint 6 T02 ships a real Pyth `PriceAccount` byte
+            // ships a real Pyth `PriceAccount` byte
             // layout for the aggregate-price read path (magic, ver,
             // atype=Price, expo, agg.{price,conf,status,pub_slot},
             // ema_price.val). A program built against
@@ -831,14 +831,14 @@ fn validate_oracles(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
             // will boot unchanged. SMA window, multi-publisher
             // aggregation, and the full per-publisher component
             // array are still out of scope (the comp[] slots stay
-            // zero-filled in Sprint 6). Adapters that depend on those
-            // extended fields should track the Sprint 7+ follow-up.
+            // zero-filled in ). Adapters that depend on those
+            // extended fields should track the + follow-up.
             eprintln!(
                 "info: {path}: `[[oracles]][{idx}]` declares `kind = \"pyth\"` — \
-                 Sprint 6 ships the aggregate-price read path. Programs that read \
+                 aggregate-price read path ships. Programs that read \
                  `agg.price` / `agg.conf` / `expo` / `agg.pub_slot` via \
                  `pyth-sdk-solana` boot unchanged. Extended fields (SMA, \
-                 multi-publisher aggregation) stay zero-filled until Sprint 7+."
+                 multi-publisher aggregation) stay zero-filled."
             );
         }
         let key_name = format!("[[oracles]][{idx}].name");
@@ -895,7 +895,7 @@ fn validate_oracles(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
 }
 
 /// Validate the `[[scheduled_actions]]` block shared between lending
-/// and generic adapters (Sprint 5 T06).
+/// and generic adapters.
 fn validate_scheduled_actions(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
     for (idx, sa) in adapter.scheduled_actions.iter().enumerate() {
         let key_instr = format!("[[scheduled_actions]][{idx}].instruction");

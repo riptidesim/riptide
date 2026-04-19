@@ -28,7 +28,7 @@ pub enum Protocol {
 /// `action` is the canonical action label the engine dispatches on.
 /// `amount` names the single IDL argument the runtime-computed amount
 /// flows into (kept for backwards compat with single-arg adapters).
-/// `args` (Sprint 6 T01) declares literal constants for the remaining
+/// `args` declares literal constants for the remaining
 /// IDL arguments of a multi-arg instruction; the encoder walks the IDL
 /// args in order and resolves each by name from either `amount` (one
 /// runtime-bound arg) or `args` (any number of literal-bound args).
@@ -38,7 +38,7 @@ pub struct InstructionMapping {
     /// Optional because zero-arg instructions may omit it.
     #[serde(default)]
     pub amount: Option<String>,
-    /// Sprint 6 T01 — literal constants for non-runtime IDL args.
+    /// literal constants for non-runtime IDL args.
     /// Keys are IDL argument names (must match a `GenericArg.name`);
     /// values are Borsh-encodable literals. Empty by default so every
     /// single-arg and zero-arg adapter keeps parsing byte-for-byte.
@@ -72,16 +72,16 @@ pub struct ActionDefinition {
     /// Ordered list of IDL instruction args the adapter declares for
     /// this action. Each entry must bind to either the runtime-computed
     /// amount (via `[instructions].<ix>.amount`) or a literal constant
-    /// (via `[instructions].<ix>.args.<entry>`). Sprint 5 v0 only
-    /// supported zero-arg or single-runtime-bound-arg forms; Sprint 6
-    /// T01 lifts the `len <= 1` cap so multi-arg Borsh instructions
+    /// (via `[instructions].<ix>.args.<entry>`). v0 only
+    /// supported zero-arg or single-runtime-bound-arg forms;
+    /// lifts the `len <= 1` cap so multi-arg Borsh instructions
     /// (e.g. AMM `swap(amount_in, min_out, direction)`) can declare all
     /// of their args here.
     #[serde(default)]
     pub takes: Vec<String>,
 }
 
-/// Sprint 6 T01 — Borsh-encodable literal values for `[instructions].<ix>.args`.
+/// Borsh-encodable literal values for `[instructions].<ix>.args`.
 ///
 /// The adapter-loader accepts natural TOML primitives (integers, bools,
 /// quoted base58 strings) and the encoder coerces each literal into the
@@ -175,17 +175,17 @@ pub struct PersonaDefinition {
     /// Trigger DSL. Parsed into runtime triggers by the generic primitive.
     #[serde(default)]
     pub triggers: Vec<PersonaTriggerDefinition>,
-    /// Sprint 6 T01 — per-persona named values the encoder substitutes
+    /// per-persona named values the encoder substitutes
     /// into multi-runtime-arg instructions.
     ///
-    /// An instruction's `args = { leverage = "@persona.leverage_bps", ... }`
+    /// An instruction's `args = { leverage = "@persona.leverage_bps",... }`
     /// reference resolves against this map at dispatch time, so every
     /// agent running under this persona supplies its own `leverage`
     /// value into `open_position(side, leverage, notional)` without
     /// forking the adapter into one action per leverage level.
     ///
     /// Empty by default — adapters that only use single-runtime-arg
-    /// dispatch (Sprint 5 perps, lending) keep parsing byte-for-byte
+    /// dispatch ( perps, lending) keep parsing byte-for-byte
     /// and serialize without the key. Type-checking happens at encode
     /// time against the target IDL arg's Borsh type (same coercion
     /// rules as literal-bound args).
@@ -241,14 +241,14 @@ pub struct Adapter {
     #[serde(default)]
     pub personas: BTreeMap<String, PersonaDefinition>,
 
-    /// Declarative invariant block (Sprint 5 T01). A flat list of
+    /// Declarative invariant block. A flat list of
     /// `{ name?, field, op, value }` triples the tick loop checks against
     /// each tick's observation snapshot. Empty by default so every
     /// existing adapter continues to parse unchanged.
     #[serde(default)]
     pub invariants: Vec<Invariant>,
 
-    /// Declarative oracle block (Sprint 5 T05). Each entry declares an
+    /// Declarative oracle block. Each entry declares an
     /// oracle account layout the engine can target for shock injection.
     /// Adapters that leave this empty keep the legacy hardcoded Solend
     /// oracle path (harness-owned admin-mock layout). New protocol classes
@@ -257,7 +257,7 @@ pub struct Adapter {
     #[serde(default)]
     pub oracles: Vec<OracleDefinition>,
 
-    /// Engine-triggered scheduled actions (Sprint 5 T06). Each entry
+    /// Engine-triggered scheduled actions. Each entry
     /// declares an instruction the engine fires automatically between
     /// persona ticks at a fixed cadence. Empty by default so every
     /// existing adapter continues to parse unchanged.
@@ -300,7 +300,7 @@ impl InvariantOp {
     }
 
     /// Apply the comparison with f64 coercion. Bool/string comparisons
-    /// are out of scope for Sprint 5.
+    /// are out of scope for.
     pub fn apply(&self, observed: f64, expected: f64) -> bool {
         match self {
             Self::Eq => observed == expected,
@@ -336,7 +336,7 @@ impl Invariant {
 }
 
 // ---------------------------------------------------------------------------
-// Sprint 5 T05 — Generic oracle injection
+// Generic oracle injection
 // ---------------------------------------------------------------------------
 
 /// Supported oracle account layouts. Selects which concrete
@@ -347,14 +347,14 @@ impl Invariant {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum OracleKind {
-    /// Admin-settable mock oracle. This is the layout Sprint 4's
+    /// Admin-settable mock oracle. This is the layout 's
     /// Solend-fork hero grid drives through
     /// `programs/lending_pool`'s bundled oracle state, now ships as a
     /// standalone program at `programs/admin_mock_oracle/` so
     /// non-lending adapters can depend on it directly.
     AdminMock,
     /// Pyth-compatible mock (placeholder variant — the layout impl is
-    /// reserved for a Sprint 6 drop where the full Borsh shape lands).
+    /// reserved for a drop where the full Borsh shape lands).
     Pyth,
 }
 
@@ -399,7 +399,7 @@ fn default_oracle_base_price() -> f64 {
 pub const ORACLE_KINDS: &[&str] = &["admin-mock", "pyth"];
 
 // ---------------------------------------------------------------------------
-// Sprint 5 T06 — Engine-triggered scheduled actions
+// Engine-triggered scheduled actions
 // ---------------------------------------------------------------------------
 
 /// Declarative scheduled action entry from the adapter TOML's
@@ -412,7 +412,7 @@ pub const ORACLE_KINDS: &[&str] = &["admin-mock", "pyth"];
 /// and `run_generic_simulation`):
 ///
 /// 1. Scheduled actions fire FIRST — world state updates before
-///    persona actions react.
+/// persona actions react.
 /// 2. Persona actions fire SECOND.
 /// 3. Invariants evaluate LAST on the post-persona snapshot.
 ///
@@ -436,7 +436,7 @@ pub struct ScheduledAction {
     pub interval_ticks: u32,
     /// Optional account references (names from `[accounts]` for the
     /// generic path). The engine passes these through to the primitive's
-    /// scheduled-action hook; Sprint 5's primitives treat them as
+    /// scheduled-action hook; 's primitives treat them as
     /// observable metadata only.
     #[serde(default)]
     pub accounts: Vec<String>,

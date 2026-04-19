@@ -1,6 +1,6 @@
 //! Minimal admin-settable oracle program.
 //!
-//! Sprint 5 T05 — shipped as the first concrete target for
+//! shipped as the first concrete target for
 //! [`OracleKind::AdminMock`](../../../engine/src/adapter/schema.rs) so
 //! non-lending adapters (perps-fork, AMM, …) can depend on a
 //! standalone oracle program instead of reusing the lending pool's
@@ -18,13 +18,13 @@
 //!
 //! Instructions:
 //! - `InitializeOracle { price, exponent }` — one-time bootstrap, sets
-//!   the admin to the signer.
+//! the admin to the signer.
 //! - `SetPrice { price, exponent }` — admin-only price override. Used
-//!   by the engine when dispatching shocks declaratively.
+//! by the engine when dispatching shocks declaratively.
 //!
 //! The program is intentionally tiny (no cross-program invocations, no
 //! derived addresses, no extensions). Pyth-compatible layouts remain a
-//! Sprint 6 task per the T05 scope call.
+//! task per the scope call.
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{

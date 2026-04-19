@@ -1,7 +1,7 @@
 {
   "version": "0.1.0",
   "name": "perps_fork",
-  "description": "Minimal perps-lite fork (Sprint 5 T07). Long/short positions against the admin-mock oracle. Funding rate and insurance fund are deliberately out of scope — see the T07 task note for the scope-cut rationale. The runtime (generic-primitive) dispatches only the u64-arg instructions (deposit_collateral, withdraw_collateral); open/close/liquidate are present for classification shape but require on-chain sequencing the generic harness does not express in Sprint 5.",
+  "description": "Minimal perps-lite fork. Long/short positions against the admin-mock oracle. Funding rate and insurance fund are deliberately out of scope. The runtime (generic-primitive) dispatches only the u64-arg instructions (deposit_collateral, withdraw_collateral); open/close/liquidate are present for classification shape but require on-chain sequencing the generic harness does not express yet.",
   "instructions": [
     {
       "name": "initialize_market",

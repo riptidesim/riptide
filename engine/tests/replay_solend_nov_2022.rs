@@ -1,4 +1,4 @@
-//! T21 — Solend June 2022 whale-risk replay (Sprint 6 Phase 1 · T05 gate).
+//! Solend June 2022 whale-risk replay ( · gate).
 //!
 //! The sprint-plan/task filename still says `solend_nov_2022`, but the
 //! public incident this fixture reproduces is the Solend whale-risk
@@ -8,19 +8,19 @@
 //! This test locks four things:
 //!
 //! 1. The replay runs end-to-end on the replay-scoped adapter
-//!    `fixtures/replays/solend-nov-2022/adapter.toml` — a copy of the
-//!    shipped `solend-fork.toml` with a `no_bad_debt` invariant added.
-//!    The shipped adapter stays clean so the Sprint 4 hero-grid hash
-//!    `89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11`
-//!    (which also produces bad debt at `w25-s40`) stays byte-stable.
+//! `fixtures/replays/solend-nov-2022/adapter.toml` — a copy of the
+//! shipped `solend-fork.toml` with a `no_bad_debt` invariant added.
+//! The shipped adapter stays clean so the hero-grid hash
+//! `89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11`
+//! (which also produces bad debt at `w25-s40`) stays byte-stable.
 //! 2. The result is deterministic under a fixed trajectory.
 //! 3. The canonical replay output hash + summary stay pinned to the
-//!    checked-in `expected-summary.json` baseline.
+//! checked-in `expected-summary.json` baseline.
 //! 4. The declared `no_bad_debt` invariant fires **at tick 4** — the
-//!    terminal cascade — and only there. This is the T05 credibility
-//!    claim (`tasks.md` T05 "Done when" clause 3, spec R2.3): the
-//!    replay does not just *observe* bad debt accrue, the engine's
-//!    machine-checkable invariant framework fires on it.
+//! terminal cascade — and only there. This is the credibility
+//! claim (`tasks.md` "Done when" clause 3, spec R2.3): the
+//! replay does not just *observe* bad debt accrue, the engine's
+//! machine-checkable invariant framework fires on it.
 
 #![cfg(feature = "litesvm-backend")]
 #![cfg(not(doctest))]
@@ -60,7 +60,7 @@ fn fixture_dir() -> PathBuf {
 
 fn skip_if_missing(path: &Path, label: &str) -> bool {
     if !path.exists() {
-        // Same Phase 2 Finding #3 guard as `t20_replay_framework`:
+        // Same Finding #3 guard as `replay_framework`:
         // CI=true turns missing-artifact into a hard fail so replay
         // gates cannot go green without exercising replay dispatch.
         if std::env::var("CI").map(|v| !v.is_empty()).unwrap_or(false) {
@@ -211,7 +211,7 @@ fn solend_replay_matches_expected_summary_and_is_deterministic() {
     );
     assert!(
         expected.bad_debt_invariant_firings >= 1,
-        "expected-summary baseline claims the invariant does not fire — that breaks the T05 credibility contract",
+        "expected-summary baseline claims the invariant does not fire — that breaks the credibility contract",
     );
 
     for (key, expected_value) in &expected.summary {

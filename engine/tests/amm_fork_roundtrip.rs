@@ -1,29 +1,29 @@
-//! T24 — AMM-fork LiteSVM round-trip (Sprint 6 Phase 2 · T11 gate).
+//! AMM-fork LiteSVM round-trip ( · gate).
 //!
 //! End-to-end coverage that the shipped `amm_fork.so` loads in LiteSVM
 //! and exercises every instruction of the AMM-lite scope:
 //! `initialize_pool → add_liquidity → swap → remove_liquidity`.
 //!
-//! Scope cuts (documented in the T11 task note):
+//! Scope cuts (documented in the task note):
 //! - No real SPL token transfers — reserves are virtual u64 counters.
 //! - No LP mint — LP shares are per-agent counters on `LpPositionState`.
 //! - No oracle — price derives from reserves; `adapter.toml` has no
-//!   `[[oracles]]` block, which is load-bearing for the Sprint 6 story.
+//! `[[oracles]]` block, which is load-bearing for the story.
 //!
 //! Four tests:
 //! 1. `amm_fork_roundtrip_full_path` — init → add → swap → read reserves →
-//!    remove. Asserts reserves update under constant-product, LP supply
-//!    round-trips, cumulative volume + fees accrue.
+//! remove. Asserts reserves update under constant-product, LP supply
+//! round-trips, cumulative volume + fees accrue.
 //! 2. `amm_fork_constant_product_holds_within_tolerance` — fires 5 swaps
-//!    in alternating directions on a no-fee pool and asserts the
-//!    product `reserve_a * reserve_b` stays within integer-math rounding
-//!    tolerance of its initial value. (Proves the swap math respects the
-//!    invariant up to per-swap truncation.)
+//! in alternating directions on a no-fee pool and asserts the
+//! product `reserve_a * reserve_b` stays within integer-math rounding
+//! tolerance of its initial value. (Proves the swap math respects the
+//! invariant up to per-swap truncation.)
 //! 3. `amm_fork_rejects_slippage` — swap with `min_amount_out` above the
-//!    achievable output must reject with `SlippageExceeded`.
+//! achievable output must reject with `SlippageExceeded`.
 //! 4. `amm_fork_is_deterministic` — two fresh instances replay the full
-//!    path and produce byte-identical final pool state on every non-
-//!    identity field.
+//! path and produce byte-identical final pool state on every non-
+//! identity field.
 //!
 //! All four tests are gated on the `.so` artifact existing; a missing
 //! `.so` prints a skip message (same pattern as t17's

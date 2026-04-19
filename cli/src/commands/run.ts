@@ -17,7 +17,7 @@ import { blockUntilSignal, startDashboardServer } from "../serve/index.js";
  * config (the same shape as `examples/configs/safe.json`), optionally
  * applies an `--adapter` override (default: the shipped solend-fork
  * lending adapter), and dispatches through the existing simulate
- * pipeline. Satisfies the Sprint 5 R1.4 install-flow contract which
+ * pipeline. Satisfies the R1.4 install-flow contract which
  * specifies the literal command `riptide run examples/configs/safe.json`.
  */
 export function createRunCommand(): Command {

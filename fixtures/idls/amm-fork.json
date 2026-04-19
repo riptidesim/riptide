@@ -1,7 +1,7 @@
 {
   "version": "0.1.0",
   "name": "amm_fork",
-  "description": "Minimal constant-product AMM fork (Sprint 6 T11). Virtual u64 reserves, no SPL token mint, no oracle — price derives from reserves. The runtime (generic-primitive) dispatches all four instructions through the T01 multi-arg builder: initialize_pool + add_liquidity (2 args) / remove_liquidity (1 arg) / swap (3 args). See fixtures/adapters/amm-fork.toml for the adapter binding and fixtures/personas/*.toml for the Sprint 6 T13 persona library.",
+  "description": "Minimal constant-product AMM fork. Virtual u64 reserves, no SPL token mint, no oracle — price derives from reserves. The runtime (generic-primitive) dispatches all four instructions through the multi-arg builder: initialize_pool + add_liquidity (2 args) / remove_liquidity (1 arg) / swap (3 args). See fixtures/adapters/amm-fork.toml for the adapter binding and fixtures/personas/*.toml for the persona library.",
   "instructions": [
     {
       "name": "initialize_pool",

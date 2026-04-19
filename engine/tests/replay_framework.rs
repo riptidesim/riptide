@@ -1,18 +1,18 @@
-//! T20 — Historical replay framework (Sprint 6 Phase 1 · T04 gate).
+//! Historical replay framework ( · gate).
 //!
 //! End-to-end coverage for the replay runner against the shipped
 //! `resource-grinder` generic program. Covered:
 //!
 //! 1. `load_replay_bundle` accepts the fixture-directory contract:
-//!    `trajectory.json` required, `oracle-trajectory.json` optional,
-//!    `initial-state.json` optional.
+//! `trajectory.json` required, `oracle-trajectory.json` optional,
+//! `initial-state.json` optional.
 //! 2. `run_replay` dispatches the declared instruction list in tick
-//!    order, bypassing persona compilation entirely.
+//! order, bypassing persona compilation entirely.
 //! 3. Tick snapshots + invariant rollups reuse the shared simulation
-//!    helpers, so the output stays schema-compatible with ordinary
-//!    simulation results.
+//! helpers, so the output stays schema-compatible with ordinary
+//! simulation results.
 //! 4. Determinism: same replay bundle + same adapter + same program
-//!    bytes => byte-identical `SimulationResult`.
+//! bytes => byte-identical `SimulationResult`.
 
 #![cfg(feature = "litesvm-backend")]
 #![cfg(not(doctest))]
@@ -41,9 +41,9 @@ fn skip_if_missing(path: &Path, label: &str) -> bool {
     if !path.exists() {
         // Under CI (env CI=true or any non-empty value), a missing
         // required artifact is a hard fail — a soft-skip on CI turns
-        // the T04 replay-framework gate green without actually
+        // the replay-framework gate green without actually
         // exercising replay dispatch, which was flagged in review as
-        // Sprint 6 Phase 2 Finding #3. Local dev keeps the skip so
+        // Finding #3. Local dev keeps the skip so
         // a fresh clone without `cargo build-sbf` artifacts does not
         // red-line the whole test suite.
         if std::env::var("CI").map(|v| !v.is_empty()).unwrap_or(false) {
@@ -161,8 +161,8 @@ triggers = []
         serde_json::to_string_pretty(&serde_json::json!({
             "metadata": {
                 "name": "resource-grinder-replay",
-                "description": "Synthetic T04 replay fixture",
-                "source": "engine/tests/t20_replay_framework.rs"
+                "description": "Synthetic replay fixture",
+                "source": "engine/tests/replay_framework.rs"
             },
             "ticks": [
                 { "tick": 0, "instructions": [{ "name": "craft", "agent": "alice", "args": { "amount": 1 } }] },

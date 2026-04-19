@@ -159,7 +159,7 @@ export function renderSummary(result: SimulationResult): string {
 }
 
 /**
- * Renders a colored bordered table for TTY output (T15).
+ * Renders a colored bordered table for TTY output.
  * Same data as renderSummary but in a visual table format.
  */
 export function renderColoredTable(result: SimulationResult): string {

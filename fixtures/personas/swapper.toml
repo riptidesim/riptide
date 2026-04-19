@@ -1,12 +1,12 @@
 # AMM persona — vanilla swapper.
 #
-# Sprint 6 T13. Baseline user swapping tokens at a steady rate with no
+#. Baseline user swapping tokens at a steady rate with no
 # optimization. Half goes A→B, half goes B→A — the `direction` arg is
-# fixed per-persona in the T01 multi-arg binding, so half-and-half is
+# fixed per-persona in the multi-arg binding, so half-and-half is
 # expressed as two separate personas or as a weight over a single
-# direction. Sprint 6 ships the single-direction shape (direction = 0)
+# direction. ships the single-direction shape (direction = 0)
 # and relies on the `sandwich-attacker` persona to drive B→A traffic;
-# full directional mixing lives in Sprint 7 if needed.
+# full directional mixing lives in if needed.
 [personas.swapper]
 label = "Vanilla swapper (A→B)"
 action_rate_multiplier = 1.0

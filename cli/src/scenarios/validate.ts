@@ -10,23 +10,23 @@
 // for one tick against the local engine.
 //
 // Scope (intentionally minimal, mirrors `adapt/smoke.ts`):
-//   1. Resolve `<scenario>` to a directory containing the three files.
-//   2. Load and Zod-validate `run-config.json`.
-//   3. Load and Zod-validate `policies.json`.
-//   4. Load and shape-check `manifest.json`, resolve adapter path.
-//   5. Patch run-config to ticks = 1 so we boot-test, not full-run.
-//   6. Invoke the engine with `--config / --policies / --adapter /
-//      --output`. Walk the output JSON to confirm the engine
-//      produced *something* — a timeseries of length >= 1 or a
-//      summary object. This is a boot test, not a smoke test: we
-//      are not asserting a state delta, only that one tick
-//      completed.
+// 1. Resolve `<scenario>` to a directory containing the three files.
+// 2. Load and Zod-validate `run-config.json`.
+// 3. Load and Zod-validate `policies.json`.
+// 4. Load and shape-check `manifest.json`, resolve adapter path.
+// 5. Patch run-config to ticks = 1 so we boot-test, not full-run.
+// 6. Invoke the engine with `--config / --policies / --adapter /
+// --output`. Walk the output JSON to confirm the engine
+// produced *something* — a timeseries of length >= 1 or a
+// summary object. This is a boot test, not a smoke test: we
+// are not asserting a state delta, only that one tick
+// completed.
 //
 // Exit codes (returned; the command wrapper calls process.exit):
-//   0 — engine booted one tick cleanly
-//   1 — engine failed to boot (crashed mid-tick or exited non-zero)
-//   2 — file missing / JSON parse error / schema mismatch / manifest
-//       missing / referenced adapter missing on disk
+// 0 — engine booted one tick cleanly
+// 1 — engine failed to boot (crashed mid-tick or exited non-zero)
+// 2 — file missing / JSON parse error / schema mismatch / manifest
+// missing / referenced adapter missing on disk
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -107,12 +107,12 @@ export async function validateScenario(
 
   // --- 3. Load + validate policies ---
   // Two shapes are legal (matches what the engine actually ships):
-  //   - Lending runs: policies.json is a non-empty array of Policy
-  //     objects. The engine uses that as the persona catalog.
-  //   - Generic runs: policies.json is `[]` and the persona catalog
-  //     comes from the adapter TOML's `[personas.*]` tables
-  //     (see `fixtures/generic-demo.policies.json` — empty — paired
-  //     with `fixtures/adapters/resource-grinder.toml`).
+  // - Lending runs: policies.json is a non-empty array of Policy
+  // objects. The engine uses that as the persona catalog.
+  // - Generic runs: policies.json is `[]` and the persona catalog
+  // comes from the adapter TOML's `[personas.*]` tables
+  // (see `fixtures/generic-demo.policies.json` — empty — paired
+  // with `fixtures/adapters/resource-grinder.toml`).
   // Either shape is fine here. We only cross-check persona ids
   // against `policies.json` when the file is non-empty, because
   // that's the only case where we *can* check without reparsing
@@ -128,14 +128,14 @@ export async function validateScenario(
   const policies: Policy[] = policiesResult.value;
 
   // Cross-check persona ids. Two cases:
-  //   - Lending (policies.json non-empty): persona catalog comes from
-  //     policies.json. Every run-config.persona must appear there.
-  //   - Generic (policies.json is []): persona catalog comes from the
-  //     adapter TOML's `[personas.*]` tables. We parse the adapter and
-  //     check against those keys. Without this, a typo like
-  //     `personas: ["ghost"]` would leak through to the engine and
-  //     crash mid-tick — returning exit 1 with a confusing stderr
-  //     instead of exit 2 with the actual schema error.
+  // - Lending (policies.json non-empty): persona catalog comes from
+  // policies.json. Every run-config.persona must appear there.
+  // - Generic (policies.json is []): persona catalog comes from the
+  // adapter TOML's `[personas.*]` tables. We parse the adapter and
+  // check against those keys. Without this, a typo like
+  // `personas: ["ghost"]` would leak through to the engine and
+  // crash mid-tick — returning exit 1 with a confusing stderr
+  // instead of exit 2 with the actual schema error.
   //
   // Adapter path resolution needs the manifest, so we compute that
   // first and reuse `adapterPath` in step 4 below.
@@ -152,16 +152,16 @@ export async function validateScenario(
   // to a real file inside a "containment root" derived from the
   // scenario directory being validated. Two layouts are supported:
   //
-  //   1. In-tree (this monorepo, or any repo that mirrors the
-  //      `fixtures/scenarios/<stem>/<slug>/` layout): the
-  //      containment root is the directory above `fixtures/` —
-  //      i.e. the project root that contains both
-  //      `fixtures/scenarios/` and `fixtures/adapters/`.
-  //   2. Out-of-tree (a cold-user working directory, e.g.
-  //      `/tmp/my-program/fixtures/scenarios/…/manifest.json`
-  //      with the adapter sitting alongside as
-  //      `/tmp/my-program/adapter.toml`): same rule — the
-  //      containment root is `/tmp/my-program`.
+  // 1. In-tree (this monorepo, or any repo that mirrors the
+  // `fixtures/scenarios/<stem>/<slug>/` layout): the
+  // containment root is the directory above `fixtures/` —
+  // i.e. the project root that contains both
+  // `fixtures/scenarios/` and `fixtures/adapters/`.
+  // 2. Out-of-tree (a cold-user working directory, e.g.
+  // `/tmp/my-program/fixtures/scenarios/…/manifest.json`
+  // with the adapter sitting alongside as
+  // `/tmp/my-program/adapter.toml`): same rule — the
+  // containment root is `/tmp/my-program`.
   //
   // If the scenario directory is not under a `fixtures/scenarios/`
   // ancestry (as in the unit tests, which drop scenarios into raw
@@ -170,16 +170,16 @@ export async function validateScenario(
   // path.
   //
   // Adapter resolution, given the containment root:
-  //   - absolute path: use as-is
-  //   - relative path: try `scenarioDir/adapter` first (sibling
-  //     layout a cold skill might emit), then
-  //     `containmentRoot/adapter` (the in-tree monorepo layout)
+  // - absolute path: use as-is
+  // - relative path: try `scenarioDir/adapter` first (sibling
+  // layout a cold skill might emit), then
+  // `containmentRoot/adapter` (the in-tree monorepo layout)
   //
   // After resolution the path must:
-  //   1. Exist on disk
-  //   2. Lexically land inside the containment root
-  //   3. Canonically (realpath) still land inside the containment
-  //      root — guards against symlink escape
+  // 1. Exist on disk
+  // 2. Lexically land inside the containment root
+  // 3. Canonically (realpath) still land inside the containment
+  // root — guards against symlink escape
   //
   // Without these checks, a hostile scenario directory could ship
   // a manifest with `adapter: "/etc/hosts"` (or `"../../etc/hosts"`
@@ -259,7 +259,7 @@ export async function validateScenario(
   }
 
   // (manifest + adapterPath already resolved in step 3 above — we need
-  //  them for the generic persona cross-check against the adapter TOML.)
+  // them for the generic persona cross-check against the adapter TOML.)
 
   // --- 5. Patch run-config to one tick (boot test, not full run) ---
   const bootConfig: RunConfig = { ...runConfig, ticks: 1 };

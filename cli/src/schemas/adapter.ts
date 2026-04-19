@@ -25,7 +25,7 @@ export const LENDING_OBSERVATIONS = [
 export const ProtocolSchema = z.enum(["lending", "generic"]);
 export type Protocol = z.infer<typeof ProtocolSchema>;
 
-// Sprint 6 T01 — literal-bound IDL args for multi-arg dispatch.
+// literal-bound IDL args for multi-arg dispatch.
 // Accepts natural TOML primitives: numbers (integer literals, no
 // floats), booleans, and strings (used for base58-encoded pubkey
 // literals). Mirrors `engine/src/adapter/schema.rs::ArgLiteral`.
@@ -39,11 +39,11 @@ export type ArgLiteral = z.infer<typeof ArgLiteralSchema>;
 export const InstructionMappingSchema = z.object({
   action: z.string().min(1),
   amount: z.string().min(1).optional(),
-  // Sprint 6 T01 — literal constants for non-runtime IDL args of a
+  // literal constants for non-runtime IDL args of a
   // multi-arg instruction. Keys are IDL arg names; values are
   // Borsh-encodable literals (u64/i64/u32/u8 encoded as integers;
   // bool as boolean; pubkey as base58 string). Empty by default so
-  // every Sprint 5 single-arg adapter continues to parse byte-for-byte.
+  // every single-arg adapter continues to parse byte-for-byte.
   args: z.record(z.string(), ArgLiteralSchema).default({})
 });
 export type InstructionMapping = z.infer<typeof InstructionMappingSchema>;
@@ -80,16 +80,16 @@ export const PersonaDefinitionSchema = z.object({
   action_rate_multiplier: z.number().finite().nonnegative().default(1),
   action_weights: z.record(z.string(), z.number()).default({}),
   triggers: z.array(PersonaTriggerSchema).default([]),
-  // Sprint 6 T01 — per-persona named values the generic encoder
+  // per-persona named values the generic encoder
   // substitutes into `args = { <ix-arg> = "@persona.<name>" }`
   // references. Each agent running under this persona supplies its
   // own side/leverage/etc. without forking into one action per
   // variant. Empty by default to preserve byte-stable parsing of
-  // Sprint 4/5 adapters.
+  // adapters.
   persona_args: z.record(z.string(), ArgLiteralSchema).default({})
 });
 
-// Sprint 5 T01: declarative invariants block. Flat `{ name?, field, op,
+// declarative invariants block. Flat `{ name?, field, op,
 // value }` triples evaluated by the engine after every tick snapshot.
 // Intentionally tiny — no AND/OR, no math, no user functions.
 export const InvariantOpSchema = z.enum(["==", "!=", ">=", "<=", ">", "<"]);
@@ -103,7 +103,7 @@ export const InvariantSchema = z.object({
 });
 export type Invariant = z.infer<typeof InvariantSchema>;
 
-// Sprint 5 T05: generic oracle injection. Adapters can declare
+// generic oracle injection. Adapters can declare
 // `[[oracles]]` entries that the engine uses to dispatch price shocks
 // through a typed account layout.
 export const OracleKindSchema = z.enum(["admin-mock", "pyth"]);
@@ -119,7 +119,7 @@ export const OracleDefinitionSchema = z.object({
 });
 export type OracleDefinition = z.infer<typeof OracleDefinitionSchema>;
 
-// Sprint 5 T06: engine-triggered scheduled actions. Each entry tells
+// engine-triggered scheduled actions. Each entry tells
 // the engine to fire an instruction at a fixed cadence (declaration
 // order is the tie-break for same-tick firings). Empty by default.
 export const ScheduledActionSchema = z.object({
@@ -214,7 +214,7 @@ function validateAdapterIdentifiers(adapter: Adapter, path: string): void {
     if (mapping.amount !== undefined) {
       checkIdentifier(path, `[instructions].${ixName}.amount`, mapping.amount);
     }
-    // Sprint 6 T01 — literal-bound arg names go through the same
+    // literal-bound arg names go through the same
     // identifier allow-list as every other adapter-supplied name.
     for (const argName of Object.keys(mapping.args)) {
       checkIdentifier(path, `[instructions].${ixName}.args`, argName);
@@ -376,7 +376,7 @@ function validateGeneric(adapter: Adapter, path: string): void {
     }
   }
 
-  // Sprint 6 T01 — multi-arg validation mirrors
+  // multi-arg validation mirrors
   // `engine/src/adapter/loader.rs::validate_generic`. Every `takes`
   // entry must be bound via runtime `amount` or a literal in `args`
   // (but not both) on a SINGLE instruction mapping. Round 4 enforces

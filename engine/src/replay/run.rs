@@ -58,8 +58,8 @@ impl ReplayBundle {
 /// arg literally named `target`. Without the adapter reference, any
 /// string-valued `args.target` would be inserted into the actor pool —
 /// which silently inflates `agent_count` for generic replay actions
-/// whose Borsh arg list genuinely contains `target`. See Sprint 6
-/// Phase 3 re-review #1 for the failure mode this guards against.
+/// whose Borsh arg list genuinely contains `target`. See
+/// re-review #1 for the failure mode this guards against.
 pub fn load_replay_bundle(
     trajectory_dir: &Path,
     adapter: &Adapter,
@@ -189,7 +189,7 @@ fn collect_instruction_actor_ids(
     }
     actor_ids.insert(instruction.agent.clone());
 
-    // Sprint 6 Phase 3 re-review #1 fix: only treat `args.target` as
+    // re-review #1 fix: only treat `args.target` as
     // the replay-reserved pairwise-actor key when the adapter does
     // NOT declare `target` as an IDL arg for this action. Otherwise
     // the string is a real Borsh arg value (e.g. a pubkey string)
@@ -370,7 +370,7 @@ fn dispatch_replay_instruction<H: Primitive + ?Sized>(
         ))
     })?;
 
-    // Sprint 6 Phase 3 re-review fix: `target` is only the
+    // re-review fix: `target` is only the
     // replay-reserved pairwise-actor key when the adapter does NOT
     // declare it as an IDL arg via `[actions.<name>].takes`. Lending
     // adapters leave `adapter.actions` empty by convention, so their
@@ -558,7 +558,7 @@ mod tests {
 
     #[test]
     fn collect_actor_ids_treats_target_as_pairwise_key_by_default() {
-        // Sprint 6 Phase 3 re-check: when the adapter does NOT
+        // re-check: when the adapter does NOT
         // declare `target` in `[actions.<name>].takes` (lending
         // shape: adapter.actions is empty by convention), the
         // replay-reserved pairwise-actor interpretation applies
@@ -581,7 +581,7 @@ mod tests {
 
     #[test]
     fn collect_actor_ids_passes_target_through_when_adapter_declares_it() {
-        // Sprint 6 Phase 3 re-check #1 fix: when the adapter
+        // re-check #1 fix: when the adapter
         // declares `target` as an IDL arg via `takes`, the string
         // is a real Borsh arg value (e.g. a pubkey) and must NOT
         // inflate the actor pool. Previously this path inserted a

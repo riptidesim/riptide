@@ -117,8 +117,8 @@ test("SimulationSummarySchema accepts a well-formed generic summary", () => {
   assert.equal(parsed.success, true);
 });
 
-test("SimulationSummarySchema accepts an invariants_fired array (T03 replay surface)", () => {
-  // Sprint 6 re-review #1: the Solend replay exits 1 with this shape
+test("SimulationSummarySchema accepts an invariants_fired array (replay surface)", () => {
+  // re-review #1: the Solend replay exits 1 with this shape
   // in `summary.invariants_fired`. Previously the CLI Zod schema only
   // allowed scalar union values and choked on the array, which broke
   // the user-facing `riptide replay` wrapper. Lock the fix so future

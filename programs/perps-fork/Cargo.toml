@@ -2,7 +2,7 @@
 name = "perps-fork"
 version = "0.1.0"
 edition = "2021"
-description = "Minimal perps-lite fork. Sprint 5 T07 target for the first non-lending protocol-class bundle. Long/short positions against the admin-mock oracle."
+description = "Minimal perps-lite fork — the first non-lending protocol-class bundle. Long/short positions against the admin-mock oracle."
 
 [lib]
 crate-type = ["cdylib", "lib"]

@@ -1,6 +1,6 @@
 //! Declarative scenario presets loaded from `fixtures/scenarios/presets/*.toml`.
 //!
-//! T02 moves the parameter set of built-in scenarios out of Rust and into
+//! moves the parameter set of built-in scenarios out of Rust and into
 //! TOML. The Rust `Scenario` impls (e.g. `PriceShockScenario`) stay put —
 //! only the numeric parameters travel. At engine boot, `load_presets_dir`
 //! reads every `*.toml` file in the presets directory and returns a
@@ -12,7 +12,7 @@
 //! `PriceShockScenario::new(100.0, 25, (ticks / 2).max(1), 0.4)` call.
 //! The shipped `price-shock.toml` preset encodes those exact values, with
 //! `shock_tick_denominator = 2` capturing the runtime-derived tick field.
-//! Changing any of these fields breaks the Sprint 4 determinism hash.
+//! Changing any of these fields breaks the determinism hash.
 
 use std::{collections::HashMap, fs, path::Path};
 
@@ -65,14 +65,14 @@ fn default_shock_tick_denominator() -> u32 {
 /// keyed by `PresetSpec.name`.
 ///
 /// - Missing directory: returns an empty map and emits a stderr warning.
-///   The caller's dispatch then falls through to the `baseline` default,
-///   which keeps a stripped-down checkout runnable without the fixtures
-///   tree.
+/// The caller's dispatch then falls through to the `baseline` default,
+/// which keeps a stripped-down checkout runnable without the fixtures
+/// tree.
 /// - Non-TOML files are ignored.
 /// - A malformed TOML file is a hard error (`Err`) — we refuse to silently
-///   drop a preset the user thought they had installed.
+/// drop a preset the user thought they had installed.
 /// - Two files declaring the same `name` is a hard error for the same
-///   reason.
+/// reason.
 pub fn load_presets_dir(dir: &Path) -> anyhow::Result<HashMap<String, PresetSpec>> {
     if !dir.exists() {
         eprintln!(
@@ -153,7 +153,7 @@ drop_percent = 0.4
 
     #[test]
     fn load_presets_dir_picks_up_multiple_files_without_code_changes() {
-        // T02 acceptance criterion: dropping a second TOML file into the
+        // acceptance criterion: dropping a second TOML file into the
         // directory requires zero engine changes.
         let tmp = tempfile::tempdir().unwrap();
         write_preset(
@@ -199,7 +199,7 @@ drop_percent = 0.6
     fn shipped_price_shock_preset_matches_legacy_hardcoded_values() {
         // Regression guard for the determinism hash: if anyone edits the
         // shipped `price-shock.toml`, this test catches it before
-        // `t15_e2e_determinism` / the hero grid sweep does.
+        // `e2e_determinism` / the hero grid sweep does.
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let presets_dir = manifest_dir
             .parent()

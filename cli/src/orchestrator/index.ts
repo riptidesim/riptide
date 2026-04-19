@@ -27,7 +27,7 @@ export interface OrchestratorOptions {
   /** Absolute path to a pre-validated adapter TOML, or undefined. */
   adapterPath?: string;
   /**
-   * Sprint 6 T03 — forward the `--allow-invariant-violations` flag
+   * forward the `--allow-invariant-violations` flag
    * into the engine. When true, the engine exits 0 even if one or
    * more declared invariants fired during the run. When false
    * (default), an invariant firing exits 1. Setup errors always exit
@@ -77,7 +77,7 @@ export function monorepoRootFromModule(): string | undefined {
   try {
     const here = realpathSync(fileURLToPath(import.meta.url));
     // here = <monorepo>/cli/dist/src/orchestrator/index.js
-    //        ^5^       ^4^ ^3^ ^2^          ^1^
+    // ^5^ ^4^ ^3^ ^2^ ^1^
     const root = path.resolve(here, "..", "..", "..", "..", "..");
     cachedMonorepoRoot = root;
     return root;
@@ -105,7 +105,7 @@ export function cliPackageRootFromModule(): string | undefined {
   try {
     const here = realpathSync(fileURLToPath(import.meta.url));
     // here = <pkg-root>/dist/src/orchestrator/index.js
-    //        ^4^       ^3^ ^2^          ^1^
+    // ^4^ ^3^ ^2^ ^1^
     const root = path.resolve(here, "..", "..", "..", "..");
     cachedPkgRoot = root;
     return root;
@@ -163,7 +163,7 @@ export async function runOrchestrator(
     if (code !== 0) {
       const tail = stderrTail.trim();
       const suffix = tail ? `\n--- engine stderr (tail) ---\n${tail}` : "";
-      // Sprint 6 T03 — when the engine exits with the invariant-firing
+      // when the engine exits with the invariant-firing
       // code (1) and the caller has not passed --allow-invariant-violations,
       // still surface the engine's JSON output if it was written. Doing
       // so lets exploratory callers inspect `summary.invariants_fired`

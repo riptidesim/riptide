@@ -2,12 +2,12 @@
 //
 // The command is now a smoke-test harness, not a generator. These
 // tests exercise:
-//   - exit 2 when the adapter file is missing
-//   - exit 2 when the TOML parses but fails Zod validation
-//   - exit 1 when the smoke runner reports failure (adapter path printed)
-//   - exit 0 on a clean lending adapter with a stubbed smoke runner
-//   - exit 0 on a clean generic adapter with a stubbed smoke runner
-//   - the five `findObservationDelta` unit tests (primitive-agnostic)
+// - exit 2 when the adapter file is missing
+// - exit 2 when the TOML parses but fails Zod validation
+// - exit 1 when the smoke runner reports failure (adapter path printed)
+// - exit 0 on a clean lending adapter with a stubbed smoke runner
+// - exit 0 on a clean generic adapter with a stubbed smoke runner
+// - the five `findObservationDelta` unit tests (primitive-agnostic)
 
 import test from "node:test";
 import assert from "node:assert/strict";

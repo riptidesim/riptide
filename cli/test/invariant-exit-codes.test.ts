@@ -1,11 +1,11 @@
-// Sprint 6 T03 — engine invariant CI exit codes.
+// engine invariant CI exit codes.
 //
 // Verifies the three-way exit code contract wired in
 // `engine/src/main.rs`:
-//   - Exit 0: all declared invariants held through the run.
-//   - Exit 1: ≥1 invariant fired during the run.
-//   - Exit 2: setup error (adapter references unknown field, parse
-//             error, missing program .so, etc.).
+// - Exit 0: all declared invariants held through the run.
+// - Exit 1: ≥1 invariant fired during the run.
+// - Exit 2: setup error (adapter references unknown field, parse
+// error, missing program.so, etc.).
 //
 // Also verifies `--allow-invariant-violations` restores exit 0 on an
 // otherwise-firing run.
@@ -49,7 +49,7 @@ function ensureEngineAndProgramReady(): void {
 
   if (!existsSync(ENGINE_PATH)) {
     process.stderr.write(
-      `T03 gate: riptide-engine binary missing, building (cargo build --release -p riptide-engine)...\n`
+      `gate: riptide-engine binary missing, building (cargo build --release -p riptide-engine)...\n`
     );
     const result = spawnSync(
       "cargo",
@@ -58,24 +58,24 @@ function ensureEngineAndProgramReady(): void {
     );
     if (result.status !== 0) {
       throw new Error(
-        `T03 gate: engine build FAILED (cargo exit ${result.status}). Fix the build before ` +
+        `gate: engine build FAILED (cargo exit ${result.status}). Fix the build before ` +
           `continuing:\n  cargo build --release -p riptide-engine`
       );
     }
     if (!existsSync(ENGINE_PATH)) {
       throw new Error(
-        `T03 gate: cargo build succeeded but no binary at ${ENGINE_PATH}`
+        `gate: cargo build succeeded but no binary at ${ENGINE_PATH}`
       );
     }
   }
 
   if (!existsSync(LENDING_SO)) {
     throw new Error(
-      `T03 gate: lending_pool.so missing at ${LENDING_SO}.\n` +
+      `gate: lending_pool.so missing at ${LENDING_SO}.\n` +
         `  This is a Solana SBF artifact — not auto-buildable without the cargo-build-sbf ` +
         `toolchain. Build once with:\n  ` +
         `cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml\n` +
-        `  The same artifact is required by t06_litesvm_parity and t15_e2e_determinism, so it ` +
+        `  The same artifact is required by litesvm_parity and e2e_determinism, so it ` +
         `should exist in any dev environment that can build the engine's release tests.`
     );
   }
@@ -212,7 +212,7 @@ const BASE_ENGINE_ARGS = (fix: {
 ];
 
 test(
-  "T03: clean run (no invariants declared) exits 0",
+  "clean run (no invariants declared) exits 0",
   { timeout: T03_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
@@ -232,7 +232,7 @@ test(
 );
 
 test(
-  "T03: clean run with always-true invariant exits 0",
+  "clean run with always-true invariant exits 0",
   { timeout: T03_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
@@ -262,7 +262,7 @@ value = 0
 );
 
 test(
-  "T03: firing invariant exits 1",
+  "firing invariant exits 1",
   { timeout: T03_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
@@ -297,7 +297,7 @@ value = 0
 );
 
 test(
-  "T03: --allow-invariant-violations restores exit 0",
+  "--allow-invariant-violations restores exit 0",
   { timeout: T03_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
@@ -334,7 +334,7 @@ value = 0
 );
 
 test(
-  "T03: broken adapter (unknown invariant field) exits 2",
+  "broken adapter (unknown invariant field) exits 2",
   { timeout: T03_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
@@ -371,7 +371,7 @@ value = 0
 );
 
 test(
-  "T03: malformed adapter (bad TOML) exits 2",
+  "malformed adapter (bad TOML) exits 2",
   { timeout: T03_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();

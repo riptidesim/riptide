@@ -1,22 +1,22 @@
-//! T05 — Generic Oracle Injection (Sprint 5 Phase 1)
+//! Generic Oracle Injection
 //!
 //! End-to-end coverage for the declarative `[[oracles]]` adapter block
 //! and the new dispatch layer in `engine::scenario::oracle`.
 //!
 //! Covered:
 //! 1. Adapter TOML parse of `[[oracles]]`, including malformed input
-//!    rejection (unknown `kind`, duplicate `name`, missing `kind`).
+//! rejection (unknown `kind`, duplicate `name`, missing `kind`).
 //! 2. Dispatch: `OracleKind::AdminMock` resolves to the AdminMock
-//!    layout whose `byte_len` matches the shipped golden file.
+//! layout whose `byte_len` matches the shipped golden file.
 //! 3. Shock injection round-trip — encode a price via the AdminMock
-//!    layout, decode it back, and verify the engine-visible update
-//!    matches what was written (covers the "target program reads the
-//!    shocked value" intent without requiring a live SBF build inside
-//!    the test runner).
+//! layout, decode it back, and verify the engine-visible update
+//! matches what was written (covers the "target program reads the
+//! shocked value" intent without requiring a live SBF build inside
+//! the test runner).
 //! 4. Backwards compat — the shipped solend-fork.toml parses cleanly
-//!    with NO `[[oracles]]` block declared, and the admin-mock oracle
-//!    layout produces byte-identical output to the
-//!    `OracleSnapshot` shape the Solend hero grid already writes.
+//! with NO `[[oracles]]` block declared, and the admin-mock oracle
+//! layout produces byte-identical output to the
+//! `OracleSnapshot` shape the Solend hero grid already writes.
 
 use riptide_engine::{
     adapter::{loader::parse_adapter_str, OracleKind},
@@ -95,7 +95,7 @@ mod litesvm_admin_mock_oracle {
         svm.send_transaction(tx).map(|_| ()).map_err(|e| format!("{:?}", e.err))
     }
 
-    /// T05 done-when #4: "a new adapter can boot in LiteSVM, read a
+    /// done-when #4: "a new adapter can boot in LiteSVM, read a
     /// price, and receive an admin shock."
     ///
     /// Loads the real `admin_mock_oracle.so` into a fresh LiteSVM
@@ -184,8 +184,8 @@ mod litesvm_admin_mock_oracle {
         assert_eq!(shocked.exponent, 0);
 
         // --- Cross-check: the engine-side encoder produces the same
-        //     bytes the program wrote, proving the layout mirror is
-        //     byte-identical to the on-chain account shape. ---
+        // bytes the program wrote, proving the layout mirror is
+        // byte-identical to the on-chain account shape. ---
         let engine_encoded = layout
             .encode(admin.pubkey().to_bytes(), &OracleUpdate { price: 40.0, exponent: 0 })
             .expect("engine encode");
@@ -327,7 +327,7 @@ fn dispatch_resolves_admin_mock_to_matching_byte_length() {
 #[test]
 fn dispatch_resolves_pyth_kind_without_panic() {
     // Pyth variant is shipped as a placeholder that reuses the
-    // admin-mock layout for Sprint 5. A Sprint 6 drop will replace
+    // admin-mock layout for. A drop will replace
     // this with the full Pyth Borsh shape; until then, dispatch must
     // still resolve and round-trip.
     let layout = oracle_layout_for(OracleKind::Pyth);
@@ -357,7 +357,7 @@ fn shock_injection_roundtrip_through_admin_mock_layout() {
     let layout = oracle_layout_for(OracleKind::AdminMock);
     let admin = [42u8; 32];
     let shock = OracleUpdate {
-        price: 40.0, // classic Sprint 4 hero-grid w25-s40 shock magnitude
+        price: 40.0, // classic hero-grid w25-s40 shock magnitude
         exponent: 0,
     };
     let bytes = layout.encode(admin, &shock).expect("encode shock");
@@ -370,7 +370,7 @@ fn shock_injection_roundtrip_through_admin_mock_layout() {
 
 #[test]
 fn solend_fork_adapter_parses_without_oracles_block() {
-    // Backwards compat: Sprint 4's shipped solend-fork adapter must
+    // Backwards compat: 's shipped solend-fork adapter must
     // continue to parse cleanly with NO [[oracles]] block, and the
     // `oracles` field must default to empty.
     let solend_toml = include_str!("../../fixtures/adapters/solend-fork.toml");
@@ -378,7 +378,7 @@ fn solend_fork_adapter_parses_without_oracles_block() {
     assert!(
         adapter.oracles.is_empty(),
         "solend-fork.toml should default to zero declared oracles to preserve \
-         Sprint 4 hero-grid determinism; got {:?}",
+         hero-grid determinism; got {:?}",
         adapter.oracles
     );
 }

@@ -30,7 +30,7 @@ function ensureEngineAndProgramReady(): void {
   gateChecked = true;
 
   process.stderr.write(
-    "T04 gate: building release riptide-engine (cargo build --release -p riptide-engine)...\n"
+    "gate: building release riptide-engine (cargo build --release -p riptide-engine)...\n"
   );
   const result = spawnSync(
     "cargo",
@@ -39,13 +39,13 @@ function ensureEngineAndProgramReady(): void {
   );
   if (result.status !== 0) {
     throw new Error(
-      "T04 gate: engine build failed.\n  cargo build --release -p riptide-engine"
+      "gate: engine build failed.\n  cargo build --release -p riptide-engine"
     );
   }
 
   if (!existsSync(RESOURCE_GRINDER_SO)) {
     throw new Error(
-      `T04 gate: resource_grinder.so missing at ${RESOURCE_GRINDER_SO}.\n` +
+      `gate: resource_grinder.so missing at ${RESOURCE_GRINDER_SO}.\n` +
         "Build once with:\n" +
         "  cargo build-sbf --manifest-path programs/resource_grinder/Cargo.toml"
     );
@@ -87,7 +87,7 @@ async function runReplayCommand(args: string[]): Promise<CliRunResult> {
 }
 
 test(
-  "T04: `riptide replay` runs end-to-end and emits schema-compatible JSON",
+  "`riptide replay` runs end-to-end and emits schema-compatible JSON",
   { timeout: T04_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
@@ -176,12 +176,12 @@ test(
 );
 
 test(
-  "T05-CLI: invariant firing on replay still surfaces the full SimulationResult (exit 1)",
+  "invariant firing on replay still surfaces the full SimulationResult (exit 1)",
   { timeout: T04_TIMEOUT_MS },
   async () => {
-    // Phase 3 re-review #1: previously the CLI's catch block threw
+    // re-review #1: previously the CLI's catch block threw
     // away the orchestrator-parsed SimulationResult on exit 1 and
-    // printed `{"error": ...}`, which broke the user-facing replay
+    // printed `{"error":...}`, which broke the user-facing replay
     // contract on the canonical invariant-firing path. This test
     // locks the fix: exit 1 still, but stdout carries the full
     // SimulationResult JSON with `invariants_fired[].firings > 0`.
@@ -197,7 +197,7 @@ test(
       // Trajectory: bootstrap mines 2, tick 1 mines 8 so player.gold
       // climbs to ~10. The invariant `player.gold <= 5` stays green
       // at tick 0 (gold=2) and violates at tick 1 (gold=10) — a clean
-      // "passes then fires" shape without needing a new .so.
+      // "passes then fires" shape without needing a new.so.
       await writeFile(
         path.join(replayDir, "initial-state.json"),
         JSON.stringify(
@@ -234,7 +234,7 @@ test(
       );
       // Adapter variant that adds a single invariant on top of the
       // shipped resource-grinder shape. Absolute paths so the test's
-      // tmpdir-hosted TOML can resolve the shipped .so + IDL.
+      // tmpdir-hosted TOML can resolve the shipped.so + IDL.
       await writeFile(
         adapterPath,
         [

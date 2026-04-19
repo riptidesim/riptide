@@ -12,7 +12,7 @@ Deterministic multi-agent simulator for Solana programs. `riptide-engine` is the
 
 - Protocol-agnostic: lending, perps, and AMM bundles ship in the parent repo, but the engine itself has no built-in DeFi semantics — everything is driven by the adapter TOML.
 - Three shipped adapter shapes live under `fixtures/adapters/` in the parent repo (`solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`).
-- Historical replay mode (`riptide-engine --replay-dir ...`) reproduces real on-chain trajectories tick-by-tick — see `fixtures/replays/solend-nov-2022/` for the shipping example.
+- Historical replay mode (`riptide-engine --replay-dir...`) reproduces real on-chain trajectories tick-by-tick — see `fixtures/replays/solend-nov-2022/` for the shipping example.
 
 ## Usage
 

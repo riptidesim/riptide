@@ -10,7 +10,7 @@ This npm package is the Node.js CLI front-end. On install it fetches a prebuilt 
 >
 > ```bash
 > git clone https://github.com/riptidesim/riptide
-> cd riptide && ./install.sh
+> cd riptide &&./install.sh
 > ```
 
 Once published, the registry path will be:

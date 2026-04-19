@@ -14,15 +14,15 @@ downstream validator — `riptide adapt` will exit 2 on a bad shape.
 
 ## Required top-level keys for a generic adapter
 
-    protocol   = "generic"
-    program_so = "<path to compiled .so>"    # relative to the adapter file
-    idl_path   = "<path to IDL json>"        # relative to the adapter file
+    protocol = "generic"
+    program_so = "<path to compiled.so>" # relative to the adapter file
+    idl_path = "<path to IDL json>" # relative to the adapter file
 
     [accounts.<name>]
     # One block per account type the simulator needs at bootstrap.
     # `kind` is "agent" (one per simulated agent) or "shared"
     # (one globally for the run). `space` is the account size in bytes.
-    kind  = "agent" | "shared"
+    kind = "agent" | "shared"
     space = <positive integer>
 
     [instructions]
@@ -38,7 +38,7 @@ downstream validator — `riptide adapt` will exit 2 on a bad shape.
     [actions.<name>]
     # Every action referenced by an instruction MUST have a block here.
     label = "<human label>"
-    takes = ["<single_arg>"] | []   # v0 supports 0 or 1 arg, no more
+    takes = ["<single_arg>"] | [] # v0 supports 0 or 1 arg, no more
 
     [observations]
     # Map of observation name → type. Compact form:
@@ -46,11 +46,11 @@ downstream validator — `riptide adapt` will exit 2 on a bad shape.
 
     [personas.<name>]
     # At least one persona is REQUIRED.
-    label                  = "<human label>"
-    action_rate_multiplier = <float>   # 1.0 is neutral
-    action_weights         = { <action> = <float>, ... }
-    triggers               = [{ if = "<observation> <op> <const>", then = "<action>", weight_boost = <float> }]
-    # Trigger operators supported in v0: <  >  ==
+    label = "<human label>"
+    action_rate_multiplier = <float> # 1.0 is neutral
+    action_weights = { <action> = <float>,... }
+    triggers = [{ if = "<observation> <op> <const>", then = "<action>", weight_boost = <float> }]
+    # Trigger operators supported in v0: < > ==
 
 ## Hard rules
 
@@ -59,8 +59,8 @@ downstream validator — `riptide adapt` will exit 2 on a bad shape.
 2. Every field you are uncertain about MUST carry a trailing
    `# TODO: <what to verify>` comment on that line. Examples:
 
-       mine = { action = "mine", amount = "amount" }  # TODO: verify arg name
-       space = 128  # TODO: confirm actual account size
+       mine = { action = "mine", amount = "amount" } # TODO: verify arg name
+       space = 128 # TODO: confirm actual account size
 
 3. Declare at least one `[accounts.*]` block, at least one
    `[instructions]` mapping, at least one `[actions.*]` block, at

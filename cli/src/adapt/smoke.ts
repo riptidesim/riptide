@@ -173,16 +173,16 @@ function loadSampleLendingPolicies(fixturesRoot: string): unknown {
 // assert at least one observation in the output delta changed from the
 // initial state". Two real signals satisfy that:
 //
-//   A. The engine's events array contains at least one entry with
-//      `outcome == "success"` that is NOT a passive signal (trigger
-//      activation, noop, skipped). A successful deposit/borrow/repay/
-//      withdraw/liquidate/mine/swap/etc. is direct evidence a write
-//      action mutated observable state.
+// A. The engine's events array contains at least one entry with
+// `outcome == "success"` that is NOT a passive signal (trigger
+// activation, noop, skipped). A successful deposit/borrow/repay/
+// withdraw/liquidate/mine/swap/etc. is direct evidence a write
+// action mutated observable state.
 //
-//   B. The timeseries has >= 2 entries AND at least one numeric
-//      observation field differs between the first and last entry.
-//      This catches cases where the engine aggregates per-tick state
-//      without individually logging each successful event.
+// B. The timeseries has >= 2 entries AND at least one numeric
+// observation field differs between the first and last entry.
+// This catches cases where the engine aggregates per-tick state
+// without individually logging each successful event.
 //
 // Either signal on its own is sufficient. A populated `summary` or
 // `metrics` object by itself is NOT — a static baseline also has a

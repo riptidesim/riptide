@@ -1,55 +1,55 @@
 # Perps-fork generic adapter.
 #
-# Sprint 5 T08 — the first non-lending protocol-class bundle. Drives
-# `programs/perps-fork/` (the perps-lite target from T07) through the
+# the first non-lending protocol-class bundle. Drives
+# `programs/perps-fork/` (the perps-lite target from ) through the
 # engine's generic primitive path.
 #
-# **Scope calls (documented in Obsidian Tasks/Sprint 5/T07 note):**
+# **Scope calls (documented in Obsidian Tasks// note):**
 #
 # - `protocol = "generic"` (not `"perps"`). The `Protocol` enum has
-#   `Lending`/`Generic` variants in Sprint 5; adding `Perps` would be a
-#   cosmetic 5-file ripple with no dispatch behavior change. T10's
-#   `classify.md` discrimination hooks read instruction/observation
-#   names — not the protocol field — so the classification story still
-#   works. A Sprint 6 drop can add `Protocol::Perps` when something
-#   depends on it.
+# `Lending`/`Generic` variants in; adding `Perps` would be a
+# cosmetic 5-file ripple with no dispatch behavior change. 's
+# `classify.md` discrimination hooks read instruction/observation
+# names — not the protocol field — so the classification story still
+# works. A drop can add `Protocol::Perps` when something
+# depends on it.
 # - Runtime-dispatchable actions: **only `deposit` and `withdraw`**.
-#   The generic `GenericInstructionBuilder::build_action_data` encoder
-#   only supports single-u64-arg instructions today; `open_position`
-#   (side + leverage + notional) / `close_position` (zero args + oracle
-#   sequencing) / `liquidate_position` (zero args + oracle sequencing)
-#   cannot be encoded through the stock generic path, and `open_position`
-#   also requires a pre-initialized oracle account which GenericHarness'
-#   bootstrap does not express. Those instructions are still declared in
-#   the shipping IDL (`fixtures/idls/perps-fork.json`) so T10/T11 can
-#   classify the full perps surface from the IDL — they are execution-
-#   shape metadata rather than runtime action bindings. Sprint 5 t17
-#   integration test covers the full 6-instruction round trip against
-#   LiteSVM directly, so execution correctness is gated elsewhere.
+# The generic `GenericInstructionBuilder::build_action_data` encoder
+# only supports single-u64-arg instructions today; `open_position`
+# (side + leverage + notional) / `close_position` (zero args + oracle
+# sequencing) / `liquidate_position` (zero args + oracle sequencing)
+# cannot be encoded through the stock generic path, and `open_position`
+# also requires a pre-initialized oracle account which GenericHarness'
+# bootstrap does not express. Those instructions are still declared in
+# the shipping IDL (`fixtures/idls/perps-fork.json`) so can
+# classify the full perps surface from the IDL — they are execution-
+# shape metadata rather than runtime action bindings. t17
+# integration test covers the full 6-instruction round trip against
+# LiteSVM directly, so execution correctness is gated elsewhere.
 # - Oracle account is NOT declared in `[accounts]`. Perps-fork reads the
-#   admin-mock oracle layout (`programs/admin_mock_oracle`), which is
-#   owned by a different on-chain program. GenericHarness creates each
-#   declared account with `owner = program_id` which is wrong for an
-#   oracle owned by a sibling program; declaring it here would break
-#   the account-owner invariant and silently produce wrong prices.
-#   The deposit/withdraw runtime path does not read the oracle so this
-#   omission is load-bearing only for the open/close/liquidate
-#   instructions, which (per above) are not runtime-dispatched in Sprint 5.
-# - `[[scheduled_actions]]` is **empty**. Funding rate is a Sprint 6
-#   addition. The T06 engine-triggered actions infrastructure is still
-#   load-bearing: perps-fork.toml parses with zero scheduled actions, the
-#   engine's `Primitive::on_scheduled_action` default no-op hook handles
-#   the path, and Sprint 6 can declare `update_funding_rate` here
-#   without reshaping any engine code.
-# - No `[invariants]` block — T12 (Phase 3) declares the perps
-#   invariants on top of this adapter.
+# admin-mock oracle layout (`programs/admin_mock_oracle`), which is
+# owned by a different on-chain program. GenericHarness creates each
+# declared account with `owner = program_id` which is wrong for an
+# oracle owned by a sibling program; declaring it here would break
+# the account-owner invariant and silently produce wrong prices.
+# The deposit/withdraw runtime path does not read the oracle so this
+# omission is load-bearing only for the open/close/liquidate
+# instructions, which (per above) are not runtime-dispatched in.
+# - `[[scheduled_actions]]` is **empty**. Funding rate is a
+# addition. The engine-triggered actions infrastructure is still
+# load-bearing: perps-fork.toml parses with zero scheduled actions, the
+# engine's `Primitive::on_scheduled_action` default no-op hook handles
+# the path, and can declare `update_funding_rate` here
+# without reshaping any engine code.
+# - No `[invariants]` block — declares the perps
+# invariants on top of this adapter.
 #
-# Layer 2 personas — the T09 persona library (`leveraged-long.toml`,
+# Layer 2 personas — the persona library (`leveraged-long.toml`,
 # `leveraged-short.toml`, `delta-neutral-farmer.toml`, `liquidator.toml`)
-# — live at `fixtures/personas/*.toml`. The T09 sidecar scratch script
-# at `scripts/sprint5-perps-scratch.sh` merges them into a runtime copy
+# — live at `fixtures/personas/*.toml`. The sidecar scratch script
+# at `scripts/perps-scratch.sh` merges them into a runtime copy
 # of this adapter with inline `[personas]` before invoking the engine,
-# matching the Sprint 4 sidecar-runner pattern.
+# matching the sidecar-runner pattern.
 
 protocol = "generic"
 program_so = "../../programs/perps-fork/target/deploy/perps_fork.so"
@@ -67,7 +67,7 @@ space = 106
 # through `GenericInstructionBuilder::build_action_data` (single u64 arg).
 # open_position / close_position / liquidate_position are declared in the
 # IDL (classification surface) but have no `[instructions]` mapping here
-# — the generic runtime cannot dispatch them in Sprint 5.
+# — the generic runtime cannot dispatch them in.
 [instructions]
 deposit_collateral  = { action = "deposit",  amount = "amount" }
 withdraw_collateral = { action = "withdraw", amount = "amount" }
@@ -120,20 +120,20 @@ field = "position.leverage_bps"
 op = "<="
 value = 100000
 
-# NOTE (Sprint 6 T03): the Sprint 5 T12 `market_config_initialized`
+# NOTE: the `market_config_initialized`
 # invariant (`market.max_leverage_bps > 0`) was removed because it
 # fires once at tick 0 before the generic harness's lazy-init path
-# writes the market config. Before Sprint 6 T03 wired invariant
+# writes the market config. Before wired invariant
 # firings to the engine exit code, a tick-0 false-positive was
-# invisible to CI; with T03 it would turn the perps scratch gate
-# red on an invariant Sprint 5 already treated as exploratory. The
+# invisible to CI; with it would turn the perps scratch gate
+# red on an invariant already treated as exploratory. The
 # fix at source (harness-level eager market init, or a scheduled
-# action that fires `initialize_market` at tick 0) is a Sprint 7+
+# action that fires `initialize_market` at tick 0) is a +
 # follow-up. The two remaining invariants (`no_socialized_loss` +
 # `max_leverage_respected`) are the shipping checks.
 
 # === SIDECAR-CUT ===
-# `scripts/sprint5-perps-scratch.sh` truncates this file at the
+# `scripts/perps-scratch.sh` truncates this file at the
 # `# === SIDECAR-CUT ===` line above and appends
 # `fixtures/personas/*.toml` for the real perps persona library
 # (leveraged-long, leveraged-short, delta-neutral-farmer, liquidator)

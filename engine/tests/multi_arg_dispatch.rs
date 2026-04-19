@@ -1,37 +1,37 @@
-//! T22 — Multi-arg instruction builder (Sprint 6 Phase 0 · T01 gate).
+//! Multi-arg instruction builder ( · gate).
 //!
 //! Pure encoder test: assembles a synthetic multi-arg IDL + adapter
 //! TOML and exercises `GenericInstructionBuilder::build_action_data`
-//! across every Sprint 6-supported Borsh type (`u64`, `i64`, `u32`,
+//! across every -supported Borsh type (`u64`, `i64`, `u32`,
 //! `u8`, `bool`, `pubkey`). Coverage:
 //!
 //! 1. `three_arg_swap_encodes_deterministically` — AMM-shape action
-//!    `swap(amount_in: u64, min_out: u64, direction: bool)` with
-//!    runtime-bound `amount_in` + literal `min_out` + literal
-//!    `direction`. Asserts byte-for-byte the discriminator + three
-//!    payload slots.
+//! `swap(amount_in: u64, min_out: u64, direction: bool)` with
+//! runtime-bound `amount_in` + literal `min_out` + literal
+//! `direction`. Asserts byte-for-byte the discriminator + three
+//! payload slots.
 //! 2. `u32_u8_bool_pubkey_literals_encode_correctly` — exercises the
-//!    full Sprint 6 type matrix on a single synthetic instruction
-//!    with six args. Confirms range checks on u32/u8 literals fire
-//!    on overflow. Confirms `pubkey` literals base58-decode to 32
-//!    raw bytes.
+//! full type matrix on a single synthetic instruction
+//! with six args. Confirms range checks on u32/u8 literals fire
+//! on overflow. Confirms `pubkey` literals base58-decode to 32
+//! raw bytes.
 //! 3. `single_arg_adapter_stays_byte_identical` — backwards compat:
-//!    Sprint 5's single-u64 path produces the same bytes under the
-//!    new encoder (8-byte discriminator + 8-byte LE u64).
+//! 's single-u64 path produces the same bytes under the
+//! new encoder (8-byte discriminator + 8-byte LE u64).
 //! 4. `multi_arg_action_rejects_double_binding` — loader fails if an
-//!    action's arg is bound both as `amount` AND as a literal in
-//!    `args` (picks one, not both).
+//! action's arg is bound both as `amount` AND as a literal in
+//! `args` (picks one, not both).
 //! 5. `encoder_rejects_unbound_idl_arg` — loader fails when an IDL
-//!    arg is declared but neither runtime-bound nor literal-bound in
-//!    the adapter.
+//! arg is declared but neither runtime-bound nor literal-bound in
+//! the adapter.
 //! 6. `encoder_rejects_runtime_overflow_for_u8` — runtime-amount
-//!    overflow surfaces as an adapter error, not silent wrap.
+//! overflow surfaces as an adapter error, not silent wrap.
 //!
-//! This test is the sole unit-level gate for T01. The adapter-loader
+//! This test is the sole unit-level gate for. The adapter-loader
 //! validation path is exercised via `parse_adapter_str`; the
 //! encoder itself via `GenericInstructionBuilder::build_action_data`.
 //! A LiteSVM fork-program round-trip of a real multi-arg instruction
-//! lands in Phase 3 (T11 AMM-fork) — this gate verifies the
+//! lands in — this gate verifies the
 //! engine-capability surface alone.
 
 use std::collections::BTreeMap;
@@ -109,9 +109,9 @@ fn swap_adapter_toml(
     takes: &str,
     args_block: &str,
 ) -> String {
-    // Keep the program_so path pointing at a real shipped .so so the
+    // Keep the program_so path pointing at a real shipped.so so the
     // loader's post-resolution existence check passes. The test only
-    // drives `build_action_data` — nothing actually executes the .so.
+    // drives `build_action_data` — nothing actually executes the.so.
     format!(
         r#"
 protocol = "generic"
@@ -259,7 +259,7 @@ triggers = []
         .expect("6-arg instruction encodes");
 
     // 8 disc + u64 amt (8) + i64 delta (8) + u32 cap (4) + u8 tier (1)
-    //         + bool flag (1) + pubkey recipient (32) = 62 bytes.
+    // + bool flag (1) + pubkey recipient (32) = 62 bytes.
     assert_eq!(bytes.len(), 62, "payload length: {}", bytes.len());
     assert_eq!(&bytes[..8], &[1, 2, 3, 4, 5, 6, 7, 8], "discriminator");
     assert_eq!(u64::from_le_bytes(bytes[8..16].try_into().unwrap()), 7, "amt");
@@ -280,7 +280,7 @@ triggers = []
 
 #[test]
 fn single_arg_adapter_stays_byte_identical() {
-    // Backwards compat gate: Sprint 5's perps-fork / resource-grinder
+    // Backwards compat gate: 's perps-fork / resource-grinder
     // single-arg shape must continue to produce the exact same bytes
     // under the new multi-arg encoder. Builds a minimal single-arg
     // adapter and asserts the 16-byte payload: 8-byte discriminator +
@@ -519,7 +519,7 @@ fn loader_rejects_pubkey_literal_with_wrong_byte_count() {
     // Pubkey literal base58-decodes to !=32 bytes → encoder reports
     // the byte-count mismatch at encode time. Loader-level rejection
     // would require teaching the loader about IDL types, which we've
-    // punted; encoder-level is sufficient for Sprint 6.
+    // punted; encoder-level is sufficient for.
     let toml = r#"
 protocol = "generic"
 program_so = "../programs/resource_grinder/target/deploy/resource_grinder.so"
@@ -565,8 +565,8 @@ triggers = []
 
 // Negative path — a stray validation error carrying the expected key.
 // Checks that loader validation errors preserve the original
-// structured shape (path + key + reason) after Sprint 6 schema
-// extensions. Sprint 4/5 regression surface.
+// structured shape (path + key + reason) after schema
+// extensions. regression surface.
 #[test]
 fn adapter_validation_errors_still_carry_path_and_key() {
     let toml = r#"
@@ -614,7 +614,7 @@ triggers = []
 }
 
 // ---------------------------------------------------------------------------
-// Sprint 6 T01 — Real multi-runtime-arg dispatch
+// Real multi-runtime-arg dispatch
 // ---------------------------------------------------------------------------
 //
 // The tests above cover runtime-bound amount + adapter-literal args.

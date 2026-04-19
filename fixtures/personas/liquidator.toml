@@ -1,12 +1,12 @@
 # Perps persona — liquidator.
 #
-# Sprint 5 T09. In full perps this persona watches for positions
+#. In full perps this persona watches for positions
 # below the maintenance-margin threshold and calls
-# `liquidate_position`. Sprint 5 perps-lite cannot runtime-dispatch
-# that instruction (see the T08 adapter scope note), so the
+# `liquidate_position`. perps-lite cannot runtime-dispatch
+# that instruction (see the adapter scope note), so the
 # liquidator is expressed as "waits for a liquidated victim, then
 # withdraws the seized balance" — a weight/trigger shape that still
-# exercises the `position.liquidated` observation the T12 invariants
+# exercises the `position.liquidated` observation the invariants
 # read.
 
 [personas.liquidator]

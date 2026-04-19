@@ -50,7 +50,7 @@ pub fn decode_oracle(bytes: &[u8]) -> Result<OracleSnapshot> {
 }
 
 // ---------------------------------------------------------------------------
-// Sprint 5 T05 — Generic oracle injection dispatch
+// Generic oracle injection dispatch
 // ---------------------------------------------------------------------------
 //
 // The legacy path (kept above) is the admin-mock-shaped
@@ -59,7 +59,7 @@ pub fn decode_oracle(bytes: &[u8]) -> Result<OracleSnapshot> {
 // point the engine uses when an adapter's `[[oracles]]` block declares
 // a non-implicit oracle kind. The Solend hero grid does not go through
 // this path (it keeps writing `OracleSnapshot` bytes via the harness
-// directly), so the Sprint 4 determinism hash stays byte-stable.
+// directly), so the determinism hash stays byte-stable.
 
 /// Account layout contract every concrete oracle kind implements.
 ///
@@ -88,9 +88,9 @@ pub fn oracle_layout_for(kind: OracleKind) -> Box<dyn OracleLayout> {
 
 /// Admin-mock account layout. Byte-identical to the legacy
 /// `OracleSnapshot` so adapters that declare
-/// `kind = "admin-mock"` point at the same on-chain bytes Sprint 4's
+/// `kind = "admin-mock"` point at the same on-chain bytes 's
 /// Solend-fork grid already writes. This is the shipping oracle kind
-/// for Sprint 5 — T07 (perps-fork) reads from it.
+/// for (perps-fork) reads from it.
 pub struct AdminMockOracleLayout;
 
 impl OracleLayout for AdminMockOracleLayout {
@@ -125,23 +125,23 @@ impl OracleLayout for AdminMockOracleLayout {
 
 /// Pyth-compatible mock account layout.
 ///
-/// Sprint 6 T02 — ships the byte offsets `pyth-sdk-solana`'s
+/// ships the byte offsets `pyth-sdk-solana`'s
 /// `load_price_feed_from_account_info` expects for the aggregate-price
 /// read path. Any program built against `pyth-sdk-solana` that only
 /// cares about `price`/`conf`/`expo`/`publish_slot` can boot unchanged
 /// against a mock oracle account we write with this layout.
 ///
-/// **Supported read path (Sprint 6 scope):**
+/// **Supported read path ( scope):**
 /// - `price` → `agg.price` at offset `0xD0` (`i64`)
 /// - `conf` → `agg.conf` at offset `0xD8` (`u64`)
 /// - `expo` → `expo` at offset `0x14` (`i32`)
 /// - `publish_slot` → `agg.pub_slot` at offset `0xE8` (`u64`)
 /// - `status` → `agg.status` at offset `0xE0` (`u8`) — always written
-///   as `Trading` (1) so readers do not fall through to the
-///   `prev_*` path.
+/// as `Trading` (1) so readers do not fall through to the
+/// `prev_*` path.
 /// - `magic`/`ver`/`atype` validation constants at offsets `0x00`/`0x04`/`0x08`.
 ///
-/// **Explicitly out of scope (Sprint 7+):**
+/// **Explicitly out of scope (+):**
 /// - SMA window (`ema_price`, `ema_conf` at `0x30`/`0x48`) — zero-filled.
 /// - Timestamp (`timestamp` at `0x60`, `prev_timestamp` at `0xC8`) — zero-filled.
 /// - Product / next price account refs (`prod` at `0x70`, `next` at `0x90`) — zero-filled.
@@ -167,7 +167,7 @@ pub const PYTH_STATUS_TRADING: u8 = 1;
 // starts, computed from the `#[repr(C)]` declaration in
 // `pyth-sdk-solana/src/state.rs`. The aggregate-price read path
 // touches the subset annotated below; the rest are documented for
-// clarity but stay zero-filled in Sprint 6.
+// clarity but stay zero-filled in.
 pub const PYTH_OFFSET_MAGIC: usize = 0x00;
 pub const PYTH_OFFSET_VER: usize = 0x04;
 pub const PYTH_OFFSET_ATYPE: usize = 0x08;
@@ -197,14 +197,14 @@ impl OracleLayout for PythMockOracleLayout {
         // do NOT derive or use `bytemuck` directly — pulling the full
         // Pod struct into the engine crate would require vendoring a
         // solana-program version match against pyth-sdk-solana, which
-        // is a Sprint 7+ dep-surface change. Explicit offset writes
+        // is a + dep-surface change. Explicit offset writes
         // are equally byte-correct and leave the dep tree untouched.
         let mut buf = vec![0u8; PYTH_ACCOUNT_SIZE];
         let price_raw = update.as_u64() as i64;
-        let pub_slot: u64 = 0; // Sprint 6 ships with implicit slot=0;
+        let pub_slot: u64 = 0; // implicit slot=0;
                                // callers that care about slot ordering
                                // can wrap this layout with their own
-                               // slot-tracking in Sprint 7+.
+                               // slot-tracking in +.
 
         write_u32_le(&mut buf, PYTH_OFFSET_MAGIC, PYTH_MAGIC);
         write_u32_le(&mut buf, PYTH_OFFSET_VER, PYTH_VERSION);
@@ -254,7 +254,7 @@ impl OracleLayout for PythMockOracleLayout {
         }
         let expo = read_i32_le(bytes, PYTH_OFFSET_EXPO);
         let agg_price = read_i64_le(bytes, PYTH_OFFSET_AGG_PRICE);
-        // Sprint 6 bails on invalid expo widths — Pyth expo is i32 but
+        // bails on invalid expo widths — Pyth expo is i32 but
         // our `OracleUpdate.exponent` is i8 (admin-mock historical).
         // Narrow and bail on overflow so a caller that accidentally
         // writes a weird expo fails loudly rather than silently wraps.

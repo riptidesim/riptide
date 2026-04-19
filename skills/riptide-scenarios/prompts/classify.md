@@ -10,18 +10,18 @@ later. Do not jump to experiments.
 The goal is to produce a short working-memory note of the form:
 
     classification:
-      whale_concentration:                flagged | not-applicable   # with reason
-      shock_cascades:                     flagged | not-applicable   # with reason
-      utilization_stress:                 flagged | not-applicable   # with reason
-      persona_mix_instability:            flagged | not-applicable   # with reason
-      oracle_lag:                         flagged | not-applicable   # with reason
-      margin_cascade_from_oracle_shock:   flagged | not-applicable   # with reason
-      open_interest_imbalance:            flagged | not-applicable   # with reason
-      socialized_loss_accumulation:       flagged | not-applicable   # with reason
-      price_manipulation_via_swap:        flagged | not-applicable   # with reason
-      impermanent_loss_spike:             flagged | not-applicable   # with reason
-      jit_liquidity:                      flagged | not-applicable   # with reason
-      reserve_depletion:                  flagged | not-applicable   # with reason
+      whale_concentration: flagged | not-applicable # with reason
+      shock_cascades: flagged | not-applicable # with reason
+      utilization_stress: flagged | not-applicable # with reason
+      persona_mix_instability: flagged | not-applicable # with reason
+      oracle_lag: flagged | not-applicable # with reason
+      margin_cascade_from_oracle_shock: flagged | not-applicable # with reason
+      open_interest_imbalance: flagged | not-applicable # with reason
+      socialized_loss_accumulation: flagged | not-applicable # with reason
+      price_manipulation_via_swap: flagged | not-applicable # with reason
+      impermanent_loss_spike: flagged | not-applicable # with reason
+      jit_liquidity: flagged | not-applicable # with reason
+      reserve_depletion: flagged | not-applicable # with reason
 
 Every `flagged` line must carry a one-sentence justification that
 points at a concrete feature of the adapter or IDL. Every
@@ -167,10 +167,10 @@ Hooks that rule it out:
 ## Perps-specific categories
 
 The spec (R3.4) originally listed four perps categories. One was
-dropped as a downstream consequence of the T07 perps-lite scope cut:
+dropped as a downstream consequence of the perps-lite scope cut:
 
 - **`funding_rate_manipulation` — DROPPED.** The perps-fork program
-  shipped without `update_funding_rate` (Sprint 5 scope cut). No
+  shipped without `update_funding_rate` ( scope cut). No
   funding rate instruction exists in the IDL, and no `funding_rate`
   observation is declared in the adapter. There is nothing for the
   hook to fire on. This category will be added in a future sprint

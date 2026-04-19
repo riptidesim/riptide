@@ -1,4 +1,4 @@
-//! T03 — Better Error Ergonomics for Loader Failures (Sprint 5 Phase 0)
+//! Better Error Ergonomics for Loader Failures
 //!
 //! Each of the top 10 first-run failure modes lands here as one test
 //! function that asserts the error message names (a) the file, (b) the
@@ -66,7 +66,7 @@ triggers = []
 #[test]
 fn t03_missing_program_so_points_to_cargo_build_sbf() {
     let dir = workspace_tmp_dir("missing-program-so");
-    // Create an adapter TOML that references a non-existent .so, but
+    // Create an adapter TOML that references a non-existent.so, but
     // does exist itself so we hit the validate_resolved_paths branch.
     let idl_path = dir.join("idl.json");
     fs::write(&idl_path, "{}").unwrap();
@@ -158,7 +158,7 @@ triggers = []
 /// When the adapter points at a real IDL that declares typed fields for
 /// an account, the loader must cross-check the declared `space` against
 /// the fixed-field minimum byte count from the IDL and emit a
-/// declared-vs-expected message (Sprint 5 T03 reviewer feedback).
+/// declared-vs-expected message ( reviewer feedback).
 #[test]
 fn t03_wrong_account_space_uses_idl_fixed_field_minimum() {
     let dir = workspace_tmp_dir("idl-backed-space");
@@ -179,7 +179,7 @@ fn t03_wrong_account_space_uses_idl_fixed_field_minimum() {
     });
     let idl_path = dir.join("idl.json");
     fs::write(&idl_path, serde_json::to_string(&idl).unwrap()).unwrap();
-    // A fake empty .so is enough — the existence check doesn't read it.
+    // A fake empty.so is enough — the existence check doesn't read it.
     let so_path = dir.join("dummy.so");
     fs::write(&so_path, []).unwrap();
     let toml_str = format!(
@@ -279,7 +279,7 @@ fn t03_invalid_persona_reference_lists_available_personas() {
 
 // ---------------------------------------------------------------------------
 // 5. Missing run-config file (covered via the adapter loader's IO path —
-//    main.rs uses a sibling helper that composes the same pattern).
+// main.rs uses a sibling helper that composes the same pattern).
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -357,7 +357,7 @@ triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
 }
 
 // Also assert the lending-path invariant-field validator lists the
-// known set (T01 wiring — covered here as a regression assertion).
+// known set ( wiring — covered here as a regression assertion).
 #[test]
 fn t03_lending_invariant_unknown_field_lists_known_metrics() {
     let toml_str = r#"
@@ -417,20 +417,20 @@ foo = { action = "bogus" }
 
 // ---------------------------------------------------------------------------
 // 9. Engine binary missing — covered in CLI tests. See
-//    `cli/test/errors.test.ts` for the TypeScript assertion that
-//    `resolveEngineBinary` produces a cargo-build hint.
+// `cli/test/errors.test.ts` for the TypeScript assertion that
+// `resolveEngineBinary` produces a cargo-build hint.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // 10. Wrong toolchain version — reasonable runtime coverage is out of
-//     scope per the task spec. This test function is #[ignore]d and
-//     exists as a pointer so future work knows where to land the check
-//     once T04's install flow gives us a version manifest to compare
-//     against. See TOOLCHAIN.md.
+// scope per the task spec. This test function is #[ignore]d and
+// exists as a pointer so future work knows where to land the check
+// once 's install flow gives us a version manifest to compare
+// against. See TOOLCHAIN.md.
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore = "toolchain drift is documented in TOOLCHAIN.md; runtime check deferred to T04 install flow"]
+#[ignore = "toolchain drift is documented in TOOLCHAIN.md; runtime check deferred to a future install flow"]
 fn t03_toolchain_version_drift_is_documented() {
     // No assertion — see TOOLCHAIN.md and install.sh.
 }
@@ -438,7 +438,7 @@ fn t03_toolchain_version_drift_is_documented() {
 // ---------------------------------------------------------------------------
 // Sanity: the improvements did not break the happy path through a
 // lending run that has no invariants and no adapter. This guards the
-// Sprint 4 hero grid byte-stability contract.
+// hero grid byte-stability contract.
 // ---------------------------------------------------------------------------
 
 #[test]

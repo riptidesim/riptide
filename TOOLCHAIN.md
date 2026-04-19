@@ -82,7 +82,7 @@ workload (100 agents × 180 ticks):
 ```bash
 cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
 BENCH_AGENTS=100 BENCH_TICKS=180 cargo run --release -p riptide-engine \
-    --features litesvm-backend --example t7_litesvm_benchmark
+    --features litesvm-backend --example litesvm_benchmark
 ```
 
 No external validator or funded keypair is required.
@@ -100,7 +100,7 @@ solana-test-validator
 # In another:
 cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
 RIPTIDE_RUN_VALIDATOR_TESTS=1 RIPTIDE_PAYER=$HOME/.config/solana/id.json \
-  cargo test -p riptide-engine --test t05_lending_integration -- --nocapture
+  cargo test -p riptide-engine --test lending_integration -- --nocapture
 ```
 
 Without `RIPTIDE_RUN_VALIDATOR_TESTS=1` the test self-skips, so it is safe to

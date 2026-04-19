@@ -68,12 +68,12 @@ impl AmmReserves {
 /// ## Intentionally not in this trait
 ///
 /// - **LP token bookkeeping** — lives inside the impl, not the trait.
-///   Adapters expose it via `[state_mapping]` observations if the
-///   persona runtime needs to act on LP balances.
+/// Adapters expose it via `[state_mapping]` observations if the
+/// persona runtime needs to act on LP balances.
 /// - **Concentrated-liquidity ticks** — v0 constant-product only.
-///   Extend the trait if/when a concrete CLMM impl lands.
+/// Extend the trait if/when a concrete CLMM impl lands.
 /// - **Multi-hop routing** — orchestration concern, lives above the
-///   primitive.
+/// primitive.
 ///
 /// TODO: impl for a real AMM.
 #[allow(dead_code)]

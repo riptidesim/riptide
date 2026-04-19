@@ -40,7 +40,7 @@ pub struct MockHarness {
     /// next op returns `Infra`; `false` is a no-op slot. Used by tests to
     /// script specific infra-error sequences.
     scripted_infra_failures: Vec<bool>,
-    /// Sprint 5 T06: per-instruction count of scheduled-action hook
+    /// per-instruction count of scheduled-action hook
     /// invocations the tick loop has driven through this harness.
     /// Tests use this to assert primitive-level side effects beyond the
     /// engine-emitted event stream.

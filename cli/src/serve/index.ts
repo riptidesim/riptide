@@ -4,26 +4,26 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * Sprint 6 T07 — Web Dashboard MVP.
+ * Web Dashboard MVP.
  *
  * A tiny read-only HTTP server that renders a simulation's
  * `simulation-result.json` + `report.md` artifacts as a single-page
  * HTML dashboard. Invoked via the `--serve` flag on `riptide run`,
  * `riptide simulate`, and `riptide replay`.
  *
- * Design constraints (per T07):
- *  - No new npm deps. Uses `node:http` stdlib only. Chart.js is
- *    loaded from a CDN by the HTML itself; the server does not
- *    bundle it.
- *  - Primitive-agnostic rendering: the HTML iterates over whatever
- *    keys `summary` contains and derives a numeric-timeseries list
- *    from `timeseries[]`, so lending/perps/AMM/replay runs all
- *    render without special-casing.
- *  - Read-only. The server only reads from `runArtifactsDir`. It
- *    never writes.
- *  - Clean Ctrl-C: the caller wires `close()` to SIGINT; idle
- *    keep-alive sockets are tracked + destroyed so the process
- *    exits without zombie connections.
+ * Design constraints (per ):
+ * - No new npm deps. Uses `node:http` stdlib only. Chart.js is
+ * loaded from a CDN by the HTML itself; the server does not
+ * bundle it.
+ * - Primitive-agnostic rendering: the HTML iterates over whatever
+ * keys `summary` contains and derives a numeric-timeseries list
+ * from `timeseries[]`, so lending/perps/AMM/replay runs all
+ * render without special-casing.
+ * - Read-only. The server only reads from `runArtifactsDir`. It
+ * never writes.
+ * - Clean Ctrl-C: the caller wires `close()` to SIGINT; idle
+ * keep-alive sockets are tracked + destroyed so the process
+ * exits without zombie connections.
  */
 
 export interface DashboardHandle {
@@ -35,7 +35,7 @@ export interface DashboardHandle {
 export interface StartDashboardOptions {
   /**
    * Preferred starting port. Defaults to 4173. If taken, the server
-   * tries port+1, port+2, ... up to `maxAttempts-1` increments.
+   * tries port+1, port+2,... up to `maxAttempts-1` increments.
    */
   port?: number;
   /**
@@ -63,11 +63,11 @@ const DEFAULT_MAX_ATTEMPTS = 10;
 function resolveAssetPath(filename: string): string[] {
   const here = path.dirname(fileURLToPath(import.meta.url));
   // Typical layouts:
-  //   dev (tsx/ts-node): <repo>/cli/src/serve/index.ts
-  //     → assets at <repo>/cli/assets/<filename>
-  //   built:             <repo>/cli/dist/src/serve/index.js
-  //     → assets at <repo>/cli/dist/assets/<filename>
-  //                 or <repo>/cli/assets/<filename>
+  // dev (tsx/ts-node): <repo>/cli/src/serve/index.ts
+  // → assets at <repo>/cli/assets/<filename>
+  // built: <repo>/cli/dist/src/serve/index.js
+  // → assets at <repo>/cli/dist/assets/<filename>
+  // or <repo>/cli/assets/<filename>
   return [
     path.resolve(here, "..", "..", "..", "assets", filename),
     path.resolve(here, "..", "..", "assets", filename),

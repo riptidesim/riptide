@@ -91,9 +91,9 @@ bash examples/run-demo.sh
 
 `run-demo.sh` sets exactly one tuning env var:
 
-| env var                    | default | demo | rationale |
+| env var | default | demo | rationale |
 |----------------------------|---------|------|-----------|
-| `RIPTIDE_PRICE_SHOCK_DROP` | 0.40    | 0.50 | A 50% drop is where degen-borrower's borrow ratio flips from healthy to underwater against the default 8000-bps liquidation threshold. A 40% drop is a stress event but not a cascade event for the shipped persona mix; a 50% drop is. |
+| `RIPTIDE_PRICE_SHOCK_DROP` | 0.40 | 0.50 | A 50% drop is where degen-borrower's borrow ratio flips from healthy to underwater against the default 8000-bps liquidation threshold. A 40% drop is a stress event but not a cascade event for the shipped persona mix; a 50% drop is. |
 
 Pool parameters (`LTV 7000 / liquidation threshold 8000 / liquidation
 bonus 500`) and per-agent starting balance (`$20,000 cash + $10,000 in
@@ -126,38 +126,38 @@ These numbers are reproducible (same seed) and come from an actual
 
 **safe (all active, MTM-only losses):**
 
-| agent       | persona                | status | realized PnL |
+| agent | persona | status | realized PnL |
 |-------------|------------------------|--------|--------------|
-| agent-001   | cautious-yield-farmer  | active | -6,422       |
-| agent-002   | steady-lp              | active | -6,723       |
-| agent-003   | cautious-yield-farmer  | active | -6,422       |
-| agent-004   | steady-lp              | active | -6,723       |
-| agent-005   | cautious-yield-farmer  | active | -6,422       |
+| agent-001 | cautious-yield-farmer | active | -6,422 |
+| agent-002 | steady-lp | active | -6,723 |
+| agent-003 | cautious-yield-farmer | active | -6,422 |
+| agent-004 | steady-lp | active | -6,723 |
+| agent-005 | cautious-yield-farmer | active | -6,422 |
 
 **risky (2 liquidations, split across personas):**
 
-| agent       | persona              | status      | PnL    | liquidated at tick |
+| agent | persona | status | PnL | liquidated at tick |
 |-------------|----------------------|-------------|--------|--------------------|
-| agent-001   | panic-whale          | active      | +5     | —                  |
-| agent-002   | degen-borrower       | active      | -4,616 | —                  |
-| agent-003   | aggressive-arb-bot   | liquidated  | -5,246 | 5                  |
-| agent-004   | panic-whale          | active      | +5     | —                  |
-| agent-005   | degen-borrower       | liquidated  | -5,175 | 7                  |
+| agent-001 | panic-whale | active | +5 | — |
+| agent-002 | degen-borrower | active | -4,616 | — |
+| agent-003 | aggressive-arb-bot | liquidated | -5,246 | 5 |
+| agent-004 | panic-whale | active | +5 | — |
+| agent-005 | degen-borrower | liquidated | -5,175 | 7 |
 
 ### Action mix
 
 Same 10-tick window, same pool, same seed — the behavior diverges
 qualitatively, not just in magnitude:
 
-| action / outcome        | safe | risky |
+| action / outcome | safe | risky |
 |-------------------------|------|-------|
-| deposit / success       | 44   | 8     |
-| withdraw / success      | 6    | 12    |
-| borrow / success        | 0    | 8     |
-| borrow / failed         | 0    | 8     |
-| liquidate / success     | 0    | 2     |
-| liquidate / failed      | 0    | 1     |
-| liquidate / skipped     | 0    | 1     |
+| deposit / success | 44 | 8 |
+| withdraw / success | 6 | 12 |
+| borrow / success | 0 | 8 |
+| borrow / failed | 0 | 8 |
+| liquidate / success | 0 | 2 |
+| liquidate / failed | 0 | 1 |
+| liquidate / skipped | 0 | 1 |
 
 Safe never opens a single borrow or liquidation; risky attempts 16
 borrows and 4 liquidations and lands half of each.
@@ -237,4 +237,4 @@ Preconditions: `cargo build-sbf --manifest-path
 programs/resource_grinder/Cargo.toml` must have been run at least once
 so the `.so` referenced by the adapter exists. The generic demo is
 byte-stable under
-`cargo test -p riptide-engine --test t15_e2e_determinism`.
+`cargo test -p riptide-engine --test e2e_determinism`.

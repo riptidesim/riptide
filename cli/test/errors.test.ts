@@ -1,15 +1,15 @@
-// T03 — Better Error Ergonomics for Loader Failures (CLI side).
+// Better Error Ergonomics for Loader Failures (CLI side).
 //
 // Drives the three first-run failure modes that surface inside the
 // TypeScript CLI (not the engine binary):
 //
-//   - Missing adapter TOML (handled in `buildSimulateOptions`).
-//   - Malformed adapter TOML (TOML parse error).
-//   - Engine binary missing (handled in `resolveEngineBinary`).
+// - Missing adapter TOML (handled in `buildSimulateOptions`).
+// - Malformed adapter TOML (TOML parse error).
+// - Engine binary missing (handled in `resolveEngineBinary`).
 //
 // The engine-side failure modes (missing program_so, wrong account
 // space, unknown invariant field, unknown observation in trigger, etc.)
-// are covered in `engine/tests/t03_error_ergonomics.rs`.
+// are covered in `engine/tests/error_ergonomics.rs`.
 
 import test from "node:test";
 import assert from "node:assert/strict";

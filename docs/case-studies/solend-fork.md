@@ -21,9 +21,9 @@ Bad debt is in quote-asset units, post-shock, end of run.
 
 | whale \ shock | **s20** | **s30** | **s40** |
 |---|---:|---:|---:|
-| **w5**  (5 % whale share)  | 0    | 0    | 720  |
-| **w15** (15 % whale share) | 0    | 0    | 2 160 |
-| **w25** (25 % whale share) | 0    | 0    | **3 600** |
+| **w5** (5 % whale share) | 0 | 0 | 720 |
+| **w15** (15 % whale share) | 0 | 0 | 2 160 |
+| **w25** (25 % whale share) | 0 | 0 | **3 600** |
 
 The bolded cell (`w25-s40`) is the Solend June 2022 mapping — see below.
 
@@ -31,15 +31,15 @@ The bolded cell (`w25-s40`) is the Solend June 2022 mapping — see below.
 
 | cell | whale % | shock % | liquidations | agents liquidated | final TVL | final util % |
 |---|---:|---:|---:|---:|---:|---:|
-| w5-s20  | 5  | 20 | 0 | 0 | 3 235 | 1.98   |
-| w5-s30  | 5  | 30 | 1 | 1 | 3 235 | 0.00   |
-| w5-s40  | 5  | 40 | 1 | 1 | 3 214 | 0.00   |
-| w15-s20 | 15 | 20 | 0 | 0 | 3 105 | 6.18   |
-| w15-s30 | 15 | 30 | 3 | 3 | 3 105 | 0.00   |
-| w15-s40 | 15 | 40 | 3 | 3 | 3 082 | 0.00   |
-| w25-s20 | 25 | 20 | 0 | 0 | 2 975 | 10.76  |
-| w25-s30 | 25 | 30 | 5 | 5 | 2 975 | 0.00   |
-| w25-s40 | 25 | 40 | 5 | 5 | 2 950 | 0.00   |
+| w5-s20 | 5 | 20 | 0 | 0 | 3 235 | 1.98 |
+| w5-s30 | 5 | 30 | 1 | 1 | 3 235 | 0.00 |
+| w5-s40 | 5 | 40 | 1 | 1 | 3 214 | 0.00 |
+| w15-s20 | 15 | 20 | 0 | 0 | 3 105 | 6.18 |
+| w15-s30 | 15 | 30 | 3 | 3 | 3 105 | 0.00 |
+| w15-s40 | 15 | 40 | 3 | 3 | 3 082 | 0.00 |
+| w25-s20 | 25 | 20 | 0 | 0 | 2 975 | 10.76 |
+| w25-s30 | 25 | 30 | 5 | 5 | 2 975 | 0.00 |
+| w25-s40 | 25 | 40 | 5 | 5 | 2 950 | 0.00 |
 
 Liquidation count is the number of whale positions the `steady-lp` liquidator
 cleared in the run; `agents liquidated` matches because the whale is the only

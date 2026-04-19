@@ -1,4 +1,4 @@
-//! T23 — Real Pyth Borsh layout (Sprint 6 Phase 0 · T02 gate).
+//! Real Pyth Borsh layout ( · gate).
 //!
 //! Validates that `PythMockOracleLayout::encode` produces bytes a
 //! program built against `pyth-sdk-solana` would parse cleanly via
@@ -11,21 +11,21 @@
 //! locally and verify:
 //!
 //! 1. The byte offsets the encoder writes match the Pyth spec exactly
-//!    (magic, ver, atype, expo, agg.price, agg.conf, agg.status,
-//!    agg.pub_slot).
+//! (magic, ver, atype, expo, agg.price, agg.conf, agg.status,
+//! agg.pub_slot).
 //! 2. A locally-mirrored Pod struct reads back the same values via a
-//!    transmute — this is structurally identical to what
-//!    `bytemuck::from_bytes` does inside `pyth-sdk-solana`'s
-//!    `load_price_account`.
+//! transmute — this is structurally identical to what
+//! `bytemuck::from_bytes` does inside `pyth-sdk-solana`'s
+//! `load_price_account`.
 //! 3. Round-trip equality: `encode → decode → encode` produces
-//!    byte-identical output.
+//! byte-identical output.
 //! 4. Admin-mock layout is unaffected — its byte layout + fixture
-//!    golden file stay green.
+//! golden file stay green.
 //!
-//! Sprint 6 cut criterion (per the task note): if the Pyth layout
+//! cut criterion (per the task note): if the Pyth layout
 //! eats >2 days, cut the task and ship admin-mock as the shipping
-//! oracle for Sprint 6. The byte-offset approach here lands in <1
-//! day and does not require an SBF program addition, so T02 ships.
+//! oracle for. The byte-offset approach here lands in <1
+//! day and does not require an SBF program addition, so ships.
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -94,7 +94,7 @@ fn mirror_prefix_matches_agg_offset() {
     // Load-bearing sanity check on the mirror struct. If Rust ever
     // changes `repr(C)` padding or the upstream Pyth struct adds a
     // field, this test pins the invariant: `agg.price` must land at
-    // offset 0xD0 inside the prefix. Sprint 6 encoder writes to
+    // offset 0xD0 inside the prefix. encoder writes to
     // `PYTH_OFFSET_AGG_PRICE = 0xD0`.
     assert_eq!(
         std::mem::offset_of!(MockPriceAccountPrefix, agg),
@@ -151,7 +151,7 @@ fn pyth_encode_matches_declared_byte_offsets() {
     assert_eq!(
         u64::from_le_bytes(bytes[PYTH_OFFSET_AGG_CONF..PYTH_OFFSET_AGG_CONF + 8].try_into().unwrap()),
         0,
-        "agg.conf at offset 0xD8 (Sprint 6 zero-fill)"
+        "agg.conf at offset 0xD8 (zero-fill)"
     );
     assert_eq!(
         bytes[PYTH_OFFSET_AGG_STATUS],
@@ -161,7 +161,7 @@ fn pyth_encode_matches_declared_byte_offsets() {
     assert_eq!(
         u64::from_le_bytes(bytes[PYTH_OFFSET_AGG_PUB_SLOT..PYTH_OFFSET_AGG_PUB_SLOT + 8].try_into().unwrap()),
         0,
-        "agg.pub_slot at offset 0xE8 (Sprint 6 zero-fill)"
+        "agg.pub_slot at offset 0xE8 (zero-fill)"
     );
 }
 
@@ -259,7 +259,7 @@ fn pyth_decode_rejects_wrong_magic() {
 fn pyth_dispatch_through_oracle_kind_selector() {
     // Regression: `oracle_layout_for(OracleKind::Pyth)` now returns
     // our real layout (3312 bytes), not the admin-mock alias (50
-    // bytes) that Sprint 5 shipped. A generic adapter declaring
+    // bytes) that shipped. A generic adapter declaring
     // `kind = "pyth"` gets real Pyth bytes written through this
     // dispatch path.
     let boxed = oracle_layout_for(OracleKind::Pyth);
@@ -298,7 +298,7 @@ fn find_pyth_consumer_helper_bin() -> Option<PathBuf> {
     None
 }
 
-/// **Enforced T02 gate** — locate the helper binary, building it in-
+/// **Enforced gate** — locate the helper binary, building it in-
 /// process on a fresh checkout if necessary. `cargo test` on a clean
 /// tree goes green ONLY if the real-SDK path actually ran; absence of
 /// the helper no longer masquerades as "test skipped".
@@ -310,11 +310,11 @@ fn find_pyth_consumer_helper_bin() -> Option<PathBuf> {
 /// invocation even when multiple t23 tests exercise the helper.
 ///
 /// Failure modes — all panic with a clear message so the developer
-/// knows T02 is actually broken (vs. a silent skip masking a regression):
-///   - `cargo build` subprocess fails → helper crate won't compile.
-///   - `cargo build` succeeds but output binary is missing → infra
-///     mismatch between helper's Cargo.toml and what this scan
-///     expects.
+/// knows is actually broken (vs. a silent skip masking a regression):
+/// - `cargo build` subprocess fails → helper crate won't compile.
+/// - `cargo build` succeeds but output binary is missing → infra
+/// mismatch between helper's Cargo.toml and what this scan
+/// expects.
 fn ensure_pyth_consumer_helper_bin() -> PathBuf {
     use std::sync::OnceLock;
     static HELPER: OnceLock<PathBuf> = OnceLock::new();
@@ -326,7 +326,7 @@ fn ensure_pyth_consumer_helper_bin() -> PathBuf {
             let root = repo_root();
             let manifest = root.join("programs/pyth_consumer_test_helper/Cargo.toml");
             eprintln!(
-                "T23 gate: building pyth-consumer-test-helper (first run / clean checkout)..."
+                "building pyth-consumer-test-helper (first run / clean checkout)..."
             );
             eprintln!("  manifest: {}", manifest.display());
             let status = Command::new("cargo")
@@ -335,18 +335,18 @@ fn ensure_pyth_consumer_helper_bin() -> PathBuf {
                 .status()
                 .unwrap_or_else(|e| {
                     panic!(
-                        "T23 gate: failed to spawn cargo for pyth-consumer-test-helper build: {e}"
+                        "failed to spawn cargo for pyth-consumer-test-helper build: {e}"
                     )
                 });
             assert!(
                 status.success(),
-                "T23 gate: pyth-consumer-test-helper build FAILED — the real Pyth-SDK \
-                 consumer is load-bearing for the Sprint 6 T02 contract. Fix the build \
+                "pyth-consumer-test-helper build FAILED — the real Pyth-SDK \
+                 consumer is load-bearing for the Pyth-layout contract. Fix the build \
                  before continuing:\n  \
                  cargo build --release --manifest-path programs/pyth_consumer_test_helper/Cargo.toml"
             );
             find_pyth_consumer_helper_bin().expect(
-                "T23 gate: cargo build reported success but no helper binary was produced at \
+                "pyth-consumer-test-helper: cargo build reported success but no helper binary was produced at \
                  programs/pyth_consumer_test_helper/target/release/pyth-consumer-test-helper. Check the \
                  helper crate's Cargo.toml [[bin]] target name.",
             )
@@ -384,7 +384,7 @@ fn run_pyth_consumer_helper(bytes: &[u8]) -> serde_json::Value {
     })
 }
 
-/// **The literal Sprint 6 acceptance criterion** (tasks.md:37): a
+/// **The literal acceptance criterion** (tasks.md:37): a
 /// test that calls the real `pyth-sdk-solana` read API on our mocked
 /// bytes and sees the encoded values back, unchanged.
 ///
@@ -408,7 +408,7 @@ fn pyth_sdk_solana_parses_our_mock_unchanged() {
     // `run_pyth_consumer_helper` internally calls
     // `ensure_pyth_consumer_helper_bin`, which auto-builds on a fresh
     // checkout and panics loudly on build failure. There is no skip
-    // path — if the helper can't build, T02's contract is broken and
+    // path — if the helper can't build, 's contract is broken and
     // the test must fail.
     let layout = PythMockOracleLayout;
     let update = OracleUpdate {
@@ -430,7 +430,7 @@ fn pyth_sdk_solana_parses_our_mock_unchanged() {
         PYTH_ATYPE_PRICE
     );
 
-    // Aggregate-price read path — the actual Sprint 6 contract.
+    // Aggregate-price read path — the actual contract.
     assert_eq!(
         parsed["price"].as_i64().unwrap(),
         98_765,
@@ -481,9 +481,9 @@ fn pyth_sdk_solana_parses_multiple_exponents() {
 
 #[test]
 fn admin_mock_layout_untouched_by_pyth_drop() {
-    // Sprint 4 determinism contract: admin-mock bytes are identical
-    // to the Sprint 5 shipping layout. Regenerating the hero grid
-    // depends on this — the Sprint 4 w25-s40 hash check would fail
+    // determinism contract: admin-mock bytes are identical
+    // to the shipping layout. Regenerating the hero grid
+    // depends on this — the w25-s40 hash check would fail
     // otherwise.
     let layout = AdminMockOracleLayout;
     assert_eq!(layout.byte_len(), 50, "admin-mock layout stays at 50 bytes");

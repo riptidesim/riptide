@@ -3,23 +3,23 @@
 # ------------------
 # Single-command bootstrap for Riptide on Linux.
 #
-# Scope (Sprint 5 Phase 0):
-#   - Linux only. Assumes Rust (rustup) and Node.js are already installed.
-#   - macOS is not tested. It may work because every step is POSIX-ish,
-#     but nothing here is validated on Darwin.
-#   - Windows is explicitly out of scope.
+# Scope:
+# - Linux only. Assumes Rust (rustup) and Node.js are already installed.
+# - macOS is not tested. It may work because every step is POSIX-ish,
+# but nothing here is validated on Darwin.
+# - Windows is explicitly out of scope.
 #
 # What it does:
-#   1. Detects required toolchains and prints actionable hints on the
-#      ones it cannot find.
-#   2. Builds the Rust engine (release), both shipped on-chain programs
-#      (lending_pool.so + resource_grinder.so via cargo-build-sbf), and
-#      the TypeScript CLI.
-#   3. Installs a `riptide` launcher into $HOME/.local/bin.
-#   4. Verifies the CLI responds to --help, runs
-#      `riptide run examples/configs/safe.json` as the lending smoke test,
-#      and runs a short resource-grinder simulation as the generic
-#      adapter smoke test.
+# 1. Detects required toolchains and prints actionable hints on the
+# ones it cannot find.
+# 2. Builds the Rust engine (release), both shipped on-chain programs
+# (lending_pool.so + resource_grinder.so via cargo-build-sbf), and
+# the TypeScript CLI.
+# 3. Installs a `riptide` launcher into $HOME/.local/bin.
+# 4. Verifies the CLI responds to --help, runs
+# `riptide run examples/configs/safe.json` as the lending smoke test,
+# and runs a short resource-grinder simulation as the generic
+# adapter smoke test.
 #
 # Idempotent: running it twice is safe. Cargo and npm handle their own
 # incremental builds; the symlink step uses `ln -sfn` so it never errors
@@ -152,7 +152,7 @@ ok   "engine build done"
 banner "building on-chain programs (cargo build-sbf — shipped programs)"
 
 # Helper: build a single program with a clear banner and an existence
-# assertion on the resulting .so.
+# assertion on the resulting.so.
 build_program_so() {
   local prog_dir="$1" so_name="$2"
   local so_path="$REPO_ROOT/programs/$prog_dir/target/deploy/$so_name"

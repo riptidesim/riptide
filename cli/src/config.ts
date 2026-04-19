@@ -58,7 +58,7 @@ export function buildSimulateOptions(raw: Record<string, unknown>): { config: Si
     } catch (err) {
       // Wrap the raw ENOENT / EACCES into a message a cold user can act
       // on: name the file, say what was expected, point at a concrete
-      // next step. The CLI's top-level handler prints the .message as-is.
+      // next step. The CLI's top-level handler prints the.message as-is.
       const nodeErr = err as NodeJS.ErrnoException;
       if (nodeErr && nodeErr.code === "ENOENT") {
         throw new Error(

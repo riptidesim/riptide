@@ -2,7 +2,7 @@
 name = "admin-mock-oracle"
 version = "0.1.0"
 edition = "2021"
-description = "Minimal admin-settable oracle program. Shipped as the first concrete `OracleKind::AdminMock` target for Sprint 5 T05 (generic oracle injection)."
+description = "Minimal admin-settable oracle program. First concrete `OracleKind::AdminMock` target for generic oracle injection."
 
 [lib]
 crate-type = ["cdylib", "lib"]

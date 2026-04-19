@@ -1,7 +1,7 @@
 {
   "version": "0.1.0",
   "name": "admin_mock_oracle",
-  "description": "Minimal admin-settable oracle program. First concrete target for OracleKind::AdminMock (Sprint 5 T05 generic oracle injection).",
+  "description": "Minimal admin-settable oracle program. First concrete target for OracleKind::AdminMock (generic oracle injection).",
   "instructions": [
     {
       "name": "initializeOracle",

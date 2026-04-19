@@ -13,11 +13,11 @@ MarginFi / Kamino family. Concretely, it must expose *all five* of
 these logical actions somewhere in its instruction set, by name or
 by clear semantics:
 
-  - `deposit`    (supply collateral)
-  - `borrow`     (open or increase debt)
-  - `repay`      (reduce outstanding debt)
-  - `withdraw`   (reduce supplied collateral)
-  - `liquidate`  (seize under-collateralized positions)
+  - `deposit` (supply collateral)
+  - `borrow` (open or increase debt)
+  - `repay` (reduce outstanding debt)
+  - `withdraw` (reduce supplied collateral)
+  - `liquidate` (seize under-collateralized positions)
 
 And it must expose both of these observations via account state:
 
@@ -45,8 +45,8 @@ from the session — do not ask the user to paste it back to you.
 
 Record your decision as a single line of working memory of the form:
 
-    classification = lending    # or: generic
-    reason         = <one short sentence explaining why>
+    classification = lending # or: generic
+    reason = <one short sentence explaining why>
 
 Then proceed directly to the matching generation prompt:
 

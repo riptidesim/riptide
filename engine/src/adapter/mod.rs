@@ -12,18 +12,18 @@
 //! protocol = "lending"
 //!
 //! [instructions]
-//! deposit   = { action = "deposit",   amount = "amount" }
-//! borrow    = { action = "borrow",    amount = "amount" }
-//! repay     = { action = "repay",     amount = "amount" }
-//! withdraw  = { action = "withdraw",  amount = "amount" }
+//! deposit = { action = "deposit", amount = "amount" }
+//! borrow = { action = "borrow", amount = "amount" }
+//! repay = { action = "repay", amount = "amount" }
+//! withdraw = { action = "withdraw", amount = "amount" }
 //! liquidate = { action = "liquidate", amount = "repay_amount" }
 //!
 //! [state_mapping]
 //! "pool.total_deposits" = "tvl"
-//! "pool.total_borrows"  = "debt"
-//! "pool.bad_debt"       = "bad_debt"
+//! "pool.total_borrows" = "debt"
+//! "pool.bad_debt" = "bad_debt"
 //! "position.collateral" = "collateral"
-//! "position.debt"       = "debt"
+//! "position.debt" = "debt"
 //! "position.liquidated" = "liquidated"
 //! ```
 //!

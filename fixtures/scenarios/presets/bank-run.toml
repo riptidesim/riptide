@@ -3,7 +3,7 @@
 # Stub preset that proves the loader picks up additional TOML files with
 # zero engine-code changes. Today this file aliases `price_shock` with
 # more aggressive parameters (earlier shock tick, larger drop) and is not
-# wired into any shipped run-config. It exists so T02's acceptance
+# wired into any shipped run-config. It exists so 's acceptance
 # criterion — "adding a second preset file requires zero engine changes"
 # — has a concrete artifact to test against.
 #

@@ -8,12 +8,12 @@
 //
 // Pattern: esbuild / @swc/core.
 //
-// Supported platforms (Sprint 6):
-//   - linux x64 (x86_64-unknown-linux-gnu) — shipping
-// Optional / Sprint 7:
-//   - darwin x64  (x86_64-apple-darwin)
-//   - darwin arm64 (aarch64-apple-darwin)
-//   - win32 x64   (x86_64-pc-windows-msvc)
+// Supported platforms:
+// - linux x64 (x86_64-unknown-linux-gnu) — shipping
+// Optional /
+// - darwin x64 (x86_64-apple-darwin)
+// - darwin arm64 (aarch64-apple-darwin)
+// - win32 x64 (x86_64-pc-windows-msvc)
 
 import { createHash } from 'node:crypto';
 import { createWriteStream, mkdirSync, chmodSync, existsSync, readFileSync, unlinkSync } from 'node:fs';
@@ -41,13 +41,13 @@ const BASE_URL = process.env.RIPTIDE_RELEASE_BASE_URL || DEFAULT_BASE;
 // Target-triple map. Add entries as platforms get built in CI.
 const TARGET_TRIPLES = {
   'linux-x64':   'x86_64-unknown-linux-gnu',
-  // 'darwin-x64':  'x86_64-apple-darwin',   // Sprint 7
-  // 'darwin-arm64':'aarch64-apple-darwin',  // Sprint 7
-  // 'win32-x64':   'x86_64-pc-windows-msvc', // Sprint 7
+  // 'darwin-x64': 'x86_64-apple-darwin', //
+  // 'darwin-arm64':'aarch64-apple-darwin', //
+  // 'win32-x64': 'x86_64-pc-windows-msvc', //
 };
 
 // Per-target sha256. Edit this table at release-cut time by running
-//   sha256sum target/<triple>/release/riptide-engine
+// sha256sum target/<triple>/release/riptide-engine
 // and pasting the hex here. The postinstall verifies the download
 // against these values and aborts on mismatch.
 //

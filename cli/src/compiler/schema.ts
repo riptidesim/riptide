@@ -113,7 +113,7 @@ export const AgentFinalStateSchema = z.object({
   liquidated_at_tick: z.number().int().nonnegative().optional()
 });
 
-// Sprint 6 T03 invariant rollup row. The engine's
+// invariant rollup row. The engine's
 // `build_invariants_summary` emits one object per declared adapter
 // invariant, in declaration order, with `firings` counting how many
 // ticks the invariant was violated during the run. Mirrors the shape
@@ -142,7 +142,7 @@ export const InvariantFiredRowSchema = z.object({
 // `agents_depleted`) are required and must be nonnegative integers so
 // malformed payloads can't slip through the CLI gate.
 //
-// Array-valued keys are allowed for the Sprint 6 T03 invariant
+// Array-valued keys are allowed for the invariant
 // rollup (`summary.invariants_fired`). Each element of such an array
 // must match `InvariantFiredRowSchema`; extending the value union
 // with a plain `z.array(z.unknown())` would let any shape through

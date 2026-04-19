@@ -247,7 +247,7 @@ mod tests {
             let bytes = load_program_bytes(&path).unwrap();
             assert!(!bytes.is_empty());
         }
-        // If the .so doesn't exist in CI, skip rather than fail.
+        // If the.so doesn't exist in CI, skip rather than fail.
     }
 
     #[test]

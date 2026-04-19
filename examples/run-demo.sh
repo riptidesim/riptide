@@ -3,9 +3,9 @@
 # LiteSVM backend and print a side-by-side headline-metric diff.
 #
 # Preconditions (see examples/README.md for details):
-#   - engine built:  cargo build --release -p riptide-engine
-#   - lending built: cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
-#   - cli built:     (cd cli && npm run build)
+# - engine built: cargo build --release -p riptide-engine
+# - lending built: cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
+# - cli built: (cd cli && npm run build)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,4 +1,4 @@
-//! Sprint 6 T02 — Real `pyth-sdk-solana` consumer helper.
+//! Real `pyth-sdk-solana` consumer helper.
 //!
 //! Reads a 3312-byte `SolanaPriceAccount` buffer from stdin, parses it
 //! via `pyth_sdk_solana::state::load_price_account::<32, ()>` (the
@@ -8,15 +8,15 @@
 //!
 //! ```json
 //! {
-//!   "magic": 0xa1b2c3d4,
-//!   "version": 2,
-//!   "account_type": 3,
-//!   "expo": -2,
-//!   "price": 12345,
-//!   "conf": 0,
-//!   "status": "Trading",
-//!   "publish_slot": 0,
-//!   "ema_price": 12345
+//! "magic": 0xa1b2c3d4,
+//! "version": 2,
+//! "account_type": 3,
+//! "expo": -2,
+//! "price": 12345,
+//! "conf": 0,
+//! "status": "Trading",
+//! "publish_slot": 0,
+//! "ema_price": 12345
 //! }
 //! ```
 //!
@@ -45,7 +45,7 @@ fn main() {
         std::process::exit(2);
     }
 
-    // Sprint 6 mock encodes exactly 3312 bytes — enforce the floor
+    // mock encodes exactly 3312 bytes — enforce the floor
     // so a short buffer is a clear protocol error rather than an
     // undefined-read.
     let expected = std::mem::size_of::<SolanaPriceAccount>();
@@ -59,10 +59,10 @@ fn main() {
     }
 
     // load_price_account runs the real `pyth-sdk-solana` validation:
-    //   - `magic == 0xa1b2c3d4`
-    //   - `ver == 2`
-    //   - `atype == 3 (Price)`
-    //   - `buf.len() >= size_of::<SolanaPriceAccount>()`
+    // - `magic == 0xa1b2c3d4`
+    // - `ver == 2`
+    // - `atype == 3 (Price)`
+    // - `buf.len() >= size_of::<SolanaPriceAccount>()`
     //
     // This is the exact same code path
     // `load_price_feed_from_account_info` takes after it borrows the

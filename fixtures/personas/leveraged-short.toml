@@ -1,9 +1,9 @@
 # Perps persona — aggressive short trader.
 #
-# Sprint 5 T09. Mirror of leveraged-long on the short side. Sprint 5's
+#. Mirror of leveraged-long on the short side. 's
 # generic-path executable actions are deposit/withdraw only — the
-# long/short semantic distinction is a Sprint 6 extension once
-# `open_position` becomes runtime-dispatchable. See the T08 adapter
+# long/short semantic distinction is a extension once
+# `open_position` becomes runtime-dispatchable. See the adapter
 # note for why only deposit/withdraw are bound today.
 
 [personas.leveraged-short]

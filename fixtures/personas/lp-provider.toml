@@ -1,7 +1,7 @@
 # AMM persona — liquidity provider.
 #
-# Sprint 6 T13. Standalone TOML fragment that the sidecar script
-# `scripts/sprint6-amm-scratch.sh` concatenates onto a truncated copy
+#. Standalone TOML fragment that the sidecar script
+# `scripts/amm-scratch.sh` concatenates onto a truncated copy
 # of `fixtures/adapters/amm-fork.toml` below the `# === SIDECAR-CUT ===`
 # marker.
 #

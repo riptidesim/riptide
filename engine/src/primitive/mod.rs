@@ -4,10 +4,10 @@
 //! through. The trait is split in two:
 //!
 //! - [`Primitive`] — domain-neutral base trait every backend
-//!   implements. Owns `agent_count`, `advance_tick`,
-//!   `push_oracle_price`, `execute_action`, `observation_values`.
+//! implements. Owns `agent_count`, `advance_tick`,
+//! `push_oracle_price`, `execute_action`, `observation_values`.
 //! - [`LendingPrimitive`] — super-trait adding the five lending
-//!   actions and two lending observations.
+//! actions and two lending observations.
 //!
 //! The lending tick loop (`run_simulation`) binds on
 //! `LendingPrimitive`. The generic tick loop (`run_generic_simulation`)

@@ -28,7 +28,7 @@ Personas are pure TOML — one file per persona, committed under `fixtures/perso
 
 1. Copy a persona whose shape fits your protocol class (`fixtures/personas/whale.toml` for lending, `fixtures/personas/leveraged-long.toml` for perps, `fixtures/personas/arbitrageur.toml` for AMM).
 2. Edit the trigger DSL (single comparison op + constant per rule today) and the action block to reference only your adapter's declared actions.
-3. Smoke-test the persona by running a small scratch simulation (see `scripts/sprint6-amm-scratch.sh` for the sidecar pattern) — a persona TOML that parses clean + emits at least one action per tick against its adapter is ready to ship.
+3. Smoke-test the persona by running a small scratch simulation (see `scripts/amm-scratch.sh` for the sidecar pattern) — a persona TOML that parses clean + emits at least one action per tick against its adapter is ready to ship.
 4. Add the persona to a scenario under `fixtures/scenarios/<adapter>/<experiment>/` or let the `riptide-scenarios` skill reference it.
 
 ## How to add a failure-mode taxonomy category
@@ -45,10 +45,10 @@ Taxonomy lives in `skills/riptide-scenarios/prompts/classify.md` (discrimination
 Before opening a PR, make sure the regression floor is green:
 
 ```bash
-cargo test -p riptide-engine --test t06_litesvm_parity
-cargo test -p riptide-engine --test t15_e2e_determinism
-cargo test -p riptide-engine --test t17_perps_fork_roundtrip
-cargo test -p riptide-engine --test t24_amm_fork_roundtrip
+cargo test -p riptide-engine --test litesvm_parity
+cargo test -p riptide-engine --test e2e_determinism
+cargo test -p riptide-engine --test perps_fork_roundtrip
+cargo test -p riptide-engine --test amm_fork_roundtrip
 (cd cli && npm test)
 ```
 

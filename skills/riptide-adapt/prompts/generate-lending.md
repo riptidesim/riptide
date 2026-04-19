@@ -18,7 +18,7 @@ downstream validator — `riptide adapt` will exit 2 on a bad shape.
     [instructions]
     # One entry per on-chain ix the simulator should be able to dispatch.
     # `action` must be one of the canonical labels:
-    #     deposit | borrow | repay | withdraw | liquidate
+    # deposit | borrow | repay | withdraw | liquidate
     # `amount` names the instruction argument that carries the amount
     # the engine will pass in when sizing the action. Omit `amount` only
     # for zero-argument instructions (rare for lending).
@@ -27,7 +27,7 @@ downstream validator — `riptide adapt` will exit 2 on a bad shape.
     [state_mapping]
     # Dotted-path key `<account>.<field>` → logical observation name.
     # Logical observation name must be one of:
-    #     tvl | debt | bad_debt | collateral | liquidated
+    # tvl | debt | bad_debt | collateral | liquidated
     "<account>.<field>" = "<logical>"
 
     [actions]
@@ -47,8 +47,8 @@ downstream validator — `riptide adapt` will exit 2 on a bad shape.
 2. Every field you are uncertain about MUST carry a trailing
    `# TODO: <what to verify>` comment on that line. Examples:
 
-       borrow = { action = "borrow", amount = "liquidity_amount" }  # TODO: verify arg name in IDL
-       "reserve.total_liquidity" = "tvl"  # TODO: confirm this is the pool TVL field
+       borrow = { action = "borrow", amount = "liquidity_amount" } # TODO: verify arg name in IDL
+       "reserve.total_liquidity" = "tvl" # TODO: confirm this is the pool TVL field
 
 3. Map every canonical lending action at least once. If the IDL has
    no obvious match for one of the five actions, still emit the entry

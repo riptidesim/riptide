@@ -32,11 +32,11 @@ Three shipping bundles — **lending** (Solend fork), **perps** (perps-lite), an
 
 The engine runs on **LiteSVM** (in-process SVM). For the same `100 agents × 180 ticks` workload, LiteSVM completes in **0.898s** end-to-end; `solana-test-validator` with `--bpf-program` preload and warm caches takes **901.461s** (measured 2026-04-12). That is roughly a **~900x speedup**, entirely from RPC and confirmation overhead removal — both paths execute the same `lending_pool.so` BPF program logic.
 
-LiteSVM does not model full validator behavior (gossip, vote, PoH). The speedup is infrastructure overhead removal, not a program-level optimization. `solana-test-validator` is still the correct environment for validator-level parity checks, and the parity test at `engine/tests/t05_lending_integration.rs` stays gated on `RIPTIDE_RUN_VALIDATOR_TESTS=1` as the diagnostic reference path. LiteSVM is the default runtime; the validator path is diagnostic only.
+LiteSVM does not model full validator behavior (gossip, vote, PoH). The speedup is infrastructure overhead removal, not a program-level optimization. `solana-test-validator` is still the correct environment for validator-level parity checks, and the parity test at `engine/tests/lending_integration.rs` stays gated on `RIPTIDE_RUN_VALIDATOR_TESTS=1` as the diagnostic reference path. LiteSVM is the default runtime; the validator path is diagnostic only.
 
 ## Determinism
 
-Same seed = same result, byte-for-byte, across the lending, perps, AMM, and generic fixtures. The `t15_e2e_determinism` integration test enforces this on every run, and replay mode extends the same guarantee to historical trajectories.
+Same seed = same result, byte-for-byte, across the lending, perps, AMM, and generic fixtures. The `e2e_determinism` integration test enforces this on every run, and replay mode extends the same guarantee to historical trajectories.
 
 ## Deeper docs
 

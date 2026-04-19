@@ -7,20 +7,20 @@
 // cleanly against the engine.
 //
 // Scope (intentionally minimal):
-//   1. Load the adapter TOML from disk.
-//   2. Validate it against the Zod schema (`validateAdapter`).
-//   3. Resolve the `riptide-engine` binary via the shared orchestrator path.
-//   4. Pick a shrunk run-config + policies for the adapter's primitive
-//      class (lending vs generic) — same logic the shipped smoke runner
-//      already used.
-//   5. Invoke the engine with `--config / --policies / --output / --adapter`.
-//   6. Parse the engine output; assert at least one observation delta
-//      via `findObservationDelta`.
+// 1. Load the adapter TOML from disk.
+// 2. Validate it against the Zod schema (`validateAdapter`).
+// 3. Resolve the `riptide-engine` binary via the shared orchestrator path.
+// 4. Pick a shrunk run-config + policies for the adapter's primitive
+// class (lending vs generic) — same logic the shipped smoke runner
+// already used.
+// 5. Invoke the engine with `--config / --policies / --output / --adapter`.
+// 6. Parse the engine output; assert at least one observation delta
+// via `findObservationDelta`.
 //
 // Exit codes:
-//   0 — smoke test passed (observed state delta)
-//   1 — smoke test failed (engine non-zero OR no delta)
-//   2 — adapter file missing / unreadable / Zod validation failed
+// 0 — smoke test passed (observed state delta)
+// 1 — smoke test failed (engine non-zero OR no delta)
+// 2 — adapter file missing / unreadable / Zod validation failed
 //
 // No HTTP client. No API keys. No endpoint config. No prompts. No retry.
 // This command does exactly one thing: verify a TOML adapter works
@@ -156,11 +156,11 @@ export async function runAdapt(
 
 function defaultFixturesRoot(): string {
   // Order of precedence:
-  //   1. $RIPTIDE_FIXTURES_ROOT — explicit override for packaged installs
-  //   2. Monorepo root derived from *this CLI module's* on-disk location
-  //      (the fix for "any cwd / any Claude Code session")
-  //   3. Historical cwd-relative candidates (tests + running from inside
-  //      the monorepo without a build)
+  // 1. $RIPTIDE_FIXTURES_ROOT — explicit override for packaged installs
+  // 2. Monorepo root derived from *this CLI module's* on-disk location
+  // (the fix for "any cwd / any Claude Code session")
+  // 3. Historical cwd-relative candidates (tests + running from inside
+  // the monorepo without a build)
   const fromEnv = process.env.RIPTIDE_FIXTURES_ROOT;
   if (fromEnv && existsSync(fromEnv)) {
     return fromEnv;

@@ -1,12 +1,12 @@
 # AMM persona — sandwich-attacker (approximate).
 #
-# Sprint 6 T13. Real sandwich attacks require mempool visibility + tx
-# ordering control, which Riptide does not model at Sprint 6. This
+#. Real sandwich attacks require mempool visibility + tx
+# ordering control, which Riptide does not model at. This
 # persona approximates the failure shape as *bursty one-directional
 # swap activity around volume surges* — the on-chain footprint that
 # would remain once the mempool-side mechanics are stripped. Fires when
 # `pool.cumulative_volume` grows past a threshold, which is how the
-# T14 `jit_liquidity` and `price_manipulation_via_swap` hooks detect
+# `jit_liquidity` and `price_manipulation_via_swap` hooks detect
 # the pattern.
 [personas.sandwich-attacker]
 label = "Sandwich attacker (approximate)"

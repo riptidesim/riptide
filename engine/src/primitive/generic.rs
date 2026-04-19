@@ -162,7 +162,7 @@ where
                 params: BTreeMap::from([("amount".into(), 1.0)]),
             },
             max_exposure: 1.0,
-            // Sprint 6 T01 — carry persona-supplied named args into the
+            // carry persona-supplied named args into the
             // compiled policy so the tick loop can hand them to the
             // encoder when dispatching a multi-runtime-arg action. Empty
             // for personas that only use single-arg dispatch.
@@ -222,39 +222,39 @@ impl<'a> GenericInstructionBuilder<'a> {
 
     /// Build the raw instruction-data blob for a dispatched action.
     ///
-    /// Sprint 5 semantics (preserved byte-for-byte for single-arg
+    /// semantics (preserved byte-for-byte for single-arg
     /// adapters): the IDL's instruction has at most one arg; the
     /// adapter binds it via `[instructions].<ix>.amount = "<name>"`;
     /// the engine encodes the runtime-supplied `amount` into that
     /// arg's declared Borsh type.
     ///
-    /// Sprint 6 T01 extension — three binding forms per IDL arg:
+    /// extension — three binding forms per IDL arg:
     ///
     /// 1. **Runtime amount** — `mapping.amount = "<arg-name>"` binds
-    ///    the tick-loop's decision amount (a `u64`) into the named
-    ///    IDL arg. At most one IDL arg can be amount-bound per
-    ///    instruction.
+    /// the tick-loop's decision amount (a `u64`) into the named
+    /// IDL arg. At most one IDL arg can be amount-bound per
+    /// instruction.
     /// 2. **Adapter literal** — `mapping.args.<arg-name> = <literal>`
-    ///    declares a constant value the encoder emits for every
-    ///    dispatch. Types: u64/i64/u32/u8/bool (naturally), pubkey
-    ///    (base58 string).
+    /// declares a constant value the encoder emits for every
+    /// dispatch. Types: u64/i64/u32/u8/bool (naturally), pubkey
+    /// (base58 string).
     /// 3. **Persona-supplied runtime value** —
-    ///    `mapping.args.<arg-name> = "@persona.<field>"` resolves
-    ///    at dispatch time against the executing agent's
-    ///    `policy.persona_args.<field>`. Every agent running under
-    ///    that persona supplies its own value, so one adapter can
-    ///    parameterize `open_position(side, leverage, notional)`
-    ///    across dozens of persona archetypes without forking into
-    ///    one action per variant.
+    /// `mapping.args.<arg-name> = "@persona.<field>"` resolves
+    /// at dispatch time against the executing agent's
+    /// `policy.persona_args.<field>`. Every agent running under
+    /// that persona supplies its own value, so one adapter can
+    /// parameterize `open_position(side, leverage, notional)`
+    /// across dozens of persona archetypes without forking into
+    /// one action per variant.
     ///
     /// Walks IDL args in declaration order (Borsh is position-
     /// dependent). Supported Borsh types: `u64`, `i64`, `u32`, `u8`,
     /// `bool`, `pubkey`. Wider scalars, Option, Vec, and user-
-    /// defined structs are out of scope for Sprint 6.
+    /// defined structs are out of scope for.
     ///
-    /// Sprint 5 callers that passed a single `amount` and nothing
+    /// callers that passed a single `amount` and nothing
     /// else continue to work via the
-    /// `build_action_data_single_arg` shim. Sprint 6 callers that
+    /// `build_action_data_single_arg` shim. callers that
     /// dispatch against multi-arg instructions call through here
     /// with the active persona's `persona_args` map.
     pub fn build_action_data(
@@ -310,10 +310,10 @@ impl<'a> GenericInstructionBuilder<'a> {
         Ok(encoded)
     }
 
-    /// Convenience wrapper for single-arg call sites (Sprint 5
+    /// Convenience wrapper for single-arg call sites (
     /// shape). Calls through to `build_action_data` with an empty
     /// `persona_args` map. Prefer `build_action_data` directly in
-    /// Sprint 6+ code paths so the persona context is explicit.
+    /// + code paths so the persona context is explicit.
     pub fn build_action_data_single_arg(
         &self,
         action_name: &str,
@@ -329,12 +329,12 @@ impl<'a> GenericInstructionBuilder<'a> {
     ///
     /// Resolution rules:
     /// 1. If `name` matches an adapter action, use that action's mapped
-    ///    instruction. Inline replay args are matched against the IDL arg
-    ///    names and override any `@persona.*` mapping that would
-    ///    otherwise require persona state.
+    /// instruction. Inline replay args are matched against the IDL arg
+    /// names and override any `@persona.*` mapping that would
+    /// otherwise require persona state.
     /// 2. If `name` does not match an adapter action but does match an IDL
-    ///    instruction, dispatch the raw instruction directly. Every IDL arg
-    ///    must then be supplied inline under `args`.
+    /// instruction, dispatch the raw instruction directly. Every IDL arg
+    /// must then be supplied inline under `args`.
     pub fn build_replay_data(
         &self,
         name: &str,
@@ -522,8 +522,8 @@ fn parse_trigger_value(raw: &str) -> TriggerValue {
 
 /// Encode the runtime-computed `amount` (always a `u64` at the
 /// decision layer) into the byte slot an IDL arg of type `ty`
-/// occupies. Mirrors the Sprint 5 single-arg code path plus the
-/// Sprint 6 T01 scalar additions (`u32`, `u8`). Range overflow
+/// occupies. Mirrors the single-arg code path plus the
+/// scalar additions (`u32`, `u8`). Range overflow
 /// surfaces as an adapter error — a u64 amount wider than the
 /// declared target type is always a misconfiguration.
 fn encode_runtime_amount(
@@ -539,7 +539,7 @@ fn encode_runtime_amount(
             Ok(())
         }
         GenericTypeRef::Primitive(name) if name == "i64" => {
-            // Match Sprint 5 behavior: bit-pattern cast, no range check.
+            // Match behavior: bit-pattern cast, no range check.
             // The runtime amount is `u64` but the IDL arg is signed;
             // adapters that genuinely need a signed runtime arg in the
             // upper half of u64 should declare `u64` on the IDL side.
@@ -575,7 +575,7 @@ fn encode_runtime_amount(
 }
 
 /// Encode an adapter-declared literal constant into the byte slot an
-/// IDL arg of type `ty` occupies. Sprint 6 T01 — enables multi-arg
+/// IDL arg of type `ty` occupies. enables multi-arg
 /// dispatch where the runtime amount flows into one IDL arg and every
 /// other IDL arg's value is fixed at adapter load time.
 fn encode_literal_arg(
@@ -654,9 +654,9 @@ fn encode_literal_arg(
         }
         other => bail!(
             "instruction `{instruction_name}` arg `{arg_name}`: unsupported IDL arg type \
-             `{other:?}` for literal binding. Sprint 6 supports \
-             u64/i64/u32/u8/bool/pubkey — punt wider scalars, Option, Vec, and user-defined \
-             structs to a future sprint."
+             `{other:?}` for literal binding. Supported: \
+             u64/i64/u32/u8/bool/pubkey — wider scalars, Option, Vec, and user-defined \
+             structs are out of scope."
         ),
     }
 }
@@ -999,7 +999,7 @@ impl crate::primitive::Primitive for GenericHarness {
         target_idx: Option<usize>,
     ) -> Result<(), crate::primitive::PrimitiveError> {
         // Default dispatch with no persona-supplied args — used by
-        // Sprint 5 single-arg adapters and by the integration tests
+        // single-arg adapters and by the integration tests
         // that drive GenericHarness directly.
         self.execute_action_with_persona_args(
             agent_idx,
@@ -1113,9 +1113,9 @@ impl crate::primitive::Primitive for GenericHarness {
         //
         // Aggregation rules (v0):
         // - int/uint → mean across agents, emitted as f64
-        // - bool     → count of `true` across agents, as u64
-        // - pubkey   → count of distinct pubkeys across agents, as u64
-        // - map      → mean entry count across agents, as f64
+        // - bool → count of `true` across agents, as u64
+        // - pubkey → count of distinct pubkeys across agents, as u64
+        // - map → mean entry count across agents, as f64
         let mut per_agent: Vec<BTreeMap<String, ObservationValue>> =
             Vec::with_capacity(self.agents.len());
         for idx in 0..self.agents.len() {

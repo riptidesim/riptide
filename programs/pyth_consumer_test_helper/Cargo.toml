@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 description = """
-Sprint 6 T02 helper binary — the canonical `pyth-sdk-solana` consumer that
-the engine's `t23_pyth_real_layout` test spawns as a subprocess. Lives
+Helper binary — the canonical `pyth-sdk-solana` consumer that
+the engine's `pyth_real_layout` test spawns as a subprocess. Lives
 outside the engine workspace so its borsh 0.10 / legacy solana-program
 dep tree can coexist with the engine's borsh 1.6 / solana-sdk 4.0.1
 world. Stdin accepts 3312 bytes of raw Pyth `SolanaPriceAccount` data;

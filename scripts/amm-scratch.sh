@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Sprint 5 Phase 2 T09 — perps persona scratch runner.
+# AMM persona scratch runner.
 #
-# Mirrors the Sprint 4 `scripts/solend-whale-grid.sh` sidecar pattern:
+# Mirrors the `scripts/perps-scratch.sh` sidecar pattern:
 # read persona TOMLs from disk, merge them into a runtime copy of the
 # adapter, run one 20-agent, 30-tick simulation twice with a fixed
 # seed, sha256 the outputs, assert byte-identical across replays.
 #
-# This is a throwaway determinism gate — T09 ships the persona files
+# This is a throwaway determinism gate — ships the persona files
 # and this script as the bundle's end-to-end shape check; it is NOT
-# the cold-chain validation story (that's T13).
+# the cold-chain validation story (that's ).
 
 set -euo pipefail
 
@@ -16,9 +16,9 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 ENGINE="${RIPTIDE_ENGINE_BIN:-$REPO_ROOT/target/release/riptide-engine}"
-BASE_ADAPTER="fixtures/adapters/perps-fork.toml"
+BASE_ADAPTER="fixtures/adapters/amm-fork.toml"
 PERSONAS_DIR="fixtures/personas"
-PERSONA_IDS=(leveraged-long leveraged-short delta-neutral-farmer liquidator funding-arbitrageur)
+PERSONA_IDS=(lp-provider arbitrageur sandwich-attacker swapper rug-puller)
 AGENTS=20
 TICKS=30
 SEED=42
@@ -43,27 +43,27 @@ done
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-# --- Build the runtime adapter: truncate the shipping perps-fork.toml
-#     at the `# === SIDECAR-CUT ===` marker (everything above stays;
-#     the smoke-test personas below it are dropped), then append each
-#     persona file so the [personas.*] block is the perps library.
-#     Relative program_so / idl_path are rewritten to absolute repo
-#     paths because the adapter file lives in $WORK_DIR/ at runtime.
-RUNTIME_ADAPTER="$WORK_DIR/perps-fork.runtime.toml"
-PROGRAM_SO_ABS="$REPO_ROOT/programs/perps-fork/target/deploy/perps_fork.so"
-IDL_PATH_ABS="$REPO_ROOT/fixtures/idls/perps-fork.json"
+# --- Build the runtime adapter: truncate the shipping amm-fork.toml
+# at the `# === SIDECAR-CUT ===` marker (everything above stays;
+# the smoke-test personas below it are dropped), then append each
+# persona file so the [personas.*] block is the AMM library.
+# Relative program_so / idl_path are rewritten to absolute repo
+# paths because the adapter file lives in $WORK_DIR/ at runtime.
+RUNTIME_ADAPTER="$WORK_DIR/amm-fork.runtime.toml"
+PROGRAM_SO_ABS="$REPO_ROOT/programs/amm-fork/target/deploy/amm_fork.so"
+IDL_PATH_ABS="$REPO_ROOT/fixtures/idls/amm-fork.json"
 awk '/^# === SIDECAR-CUT ===$/ { exit } { print }' "$BASE_ADAPTER" \
   | sed -e "s|^program_so *=.*|program_so = \"$PROGRAM_SO_ABS\"|" \
         -e "s|^idl_path *=.*|idl_path = \"$IDL_PATH_ABS\"|" \
   > "$RUNTIME_ADAPTER"
-echo "# --- Perps persona library (T09 sidecar merge) ---" >> "$RUNTIME_ADAPTER"
+echo "# --- AMM persona library (sidecar merge) ---" >> "$RUNTIME_ADAPTER"
 for pid in "${PERSONA_IDS[@]}"; do
   echo "" >> "$RUNTIME_ADAPTER"
   cat "$PERSONAS_DIR/$pid.toml" >> "$RUNTIME_ADAPTER"
 done
 
-# --- Build run-config: 20 agents evenly spread across the 4 personas,
-#     30 ticks, baseline scenario, fixed seed.
+# --- Build run-config: 20 agents evenly spread across the 5 personas,
+# 30 ticks, baseline scenario, fixed seed.
 python3 - "$WORK_DIR" "$AGENTS" "$TICKS" "$SEED" "$SCENARIO" "${PERSONA_IDS[@]}" <<'PY'
 import json, sys
 from pathlib import Path
@@ -71,8 +71,8 @@ from pathlib import Path
 work_dir, agents, ticks, seed, scenario, *persona_ids = sys.argv[1:]
 agents = int(agents); ticks = int(ticks); seed = int(seed)
 
-# Rotate persona slots across agents so the mix is deterministic
-# and every persona gets ≥1 slot at agents=20, personas=4.
+# Rotate persona slots across agents so the mix is deterministic and
+# every persona gets ≥1 slot at agents=20, personas=5 (4 each).
 slots = [persona_ids[i % len(persona_ids)] for i in range(agents)]
 
 # output_path is a FIXED string (not the tmpdir) so the serialized
@@ -86,7 +86,7 @@ run_config = {
     "seed": seed,
     "personas": slots,
     "validator_url": "unused",
-    "output_path": "perps-scratch",
+    "output_path": "amm-scratch",
 }
 Path(work_dir, "run-config.json").write_text(
     json.dumps(run_config, indent=2, sort_keys=True) + "\n"
@@ -112,7 +112,7 @@ run_once() {
     || { tail -20 "$WORK_DIR/engine.log" >&2; echo "FAIL: engine exited non-zero" >&2; exit 1; }
 }
 
-echo ">>> perps scratch run: agents=$AGENTS ticks=$TICKS seed=$SEED personas=${PERSONA_IDS[*]}"
+echo ">>> amm scratch run: agents=$AGENTS ticks=$TICKS seed=$SEED personas=${PERSONA_IDS[*]}"
 run_once "$WORK_DIR/run-a.json"
 HASH_A=$(sha256sum "$WORK_DIR/run-a.json" | awk '{print $1}')
 echo "    run A: $HASH_A"
@@ -127,5 +127,5 @@ if [[ "$HASH_A" != "$HASH_B" ]]; then
   exit 1
 fi
 
-echo ">>> OK — perps scratch scenario is deterministic across two replays"
+echo ">>> OK — amm scratch scenario is deterministic across two replays"
 echo "    hash: $HASH_A"

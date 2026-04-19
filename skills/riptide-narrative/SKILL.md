@@ -40,8 +40,8 @@ what they are*, tick by tick.
   authoritative shape). Required top-level keys the skill reads:
   `run_config`, `seed`, `total_ticks`, `timeseries`, `events`,
   `agents`, `summary`, `simulation_boundaries`.
-- **Required:** a `report.md` file in the same directory (the T14
-  Sprint 5 mechanical report — see
+- **Required:** a `report.md` file in the same directory (the
+   mechanical report — see
   `cli/src/report/narrative.ts::renderNarrative` for how it is
   rendered). The skill reads it as context, not as a template to
   rewrite; the sections the mechanical report carries (`Run

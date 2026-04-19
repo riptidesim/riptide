@@ -1,10 +1,10 @@
 //! On-chain account layouts for `perps-fork`.
 //!
-//! Sprint 5 T07 ships a **perps-lite** instruction set: init_market,
+//! ships a **perps-lite** instruction set: init_market,
 //! deposit/withdraw_collateral, open/close_position (long + short),
 //! liquidate_position. Funding rate and the insurance fund are
-//! deliberately out of scope — the T07 task note carries the scope-cut
-//! rationale and Sprint 6 can add them without reshaping these types.
+//! deliberately out of scope — the task note carries the scope-cut
+//! rationale and can add them without reshaping these types.
 //!
 //! The oracle account is read as the `admin-mock` layout shipped by
 //! `programs/admin_mock_oracle`. The `OracleView` struct below is a
@@ -85,9 +85,9 @@ pub struct MarketState {
     /// authoritative owner.
     pub total_collateral: u64,
     /// Counter for losses that exceeded the liquidated position's
-    /// deposited collateral. Sprint 5 perps-lite has no insurance fund,
+    /// deposited collateral. perps-lite has no insurance fund,
     /// so "where did the missing value go" is tracked here and the
-    /// engine can surface it as an observation for T12 invariants.
+    /// engine can surface it as an observation for invariants.
     pub cumulative_socialized_loss: u64,
 }
 
@@ -112,7 +112,7 @@ pub struct PositionState {
     pub entry_price: u64,
     /// Leverage at which the position was opened, in bps. Stored on the
     /// position so the generic-primitive observation decoder can surface
-    /// it as a per-agent metric for T12 invariants and T11 proposals.
+    /// it as a per-agent metric for invariants and proposals.
     pub leverage_bps: u64,
     /// Once a position has been force-closed by `liquidate_position` it
     /// stays closed (`liquidated == true`). `open_position` rejects a
@@ -144,9 +144,9 @@ impl PositionState {
 
 /// Perps-fork instruction surface.
 ///
-/// Sprint 5 T07 ships the minimum that supports an oracle-shock →
+/// ships the minimum that supports an oracle-shock →
 /// margin-cascade discovery story. No funding rate, no insurance fund,
-/// no progressive liquidation. See the T07 task note for the full
+/// no progressive liquidation. See the task note for the full
 /// scope-cut rationale.
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub enum PerpsInstructionData {

@@ -299,7 +299,7 @@ impl Processor {
                 // create or destroy market-level value in perps-lite —
                 // there is no real counterparty pool to debit/credit.
                 // Conservation: total_collateral moves only on
-                // deposit / withdraw / liquidate, giving T12 a clean
+                // deposit / withdraw / liquidate, giving a clean
                 // closed-system invariant.
 
                 Self::write_state(market, &market_state)?;

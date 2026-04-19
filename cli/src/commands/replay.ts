@@ -107,7 +107,7 @@ export function createReplayCommand(): Command {
           }
         );
       } catch (err) {
-        // Sprint 6 Phase 3 re-review fix: the orchestrator attaches
+        // re-review fix: the orchestrator attaches
         // the parsed SimulationResult to the error when the engine
         // exits 1 due to an invariant firing (the canonical "replay
         // reproduces the cascade" case). Surface that result to the

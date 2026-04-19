@@ -2,7 +2,7 @@
 name = "amm-fork"
 version = "0.1.0"
 edition = "2021"
-description = "Minimal constant-product AMM fork (x*y=k). Sprint 6 T11 target for the third protocol-class bundle after lending_pool and perps-fork."
+description = "Minimal constant-product AMM fork (x*y=k). Third protocol-class bundle target after lending_pool and perps-fork."
 
 [lib]
 crate-type = ["cdylib", "lib"]

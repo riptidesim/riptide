@@ -14,32 +14,32 @@
 //! The split:
 //!
 //! - [`Primitive`] is the domain-neutral base trait every backend
-//!   implements. It exposes only the hooks the generic tick loop
-//!   needs: agent count, tick advance, oracle push, action dispatch,
-//!   and adapter-defined observation reads.
+//! implements. It exposes only the hooks the generic tick loop
+//! needs: agent count, tick advance, oracle push, action dispatch,
+//! and adapter-defined observation reads.
 //! - [`LendingPrimitive`] is a super-trait of `Primitive` that adds
-//!   the lending-specific actions and observations. The lending tick
-//!   loop binds on this trait.
+//! the lending-specific actions and observations. The lending tick
+//! loop binds on this trait.
 //!
 //! ```text
-//!        ┌───────────────────────┐
-//!        │   sim::run::*         │
-//!        ├───────────────────────┤
-//!        │  run_simulation       │ generic over H: LendingPrimitive
-//!        │  run_generic_sim      │ generic over H: Primitive
-//!        └──────────┬────────────┘
-//!                   │
-//!        ┌──────────▼────────────┐
-//!        │       Primitive       │   agent_count / advance_tick /
-//!        │   (base trait)        │   push_oracle_price /
-//!        │                       │   execute_action / observation_values
-//!        └──────────┬────────────┘
-//!                   │ super-trait
-//!        ┌──────────▼────────────┐
-//!        │   LendingPrimitive    │   deposit / borrow / repay /
-//!        │                       │   withdraw / liquidate /
-//!        │                       │   pool_state / health_factor
-//!        └───────────────────────┘
+//! ┌───────────────────────┐
+//! │ sim::run::* │
+//! ├───────────────────────┤
+//! │ run_simulation │ generic over H: LendingPrimitive
+//! │ run_generic_sim │ generic over H: Primitive
+//! └──────────┬────────────┘
+//! │
+//! ┌──────────▼────────────┐
+//! │ Primitive │ agent_count / advance_tick /
+//! │ (base trait) │ push_oracle_price /
+//! │ │ execute_action / observation_values
+//! └──────────┬────────────┘
+//! │ super-trait
+//! ┌──────────▼────────────┐
+//! │ LendingPrimitive │ deposit / borrow / repay /
+//! │ │ withdraw / liquidate /
+//! │ │ pool_state / health_factor
+//! └───────────────────────┘
 //! ```
 //!
 //! `Harness` is a re-export of `LendingPrimitive` so the legacy
@@ -93,11 +93,11 @@ pub struct PositionHealth {
 /// treat the two variants very differently:
 ///
 /// * `ProgramRejected` — the program processed the tx and returned an
-///   error (HF violation, LTV cap, over-repay, etc.). Log an event,
-///   the agent stays live, continue the run.
+/// error (HF violation, LTV cap, over-repay, etc.). Log an event,
+/// the agent stays live, continue the run.
 /// * `Infra` — something below the program layer failed (decode error,
-///   account-not-found, blockhash miss, sanitization). The tick loop
-///   retries once and bails the whole run if the retry also fails.
+/// account-not-found, blockhash miss, sanitization). The tick loop
+/// retries once and bails the whole run if the retry also fails.
 #[derive(Debug, Clone)]
 pub enum PrimitiveError {
     ProgramRejected(String),
@@ -125,10 +125,10 @@ impl std::error::Error for PrimitiveError {}
 /// - `agent_count` for input validation,
 /// - `advance_tick` for synthetic chain progression,
 /// - `push_oracle_price` for scenario-driven price updates (backends
-///   that don't consume prices default to a no-op),
+/// that don't consume prices default to a no-op),
 /// - `execute_action` for dispatching an adapter-level action name,
 /// - `observation_values` for reading adapter-defined observations
-///   back into the agent runtime.
+/// back into the agent runtime.
 ///
 /// Lending-specific action and observation methods live on the
 /// [`LendingPrimitive`] super-trait below.
@@ -136,10 +136,10 @@ impl std::error::Error for PrimitiveError {}
 /// ## Invariants
 ///
 /// 1. **Error classification** — `PrimitiveError::ProgramRejected`
-///    means "the program processed the tx and rejected it";
-///    `Infra` means the failure was below the program layer.
+/// means "the program processed the tx and rejected it";
+/// `Infra` means the failure was below the program layer.
 /// 2. **Determinism** — implementations must be deterministic under
-///    a fixed seed and fixed action sequence.
+/// a fixed seed and fixed action sequence.
 pub trait Primitive {
     /// Number of agents this primitive was initialized with.
     fn agent_count(&self) -> usize;
@@ -158,12 +158,12 @@ pub trait Primitive {
         Ok(())
     }
 
-    /// Sprint 5 T06: invoked by the tick loop when a declared
+    /// invoked by the tick loop when a declared
     /// scheduled action fires. `instruction` is the adapter's
     /// `[[scheduled_actions]][…].instruction` value and `name` is the
     /// action's display name. Default impl is a no-op so lending and
     /// generic primitives continue to work without any scheduled
-    /// actions declared. T07's perps-fork primitive overrides this
+    /// actions declared. 's perps-fork primitive overrides this
     /// to dispatch the on-chain instruction directly.
     ///
     /// Implementations are observed by
@@ -193,7 +193,7 @@ pub trait Primitive {
         target_idx: Option<usize>,
     ) -> Result<(), PrimitiveError>;
 
-    /// Sprint 6 T01 — multi-runtime-arg dispatch.
+    /// multi-runtime-arg dispatch.
     ///
     /// Called by the tick loop with the executing agent's
     /// `policy.persona_args` map. Generic primitives override this
@@ -205,7 +205,7 @@ pub trait Primitive {
     /// through the single-arg `execute_action`. Lending primitives
     /// and the test `MockHarness` inherit this default — they neither
     /// use multi-arg Borsh dispatch nor carry persona-supplied arg
-    /// maps, so the Sprint 4/5 byte-identical behavior is preserved.
+    /// maps, so the byte-identical behavior is preserved.
     fn execute_action_with_persona_args(
         &mut self,
         agent_idx: usize,
@@ -222,7 +222,7 @@ pub trait Primitive {
     /// - `args.amount` is treated as the runtime amount when present
     /// - every other arg is ignored by the default implementation
     /// - primitives with richer inline-arg semantics (generic
-    ///   adapter-driven programs) override this method
+    /// adapter-driven programs) override this method
     fn execute_replay_action(
         &mut self,
         agent_idx: usize,
@@ -347,7 +347,7 @@ pub trait LendingPrimitive: Primitive {
 
     // --- legacy name-compat aliases ---
     //
-    // Earlier code (including `tests/t06_litesvm_parity.rs`) called the
+    // Earlier code (including `tests/litesvm_parity.rs`) called the
     // observations `observe_pool` / `observe_position`. The canonical
     // names are `pool_state` / `health_factor`; the default-method shims
     // below preserve the old call sites so the parity test suite does

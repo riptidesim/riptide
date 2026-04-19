@@ -151,13 +151,13 @@ pub struct LiteSvmHarness {
     /// re-reading the oracle account every tick. Initialized to the
     /// bootstrap starting price.
     last_oracle_price: f64,
-    /// Sprint 5 T05: oracle layout kind selected from the adapter's
+    /// oracle layout kind selected from the adapter's
     /// `[[oracles]]` block. `push_oracle_price` uses
     /// [`oracle_layout_for`] to decode the post-update account bytes
     /// and verify they match the requested (price, exponent) pair —
     /// this is what makes the declared kind load-bearing at runtime.
     /// Defaults to `AdminMock` when the adapter declares no oracles
-    /// (preserves the Sprint 4 hero-grid determinism path).
+    /// (preserves the hero-grid determinism path).
     oracle_kind: OracleKind,
 }
 
@@ -336,9 +336,9 @@ impl LiteSvmHarness {
                 * 10f64.powi(i32::from(config.price_exponent))
         };
 
-        // Sprint 5 T05: select the oracle layout kind from the
+        // select the oracle layout kind from the
         // adapter's `[[oracles]]` block. An adapter with no declared
-        // oracles (e.g. the shipped Sprint 4 solend-fork.toml) keeps
+        // oracles (e.g. the shipped solend-fork.toml) keeps
         // the `AdminMock` default, which is byte-identical to the
         // layout the on-chain program already writes — so the hero
         // grid's determinism hash stays byte-stable.
@@ -393,7 +393,7 @@ impl crate::primitive::Primitive for LiteSvmHarness {
         );
         self.send_harness(&self.admin.insecure_clone(), ix, None)?;
 
-        // Sprint 5 T05: verify the post-update oracle account bytes
+        // verify the post-update oracle account bytes
         // are byte-identical to what `oracle_layout_for(self.oracle_kind)`
         // produces. This is the load-bearing call site for the layout
         // dispatch — every lending run consults it, and a layout drift

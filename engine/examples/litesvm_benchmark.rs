@@ -2,21 +2,21 @@
 //! using the in-process LiteSVM backend.
 //!
 //! This is the LiteSVM benchmark that replaces the validator-backed
-//! `t5_benchmark.rs` as the primary performance measurement path.
+//! `benchmark.rs` as the primary performance measurement path.
 //!
 //! ## Usage
 //!
 //! ```bash
 //! cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
 //! cargo run --release -p riptide-engine --features litesvm-backend \
-//!     --example t7_litesvm_benchmark
+//! --example litesvm_benchmark
 //! ```
 //!
 //! Override workload with env vars:
 //!
 //! ```bash
 //! BENCH_AGENTS=100 BENCH_TICKS=180 cargo run --release -p riptide-engine \
-//!     --features litesvm-backend --example t7_litesvm_benchmark
+//! --features litesvm-backend --example litesvm_benchmark
 //! ```
 //!
 //! ## Comparison baseline

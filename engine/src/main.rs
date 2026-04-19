@@ -1,14 +1,14 @@
 //! `riptide-engine` binary entry point.
 //!
 //! End-to-end responsibilities:
-//!   1. Parse CLI args (clap derive).
-//!   2. Load run config + policies JSON, plus an optional adapter TOML.
-//!   3. Bootstrap an in-process LiteSVM environment against either the
-//!      native lending primitive (Solend fork) or the `GenericPrimitive`
-//!      path, selected by the adapter's `protocol` field.
-//!   4. Construct the appropriate harness and call the matching
-//!      `run_simulation` / `run_generic_simulation` entry point.
-//!   5. Write the `SimulationResult` JSON to `--output`.
+//! 1. Parse CLI args (clap derive).
+//! 2. Load run config + policies JSON, plus an optional adapter TOML.
+//! 3. Bootstrap an in-process LiteSVM environment against either the
+//! native lending primitive (Solend fork) or the `GenericPrimitive`
+//! path, selected by the adapter's `protocol` field.
+//! 4. Construct the appropriate harness and call the matching
+//! `run_simulation` / `run_generic_simulation` entry point.
+//! 5. Write the `SimulationResult` JSON to `--output`.
 //!
 //! Progress/warnings go to stderr; nothing but the `SimulationResult` JSON
 //! ever touches the output file. stdout is reserved.
@@ -81,7 +81,7 @@ struct SimulateCli {
     #[arg(long, value_name = "FILE")]
     adapter: Option<PathBuf>,
 
-    /// Sprint 6 T03 — override the invariant-violation exit code back
+    /// override the invariant-violation exit code back
     /// to 0. By default the engine exits 1 whenever one or more
     /// declared invariants fired during the run (machine-checkable
     /// validation). This flag is for exploratory runs where invariant
@@ -121,23 +121,23 @@ struct ReplayCli {
     allow_invariant_violations: bool,
 }
 
-/// Sprint 6 T03 — structured engine outcomes.
+/// structured engine outcomes.
 ///
 /// The engine uses three distinct exit codes to give CI (and humans)
 /// a machine-checkable signal:
-///   - `0` = clean run, all declared invariants held.
-///   - `1` = at least one declared invariant fired during the run.
-///   - `2` = setup error before the tick loop ran to completion
-///           (adapter parse/validation error, missing program `.so`,
-///           invariant references unknown field, …). Any non-setup
-///           runtime failure (LiteSVM infra error, panic in primitive)
-///           also maps to `2`, since the engine never reached a clean
-///           declared-invariant verdict.
+/// - `0` = clean run, all declared invariants held.
+/// - `1` = at least one declared invariant fired during the run.
+/// - `2` = setup error before the tick loop ran to completion
+/// (adapter parse/validation error, missing program `.so`,
+/// invariant references unknown field, …). Any non-setup
+/// runtime failure (LiteSVM infra error, panic in primitive)
+/// also maps to `2`, since the engine never reached a clean
+/// declared-invariant verdict.
 ///
 /// Empty-adapter runs (no `[[invariants]]` block declared) always
-/// exit `0` on a successful tick loop, matching the Sprint 4 and
-/// Sprint 5 default behavior byte-for-byte. This is load-bearing for
-/// the Sprint 4 hero-grid determinism hash.
+/// exit `0` on a successful tick loop, matching the and
+/// default behavior byte-for-byte. This is load-bearing for
+/// the hero-grid determinism hash.
 enum EngineOutcome {
     Clean,
     InvariantFired(u64),
@@ -290,18 +290,18 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
 
     // --- Build scenario. ---
     //
-    // T02: scenario *parameters* live in `fixtures/scenarios/presets/*.toml`
+    // scenario *parameters* live in `fixtures/scenarios/presets/*.toml`
     // and are loaded at boot into a map keyed by preset `name`. The Rust
     // `Scenario` impls (e.g. `PriceShockScenario`) still live in
     // `scenario::presets` — only the parameter set travels into TOML.
     //
     // Dispatch order:
-    //   1. `baseline` stays a hardcoded default so a stripped checkout
-    //      still runs without the fixtures tree on disk.
-    //   2. Otherwise look up `run_config.scenario` in the preset map and
-    //      instantiate the Rust impl matching `preset.kind`.
-    //   3. Unknown scenario -> fall back to baseline with a warning
-    //      (preserves pre-T02 behavior).
+    // 1. `baseline` stays a hardcoded default so a stripped checkout
+    // still runs without the fixtures tree on disk.
+    // 2. Otherwise look up `run_config.scenario` in the preset map and
+    // instantiate the Rust impl matching `preset.kind`.
+    // 3. Unknown scenario -> fall back to baseline with a warning
+    // (preserves pre- behavior).
     let presets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("engine crate has a parent directory")
@@ -315,7 +315,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
             ScenarioKind::PriceShock => {
                 // `RIPTIDE_PRICE_SHOCK_DROP` still overrides the preset's
                 // `drop_percent` — this preserves the env-var knob the
-                // Sprint 4 hero grid sweep relies on.
+                // hero grid sweep relies on.
                 let drop = std::env::var("RIPTIDE_PRICE_SHOCK_DROP")
                     .ok()
                     .and_then(|s| s.parse::<f64>().ok())
@@ -417,10 +417,10 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 );
             }
 
-            // Sprint 5 T01: pull the adapter's declared invariants *before*
+            // pull the adapter's declared invariants *before*
             // the bootstrap config consumes the adapter by move. Empty when
             // no adapter was supplied so the default Solend-fork path keeps
-            // producing byte-identical output against the Sprint 4 hash.
+            // producing byte-identical output against the hash.
             let lending_invariants = adapter
                 .as_ref()
                 .map(|a| a.invariants.clone())
@@ -481,13 +481,13 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
     write_result(&cli.output, &result)?;
     eprintln!("wrote {}", cli.output.display());
 
-    // Sprint 6 T03 — derive exit code from invariant violations. The
+    // derive exit code from invariant violations. The
     // count is the total number of events the tick loop emitted via
     // `evaluate_invariants` (one event per falsified comparison per
     // tick), which matches what `summary["invariants_fired"]` rolls up.
     // Runs with no declared invariants never emit an `invariants_fired`
     // key, so `firing_count` stays 0 and the exit code stays 0 — this
-    // is the Sprint 4 / Sprint 5 regression-gate contract.
+    // is the / regression-gate contract.
     let firing_count = count_invariant_firings(&result);
     if firing_count > 0 {
         Ok(EngineOutcome::InvariantFired(firing_count))
@@ -616,7 +616,7 @@ fn count_invariant_firings(result: &SimulationResult) -> u64 {
 }
 
 /// Look up a preset by dispatch key, matching either the exact `name`
-/// field or its hyphen/underscore twin. Pre-T02 the engine accepted
+/// field or its hyphen/underscore twin. Pre- the engine accepted
 /// `"price-shock"` and `"price_shock"` for the same scenario; this helper
 /// preserves that alias so existing run-configs keep resolving.
 fn lookup_preset<'a>(

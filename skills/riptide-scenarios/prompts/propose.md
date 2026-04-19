@@ -45,14 +45,14 @@ experiment, rank them, and write the top 3–5 to disk.
     directory as the authoritative shape reference:
 
         fixtures/scenarios/<adapter-stem>/whale-shock-grid/
-          manifest.json          # grid-level metadata (not a bootable scenario)
-          w5-s20/                # one subdir per (whale%, shock%) cell
+          manifest.json # grid-level metadata (not a bootable scenario)
+          w5-s20/ # one subdir per (whale%, shock%) cell
             run-config.json
             policies.json
-            manifest.json        # per-cell scenario manifest
+            manifest.json # per-cell scenario manifest
           w5-s30/
             …
-          w25-s40/               # Solend June 2022 cell
+          w25-s40/ # Solend June 2022 cell
             run-config.json
             policies.json
             manifest.json
@@ -250,12 +250,12 @@ reserve with no per-account borrow cap".
 
 The spec (R3.5) originally listed four perps proposal templates,
 one per category. One was dropped as a downstream consequence of
-the T07 perps-lite scope cut:
+the perps-lite scope cut:
 
 - **`funding-rate-oscillation` — DROPPED.** The
   `funding_rate_manipulation` classification category was removed
   because the perps-fork program shipped without
-  `update_funding_rate` (Sprint 5 scope cut). No funding rate
+  `update_funding_rate` ( scope cut). No funding rate
   instruction or observation exists, so no proposal can target it.
   This template will be added in a future sprint when funding rate
   lands.
@@ -280,7 +280,7 @@ single-u64-arg instructions). `open_position` (which takes
 leverage + notional args) may not be runtime-dispatchable. The
 depositor-share axis is the closest runtime-achievable proxy for
 exposure: more agents depositing more collateral = higher total
-collateral at risk when the oracle shocks. Sprint 6 can upgrade
+collateral at risk when the oracle shocks. can upgrade
 to a true leverage axis when the generic runtime supports
 multi-arg instructions.
 
@@ -303,14 +303,14 @@ multi-arg instructions.
 **Grid layout** mirrors the `whale-shock-grid` pattern exactly:
 
     fixtures/scenarios/<adapter-stem>/depositor-shock-grid/
-      manifest.json          # grid-level metadata (not bootable)
-      d25-s20/               # one subdir per (depositor%, shock%) cell
+      manifest.json # grid-level metadata (not bootable)
+      d25-s20/ # one subdir per (depositor%, shock%) cell
         run-config.json
         policies.json
         manifest.json
       d25-s30/
         …
-      d75-s40/               # high-exposure + severe shock corner
+      d75-s40/ # high-exposure + severe shock corner
         run-config.json
         policies.json
         manifest.json
@@ -401,7 +401,7 @@ AMM-specific categories (`price_manipulation_via_swap`,
 `impermanent_loss_spike`, `jit_liquidity`, `reserve_depletion`).
 These rules are additive — they do not replace or modify Rules 1–7
 or the perps Rules 8–10 above. The AMM adapter exposes `swap`
-(3-arg via the T01 multi-arg builder), `add_liquidity` (2-arg), and
+(3-arg via the multi-arg builder), `add_liquidity` (2-arg), and
 `remove_liquidity` (1-arg) as runtime-dispatchable actions.
 
 ### Rule 11 — Trade-size × volume grid (AMM adapters)
@@ -417,8 +417,8 @@ often* the attacker can compound that move (volume). A 1D sweep on
 either axis alone misses the interaction: a single large trade on
 a thin-volume pool leaves one price footprint; many small trades
 on a heavy-volume pool leave another; their product is where real
-adversarial price manipulation lives. Matches the Sprint 4 whale-
-shock and Sprint 5 depositor-shock 2D discipline.
+adversarial price manipulation lives. Matches the whale-
+shock and depositor-shock 2D discipline.
 
 **Axis encoding:**
 
@@ -432,18 +432,18 @@ shock and Sprint 5 depositor-shock 2D discipline.
   the same population = higher cumulative volume. Standard points:
   `v10`, `v30`, `v60`.
 
-**Grid layout** mirrors the Sprint 4 whale-shock and Sprint 5
+**Grid layout** mirrors the whale-shock and
 depositor-shock patterns exactly:
 
     fixtures/scenarios/<adapter-stem>/trade-size-volume-grid/
-      manifest.json          # grid-level metadata (not bootable)
-      t100-v10/              # one subdir per (trade-size, volume) cell
+      manifest.json # grid-level metadata (not bootable)
+      t100-v10/ # one subdir per (trade-size, volume) cell
         run-config.json
         policies.json
         manifest.json
       t100-v30/
         …
-      t10000-v60/            # high-trade-size + high-volume corner
+      t10000-v60/ # high-trade-size + high-volume corner
         run-config.json
         policies.json
         manifest.json
@@ -548,7 +548,7 @@ For AMM experiments, action names in `action_weights` must match
 the amm-fork adapter's `[actions]` keys: `swap`, `add_liquidity`,
 `remove_liquidity`. Persona-varying multi-arg fields (`direction`
 for `swap`, `amount_b` for `add_liquidity`) live on the persona's
-`persona_args` block in the same shape as the Sprint 6 T13 persona
+`persona_args` block in the same shape as the persona
 library (`fixtures/personas/{lp-provider,arbitrageur,sandwich-attacker,swapper,rug-puller}.toml`).
 
 ## Self-check before writing files

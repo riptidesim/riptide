@@ -11,7 +11,7 @@
 //! transition.
 //!
 //! **Parity note vs validator path**: the validator integration test
-//! (`t05_lending_integration.rs`) exercises the same lifecycle against a
+//! (`lending_integration.rs`) exercises the same lifecycle against a
 //! live `solana-test-validator`. The two backends produce identical
 //! program behavior because both run the same `lending_pool.so` artifact.
 //! The only known difference is timing — LiteSVM completes in-process
@@ -21,7 +21,7 @@
 //!
 //! Run:
 //! ```bash
-//! cargo test -p riptide-engine --test t06_litesvm_parity -- --nocapture
+//! cargo test -p riptide-engine --test litesvm_parity -- --nocapture
 //! ```
 
 #![cfg(not(doctest))]
@@ -178,7 +178,7 @@ fn litesvm_full_lifecycle_with_invariants() {
     // --- 5. Liquidate ---
     // Drop oracle price so the position becomes underwater.
     // Need: 8_000 * new_price * 5_000 / 10_000 < 300_000
-    //    => new_price < 300_000 * 10_000 / (8_000 * 5_000) = 75
+    // => new_price < 300_000 * 10_000 / (8_000 * 5_000) = 75
     // Set price to 40 (same as the validator test).
     eprintln!("=== liquidate ===");
     h.push_oracle_price(&OracleUpdate { price: 40.0, exponent: 0 }).unwrap();

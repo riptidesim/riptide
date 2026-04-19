@@ -14,7 +14,7 @@
 //!
 //! # In another:
 //! RIPTIDE_RUN_VALIDATOR_TESTS=1 RIPTIDE_PAYER=~/.config/solana/id.json \
-//!   cargo test -p riptide-engine --test t05_lending_integration -- --nocapture
+//! cargo test -p riptide-engine --test lending_integration -- --nocapture
 //! ```
 //!
 //! The test verifies the full validator harness path end-to-end against the on-chain
@@ -23,15 +23,15 @@
 //! 1. Deploys `lending_pool.so` via `harness::setup::deploy_program`.
 //! 2. Creates oracle, pool, borrower and liquidator position accounts.
 //! 3. Initializes the oracle at price=100 and the pool with a 50% liquidation
-//!    threshold.
+//! threshold.
 //! 4. Executes: deposit 10_000 → borrow 600_000 → set price to 40 →
-//!    liquidate 2_000. Debt is stored in stable base units (not oracle-scaled);
-//!    only collateral is re-priced via the oracle. The borrow is sized large so
-//!    that post-drop `collateral_amount * new_price * liquidation_threshold_bps`
-//!    falls below the (constant) debt value, flipping the health factor below
-//!    1.0 and making the position liquidatable.
+//! liquidate 2_000. Debt is stored in stable base units (not oracle-scaled);
+//! only collateral is re-priced via the oracle. The borrow is sized large so
+//! that post-drop `collateral_amount * new_price * liquidation_threshold_bps`
+//! falls below the (constant) debt value, flipping the health factor below
+//! 1.0 and making the position liquidatable.
 //! 5. Reads back the pool and the borrower position after each mutation and
-//!    asserts the expected state transitions.
+//! asserts the expected state transitions.
 //!
 //! The final assertion proves the on-chain health-factor math rejects the
 //! pre-drop borrow as safe and accepts the post-drop liquidation — this is the
@@ -263,10 +263,10 @@ fn t05_deposit_borrow_liquidate_on_local_validator() {
     assert!(!borrower_after_deposit.liquidated);
 
     // 2) Borrow 600_000 against 10_000 collateral @ price=100. Debt is tracked
-    //    as stable base units; the oracle only re-prices collateral. At deposit
-    //    time: collateral_value = collateral_amount * price = 1_000_000, LTV cap
-    //    at 70% allows up to 700_000, and pool borrow_limit is 750_000, so 600k
-    //    is within both caps.
+    // as stable base units; the oracle only re-prices collateral. At deposit
+    // time: collateral_value = collateral_amount * price = 1_000_000, LTV cap
+    // at 70% allows up to 700_000, and pool borrow_limit is 750_000, so 600k
+    // is within both caps.
     let borrow_amount: u64 = 600_000;
     send(
         &client,
@@ -287,12 +287,12 @@ fn t05_deposit_borrow_liquidate_on_local_validator() {
     assert!(!borrower_after_borrow.liquidated);
 
     // 3) Drop the oracle price to 40. Post-drop health math (the on-chain
-    //    program's `health_factor_bps`):
-    //      liquidation_value = collateral * price * threshold_bps / 10_000
-    //                        = 10_000 * 40 * 5_000 / 10_000 = 200_000
-    //      debt              = 600_000
-    //      health_bps        = 200_000 * 10_000 / 600_000 ≈ 3_333  (< 10_000)
-    //    so the position is liquidatable. This is the bug-catch invariant.
+    // program's `health_factor_bps`):
+    // liquidation_value = collateral * price * threshold_bps / 10_000
+    // = 10_000 * 40 * 5_000 / 10_000 = 200_000
+    // debt = 600_000
+    // health_bps = 200_000 * 10_000 / 600_000 ≈ 3_333 (< 10_000)
+    // so the position is liquidatable. This is the bug-catch invariant.
     let new_price: u64 = 40;
     let liquidation_value = u128::from(borrower_after_borrow.collateral)
         * u128::from(new_price)
