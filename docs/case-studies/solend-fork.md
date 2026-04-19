@@ -1,5 +1,7 @@
 # Hero Grid — Solend Fork, Whale × Shock Parameter Discovery
 
+> **What this is:** A parameter-boundary discovery run on a Solend fork — a 3×3 whale-share × price-shock grid with bad-debt surfaces, and the shipping example of what a Riptide outcome looks like when it lands well. **Audience:** reviewers and adopters evaluating whether Riptide's load-bearing claim holds on a real program.
+
 **Artifact:** `fixtures/scenarios/solend-fork/hero-grid/results.json`
 **Adapter:** `fixtures/adapters/solend-fork.toml` (sha256 `6d35cb7b…9c2c8`)
 **Whale persona:** `fixtures/personas/whale.toml` (sha256 `14e67272…2956e`)
