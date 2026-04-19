@@ -61,6 +61,7 @@ riptide replay fixtures/replays/solend-nov-2022/config.json --serve
 - [`docs/architecture.md`](docs/architecture.md) — six-layer stack, LiteSVM runtime, determinism model, adapter pipeline.
 - [`docs/install.md`](docs/install.md) — `install.sh` walkthrough, Docker path, from-source recipe, upgrade flow.
 - [`docs/case-studies/solend-fork.md`](docs/case-studies/solend-fork.md) — the 3×3 whale × shock parameter-boundary run on a Solend fork.
+- [`docs/benchmarks/agent-scaling.md`](docs/benchmarks/agent-scaling.md) — 1000 agents × 30 ticks in under 5 seconds on a standard laptop; reproducible harness + deterministic hashes.
 
 ## Repo layout
 
