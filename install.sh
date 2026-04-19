@@ -17,7 +17,7 @@
 #      the TypeScript CLI.
 #   3. Installs a `riptide` launcher into $HOME/.local/bin.
 #   4. Verifies the CLI responds to --help, runs
-#      `riptide run demo/configs/safe.json` as the lending smoke test,
+#      `riptide run examples/configs/safe.json` as the lending smoke test,
 #      and runs a short resource-grinder simulation as the generic
 #      adapter smoke test.
 #
@@ -251,25 +251,25 @@ if ! HELP_OUT="$("$LAUNCHER" --help 2>&1)"; then
 fi
 ok   "riptide --help responded"
 
-log "running safe lending smoke test: riptide run demo/configs/safe.json"
-SMOKE_OUT_DIR="$REPO_ROOT/demo/outputs/safe"
-mkdir -p "$REPO_ROOT/demo/outputs"
+log "running safe lending smoke test: riptide run examples/configs/safe.json"
+SMOKE_OUT_DIR="$REPO_ROOT/examples/outputs/safe"
+mkdir -p "$REPO_ROOT/examples/outputs"
 rm -rf "$SMOKE_OUT_DIR"
 
-# Shock knob matches demo/run-demo.sh — the canonical demo runs this way
+# Shock knob matches examples/run-demo.sh — the canonical demo runs this way
 # and we want our smoke test to execute the same path.
 export RIPTIDE_PRICE_SHOCK_DROP=0.5
 unset RIPTIDE_ENGINE_BIN RIPTIDE_POOL_LTV_BPS RIPTIDE_POOL_LIQ_THRESHOLD_BPS \
       RIPTIDE_POOL_LIQ_BONUS_BPS RIPTIDE_SEED_COLLATERAL RIPTIDE_STARTING_BALANCE || true
 
-# The spec's exact phrasing is `riptide run demo/configs/safe.json`.
+# The spec's exact phrasing is `riptide run examples/configs/safe.json`.
 # The `run` subcommand reads the JSON config, applies the shipped
 # solend-fork adapter by default, and dispatches the simulate flow.
-if ! ( cd "$REPO_ROOT" && "$LAUNCHER" run demo/configs/safe.json ); then
-  fail "smoke test failed: 'riptide run demo/configs/safe.json' did not exit cleanly."
+if ! ( cd "$REPO_ROOT" && "$LAUNCHER" run examples/configs/safe.json ); then
+  fail "smoke test failed: 'riptide run examples/configs/safe.json' did not exit cleanly."
   fail "try reproducing manually from the repo root:"
-  fail "  riptide run demo/configs/safe.json"
-  fail "  bash demo/run-demo.sh      # fuller demo"
+  fail "  riptide run examples/configs/safe.json"
+  fail "  bash examples/run-demo.sh      # fuller demo"
   fail "if either passes, this is an install-flow bug; open an issue with the full output."
   exit 1
 fi
@@ -290,7 +290,7 @@ banner "verifying the shipped generic adapter (resource-grinder)"
 # personas straight from the adapter TOML (unlike the CLI simulate
 # path, which compiles personas via the LLM/fallback catalog and does
 # not know about custom generic persona names).
-GENERIC_OUT_DIR="$REPO_ROOT/demo/outputs/generic-smoke"
+GENERIC_OUT_DIR="$REPO_ROOT/examples/outputs/generic-smoke"
 rm -rf "$GENERIC_OUT_DIR"
 mkdir -p "$GENERIC_OUT_DIR"
 GENERIC_RESULT="$GENERIC_OUT_DIR/simulation-result.json"
@@ -312,7 +312,7 @@ if ! ( cd "$REPO_ROOT" && "$ENGINE_BIN" \
   fail "    --adapter fixtures/adapters/resource-grinder.toml \\"
   fail "    --config  fixtures/generic-demo.run.json \\"
   fail "    --policies /tmp/empty-policies.json \\"
-  fail "    --output  demo/outputs/generic-smoke/simulation-result.json"
+  fail "    --output  examples/outputs/generic-smoke/simulation-result.json"
   fail "common cause: $GENERIC_SO_PATH missing or stale. Re-run install.sh."
   exit 1
 fi
@@ -333,6 +333,6 @@ printf '%sRiptide install complete in %dm %02ds%s\n' "$GREEN" "$MIN" "$SEC" "$RE
 printf '%s=====================================================%s\n' "$BOLD" "$RESET"
 printf '\nnext steps:\n'
 printf '  - %sriptide --help%s                         # CLI overview\n' "$BOLD" "$RESET"
-printf '  - %sbash demo/run-demo.sh%s                  # safe vs risky lending headline\n' "$BOLD" "$RESET"
-printf '  - browse %sdemo/configs/%s and %sfixtures/%s for more runs\n' "$BOLD" "$RESET" "$BOLD" "$RESET"
+printf '  - %sbash examples/run-demo.sh%s                  # safe vs risky lending headline\n' "$BOLD" "$RESET"
+printf '  - browse %sexamples/configs/%s and %sfixtures/%s for more runs\n' "$BOLD" "$RESET" "$BOLD" "$RESET"
 printf '  - see README.md for the full tour\n'

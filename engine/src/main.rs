@@ -675,7 +675,7 @@ fn friendly_read_error(kind: &str, path: &Path, source: std::io::Error) -> anyho
     if source.kind() == std::io::ErrorKind::NotFound {
         let hint = match kind {
             "run-config" => {
-                "Try one of the shipped examples: demo/configs/safe.json or demo/configs/stressed.json, \
+                "Try one of the shipped examples: examples/configs/safe.json or examples/configs/risky.json, \
                  or check that --config points at a readable JSON file."
             }
             "policies" => {

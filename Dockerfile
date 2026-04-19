@@ -228,12 +228,12 @@ COPY --from=build /src/programs/perps-fork/target/deploy/perps_fork.so \
 COPY --from=build /src/programs/amm-fork/target/deploy/amm_fork.so \
                   /src/programs/amm-fork/target/deploy/amm_fork.so
 
-# --- Fixtures + demo + scripts -----------------------------------------------
-# Fixtures are read from disk by every engine invocation; demo/configs
+# --- Fixtures + examples + scripts -------------------------------------------
+# Fixtures are read from disk by every engine invocation; examples/configs
 # is referenced by the README; scripts/ carries the Sprint 5 + Sprint 6
 # scratch runners.
 COPY --from=build /src/fixtures /src/fixtures
-COPY --from=build /src/demo     /src/demo
+COPY --from=build /src/examples /src/examples
 COPY --from=build /src/scripts  /src/scripts
 COPY --from=build /src/skills   /src/skills
 COPY --from=build /src/README.md /src/README.md

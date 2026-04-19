@@ -366,9 +366,9 @@ test("renderNarrative uses custom reproCommand when provided", () => {
   });
   const md = renderNarrative(result, {
     adapterPath: "test.toml",
-    reproCommand: "riptide run demo/configs/safe.json"
+    reproCommand: "riptide run examples/configs/safe.json"
   });
-  assert.match(md, /riptide run demo\/configs\/safe\.json/);
+  assert.match(md, /riptide run examples\/configs\/safe\.json/);
 });
 
 // --- T15 renderColoredTable tests ---

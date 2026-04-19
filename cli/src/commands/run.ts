@@ -14,16 +14,16 @@ import { blockUntilSignal, startDashboardServer } from "../serve/index.js";
 
 /**
  * `riptide run <config.json>` — thin wrapper that reads a JSON run
- * config (the same shape as `demo/configs/safe.json`), optionally
+ * config (the same shape as `examples/configs/safe.json`), optionally
  * applies an `--adapter` override (default: the shipped solend-fork
  * lending adapter), and dispatches through the existing simulate
  * pipeline. Satisfies the Sprint 5 R1.4 install-flow contract which
- * specifies the literal command `riptide run demo/configs/safe.json`.
+ * specifies the literal command `riptide run examples/configs/safe.json`.
  */
 export function createRunCommand(): Command {
   return new Command("run")
     .description("Run a simulation from a JSON run-config file")
-    .argument("<config>", "Path to a run-config JSON file (e.g. demo/configs/safe.json)")
+    .argument("<config>", "Path to a run-config JSON file (e.g. examples/configs/safe.json)")
     .option(
       "--adapter <path>",
       "Adapter TOML path (defaults to fixtures/adapters/solend-fork.toml if omitted)"
@@ -55,7 +55,7 @@ export function createRunCommand(): Command {
         throw new Error(
           `riptide run: run-config ${reason} at ${absConfig}\n` +
             `Expected a JSON file with the fields { agents, ticks, scenario, seed, personas }.\n` +
-            `Try one of the shipped examples: demo/configs/safe.json or demo/configs/stressed.json.`
+            `Try one of the shipped examples: examples/configs/safe.json or examples/configs/risky.json.`
         );
       }
       let parsed: {
@@ -84,7 +84,7 @@ export function createRunCommand(): Command {
         throw new Error(
           `riptide run: run-config at ${absConfig} is missing one of the required fields ` +
             `{ agents, ticks, scenario, seed, personas }.\n` +
-            `Reference shape: demo/configs/safe.json.`
+            `Reference shape: examples/configs/safe.json.`
         );
       }
       const repoRoot = path.resolve(process.cwd());
@@ -96,7 +96,7 @@ export function createRunCommand(): Command {
       const outputPath =
         typeof parsed.output_path === "string" && parsed.output_path.length > 0
           ? parsed.output_path
-          : path.join("demo/outputs", path.basename(absConfig, path.extname(absConfig)));
+          : path.join("examples/outputs", path.basename(absConfig, path.extname(absConfig)));
 
       const { config } = buildSimulateOptions({
         agents: parsed.agents,

@@ -30,7 +30,7 @@
 //! against a modern engine is to quarantine its dep tree here.
 //!
 //! Build with `cargo build --manifest-path
-//! pyth_consumer_test_helper/Cargo.toml`. The engine's t23 test will
+//! programs/pyth_consumer_test_helper/Cargo.toml`. The engine's t23 test will
 //! find the binary at the standard cargo output path.
 
 use std::io::Read;

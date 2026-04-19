@@ -287,8 +287,8 @@ fn repo_root() -> PathBuf {
 fn find_pyth_consumer_helper_bin() -> Option<PathBuf> {
     let root = repo_root();
     let candidates = [
-        root.join("pyth_consumer_test_helper/target/release/pyth-consumer-test-helper"),
-        root.join("pyth_consumer_test_helper/target/debug/pyth-consumer-test-helper"),
+        root.join("programs/pyth_consumer_test_helper/target/release/pyth-consumer-test-helper"),
+        root.join("programs/pyth_consumer_test_helper/target/debug/pyth-consumer-test-helper"),
     ];
     for candidate in candidates {
         if candidate.exists() {
@@ -305,7 +305,7 @@ fn find_pyth_consumer_helper_bin() -> Option<PathBuf> {
 ///
 /// Build cost: ~50s cold (the helper pulls the full legacy borsh 0.10
 /// / solana-program 1.18 world). Cached after the first run under
-/// `pyth_consumer_test_helper/target/`. We use a process-level
+/// `programs/pyth_consumer_test_helper/target/`. We use a process-level
 /// `OnceLock` so the build runs at most once per `cargo test`
 /// invocation even when multiple t23 tests exercise the helper.
 ///
@@ -324,7 +324,7 @@ fn ensure_pyth_consumer_helper_bin() -> PathBuf {
                 return existing;
             }
             let root = repo_root();
-            let manifest = root.join("pyth_consumer_test_helper/Cargo.toml");
+            let manifest = root.join("programs/pyth_consumer_test_helper/Cargo.toml");
             eprintln!(
                 "T23 gate: building pyth-consumer-test-helper (first run / clean checkout)..."
             );
@@ -343,11 +343,11 @@ fn ensure_pyth_consumer_helper_bin() -> PathBuf {
                 "T23 gate: pyth-consumer-test-helper build FAILED — the real Pyth-SDK \
                  consumer is load-bearing for the Sprint 6 T02 contract. Fix the build \
                  before continuing:\n  \
-                 cargo build --release --manifest-path pyth_consumer_test_helper/Cargo.toml"
+                 cargo build --release --manifest-path programs/pyth_consumer_test_helper/Cargo.toml"
             );
             find_pyth_consumer_helper_bin().expect(
                 "T23 gate: cargo build reported success but no helper binary was produced at \
-                 pyth_consumer_test_helper/target/release/pyth-consumer-test-helper. Check the \
+                 programs/pyth_consumer_test_helper/target/release/pyth-consumer-test-helper. Check the \
                  helper crate's Cargo.toml [[bin]] target name.",
             )
         })
@@ -402,7 +402,7 @@ fn run_pyth_consumer_helper(bytes: &[u8]) -> serde_json::Value {
 /// `ensure_pyth_consumer_helper_bin` builds the helper in-process on
 /// the first test invocation, so `cargo test` on a fresh checkout
 /// genuinely exercises the real-SDK path (not a silent skip).
-/// Cached after the first run under `pyth_consumer_test_helper/target/`.
+/// Cached after the first run under `programs/pyth_consumer_test_helper/target/`.
 #[test]
 fn pyth_sdk_solana_parses_our_mock_unchanged() {
     // `run_pyth_consumer_helper` internally calls

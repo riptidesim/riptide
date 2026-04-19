@@ -10,5 +10,5 @@
 # workspace so its legacy borsh 0.10 / solana-program 1.18 dep tree
 # doesn't leak into the engine. Build artifacts stay local; the
 # Cargo.lock is regenerated per dev/CI machine.
-/pyth_consumer_test_helper/target/
-/pyth_consumer_test_helper/Cargo.lock
+/programs/pyth_consumer_test_helper/target/
+/programs/pyth_consumer_test_helper/Cargo.lock

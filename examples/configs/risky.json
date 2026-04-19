@@ -5,5 +5,5 @@
   "scenario": "price-shock",
   "seed": 42,
   "personas": ["panic-whale", "degen-borrower", "aggressive-arb-bot"],
-  "output_path": "demo/outputs/risky"
+  "output_path": "examples/outputs/risky"
 }

@@ -84,7 +84,7 @@ runs an in-process LiteSVM backend.
 ## Run
 
 ```bash
-bash demo/run-demo.sh
+bash examples/run-demo.sh
 ```
 
 ## Tuning — the one knob the demo turns
@@ -120,7 +120,7 @@ event count                               50              40
 ```
 
 These numbers are reproducible (same seed) and come from an actual
-`bash demo/run-demo.sh` run, not a projection.
+`bash examples/run-demo.sh` run, not a projection.
 
 ### Per-agent outcomes
 

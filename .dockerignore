@@ -17,7 +17,7 @@ cli/dist/
 # Local ledger / runtime droppings
 test-ledger/
 **/test-ledger/
-demo/outputs/
+examples/outputs/
 
 # VCS + editor noise
 .git/

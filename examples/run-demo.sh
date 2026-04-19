@@ -2,7 +2,7 @@
 # Riptide demo: run the safe and risky configs against the in-process
 # LiteSVM backend and print a side-by-side headline-metric diff.
 #
-# Preconditions (see demo/README.md for details):
+# Preconditions (see examples/README.md for details):
 #   - engine built:  cargo build --release -p riptide-engine
 #   - lending built: cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
 #   - cli built:     (cd cli && npm run build)
@@ -36,18 +36,18 @@ unset \
   RIPTIDE_SEED_COLLATERAL \
   RIPTIDE_STARTING_BALANCE
 
-# Tuning knobs — see demo/README.md for rationale. The only knob the demo
+# Tuning knobs — see examples/README.md for rationale. The only knob the demo
 # turns is the shock magnitude, large enough that leveraged borrowers
 # trip the on-chain liquidation check while cautious personas (who never
 # open borrows) ride the MTM loss without insolvency.
 export RIPTIDE_PRICE_SHOCK_DROP=0.5
 
-mkdir -p demo/outputs
+mkdir -p examples/outputs
 
 run_one() {
   local label="$1"
   local config="$2"
-  local out_dir="demo/outputs/$label"
+  local out_dir="examples/outputs/$label"
 
   # Extract flags from the JSON config using node (always available
   # because the cli itself is Node).
@@ -73,8 +73,8 @@ run_one() {
     --output "$out_dir"
 }
 
-run_one safe  demo/configs/safe.json
-run_one risky demo/configs/risky.json
+run_one safe  examples/configs/safe.json
+run_one risky examples/configs/risky.json
 
 echo
 echo "============================================================"
@@ -83,8 +83,8 @@ echo "============================================================"
 node -e '
   const fs = require("fs");
   const load = (p) => JSON.parse(fs.readFileSync(p, "utf8"));
-  const safe  = load("demo/outputs/safe/simulation-result.json");
-  const risky = load("demo/outputs/risky/simulation-result.json");
+  const safe  = load("examples/outputs/safe/simulation-result.json");
+  const risky = load("examples/outputs/risky/simulation-result.json");
 
   const row = (label, a, b) =>
     label.padEnd(28) + String(a).padStart(16) + String(b).padStart(16);
@@ -110,5 +110,5 @@ node -e '
   console.log(row("event count",          safe.events.length,                       risky.events.length));
 '
 echo "============================================================"
-echo "artifacts: demo/outputs/safe/simulation-result.json"
-echo "           demo/outputs/risky/simulation-result.json"
+echo "artifacts: examples/outputs/safe/simulation-result.json"
+echo "           examples/outputs/risky/simulation-result.json"

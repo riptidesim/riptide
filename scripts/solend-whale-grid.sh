@@ -151,7 +151,7 @@ for whale in "${WHALE_SHARES[@]}"; do
 
     # Scrub ambient engine knobs — keep only the shock magnitude and
     # default LTV/threshold/bonus/seed so every cell sees identical pool
-    # config. Same discipline as demo/run-demo.sh.
+    # config. Same discipline as examples/run-demo.sh.
     env -u RIPTIDE_POOL_LTV_BPS \
         -u RIPTIDE_POOL_LIQ_THRESHOLD_BPS \
         -u RIPTIDE_POOL_LIQ_BONUS_BPS \

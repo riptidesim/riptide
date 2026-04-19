@@ -5,5 +5,5 @@
   "scenario": "price-shock",
   "seed": 42,
   "personas": ["cautious-yield-farmer", "steady-lp"],
-  "output_path": "demo/outputs/safe"
+  "output_path": "examples/outputs/safe"
 }
