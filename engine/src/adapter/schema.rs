@@ -102,11 +102,9 @@ pub struct ActionDefinition {
     /// Ordered list of IDL instruction args the adapter declares for
     /// this action. Each entry must bind to either the runtime-computed
     /// amount (via `[instructions].<ix>.amount`) or a literal constant
-    /// (via `[instructions].<ix>.args.<entry>`). v0 only
-    /// supported zero-arg or single-runtime-bound-arg forms;
-    /// lifts the `len <= 1` cap so multi-arg Borsh instructions
-    /// (e.g. AMM `swap(amount_in, min_out, direction)`) can declare all
-    /// of their args here.
+    /// (via `[instructions].<ix>.args.<entry>`). Multi-arg Borsh
+    /// instructions (e.g. AMM `swap(amount_in, min_out, direction)`)
+    /// declare all of their args here.
     #[serde(default)]
     pub takes: Vec<String>,
 }
@@ -215,8 +213,9 @@ pub struct PersonaDefinition {
     /// forking the adapter into one action per leverage level.
     ///
     /// Empty by default — adapters that only use single-runtime-arg
-    /// dispatch ( perps, lending) keep parsing byte-for-byte
-    /// and serialize without the key. Type-checking happens at encode
+    /// dispatch (lending, the shipping perps scratch) keep parsing
+    /// byte-for-byte and serialize without the key. Type-checking
+    /// happens at encode
     /// time against the target IDL arg's Borsh type (same coercion
     /// rules as literal-bound args).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]

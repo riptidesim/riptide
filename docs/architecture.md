@@ -68,6 +68,24 @@ Per-scenario results and the aggregate summary land in `.riptide/last-run.json` 
 
 Inside the Riptide monorepo itself, `.riptide/scenarios/` is a symlink to `fixtures/scenarios/`, so shipping scenarios are discoverable via the same convention as user-authored scenarios in any other repo — `riptide list` and `riptide run` work identically in both contexts. The symlink is tracked in git (mode `120000`), keeps every existing `fixtures/scenarios/…` reference in scripts and CI resolving unchanged, and adds no determinism risk because the engine never observes which path it traversed to reach a run-config.
 
+## Oracle binding for generic adapters
+
+Generic adapters can bind one shared account as the oracle the engine targets for shock injection. The binding lives in a single `[[oracles]]` block plus an optional `owner` on the referenced `[accounts.<name>]`:
+
+- **`kind`** — `"admin-mock"` (shipping mock layout) or `"pyth"` (real 3312-byte Pyth aggregate-price layout the `pyth-sdk-solana` parser accepts unchanged).
+- **`account`** — the declared `[accounts.<name>]` the oracle layout bytes live in. Must be `kind = "shared"`; binding to an agent-scoped account or to a missing name is a loader error.
+- **`base_price` + `exponent`** — the oracle state the harness writes into the bound account before tick 0, so the first observation already sees the adapter-declared price.
+- **`owner`** on the bound account — optional. Omitted, the shared account is owned by the simulated program. Declared, exactly one of `owner.program_so = "<path>.so"` (owner pubkey derived from the companion `target/deploy/<name>-keypair.json` the rest of the repo already uses) or `owner.pubkey = "<base58>"` (literal — for real external programs such as Pyth) is accepted. Declaring both or neither is a key-level loader error.
+
+On every scenario/replay oracle update the generic harness encodes through the same layout dispatcher the shipping `admin_mock_oracle` and real-SDK Pyth gates use, then writes into the bound account preserving owner and lamports — so a program that enforces account-owner asserts at read time sees the sibling-program pubkey, not a silent fallback to the simulated program id. The end-to-end proof for the sibling-owned admin-mock case lives in `engine/tests/perps_sibling_oracle_proof.rs`; the real-SDK parser proof lives in `engine/tests/pyth_real_layout.rs`.
+
+What this surface does **not** yet cover:
+
+- **Multi-oracle generic adapters.** Declaring 2+ `[[oracles]]` entries on a generic adapter fails fast with a single-oracle-for-now diagnostic — the current scenario/replay surfaces emit one oracle-update stream.
+- **Pairwise generic liquidation.** `GenericHarness::execute_action` still ignores `target_idx`, so `liquidate_position`'s victim plumbing is a follow-up.
+- **Liquid-staking bundle.** The oracle path is the substrate; the bundle itself is not yet shipped.
+- **Watch mode / parallel scenario execution / `--serve` multi-scenario aggregation** remain follow-ups.
+
 ## Further reading
 
 - [`vision.md`](vision.md) — why this shape, what's in scope, what isn't.

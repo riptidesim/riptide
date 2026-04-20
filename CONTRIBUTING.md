@@ -200,8 +200,9 @@ An adapter wires a specific Solana program into the engine.
 2. **Generate or hand-write the adapter TOML:**
    - *Skill path:* install the `riptide-adapt` Claude Code skill (`skills/riptide-adapt/SKILL.md`). Invoke it in-session pointing at your program source or IDL. The skill reads the program, classifies it against the primitive library (lending / perps / AMM / generic), writes the adapter TOML, and runs `riptide adapt` as a smoke test. No API keys or endpoint config.
    - *Hand-written path:* copy the closest shipping adapter from `fixtures/adapters/` (`solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, or `resource-grinder.toml`) and edit `program_so`, `[[accounts]]`, `[[actions]]`, `[[observations]]`, and `[[invariants]]`.
-3. **Smoke-test it:** `riptide adapt --adapter fixtures/adapters/<your-adapter>.toml` — confirms the engine boots it and observes a state delta.
-4. **Commit** the adapter under `fixtures/adapters/` and the IDL under `fixtures/idls/`.
+3. **Wire an oracle if the program needs one.** A generic adapter can declare a single `[[oracles]]` block bound to a `kind = "shared"` account. The harness bootstraps that account at tick 0 with real admin-mock or Pyth bytes and mutates it on every scenario/replay oracle update. The bound account can optionally declare `owner = { program_so = "<path>.so" }` (owner resolved from the companion `target/deploy/<name>-keypair.json`) for sibling-owned oracles such as `admin_mock_oracle`, or `owner = { pubkey = "<base58>" }` for real external programs such as Pyth. Omit `owner` and the simulated program owns the account. See [`docs/architecture.md#oracle-binding-for-generic-adapters`](docs/architecture.md#oracle-binding-for-generic-adapters) and the end-to-end proof at `engine/tests/perps_sibling_oracle_proof.rs`. Two or more `[[oracles]]` entries on a generic adapter is currently a loader error — multi-oracle generic semantics remain a follow-up.
+4. **Smoke-test it:** `riptide adapt --adapter fixtures/adapters/<your-adapter>.toml` — confirms the engine boots it and observes a state delta.
+5. **Commit** the adapter under `fixtures/adapters/` and the IDL under `fixtures/idls/`.
 
 The adapter is the contract between your program and the six-layer stack. Keep it declarative — anything that can't be expressed in TOML is a signal that the engine needs a new capability, which is a separate (and rarer) PR.
 
@@ -268,7 +269,7 @@ Engine changes are rare. If you're about to write one, stop and ask:
 - **Is this a genuinely new engine capability?** If yes — good, write it, but:
   - It ships with its own integration test in `engine/tests/`.
   - It must preserve the `e2e_determinism` regression.
-  - It does not break the three byte-stable hashes shipped today (Sprint 4 hero grid `w25-s40`, Sprint 5 perps scratch, Sprint 6 AMM scratch).
+  - It does not break the three byte-stable hashes shipped today (Solend-fork hero-grid `w25-s40`, perps-fork scratch, AMM-fork scratch — see [Determinism & Regression Gates](#determinism--regression-gates)).
   - It updates `docs/architecture.md` if the change touches a documented pattern.
 
 Engine changes that break determinism without a conscious retune are the top-priority reverts.
@@ -314,7 +315,7 @@ cargo test -p riptide-engine --test replay_solend_june_2022
 |---------|--------|
 | Solend-fork hero-grid `w25-s40` | `89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11` |
 | Perps-fork scratch | `1518bcfdeb6cdb7d538be86584195b4b348b73beed610003d4a35939994f1878` |
-| AMM-fork scratch | *(see the Sprint 6 close entry; refresh locally with `scripts/amm-scratch.sh`)* |
+| AMM-fork scratch | `5de060cdcacfbacaa598a387a9f249e7633fedac449f137d62c0ede9cf10624f` |
 
 If your PR flips any of these, include the conscious-retune justification in the PR description — why the new bytes are correct, what changed in the adapter / scenario / engine that causes the shift, and why the old hash is no longer load-bearing.
 

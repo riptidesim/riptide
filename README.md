@@ -130,6 +130,17 @@ space = 200
 kind  = "agent"
 space = 80
 
+# Shared accounts can optionally declare an external owner — a
+# sibling program's compiled .so (owner derived from the
+# local target/deploy/<name>-keypair.json) or a literal base58
+# pubkey for a real external program such as Pyth. Omit `owner`
+# and the simulated program owns the account, which is what
+# every non-oracle shared account wants.
+[accounts.price_feed]
+kind  = "shared"
+space = 50
+owner = { program_so = "target/deploy/admin_mock_oracle.so" }
+
 # Instructions personas can fire. `amount` is runtime-bound
 # (the persona picks a value per-tick).
 [instructions.stake]
@@ -159,6 +170,19 @@ name  = "exchange_rate_bounded"
 field = "pool.exchange_rate"
 op    = "<="
 value = 10000000000
+
+# One bound oracle per generic adapter. `account` must name a
+# declared shared account; the harness bootstraps that account
+# at tick 0 with real admin-mock or Pyth bytes and mutates it on
+# every scenario/replay oracle update. Declare 2+ oracles and the
+# loader fails fast — multi-oracle generic semantics are still a
+# follow-up.
+[[oracles]]
+name       = "price_feed"
+kind       = "admin-mock"   # or "pyth" for real Pyth layout bytes
+account    = "price_feed"
+base_price = 100.0
+exponent   = 0
 ```
 
 That's it for the adapter — the rest of the six-layer stack (personas, scenarios, parameters, taxonomy) lives in separate files or skill prompts that reference these declarations. See [`docs/architecture.md`](docs/architecture.md) for the full mental model, and [`fixtures/adapters/`](fixtures/adapters/) in the repo for shipping examples against real programs (lending, perps, AMM, and a non-DeFi toy).

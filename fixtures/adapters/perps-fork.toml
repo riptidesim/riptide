@@ -1,55 +1,59 @@
 # Perps-fork generic adapter.
 #
-# the first non-lending protocol-class bundle. Drives
-# `programs/perps-fork/` (the perps-lite target from ) through the
-# engine's generic primitive path.
+# The first non-lending protocol-class bundle. Drives
+# `programs/perps-fork/` through the engine's generic primitive path.
 #
-# **Scope calls (documented in Obsidian Tasks// note):**
+# **Scope calls for this shipping adapter:**
 #
 # - `protocol = "generic"` (not `"perps"`). The `Protocol` enum has
-# `Lending`/`Generic` variants in; adding `Perps` would be a
-# cosmetic 5-file ripple with no dispatch behavior change. 's
+# `Lending` and `Generic` variants today. The scenarios skill's
 # `classify.md` discrimination hooks read instruction/observation
-# names — not the protocol field — so the classification story still
-# works. A drop can add `Protocol::Perps` when something
-# depends on it.
-# - Runtime-dispatchable actions: **only `deposit` and `withdraw`**.
-# The generic `GenericInstructionBuilder::build_action_data` encoder
-# only supports single-u64-arg instructions today; `open_position`
-# (side + leverage + notional) / `close_position` (zero args + oracle
-# sequencing) / `liquidate_position` (zero args + oracle sequencing)
-# cannot be encoded through the stock generic path, and `open_position`
-# also requires a pre-initialized oracle account which GenericHarness'
-# bootstrap does not express. Those instructions are still declared in
-# the shipping IDL (`fixtures/idls/perps-fork.json`) so can
-# classify the full perps surface from the IDL — they are execution-
-# shape metadata rather than runtime action bindings. t17
-# integration test covers the full 6-instruction round trip against
-# LiteSVM directly, so execution correctness is gated elsewhere.
-# - Oracle account is NOT declared in `[accounts]`. Perps-fork reads the
-# admin-mock oracle layout (`programs/admin_mock_oracle`), which is
-# owned by a different on-chain program. GenericHarness creates each
-# declared account with `owner = program_id` which is wrong for an
-# oracle owned by a sibling program; declaring it here would break
-# the account-owner invariant and silently produce wrong prices.
-# The deposit/withdraw runtime path does not read the oracle so this
-# omission is load-bearing only for the open/close/liquidate
-# instructions, which (per above) are not runtime-dispatched in.
-# - `[[scheduled_actions]]` is **empty**. Funding rate is a
-# addition. The engine-triggered actions infrastructure is still
-# load-bearing: perps-fork.toml parses with zero scheduled actions, the
-# engine's `Primitive::on_scheduled_action` default no-op hook handles
-# the path, and can declare `update_funding_rate` here
-# without reshaping any engine code.
-# - No `[invariants]` block — declares the perps
-# invariants on top of this adapter.
+# names — not the protocol field — so the classification story works
+# end-to-end under the generic variant. A later bundle can add
+# `Protocol::Perps` when something actually depends on it.
+# - Runtime-dispatchable actions here are **`deposit` and `withdraw`**.
+# The generic runtime can also encode multi-arg instructions
+# (`open_position(side, leverage_bps, notional)`) via persona_args +
+# literal `[instructions].<ix>.args` entries (see
+# `engine/tests/multi_arg_dispatch.rs`); this adapter deliberately
+# maps only the single-arg flows because the perps scratch sidecar
+# uses personas that fire `deposit`/`withdraw`. The full
+# initialize → deposit → open → shock → close flow — including the
+# generic push-oracle write path — runs as an integration proof in
+# `engine/tests/perps_sibling_oracle_proof.rs`, which bootstraps a
+# sibling-owned admin-mock oracle account and dispatches the raw
+# perps instructions against LiteSVM.
+# - Oracle account is NOT declared in `[accounts]` on this shipping
+# adapter because none of the runtime-dispatched actions above read
+# the oracle. The generic harness can now bind a shared oracle
+# account to an external owner (`owner.program_so = ".../admin_mock_oracle.so"`
+# or `owner.pubkey = "<base58>"`) and bootstrap it with real
+# admin-mock / Pyth bytes at tick 0; that surface is exercised by
+# the proof test cited above. Declaring it here would work and the
+# harness would honour the sibling-program ownership — the reason
+# this file leaves it out is scope, not capability.
+# - `[[scheduled_actions]]` is **empty**. The engine-triggered actions
+# infrastructure is load-bearing: the adapter parses with zero
+# scheduled actions, `Primitive::on_scheduled_action`'s default
+# no-op hook handles the path, and a later bundle can declare
+# `update_funding_rate` here without reshaping engine code.
+# - `[invariants]` lives inline below; the perps scratch scripts
+# extend it with additional checks at merge time.
+#
+# **What the generic oracle surface here does NOT yet cover:**
+# - more than one `[[oracles]]` entry per adapter (loader rejects 2+
+# today with a clear single-oracle-for-now error)
+# - pairwise generic liquidation: `GenericHarness::execute_action`
+# still ignores `target_idx`, so `liquidate_position`'s victim
+# plumbing is a follow-up
+# - liquid-staking itself — the oracle path is the substrate, not the
+# bundle
 #
 # Layer 2 personas — the persona library (`leveraged-long.toml`,
 # `leveraged-short.toml`, `delta-neutral-farmer.toml`, `liquidator.toml`)
-# — live at `fixtures/personas/*.toml`. The sidecar scratch script
-# at `scripts/perps-scratch.sh` merges them into a runtime copy
-# of this adapter with inline `[personas]` before invoking the engine,
-# matching the sidecar-runner pattern.
+# — live at `fixtures/personas/*.toml`. `scripts/perps-scratch.sh`
+# merges them into a runtime copy of this adapter with inline
+# `[personas]` before invoking the engine.
 
 protocol = "generic"
 program_so = "../../programs/perps-fork/target/deploy/perps_fork.so"
@@ -63,11 +67,12 @@ space = 113
 kind = "agent"
 space = 106
 
-# The generic runtime can encode deposit_collateral and withdraw_collateral
-# through `GenericInstructionBuilder::build_action_data` (single u64 arg).
-# open_position / close_position / liquidate_position are declared in the
-# IDL (classification surface) but have no `[instructions]` mapping here
-# — the generic runtime cannot dispatch them in.
+# deposit_collateral and withdraw_collateral are mapped as the shipping
+# runtime actions. open_position / close_position / liquidate_position
+# stay declared in the IDL (classification surface) but are not mapped
+# here because the perps-scratch scratch driver doesn't dispatch them;
+# the full open→shock→close flow is covered by the integration proof at
+# `engine/tests/perps_sibling_oracle_proof.rs`.
 [instructions]
 deposit_collateral  = { action = "deposit",  amount = "amount" }
 withdraw_collateral = { action = "withdraw", amount = "amount" }
@@ -120,17 +125,14 @@ field = "position.leverage_bps"
 op = "<="
 value = 100000
 
-# NOTE: the `market_config_initialized`
-# invariant (`market.max_leverage_bps > 0`) was removed because it
-# fires once at tick 0 before the generic harness's lazy-init path
-# writes the market config. Before wired invariant
-# firings to the engine exit code, a tick-0 false-positive was
-# invisible to CI; with it would turn the perps scratch gate
-# red on an invariant already treated as exploratory. The
-# fix at source (harness-level eager market init, or a scheduled
-# action that fires `initialize_market` at tick 0) is a +
-# follow-up. The two remaining invariants (`no_socialized_loss` +
-# `max_leverage_respected`) are the shipping checks.
+# The `market_config_initialized` invariant
+# (`market.max_leverage_bps > 0`) was intentionally omitted: it fires
+# once at tick 0 before the generic harness's lazy market-init path,
+# which would turn the perps scratch gate red on a check that is
+# exploratory rather than load-bearing. Harness-level eager market
+# init — or a scheduled action that fires `initialize_market` at
+# tick 0 — remains a follow-up. The two shipping checks below are
+# `no_socialized_loss` and `max_leverage_respected`.
 
 # === SIDECAR-CUT ===
 # `scripts/perps-scratch.sh` truncates this file at the
