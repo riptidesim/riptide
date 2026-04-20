@@ -66,6 +66,8 @@ Three invocation shapes share one command. `riptide run` runs everything discove
 
 Per-scenario results and the aggregate summary land in `.riptide/last-run.json` (schema pinned in `cli/src/run/last-run.ts`); `riptide run --only-failing` reads that file to rerun only the scenarios that failed or aborted most recently. The convention pairs with `.riptide/adapters/` and `.riptide/personas/` so every artifact Riptide reads — adapter, personas, scenarios — lives under the same version-controlled tree in the user's own repo.
 
+Inside the Riptide monorepo itself, `.riptide/scenarios/` is a symlink to `fixtures/scenarios/`, so shipping scenarios are discoverable via the same convention as user-authored scenarios in any other repo — `riptide list` and `riptide run` work identically in both contexts. The symlink is tracked in git (mode `120000`), keeps every existing `fixtures/scenarios/…` reference in scripts and CI resolving unchanged, and adds no determinism risk because the engine never observes which path it traversed to reach a run-config.
+
 ## Further reading
 
 - [`vision.md`](vision.md) — why this shape, what's in scope, what isn't.

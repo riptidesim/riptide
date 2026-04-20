@@ -43,17 +43,20 @@ From pre-launch stress tests to trajectory replays to game-economy sandboxes, Ri
 Terminal output when running the same cell:
 
 ```
-$ riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json
+$ riptide run solend-fork/hero-grid/w25-s40 --serve
 riptide run: 1 scenario
 TICK 1/20
 ... (engine tick progress elided)
 TICK 20/20
-ok w25-s40  (0.1s, 0 invariant fires)
+ok solend-fork/hero-grid/w25-s40  (0.1s, 0 invariant fires)
 
 1 pass · 0 fail · 0 skip
+Dashboard: http://localhost:4173
 
 exit 0
 ```
+
+The full-path form `riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json` still works (backward-compat for scripts and CI); the short form above is the default once `.riptide/scenarios/` is populated — which it is inside this monorepo via a `fixtures/scenarios/` symlink, and in any user repo via `riptide init`.
 
 The hero grid sweeps the `whale-share × shock-magnitude` parameter region and records each cell's `cumulative_bad_debt` in its `simulation-result.json`; the grid's value is the *region map* — which cells end up inside the bad-debt neighborhood and which don't. Invariant-driven CI gating is a separate mode: declare `[[invariants]]` on your own adapter (like the shipping replay adapter does for `no_bad_debt` — `fixtures/replays/solend-nov-2022/adapter.toml`) and the engine exits `1` the moment any invariant fires, so the same `riptide run` output pattern doubles as a CI gate.
 
