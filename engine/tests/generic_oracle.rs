@@ -715,6 +715,357 @@ exponent = 0
     }
 }
 
+#[cfg(feature = "litesvm-backend")]
+mod generic_oracle_write_path {
+    //! Gate: `generic-oracle-write`. Proves that
+    //! `GenericHarness::push_oracle_price` mutates the bound shared
+    //! oracle account through the shipping layout dispatcher — admin-mock
+    //! and Pyth both end-to-end — and that adapters without an
+    //! `[[oracles]]` block keep the trait's no-op semantics so the
+    //! existing generic scratch-gate regression hashes stay byte-stable.
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::str::FromStr;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::OnceLock;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use riptide_engine::{
+        adapter::{load_adapter, parse_adapter_str, OracleKind},
+        primitive::{GenericBootstrapConfig, GenericHarness, Primitive},
+        scenario::{oracle_layout_for, OracleUpdate},
+    };
+    use solana_sdk::{
+        pubkey::Pubkey,
+        signature::{read_keypair_file, Signer},
+    };
+
+    fn workspace_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("engine crate has a parent workspace")
+            .to_path_buf()
+    }
+
+    fn admin_mock_oracle_so() -> PathBuf {
+        workspace_root().join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so")
+    }
+    fn admin_mock_oracle_keypair() -> PathBuf {
+        workspace_root()
+            .join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle-keypair.json")
+    }
+    fn resource_grinder_so() -> PathBuf {
+        workspace_root().join("programs/resource_grinder/target/deploy/resource_grinder.so")
+    }
+    fn resource_grinder_idl() -> PathBuf {
+        workspace_root().join("fixtures/idls/resource-grinder.json")
+    }
+
+    /// Artifact presence check for the generic-oracle-write gate.
+    ///
+    /// Under `CI=<non-empty>` a missing artifact is a HARD FAIL with a
+    /// named `cargo build-sbf` diagnostic — CI must never report green
+    /// on this gate without actually exercising the write path. Same
+    /// discipline as `replay_solend_june_2022::skip_if_missing` (the
+    /// pattern the repo already uses for load-bearing gates).
+    ///
+    /// Under local `cargo test` runs a missing artifact prints a
+    /// visible `ATTENTION` banner on stderr and the test returns early.
+    /// The banner is there so an offline dev run cannot confuse a
+    /// silent skip with a green pass.
+    fn skip_if_missing(paths: &[&Path]) -> bool {
+        let missing: Vec<&&Path> = paths.iter().filter(|p| !p.exists()).collect();
+        if missing.is_empty() {
+            return false;
+        }
+        let ci = std::env::var("CI").map(|v| !v.is_empty()).unwrap_or(false);
+        if ci {
+            let list: Vec<String> =
+                missing.iter().map(|p| p.display().to_string()).collect();
+            panic!(
+                "CI={}: refusing to soft-skip generic-oracle-write gate on missing SBF \
+                 artifact(s): {}.\n\
+                 Rebuild with:\n  \
+                 cargo build-sbf --manifest-path programs/admin_mock_oracle/Cargo.toml\n  \
+                 cargo build-sbf --manifest-path programs/resource_grinder/Cargo.toml",
+                std::env::var("CI").unwrap_or_default(),
+                list.join(", "),
+            );
+        }
+        for path in &missing {
+            eprintln!(
+                "\x1b[33mATTENTION\x1b[0m generic-oracle-write soft-skip: {} missing. \
+                 Rebuild with `cargo build-sbf` — this test did NOT exercise the write path.",
+                path.display()
+            );
+        }
+        true
+    }
+
+    fn tmpdir(name: &str) -> PathBuf {
+        static SEQ: AtomicU64 = AtomicU64::new(0);
+        static ROOT: OnceLock<PathBuf> = OnceLock::new();
+        let root = ROOT
+            .get_or_init(|| {
+                let pid = std::process::id();
+                let nanos = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos();
+                std::env::temp_dir().join(format!("riptide-write-{pid}-{nanos}"))
+            })
+            .clone();
+        fs::create_dir_all(&root).unwrap();
+        let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+        let dir = root.join(format!("{name}-{seq}"));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn write_adapter(path: &Path, toml: &str) {
+        fs::write(path, toml).unwrap();
+    }
+
+    fn adapter_toml(
+        owner_clause: &str,
+        base_price: f64,
+        exponent: i8,
+        oracle_space: usize,
+        oracle_kind: &str,
+    ) -> String {
+        let so = resource_grinder_so().display().to_string();
+        let idl = resource_grinder_idl().display().to_string();
+        format!(
+            r#"
+protocol = "generic"
+program_so = "{so}"
+idl_path = "{idl}"
+
+[accounts.player]
+kind = "agent"
+space = 48
+
+[accounts.oracle]
+kind = "shared"
+space = {oracle_space}
+{owner_clause}
+
+[instructions]
+mine = {{ action = "mine", amount = "amount" }}
+
+[state_mapping]
+"player.gold" = "player.gold"
+
+[actions.mine]
+takes = ["amount"]
+
+[observations]
+"player.gold" = "uint"
+
+[personas.grinder]
+action_rate_multiplier = 1.0
+action_weights = {{ mine = 1.0 }}
+
+[[oracles]]
+name = "price_feed"
+kind = "{oracle_kind}"
+account = "oracle"
+base_price = {base_price}
+exponent = {exponent}
+"#
+        )
+    }
+
+    #[test]
+    fn push_admin_mock_mutates_bound_account_bytes() {
+        let admin_so = admin_mock_oracle_so();
+        let admin_kp = admin_mock_oracle_keypair();
+        let grinder_so = resource_grinder_so();
+        let grinder_idl = resource_grinder_idl();
+        if skip_if_missing(&[&admin_so, &admin_kp, &grinder_so, &grinder_idl]) {
+            return;
+        }
+        let owner_clause = format!(
+            r#"owner = {{ program_so = "{}" }}"#,
+            admin_so.display()
+        );
+        let toml = adapter_toml(&owner_clause, 100.0, 0, 50, "admin-mock");
+        let adapter_path = tmpdir("admin-mock-push").join("adapter.toml");
+        write_adapter(&adapter_path, &toml);
+        let adapter = load_adapter(&adapter_path).expect("load adapter");
+
+        let mut harness = GenericHarness::bootstrap(GenericBootstrapConfig {
+            program_so: grinder_so,
+            idl_path: grinder_idl,
+            agent_count: 1,
+            adapter,
+        })
+        .expect("bootstrap");
+
+        let sibling = read_keypair_file(&admin_kp).expect("read admin keypair");
+        let expected_owner = sibling.pubkey();
+        let tick0 = harness
+            .inspect_shared_account("oracle")
+            .expect("oracle present at tick 0");
+        assert_eq!(
+            tick0.owner, expected_owner,
+            "oracle owner must survive the push path untouched"
+        );
+        let layout = oracle_layout_for(OracleKind::AdminMock);
+        let tick0_decoded = layout.decode(&tick0.data).expect("decode tick 0");
+        assert!((tick0_decoded.price - 100.0).abs() < 1e-9);
+
+        let shock = OracleUpdate { price: 40.0, exponent: 0 };
+        harness.push_oracle_price(&shock).expect("push admin-mock shock");
+
+        let post = harness
+            .inspect_shared_account("oracle")
+            .expect("oracle present after push");
+        assert_eq!(
+            post.owner, expected_owner,
+            "push must preserve the sibling-program owner — changing it would break \
+             on-chain reads that enforce owner asserts"
+        );
+        let post_decoded = layout.decode(&post.data).expect("decode post-push");
+        assert!(
+            (post_decoded.price - 40.0).abs() < 1e-9,
+            "push_oracle_price must mutate the bound account bytes; got price {}",
+            post_decoded.price
+        );
+        assert_ne!(
+            tick0.data, post.data,
+            "the bound oracle account bytes must change when push_oracle_price runs"
+        );
+
+        // Pushing the declared `base_price` again yields byte-identical
+        // bytes to tick 0 (encoder is deterministic). Proves the write
+        // path round-trips through the layout dispatcher.
+        harness
+            .push_oracle_price(&OracleUpdate { price: 100.0, exponent: 0 })
+            .expect("push back to baseline");
+        let returned = harness
+            .inspect_shared_account("oracle")
+            .expect("oracle after restore");
+        assert_eq!(
+            &returned.data[..layout.byte_len()],
+            &tick0.data[..layout.byte_len()],
+            "pushing the tick-0 price must produce byte-identical bytes to tick 0"
+        );
+    }
+
+    #[test]
+    fn push_pyth_kind_writes_real_pyth_layout_bytes() {
+        let grinder_so = resource_grinder_so();
+        let grinder_idl = resource_grinder_idl();
+        if skip_if_missing(&[&grinder_so, &grinder_idl]) {
+            return;
+        }
+        let literal = "FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH";
+        let owner_clause = format!(r#"owner = {{ pubkey = "{literal}" }}"#);
+        let toml = adapter_toml(&owner_clause, 150.0, -2, 3312, "pyth");
+        let adapter = parse_adapter_str(&toml, "pyth-push.toml").expect("parse adapter");
+
+        let mut harness = GenericHarness::bootstrap(GenericBootstrapConfig {
+            program_so: grinder_so,
+            idl_path: grinder_idl,
+            agent_count: 1,
+            adapter,
+        })
+        .expect("bootstrap pyth adapter");
+
+        let expected_owner = Pubkey::from_str(literal).unwrap();
+        let pyth_layout = oracle_layout_for(OracleKind::Pyth);
+
+        let tick0 = harness.inspect_shared_account("oracle").expect("pyth tick 0");
+        assert_eq!(tick0.owner, expected_owner);
+        assert_eq!(
+            tick0.data.len(),
+            pyth_layout.byte_len(),
+            "pyth layout must consume the declared 3312-byte account"
+        );
+        let tick0_decoded = pyth_layout.decode(&tick0.data).expect("decode pyth tick 0");
+        assert_eq!(tick0_decoded.exponent, -2);
+        assert!((tick0_decoded.price - 150.0).abs() < 1e-6);
+
+        let shock = OracleUpdate { price: 200.0, exponent: -2 };
+        harness.push_oracle_price(&shock).expect("push pyth shock");
+
+        let post = harness.inspect_shared_account("oracle").expect("pyth post push");
+        assert_eq!(
+            post.owner, expected_owner,
+            "pyth owner (literal external pubkey) must survive the push path"
+        );
+        let post_decoded = pyth_layout.decode(&post.data).expect("decode pyth post-push");
+        assert_eq!(post_decoded.exponent, -2);
+        assert!(
+            (post_decoded.price - 200.0).abs() < 1e-6,
+            "push_oracle_price must write real pyth aggregate-price bytes; got {}",
+            post_decoded.price
+        );
+        assert_ne!(tick0.data, post.data);
+    }
+
+    #[test]
+    fn push_is_noop_when_adapter_declares_no_oracle() {
+        // Regression floor: generic adapters that pre-date Sprint 9 do
+        // NOT declare `[[oracles]]` (perps-fork, amm-fork). The tick loop
+        // still calls `push_oracle_price` on every tick via the shared
+        // sim runner, so the no-declaration path must remain a silent
+        // no-op — otherwise the perps-scratch and amm-scratch hashes
+        // regress and this sprint blows the floor.
+        let grinder_so = resource_grinder_so();
+        let grinder_idl = resource_grinder_idl();
+        if skip_if_missing(&[&grinder_so, &grinder_idl]) {
+            return;
+        }
+        // Minimal generic adapter with no oracle block at all.
+        let so = grinder_so.display().to_string();
+        let idl = grinder_idl.display().to_string();
+        let toml = format!(
+            r#"
+protocol = "generic"
+program_so = "{so}"
+idl_path = "{idl}"
+
+[accounts.player]
+kind = "agent"
+space = 48
+
+[instructions]
+mine = {{ action = "mine", amount = "amount" }}
+
+[state_mapping]
+"player.gold" = "player.gold"
+
+[actions.mine]
+takes = ["amount"]
+
+[observations]
+"player.gold" = "uint"
+
+[personas.grinder]
+action_rate_multiplier = 1.0
+action_weights = {{ mine = 1.0 }}
+"#
+        );
+        let adapter = parse_adapter_str(&toml, "no-oracle.toml").expect("parse adapter");
+        let mut harness = GenericHarness::bootstrap(GenericBootstrapConfig {
+            program_so: grinder_so,
+            idl_path: grinder_idl,
+            agent_count: 1,
+            adapter,
+        })
+        .expect("bootstrap no-oracle adapter");
+        // No panic, no error — and no state change. Call twice to prove
+        // the path is stably idempotent.
+        harness
+            .push_oracle_price(&OracleUpdate { price: 50.0, exponent: 0 })
+            .expect("no-oracle push is a no-op");
+        harness
+            .push_oracle_price(&OracleUpdate { price: 60.0, exponent: 0 })
+            .expect("no-oracle push is a no-op (second call)");
+    }
+}
+
 #[test]
 fn solend_fork_adapter_parses_without_oracles_block() {
     // Backwards compat: 's shipped solend-fork adapter must

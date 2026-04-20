@@ -26,6 +26,7 @@ use crate::{
 #[cfg(any(feature = "litesvm-backend", test))]
 use {
     crate::adapter::loader::sibling_deploy_keypair_path,
+    crate::adapter::OracleKind,
     crate::scenario::{oracle_layout_for, OracleUpdate},
     litesvm::LiteSVM,
     solana_account::Account,
@@ -847,7 +848,28 @@ pub struct GenericHarness {
     idl: GenericIdl,
     agent_accounts: BTreeMap<String, Vec<Pubkey>>,
     shared_accounts: BTreeMap<String, Pubkey>,
+    /// Runtime binding of the one declared oracle (if any) to the
+    /// shared account it targets. Present only when the adapter's
+    /// `[[oracles]]` block declared a single oracle entry — bootstrap
+    /// already rejects adapters that declare more than one. `None` for
+    /// adapters that declare no `[[oracles]]` block; `push_oracle_price`
+    /// is a no-op in that case so existing generic adapters without an
+    /// oracle binding (perps-fork, amm-fork) keep their byte-identical
+    /// regression behavior.
+    oracle_binding: Option<RuntimeOracleBinding>,
     current_slot: u64,
+}
+
+/// Runtime resolution of the declared oracle to the shared-account pubkey
+/// the generic harness bound at bootstrap time. `kind` selects which
+/// `OracleLayout` encodes each subsequent price push; the account pubkey
+/// is resolved through `shared_accounts[account_name]` at push time so
+/// the binding stays durable across harness mutations.
+#[cfg(any(feature = "litesvm-backend", test))]
+#[derive(Debug, Clone)]
+struct RuntimeOracleBinding {
+    account_name: String,
+    kind: OracleKind,
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
@@ -876,7 +898,7 @@ impl GenericHarness {
             generic_airdrop(&mut svm, &agent.pubkey(), per_identity_lamports)?;
         }
 
-        let (agent_accounts, shared_accounts) = bootstrap_generic_accounts(
+        let (agent_accounts, shared_accounts, oracle_binding) = bootstrap_generic_accounts(
             &mut svm,
             &config.adapter,
             config.agent_count,
@@ -893,8 +915,42 @@ impl GenericHarness {
             idl,
             agent_accounts,
             shared_accounts,
+            oracle_binding,
             current_slot: 0,
         })
+    }
+
+    /// Look up an agent-scoped account's pubkey by its adapter-declared
+    /// name + agent index. Returns `None` for shared accounts or unknown
+    /// names. Mirrors [`Self::inspect_shared_account_pubkey`] for
+    /// integration tests that need to hand agent-scoped accounts to
+    /// raw instructions the adapter runtime does not dispatch.
+    pub fn inspect_agent_account_pubkey(
+        &self,
+        name: &str,
+        agent_idx: usize,
+    ) -> Option<Pubkey> {
+        self.agent_accounts
+            .get(name)
+            .and_then(|pubkeys| pubkeys.get(agent_idx).copied())
+    }
+
+    /// Immutable access to the harness's LiteSVM instance. Integration
+    /// tests use this to read arbitrary program-owned accounts that the
+    /// adapter does not declare under `[accounts]` (e.g. when the test
+    /// drives program-level instructions directly alongside the generic
+    /// harness's adapter-level dispatch).
+    pub fn svm(&self) -> &LiteSVM {
+        &self.svm
+    }
+
+    /// Mutable access to the harness's LiteSVM instance. Used by proof
+    /// tests that need to dispatch program instructions outside the
+    /// adapter's `[instructions]` registry (e.g. `open_position` /
+    /// `close_position` on `perps-fork`, which are intentionally not
+    /// bound to runtime actions in the shipping adapter).
+    pub fn svm_mut(&mut self) -> &mut LiteSVM {
+        &mut self.svm
     }
 
     /// Look up a shared account's pubkey by its adapter-declared name.
@@ -1018,6 +1074,103 @@ impl crate::primitive::Primitive for GenericHarness {
         self.current_slot += 1;
         self.svm.warp_to_slot(self.current_slot);
         self.svm.expire_blockhash();
+    }
+
+    /// Write a new oracle value into the adapter-declared shared oracle
+    /// account through the real layout dispatcher.
+    ///
+    /// - Adapters with no `[[oracles]]` block keep the trait's no-op
+    ///   semantics (preserves the shipped `perps-fork.toml` /
+    ///   `amm-fork.toml` scratch-gate hashes).
+    /// - Adapters that declared one oracle reach this path on every
+    ///   tick: encode through `oracle_layout_for(kind)`, write into the
+    ///   bound shared account via `svm.set_account`, then decode the
+    ///   post-write bytes to verify the layout round-trips. Owner and
+    ///   lamports are preserved so a sibling-program-owned oracle
+    ///   (admin-mock, Pyth) stays readable by programs that enforce
+    ///   owner checks.
+    /// - Any inconsistency — missing binding despite declaration,
+    ///   undersized account buffer, decode failure — surfaces as
+    ///   `PrimitiveError::Infra` with the offending account name in the
+    ///   message. The tick loop will retry once and then bail; a silent
+    ///   no-op would hide real adapter misconfiguration.
+    fn push_oracle_price(
+        &mut self,
+        update: &OracleUpdate,
+    ) -> Result<(), crate::primitive::PrimitiveError> {
+        let Some(binding) = self.oracle_binding.clone() else {
+            return Ok(());
+        };
+        let pubkey = self
+            .shared_accounts
+            .get(&binding.account_name)
+            .copied()
+            .ok_or_else(|| {
+                crate::primitive::PrimitiveError::Infra(format!(
+                    "generic oracle binding targets shared account `{}` but no such \
+                     account is registered on the harness. Bootstrap should have \
+                     created it — this indicates a bootstrap invariant violation.",
+                    binding.account_name
+                ))
+            })?;
+        let existing = self.svm.get_account(&pubkey).ok_or_else(|| {
+            crate::primitive::PrimitiveError::Infra(format!(
+                "generic oracle account `{}` ({pubkey}) vanished between bootstrap and \
+                 oracle push. Something wrote the account out from under us — inspect \
+                 the adapter's instruction dispatch for unintended reassignment.",
+                binding.account_name
+            ))
+        })?;
+        let layout = oracle_layout_for(binding.kind);
+        let encoded = layout
+            .encode(self.admin.pubkey().to_bytes(), update)
+            .map_err(|error| {
+                crate::primitive::PrimitiveError::Infra(format!(
+                    "oracle layout `{:?}` failed to encode an update for account `{}`: {error}",
+                    binding.kind, binding.account_name
+                ))
+            })?;
+        if existing.data.len() < encoded.len() {
+            return Err(crate::primitive::PrimitiveError::Infra(format!(
+                "generic oracle account `{}` has {} bytes of space but the `{:?}` layout \
+                 needs at least {} bytes. Raise `[accounts.{}].space` in the adapter \
+                 TOML to at least {}.",
+                binding.account_name,
+                existing.data.len(),
+                binding.kind,
+                encoded.len(),
+                binding.account_name,
+                encoded.len(),
+            )));
+        }
+        let mut data = existing.data.clone();
+        data[..encoded.len()].copy_from_slice(&encoded);
+        let new_account = Account {
+            lamports: existing.lamports,
+            data,
+            owner: existing.owner,
+            executable: existing.executable,
+            rent_epoch: existing.rent_epoch,
+        };
+        self.svm.set_account(pubkey, new_account).map_err(|error| {
+            crate::primitive::PrimitiveError::Infra(format!(
+                "failed to write oracle bytes into account `{}` ({pubkey}): {error:?}",
+                binding.account_name
+            ))
+        })?;
+        let verify = self.svm.get_account(&pubkey).ok_or_else(|| {
+            crate::primitive::PrimitiveError::Infra(format!(
+                "oracle account `{}` ({pubkey}) disappeared immediately after write",
+                binding.account_name
+            ))
+        })?;
+        layout.decode(&verify.data).map_err(|error| {
+            crate::primitive::PrimitiveError::Infra(format!(
+                "oracle layout `{:?}` could not decode the bytes we just wrote to `{}`: {error}",
+                binding.kind, binding.account_name
+            ))
+        })?;
+        Ok(())
     }
 
     fn execute_action(
@@ -1338,7 +1491,11 @@ fn bootstrap_generic_accounts(
     agent_count: usize,
     program_id: &Pubkey,
     admin: &Pubkey,
-) -> Result<(BTreeMap<String, Vec<Pubkey>>, BTreeMap<String, Pubkey>)> {
+) -> Result<(
+    BTreeMap<String, Vec<Pubkey>>,
+    BTreeMap<String, Pubkey>,
+    Option<RuntimeOracleBinding>,
+)> {
     if adapter.oracles.len() > 1 {
         bail!(
             "generic adapter declares {} `[[oracles]]` entries but the current scenario and \
@@ -1363,6 +1520,7 @@ fn bootstrap_generic_accounts(
             let layout = oracle_layout_for(oracle.kind);
             Some(OracleBinding {
                 account_name: account.to_string(),
+                kind: oracle.kind,
                 layout,
                 update: OracleUpdate {
                     price: oracle.base_price,
@@ -1457,12 +1615,17 @@ fn bootstrap_generic_accounts(
         }
     }
 
-    Ok((agent_accounts, shared_accounts))
+    let runtime_binding = oracle_binding.map(|binding| RuntimeOracleBinding {
+        account_name: binding.account_name,
+        kind: binding.kind,
+    });
+    Ok((agent_accounts, shared_accounts, runtime_binding))
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
 struct OracleBinding {
     account_name: String,
+    kind: OracleKind,
     layout: Box<dyn crate::scenario::OracleLayout>,
     update: OracleUpdate,
 }
