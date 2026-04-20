@@ -3,6 +3,8 @@
 import { Command } from "commander";
 
 import { createAdaptCommand } from "./commands/adapt.js";
+import { createInitCommand } from "./commands/init.js";
+import { createListCommand } from "./commands/list.js";
 import { createReplayCommand } from "./commands/replay.js";
 import { createRunCommand } from "./commands/run.js";
 import { createScenariosCommand } from "./commands/scenarios.js";
@@ -20,6 +22,8 @@ program.addCommand(createRunCommand());
 program.addCommand(createReplayCommand());
 program.addCommand(createScenariosCommand());
 program.addCommand(createAdaptCommand());
+program.addCommand(createInitCommand());
+program.addCommand(createListCommand());
 
 program.parseAsync(process.argv).catch((error: unknown) => {
   console.error(error);
