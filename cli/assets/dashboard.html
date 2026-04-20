@@ -145,6 +145,21 @@
     table.kv tr.fire td {
       color: var(--danger);
     }
+    #agents table.kv th {
+      width: auto;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+    }
+    #agents table.kv td {
+      color: var(--text);
+    }
+    #agents table.kv td.persona {
+      color: var(--accent);
+    }
+    #agents table.kv td.num {
+      color: var(--text-dim);
+    }
     .chart-shell {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -282,6 +297,18 @@
       </table>
     </section>
 
+    <section id="agents">
+      <h2>Agents</h2>
+      <p class="section-subtitle">Who acted and how it went. Grouped by persona archetype: how many agents of this type ran, how many actions they fired, what fraction succeeded vs reverted, and (where causal data is available) which invariant fires traced back to their actions.</p>
+      <p class="section-subtitle" id="agentsAttrNote" hidden></p>
+      <table class="kv" id="agentsTable">
+        <thead>
+          <tr><th>Persona</th><th>Agents</th><th>Actions</th><th>Success</th><th>Reverted</th><th>Invariant fires</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
     <section id="invariants">
       <h2>Invariants <span id="invariantBadge"></span></h2>
       <p class="section-subtitle">Machine-checkable rules the run is watching. Red rows mean a rule fired during this run — the condition was violated at least once. A clean run shows every rule at zero firings.</p>
@@ -402,6 +429,238 @@
         `<strong>${fmt(agents)}</strong> agents across ` +
         `<strong>${fmt(ticks)}</strong> ticks`;
       el.hidden = false;
+    }
+
+    // Groups events by persona archetype and surfaces a compact
+    // who-acted-and-how-it-went roster. Each row: persona name, how many
+    // agents of that archetype ran, total actions fired, success count,
+    // reverted count (outcome === "failed"), and invariant fires
+    // attributable to that persona when causal data is present.
+    //
+    // Replay-case fallback: historical replay runs don't dispatch synthetic
+    // personas — events carry no persona_id, and run_config.personas is
+    // typically empty. When neither the personas array nor event-level
+    // persona_id yields any grouping, render a single "replay" pseudo-row
+    // aggregating every event in the stream so the panel doesn't go dark.
+    //
+    // Invariant attribution: the engine emits invariant violations as
+    // events with agent_id = "__engine__", persona_id = "invariant", and
+    // action = "invariant_violation:<name>". These are engine-level
+    // snapshot evaluations with no causal link back to any persona, so
+    // they must NOT create a synthetic "invariant" persona row. Count
+    // them globally and surface the total in the attribution note.
+    function isEngineInvariantEvent(ev) {
+      return (
+        ev &&
+        typeof ev === "object" &&
+        (ev.agent_id === "__engine__" ||
+          ev.persona_id === "invariant" ||
+          (typeof ev.action === "string" && ev.action.startsWith("invariant_violation:")))
+      );
+    }
+
+    function renderAgents(result) {
+      const tbody = document.querySelector("#agentsTable tbody");
+      const attrNote = document.getElementById("agentsAttrNote");
+      const personas = Array.isArray(result.run_config && result.run_config.personas)
+        ? result.run_config.personas
+        : [];
+      const events = Array.isArray(result.events) ? result.events : [];
+
+      // Split the event stream: engine-level invariant events are tallied
+      // separately; persona-attributable events feed the per-row aggregates.
+      const invariantEvents = [];
+      const agentEvents = [];
+      for (const ev of events) {
+        if (!ev || typeof ev !== "object") continue;
+        if (isEngineInvariantEvent(ev)) invariantEvents.push(ev);
+        else agentEvents.push(ev);
+      }
+
+      if (events.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty-note">No agent activity recorded.</td></tr>`;
+        attrNote.hidden = true;
+        return;
+      }
+
+      // Aggregate counts per persona. Events carry persona_id directly in
+      // synthetic runs; fall back to deriving via agent_id → personas[idx]
+      // when persona_id is absent.
+      const buckets = new Map();
+      function bucketFor(name) {
+        let b = buckets.get(name);
+        if (!b) {
+          b = { count: 0, actions: 0, success: 0, reverted: 0, invariantFires: 0 };
+          buckets.set(name, b);
+        }
+        return b;
+      }
+
+      // Seed persona counts from result.agents[] when present — it's the
+      // authoritative roster the engine emits (agent_id + persona_id +
+      // persona_label per seeded agent), so every agent that actually
+      // ran appears here even if it fired zero events. This is the
+      // load-bearing source for the generic-adapter flow where
+      // run_config.personas is empty by design.
+      const resultAgents = Array.isArray(result.agents) ? result.agents : [];
+      const agentIdToPersona = new Map();
+      if (resultAgents.length > 0) {
+        for (const a of resultAgents) {
+          if (!a || typeof a !== "object") continue;
+          const p = typeof a.persona_id === "string" && a.persona_id ? a.persona_id : null;
+          if (!p) continue;
+          bucketFor(p).count += 1;
+          if (typeof a.agent_id === "string") agentIdToPersona.set(a.agent_id, p);
+        }
+      } else {
+        // Back-compat path: older artifacts without an agents[] roster
+        // fall back to run_config.personas. Zero-event archetypes still
+        // surface so the panel communicates population shape.
+        const personaCounts = new Map();
+        for (const p of personas) {
+          if (typeof p === "string" && p.length > 0) {
+            personaCounts.set(p, (personaCounts.get(p) || 0) + 1);
+            bucketFor(p);
+          }
+        }
+        for (const [name, c] of personaCounts.entries()) {
+          bucketFor(name).count = c;
+        }
+      }
+
+      // Helper: infer agent index (1-based "agent-001" convention) to map
+      // into the personas array if an event lacks persona_id and we
+      // don't have a result.agents roster to resolve against.
+      function personaFromAgentId(agentId) {
+        if (typeof agentId !== "string") return null;
+        const fromRoster = agentIdToPersona.get(agentId);
+        if (fromRoster) return fromRoster;
+        const m = agentId.match(/^agent-(\d+)$/);
+        if (!m) return null;
+        const idx1 = parseInt(m[1], 10);
+        if (!Number.isFinite(idx1) || idx1 < 1) return null;
+        const p = personas[idx1 - 1];
+        return typeof p === "string" && p.length > 0 ? p : null;
+      }
+
+      let attributable = 0;
+      let unattributable = 0;
+
+      // Track distinct agent_ids per persona so the Agents column can
+      // recover when run_config.personas is empty (the generic-adapter
+      // flow: adapters carry personas inline and the run-config roster
+      // is deliberately blank).
+      const agentsSeen = new Map();
+      function recordAgent(persona, agentId) {
+        if (!persona || typeof agentId !== "string" || agentId.length === 0) return;
+        let set = agentsSeen.get(persona);
+        if (!set) {
+          set = new Set();
+          agentsSeen.set(persona, set);
+        }
+        set.add(agentId);
+      }
+
+      for (const ev of agentEvents) {
+        const persona =
+          (typeof ev.persona_id === "string" && ev.persona_id) ||
+          personaFromAgentId(ev.agent_id);
+        if (!persona) {
+          unattributable += 1;
+          continue;
+        }
+        attributable += 1;
+        recordAgent(persona, ev.agent_id);
+        const b = bucketFor(persona);
+        b.actions += 1;
+        if (ev.outcome === "success") b.success += 1;
+        else if (ev.outcome === "failed") b.reverted += 1;
+      }
+
+      // Reconcile counts only when we don't have result.agents — the
+      // engine-emitted roster is already authoritative when present.
+      // For the back-compat path (seeded from run_config.personas or
+      // nothing), pull in distinct agent_ids observed in the event
+      // stream so generic-adapter runs without a run-config roster
+      // still render correct Agents counts.
+      if (resultAgents.length === 0) {
+        for (const [persona, set] of agentsSeen.entries()) {
+          const streamCount = set.size;
+          const b = bucketFor(persona);
+          if (b.count < streamCount) b.count = streamCount;
+        }
+      }
+
+      // Replay fallback: only when we have no authoritative roster AND no
+      // attributable agent events. A synthetic run that has a populated
+      // result.agents[] but happens to fire only engine-level invariant
+      // events (zero attributable persona actions) is still a synthetic
+      // run — its roster must render as-seeded, not collapse to "replay".
+      if (attributable === 0 && resultAgents.length === 0) {
+        const totalFiresFromSummary = Array.isArray(result.summary && result.summary.invariants_fired)
+          ? result.summary.invariants_fired.reduce(
+              (s, r) => s + (typeof r.firings === "number" ? r.firings : 0),
+              0
+            )
+          : 0;
+        const totalFires = invariantEvents.length > 0 ? invariantEvents.length : totalFiresFromSummary;
+        let success = 0;
+        let reverted = 0;
+        for (const ev of agentEvents) {
+          if (ev.outcome === "success") success += 1;
+          else if (ev.outcome === "failed") reverted += 1;
+        }
+        tbody.innerHTML = `<tr>
+          <td class="persona">replay</td>
+          <td class="num">1</td>
+          <td class="num">${agentEvents.length.toLocaleString("en-US")}</td>
+          <td class="num">${success.toLocaleString("en-US")}</td>
+          <td class="num">${reverted.toLocaleString("en-US")}</td>
+          <td class="num">${totalFires > 0 ? totalFires.toLocaleString("en-US") : "—"}</td>
+        </tr>`;
+        attrNote.hidden = false;
+        attrNote.textContent =
+          "Historical replay run — events aren't tied to synthetic personas. Shown as a single aggregate row.";
+        return;
+      }
+
+      // Attribution note: the engine emits invariant events without a
+      // causal link to any persona (triggered_by = None), so per-persona
+      // attribution is unavailable. Surface the global total so users
+      // know fires happened without misassigning them.
+      if (invariantEvents.length > 0) {
+        const plural = invariantEvents.length === 1 ? "" : "s";
+        attrNote.hidden = false;
+        attrNote.textContent =
+          `${invariantEvents.length} invariant violation${plural} fired — engine-level events, not attributed to any persona.`;
+      } else {
+        attrNote.hidden = true;
+      }
+      // Per-persona Invariant fires column stays at "—": engine currently
+      // carries no causal link back to the triggering agent.
+      const hasInvariantFireSignal = false;
+
+      const rows = [...buckets.entries()].map(([name, b]) => ({ name, ...b }));
+      rows.sort((a, b) => {
+        if (b.actions !== a.actions) return b.actions - a.actions;
+        return a.name.localeCompare(b.name);
+      });
+
+      tbody.innerHTML = rows
+        .map((r) => {
+          const firesCell = hasInvariantFireSignal
+            ? r.invariantFires.toLocaleString("en-US")
+            : "—";
+          return `<tr>
+            <td class="persona">${escapeHtml(r.name)}</td>
+            <td class="num">${r.count.toLocaleString("en-US")}</td>
+            <td class="num">${r.actions.toLocaleString("en-US")}</td>
+            <td class="num">${r.success.toLocaleString("en-US")}</td>
+            <td class="num">${r.reverted.toLocaleString("en-US")}</td>
+            <td class="num">${firesCell}</td>
+          </tr>`;
+        })
+        .join("");
     }
 
     function renderInvariants(result) {
@@ -587,6 +846,7 @@
         renderMeta(result);
         renderSummary(result);
         renderRunStats(result);
+        renderAgents(result);
         renderInvariants(result);
         renderTimeseries(result);
         renderEvents(result);
