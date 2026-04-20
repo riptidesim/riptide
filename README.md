@@ -1,82 +1,227 @@
 # Riptide
 
-> **Economic stress-testing for Solana programs.** Map the failure region of your program before mainnet does.
+## Overview
 
-![Riptide dashboard showing a lending stress run](docs/assets/dashboard-hero.png)
+**Riptide** is a multi-agent economic simulator for Solana programs. Point it at any on-chain program — a lending pool, a perps exchange, an AMM, a game economy — and Riptide hammers it with a population of adversarial agents while sweeping the parameter space you care about. **Map the failure region of your program before mainnet does.**
 
-## Install
+Three things Riptide does:
+
+- **Simulate** — runs your real compiled BPF program inside a fast in-process Solana VM (LiteSVM), driven by your actual IDL.
+- **Stress-test** — unleashes hundreds of adversarial agents (whales, arbitrageurs, sandwich attackers, liquidators, LPs, rug pullers) across price shocks, oracle trajectories, and parameter sweeps you declare.
+- **Reproduce** — every run is byte-for-byte deterministic from declarative TOML files alone; every invariant you declare becomes a CI gate (engine exits non-zero when one fires).
+
+### Riptide in 60 seconds
+
+| You give it                                                                          | You get back                                                                                                           |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| A compiled Solana program (`.so`) + IDL                                              | A deterministic parameter-region map showing where your program breaks                                                 |
+| An **adapter TOML** wiring accounts, actions, observations, invariants               | Machine-checkable invariant exit codes (`0` = all held, `1` = at least one fired) ready for CI                         |
+| A **run-config** (scenario, seed, ticks, agent count)                                | A web dashboard (`localhost:4173`) — run metadata, timeseries, event stream, invariants highlighted                   |
+| Optionally: a **persona library** (shipping TOMLs ready to use, or hand-author yours)| A narrative case-study report citing specific ticks and events                                                         |
+| For historical incidents: a tx-sequence + oracle-trajectory JSON                     | A byte-for-byte reproduction of what went wrong alongside the synthetic sweep                                          |
+
+### Why LiteSVM?
+
+Solana devs know `solana-test-validator` and Bankrun. Riptide runs on **LiteSVM** — an in-process Solana VM that executes the same BPF bytecode as mainnet without the RPC / gossip / consensus overhead. For a `100-agent × 180-tick` lending workload, LiteSVM finishes in **~0.9 seconds**; `solana-test-validator` takes **~15 minutes** for the same workload (measured 2026-04-12). That gap is what makes agent-scale simulation viable: Riptide drives **[1000 agents for 30 ticks in under 5 seconds](docs/benchmarks/agent-scaling.md)** on a standard laptop, byte-deterministic across reruns. When validator-level parity actually matters (gossip, vote, PoH), the `solana-test-validator` path stays available as a diagnostic — see [`docs/architecture.md`](docs/architecture.md).
+
+### Our Vision
+
+Riptide aims to make economic safety a machine-checkable question instead of a theoretical argument. Every Solana protocol lives somewhere in a space of parameter choices × user behaviors × market conditions; bugs are points, economic failures are neighborhoods. You don't find a neighborhood by checking one point — you sweep the region and watch where invariants break.
+
+- **For protocol teams:** a rehearsal ground for launch parameters — pick from a regime you have deterministic evidence for, not gut feel.
+- **For auditors and security researchers:** a reproducible artifact — when you claim a failure mode exists, the adapter TOML + run-config is the whole claim. A reviewer reruns it on their machine and the same bytes come out.
+
+From pre-launch stress tests to post-incident reproductions to game-economy sandboxes, Riptide makes *"what happens if..."* a question with a byte-stable answer.
+
+## Screenshots
+
+![Web dashboard rendering the Solend-fork `w25-s40` hero grid cell](docs/assets/dashboard-hero.png)
+
+*The web dashboard at `localhost:4173` after a `riptide run --serve` completes. Run metadata, summary metrics, a tick-by-tick timeseries, the full event stream (filterable by action / outcome / agent), and invariant firings highlighted in red.*
+
+Terminal output when running the same cell:
+
+```
+$ riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json
+
+[engine] loading adapter: fixtures/adapters/solend-fork.toml
+[engine] booting LiteSVM · deploying lending_pool.so
+[engine] scenario: whale-shock-grid · 100 agents · 180 ticks · seed 42
+[engine] tick   0 · 0 events · 0 invariants fired
+[engine] tick  85 · liquidation cascade begins · 3 events
+[engine] tick 120 · INVARIANT FIRED: no_bad_debt (violated at tick 120)
+[engine] tick 180 · run complete
+[engine] writing /tmp/riptide-out.json · sha256 89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11
+
+exit 1   (invariant fired — CI-gateable)
+```
+
+## Use Cases
+
+- **Pre-launch stress testing** — map the parameter neighborhood where your protocol breaks before mainnet does; ship with a grid attached to the design doc.
+- **Historical incident reproduction** — point Riptide at a real on-chain failure (the Solend June 2022 whale-risk incident ships as a reference replay), reproduce it byte-for-byte, and assert an invariant fires at the cascade tick.
+- **Launch parameter selection** — run safe-vs-risky side-by-side comparisons to pick launch parameters with deterministic evidence instead of gut feel.
+- **CI integration** — declare invariants inline in your adapter; the engine exits 1 the moment any invariant fires, so your pipeline blocks on economic regressions the same way it blocks on test regressions.
+- **Post-audit verification** — bound an auditor's theoretical concern with a Riptide grid to see whether it actually manifests under the parameter regimes you chose.
+- **Game economy design** — the generic primitive runs *any* Solana program end-to-end, not just DeFi. Token flows, crafting loops, auction dynamics — anything with shared state under pressure is simulatable.
+- **Protocol research** — compare failure-mode profiles across different designs of the same primitive class (alternative LP reward schemes, alternative liquidation formulas, alternative perps funding-rate models).
+
+## Workflow
+
+```mermaid
+flowchart LR
+    subgraph Inputs["Inputs — all declarative, on-disk"]
+        P["Your Program<br>.so + IDL"]
+        A["Adapter TOML<br>accounts · actions<br>observations · invariants"]
+        D["Personas TOML<br>trigger DSL<br>whale · arbitrageur · ..."]
+        C["Run-config JSON<br>scenario · seed · ticks<br>agent count"]
+    end
+
+    P --> E
+    A --> E
+    D --> E
+    C --> E
+
+    E["Riptide Engine<br>+ LiteSVM"]
+
+    E --> R["simulation-result.json<br>byte-deterministic"]
+
+    R --> X["CI exit code<br>0 / 1 / 2"]
+    R --> Y["Web dashboard<br>localhost:4173"]
+    R --> Z["Narrative report<br>markdown case study"]
+```
+
+1. **Protocol Modeling** — Write an **adapter TOML** (Riptide's wiring file: declares your program's accounts, actions, observations, and invariants in plain TOML). Wire an oracle if your program needs one — admin-mock for testing, Pyth-layout for drop-in compatibility with real Pyth consumers. Declare the invariants that matter (machine-checkable properties that double as CI gates). Curate a persona library (reusable adversarial archetypes per protocol class).
+2. **Scenario Generation** — Match your adapter's shape against the **failure-mode taxonomy** (a catalog of named failure categories like `whale_concentration`, `liquidation_cascade`, `price_manipulation_via_swap` — curated from real DeFi incidents). Propose parameter sweeps — 1D or 2D grids where every cell is a complete bootable sub-scenario. Assign adversarial personas from the library.
+3. **Deterministic Simulation** — LiteSVM executes your real BPF program tick-by-tick. Personas fire instructions based on trigger conditions (`observation.utilization > 0.9 → withdraw_all`). Invariants evaluate every tick. Same seed → same sha256, always; enforced by a regression test.
+4. **Discovery & Reporting** — A mechanical report (metrics, events, invariant firings, summary) lands on disk as JSON. A narrative report (LLM cites specific ticks and event types, reads like a case study) lands as markdown. The web dashboard at `localhost:4173` renders everything visually with invariant firings highlighted red.
+5. **Historical Replay** — Point Riptide at a real on-chain tx sequence + oracle trajectory (the Solend June 2022 whale-risk incident ships as a reference replay). Riptide reproduces it byte-for-byte against the same adapter your synthetic sweeps use, and asserts your declared invariants fire at the historically correct tick.
+
+> **Claude Code skills are optional accelerators, not requirements.** The `riptide-adapt`, `riptide-scenarios`, and `riptide-narrative` skills let a session-native LLM do first passes on adapter generation, scenario proposal, and report writing — typing them into any Claude Code session beats manual authoring on speed. You can hand-author every artifact instead: adapter TOML, persona TOMLs, scenarios, and run-configs are plain files you edit directly. The engine doesn't require any skill to run; the skills exist because most devs want faster starting points.
+
+### What an adapter looks like
+
+<details>
+<summary>Click to expand — a minimal ~40-line adapter, authentic syntax from the shipping AMM bundle</summary>
+
+```toml
+# .riptide/adapters/my-liquid-staking.toml
+#
+# Wires your Solana program into Riptide. The only file you usually
+# need to hand-author — personas, scenarios, and invariants all
+# reference what you declare here.
+
+protocol   = "generic"
+program_so = "target/deploy/my_liquid_staking.so"
+idl_path   = "target/idl/my_liquid_staking.json"
+
+# Accounts the program reads and writes.
+# "shared" = one instance for all agents (like a staking pool).
+# "agent"  = one instance per agent (like a user's position).
+[accounts.pool]
+kind  = "shared"
+space = 200
+
+[accounts.user_position]
+kind  = "agent"
+space = 80
+
+# Instructions personas can fire. `amount` is runtime-bound
+# (the persona picks a value per-tick).
+[instructions.stake]
+action = "stake"
+amount = "sol_amount"
+
+[instructions.unstake]
+action = "unstake"
+amount = "token_amount"
+
+# Observations exposed to personas + invariants. Any field of a
+# declared account can be observed.
+[observations]
+"pool.total_staked"  = "uint"
+"pool.liquid_supply" = "uint"
+"pool.exchange_rate" = "uint"
+
+# Invariants — engine exits non-zero if any fire during the run.
+[[invariants]]
+name  = "liquid_supply_bounded"
+field = "pool.liquid_supply"
+op    = "<="
+value = 10000000000000
+
+[[invariants]]
+name  = "exchange_rate_bounded"
+field = "pool.exchange_rate"
+op    = "<="
+value = 10000000000
+```
+
+That's it for the adapter — the rest of the six-layer stack (personas, scenarios, parameters, taxonomy) lives in separate files or skill prompts that reference these declarations. See [`docs/architecture.md`](docs/architecture.md) for the full mental model, and [`fixtures/adapters/`](fixtures/adapters/) in the repo for shipping examples against real programs (lending, perps, AMM, and a non-DeFi toy).
+
+</details>
+
+## Quick Install
 
 ```bash
 git clone https://github.com/riptidesim/riptide
 cd riptide
-./install.sh                # or: docker build -t riptide .
+./install.sh
 ```
 
-Puts `riptide` on your `$PATH` after compiling the engine, CLI, and shipped on-chain programs. Linux, Rust + Node + `cargo-build-sbf` required — see [`TOOLCHAIN.md`](TOOLCHAIN.md) for pins.
+Linux is the supported path (macOS / Windows are out of scope — see [`docs/install.md`](docs/install.md)). Requires Rust, Node, and `cargo-build-sbf` on your `$PATH` — the installer checks and prints install hints if anything is missing.
 
-## Run one
+Prefer a container? The repo ships a multi-stage `Dockerfile` pinned to the full [`TOOLCHAIN.md`](TOOLCHAIN.md) stack:
 
 ```bash
-riptide run examples/configs/safe.json --serve
-# → open http://localhost:4173
+docker build -t riptide .
+docker run --rm riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json
 ```
 
-5 cautious agents against a forked Solend lending pool under a 50% price shock, 10 ticks. `--serve` holds the dashboard port open after the run.
+> **Public distribution (GHCR `ghcr.io/riptidesim/riptide`, crates.io `riptide-engine`, npm `@riptide/cli`) is wired up and dry-run-verified in the repo but has not been published yet.** Until then, use the build-from-source or local-Docker paths above.
 
-Riptide simulates multi-agent economic stress against your real BPF program in an in-process SVM (LiteSVM). Same seed in, same bytes out — the grid is reproducible from the adapter TOML alone. Riptide is a lab, not an oracle: it maps parameter regions; the dev draws the conclusions. See [`VISION.md`](VISION.md) for the full posture.
-
-## What ships today
-
-| Bundle | Adapter | Hero artifact |
-|---|---|---|
-| Lending (Solend fork) | [`fixtures/adapters/solend-fork.toml`](fixtures/adapters/solend-fork.toml) | 3×3 whale × shock grid — bad debt on 4 of 9 cells ([case study](docs/case-studies/solend-fork.md)) |
-| Perps (perps-lite) | [`fixtures/adapters/perps-fork.toml`](fixtures/adapters/perps-fork.toml) | Margin-cascade + socialized-loss invariants, 4 personas, oracle-shock scenarios |
-| AMM (x*y=k) | [`fixtures/adapters/amm-fork.toml`](fixtures/adapters/amm-fork.toml) | Pool-integrity invariants, 5 personas, 2D trade-size × volume grid template |
-
-Each bundle ships an adapter + persona library + taxonomy hooks + invariants + a cold-discovery validation artifact. A fourth generic (non-DeFi) path drives a toy resource-grinder SBF program end-to-end — if it runs, you can adapt Riptide to your protocol.
-
-**Historical replay.** `riptide replay fixtures/replays/solend-nov-2022/config.json` reproduces the Solend June 2022 whale-risk incident byte-for-byte and asserts a declared `no_bad_debt` invariant fires at the cascade tick.
-
-**Web dashboard.** `riptide run --serve` (or `riptide replay --serve`) renders run metadata, summary metrics, timeseries, event stream, and invariant firings on `localhost:4173`. Screenshot above is the real artifact.
-
-## Two paths in
-
-Write your own experiments (Path A) or let the `riptide-scenarios` Claude Code skill propose a starter catalog (Path B). The safe-vs-risky lending walkthrough at [`examples/`](examples/) is the canonical Path A demo; the skill at [`skills/riptide-scenarios/SKILL.md`](skills/riptide-scenarios/SKILL.md) is Path B. Both run deterministically against your real code. See [`VISION.md`](VISION.md) for the full framing.
-
-**Adapter generation.** The `riptide-adapt` Claude Code skill reads your IDL, generates an adapter TOML using your session's existing model, writes it, and runs a smoke test. Zero endpoint configuration, zero API keys.
-
-## Run the demos
+## Getting Started
 
 ```bash
-# Lending — safe vs risky side-by-side
-bash examples/run-demo.sh
+riptide run <run-config>                # Execute a simulation from a run-config JSON
+riptide run <run-config> --serve        # Same, then open the dashboard on localhost:4173
+riptide replay <replay-config>          # Replay a historical on-chain trajectory
+riptide adapt --adapter <toml>          # Smoke-test an adapter TOML end-to-end
+riptide simulate <config>               # Legacy alias — see docs/architecture.md
+```
 
-# Solend June 2022 historical replay
+The canonical first run is the Solend-fork hero-grid `w25-s40` cell — mainnet-adjacent, produces bad debt, asserts the `no_bad_debt` invariant, and hashes byte-identical to the committed fixture:
+
+```bash
+riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json --serve
+```
+
+For the historical replay path:
+
+```bash
 riptide replay fixtures/replays/solend-nov-2022/config.json --serve
 ```
 
-## Deep dive
+📖 **[Full documentation →](docs/README.md)**
 
-- [`docs/vision.md`](docs/vision.md) — the extended stance: lab-not-oracle, what Riptide is explicitly not, adversarial-review posture.
-- [`docs/architecture.md`](docs/architecture.md) — six-layer stack, LiteSVM runtime, determinism model, adapter pipeline.
-- [`docs/install.md`](docs/install.md) — `install.sh` walkthrough, Docker path, from-source recipe, upgrade flow.
-- [`docs/case-studies/solend-fork.md`](docs/case-studies/solend-fork.md) — the 3×3 whale × shock parameter-boundary run on a Solend fork.
-- [`docs/benchmarks/agent-scaling.md`](docs/benchmarks/agent-scaling.md) — 1000 agents × 30 ticks in under 5 seconds on a standard laptop; reproducible harness + deterministic hashes.
+## Documentation
 
-## Repo layout
+All documentation lives under [`docs/`](docs/):
 
-- `engine/` — Rust simulation engine. `src/primitive/` holds the `Primitive` trait + lending/AMM/generic harnesses. `src/replay/` is historical replay.
-- `cli/` — TypeScript CLI wrapper. Persona compilation, adapter pre-validation, orchestration, dashboard server, skill invocation.
-- `programs/` — standalone SBF crates (`lending_pool/`, `perps-fork/`, `amm-fork/`, `resource_grinder/`, `admin_mock_oracle/`).
-- `fixtures/` — run configs, policies, adapter TOMLs, persona TOMLs, scenario presets, historical replays.
-- `skills/` — Claude Code skills: `riptide-adapt`, `riptide-scenarios`, `riptide-narrative`.
-- `examples/` — safe-vs-risky lending walkthrough.
-- `docs/` — case studies and assets.
+| Section | What's Covered |
+|---------|----------------|
+| [Vision](docs/vision.md) | Why Riptide exists, the lab-not-oracle stance, what's explicitly *not* in scope, adversarial-review posture |
+| [Architecture](docs/architecture.md) | The six-layer stack, LiteSVM runtime + validator-parity diagnostic path, determinism model, adapter pipeline from TOML to engine |
+| [Install](docs/install.md) | `install.sh` one-command path, Docker, from-source recipe, upgrade path, toolchain pins |
+| [Case study: Solend-fork](docs/case-studies/solend-fork.md) | The 3×3 whale × shock hero grid — the shipping outcome demo and the load-bearing claim |
+| [Benchmark: Agent scaling](docs/benchmarks/agent-scaling.md) | 1000 agents for 30 ticks in under 5 seconds on a standard laptop, ~55 MB RAM, byte-deterministic |
+| [Toolchain pins](TOOLCHAIN.md) | Exact Rust, Solana CLI, `cargo-build-sbf`, platform-tools, and Node versions the engine and programs build against |
+| [Contributing](CONTRIBUTING.md) | Decision tree for adapter vs persona vs taxonomy vs engine, dev setup, project structure, regression gates, PR process |
 
 ## License
 
-MIT OR Apache-2.0 at your option.
+Riptide is dual-licensed under **MIT OR Apache-2.0** at your option. See [`LICENSE`](LICENSE).
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to add a new adapter, persona, or failure-mode taxonomy category.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to add a new adapter, persona, failure-mode taxonomy category, or skill — plus the dev setup, project structure, determinism discipline, and PR process.

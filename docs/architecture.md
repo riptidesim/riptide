@@ -10,6 +10,25 @@ Riptide runs on two processes: a Rust engine (`engine/`) that drives the simulat
 
 Each bundle layers six declarative surfaces on top of your program. All six live in files under `fixtures/`; none require editing engine code.
 
+```mermaid
+flowchart TB
+    P(["Your Solana Program<br>BPF .so + IDL"])
+
+    subgraph Stack["Six-Layer Stack — all declarative TOML"]
+        direction TB
+        L1["1. Adapter<br><small>program wiring: accounts, actions,<br>observations, invariants</small>"]
+        L2["2. Personas<br><small>agent behavior via trigger DSL</small>"]
+        L3["3. Scenarios<br><small>engine shocks: oracle trajectories,<br>scheduled actions</small>"]
+        L4["4. Parameters<br><small>run-config knobs that sweep dimensions</small>"]
+        L5["5. Failure-mode taxonomy<br><small>named categories the riptide-scenarios<br>skill matches against</small>"]
+        L6["6. Invariants<br><small>machine-checkable properties<br>in the adapter</small>"]
+    end
+
+    P --> Stack
+    Stack --> R["Riptide Engine<br>+ LiteSVM"]
+    R --> O["simulation-result.json<br>byte-deterministic"]
+```
+
 1. **Adapter** — one TOML under `fixtures/adapters/` declaring your program, its actions, its observations, and its invariants. Examples: `solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `resource-grinder.toml`.
 2. **Personas** — TOML under `fixtures/personas/` describing agent behavior with a trigger DSL (`player.gold < 100 → craft`). Each bundle ships a persona library the scenarios skill can compose from.
 3. **Scenarios** — engine shocks (oracle trajectories, scheduled actions) mounted from declarative presets. See `fixtures/scenarios/` and `engine/src/scenario/preset_spec.rs`.
@@ -18,6 +37,8 @@ Each bundle layers six declarative surfaces on top of your program. All six live
 6. **Invariants** — machine-checkable properties (`no_bad_debt`, `reserve_a > 0`, `k == reserve_a * reserve_b` within tolerance) declared inline in the adapter. The engine exits non-zero when any invariant fires, so invariants double as CI gates.
 
 Three shipping bundles exercise every layer end-to-end: **lending** (Solend fork), **perps** (perps-lite), **AMM** (constant-product). A fourth generic bundle (`resource-grinder`) drives a non-DeFi SBF program end-to-end — if it runs, you can wire Riptide to your protocol.
+
+> **Skills are optional accelerators, not requirements.** The `riptide-adapt`, `riptide-scenarios`, and `riptide-narrative` Claude Code skills produce first-pass TOML / run-configs / reports by letting a session-native LLM do the typing. Every artifact the skills generate is plain TOML or markdown you can hand-author instead — see `fixtures/adapters/resource-grinder.toml` for a minimal from-scratch example.
 
 ## LiteSVM runtime — default, with honest caveats
 
