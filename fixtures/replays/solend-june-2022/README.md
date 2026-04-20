@@ -2,15 +2,13 @@
 
 This directory ships the first historical replay artifact for Riptide's replay mode.
 
-## Date correction
+## Incident background
 
-The directory name is `solend-nov-2022` for historical naming stability, but the public Solend whale-risk incident this replay is based on happened in **June 2022**:
+The public Solend whale-risk incident this replay reproduces happened in June 2022:
 
 - June 19, 2022: Solend published `SLND1: Mitigate Risk From Whale`, disclosing a whale with 5.7M SOL deposited, 108M USDC/USDT borrowed, and a liquidation price of $22.30.
 - June 20, 2022: the emergency-powers proposal was reversed via `SLND2`.
 - June 27, 2022: public reporting described the whale as having reduced the risk after private coordination.
-
-The directory name stays aligned with its original tag for reproducibility, but the fixture metadata and this README use the corrected June 2022 framing.
 
 ## What this replay is
 

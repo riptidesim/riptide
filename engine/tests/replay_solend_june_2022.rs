@@ -1,14 +1,9 @@
-//! Solend June 2022 whale-risk replay ( · gate).
-//!
-//! The sprint-plan/task filename still says `solend_nov_2022`, but the
-//! public incident this fixture reproduces is the Solend whale-risk
-//! episode from June 2022. The on-disk fixture README documents the
-//! date correction and the abstraction level.
+//! Solend June 2022 whale-risk replay gate.
 //!
 //! This test locks four things:
 //!
 //! 1. The replay runs end-to-end on the replay-scoped adapter
-//! `fixtures/replays/solend-nov-2022/adapter.toml` — a copy of the
+//! `fixtures/replays/solend-june-2022/adapter.toml` — a copy of the
 //! shipped `solend-fork.toml` with a `no_bad_debt` invariant added.
 //! The shipped adapter stays clean so the hero-grid hash
 //! `89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11`
@@ -55,7 +50,7 @@ fn fixture_dir() -> PathBuf {
     monorepo_root()
         .join("fixtures")
         .join("replays")
-        .join("solend-nov-2022")
+        .join("solend-june-2022")
 }
 
 fn skip_if_missing(path: &Path, label: &str) -> bool {
@@ -159,7 +154,7 @@ fn solend_replay_matches_expected_summary_and_is_deterministic() {
     assert_eq!(
         actual_hash,
         expected.result_sha256,
-        "Solend replay hash drifted; update fixtures/replays/solend-nov-2022/expected-summary.json if the new output is intentional",
+        "Solend replay hash drifted; update fixtures/replays/solend-june-2022/expected-summary.json if the new output is intentional",
     );
 
     assert_eq!(first.total_ticks, 4);

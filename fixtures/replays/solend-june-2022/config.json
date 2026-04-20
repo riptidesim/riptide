@@ -1,5 +1,5 @@
 {
   "adapter": "./adapter.toml",
   "trajectory_dir": ".",
-  "output_path": "riptide-output/replays/solend-nov-2022"
+  "output_path": "riptide-output/replays/solend-june-2022"
 }

@@ -20,8 +20,8 @@
 # and spec R2.3).
 #
 # The `riptide replay` CLI's replay-config JSON (at
-# `fixtures/replays/solend-nov-2022/config.json`) points at this
-# adapter directly; engine test `replay_solend_nov_2022.rs` loads
+# `fixtures/replays/solend-june-2022/config.json`) points at this
+# adapter directly; engine test `replay_solend_june_2022.rs` loads
 # it via `load_adapter(fixture_dir().join("adapter.toml"))`.
 
 protocol = "lending"

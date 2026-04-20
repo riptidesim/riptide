@@ -146,7 +146,7 @@ riptide/
 │   ├── adapters/                 # Adapter TOMLs (solend-fork, perps-fork, amm-fork, resource-grinder)
 │   ├── personas/                 # Persona TOMLs (whale, leveraged-long, arbitrageur, …)
 │   ├── scenarios/                # Run-config bundles per-adapter per-experiment
-│   ├── replays/                  # Historical replay fixtures (solend-nov-2022)
+│   ├── replays/                  # Historical replay fixtures (solend-june-2022)
 │   ├── idls/                     # Anchor IDL JSONs for each shipped program
 │   └── oracle_state_golden.bin   # Byte-layout SSOT for oracle state
 │
@@ -302,7 +302,7 @@ cargo test -p riptide-engine --test e2e_determinism
 cargo test -p riptide-engine --test perps_fork_roundtrip
 cargo test -p riptide-engine --test amm_fork_roundtrip
 cargo test -p riptide-engine --test replay_framework
-cargo test -p riptide-engine --test replay_solend_nov_2022
+cargo test -p riptide-engine --test replay_solend_june_2022
 
 # CLI suite
 (cd cli && npm test)
