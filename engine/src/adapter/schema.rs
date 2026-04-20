@@ -57,10 +57,40 @@ pub enum AccountKind {
 }
 
 /// Bootstrap metadata for a generic adapter account binding.
+///
+/// `kind` answers "how many accounts do we create" (cardinality).
+/// `owner` answers "who owns those accounts on-chain" (ownership) and
+/// is optional — adapters that leave it absent continue to be owned by
+/// the simulated program, preserving byte-for-byte compatibility for
+/// every existing shipped adapter.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AccountDefinition {
     pub kind: AccountKind,
     pub space: usize,
+    /// Optional external-owner metadata. When set, the generic harness
+    /// creates the account with this owner instead of the simulated
+    /// program id. Only valid on `kind = "shared"` accounts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<AccountOwner>,
+}
+
+/// External-owner metadata for a generic adapter account. Exactly one
+/// of `program_so` (sibling program on disk) or `pubkey` (literal
+/// base58 key for real external programs such as Pyth) must be set;
+/// declaring both or neither is rejected by the loader with a
+/// key-level diagnostic.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AccountOwner {
+    /// Path to a sibling program's compiled `.so` artifact. The
+    /// loader derives the owner pubkey from the companion
+    /// `target/deploy/<name>-keypair.json` file, matching the
+    /// existing local-deploy convention used elsewhere in the repo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub program_so: Option<String>,
+    /// Literal base58-encoded 32-byte pubkey for real external
+    /// programs that do not ship a local `.so` artifact (e.g. Pyth).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pubkey: Option<String>,
 }
 
 /// Generic action definition.

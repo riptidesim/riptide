@@ -4,11 +4,13 @@
 //! offending key — so a developer debugging an adapter sees "which file,
 //! which key" on the first line, not a cryptic "unknown variant".
 
-use std::{fmt, path::Path};
+use std::{fmt, path::Path, str::FromStr};
+
+use solana_sdk::pubkey::Pubkey;
 
 use crate::adapter::schema::{
-    Adapter, Protocol, LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS,
-    ORACLE_KINDS,
+    AccountKind, Adapter, Protocol, LENDING_ACTIONS, LENDING_OBSERVATIONS,
+    LENDING_SNAPSHOT_METRICS, ORACLE_KINDS,
 };
 
 /// Errors returned by `load_adapter`. Every variant carries enough
@@ -114,6 +116,53 @@ fn validate_resolved_paths(adapter: &Adapter, path: &str) -> Result<(), AdapterE
             });
         }
     }
+    for (account_name, account) in &adapter.accounts {
+        let Some(owner) = account.owner.as_ref() else {
+            continue;
+        };
+        let Some(owner_so) = owner.program_so.as_deref() else {
+            continue;
+        };
+        let owner_path = std::path::Path::new(owner_so);
+        if !owner_path.exists() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[accounts].{account_name}.owner.program_so"),
+                reason: format!(
+                    "account `{account_name}`: owner program .so not found at {owner_so}\n\
+                     Expected a compiled SBF artifact for the sibling program that owns this \
+                     account on-chain.\n\
+                     Run: cargo build-sbf --manifest-path <program>/Cargo.toml \
+                     (or fix the `owner.program_so` path) and retry."
+                ),
+            });
+        }
+        let keypair_path = sibling_deploy_keypair_path(owner_path).ok_or_else(|| {
+            AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[accounts].{account_name}.owner.program_so"),
+                reason: format!(
+                    "account `{account_name}`: cannot derive sibling keypair path from \
+                     `{owner_so}` (expected `<dir>/<program>.so` with a matching \
+                     `<dir>/<program>-keypair.json`)."
+                ),
+            }
+        })?;
+        if !keypair_path.exists() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[accounts].{account_name}.owner.program_so"),
+                reason: format!(
+                    "account `{account_name}`: sibling-program keypair not found at {}.\n\
+                     The generic harness derives the owner pubkey from the companion \
+                     `*-keypair.json` that ships next to the `.so`. Build the sibling \
+                     program with `cargo build-sbf` (which generates the keypair) or \
+                     restore the keypair file before rerunning.",
+                    keypair_path.display()
+                ),
+            });
+        }
+    }
     if let Some(idl_path) = adapter.idl_path.as_deref() {
         if !std::path::Path::new(idl_path).exists() {
             return Err(AdapterError::Validation {
@@ -169,6 +218,18 @@ fn validate_resolved_paths(adapter: &Adapter, path: &str) -> Result<(), AdapterE
         }
     }
     Ok(())
+}
+
+/// Derive the companion `<program>-keypair.json` path for a sibling
+/// program's `.so` artifact. Shared by the loader (existence check) and
+/// the generic harness (owner pubkey read), so both sides agree on the
+/// single deploy-keypair convention the repo already follows.
+pub(crate) fn sibling_deploy_keypair_path(
+    program_so: &std::path::Path,
+) -> Option<std::path::PathBuf> {
+    let stem = program_so.file_stem()?.to_str()?;
+    let parent = program_so.parent()?;
+    Some(parent.join(format!("{stem}-keypair.json")))
 }
 
 /// Compute the minimum byte count needed to hold an IDL-declared
@@ -395,6 +456,14 @@ fn resolve_generic_paths(adapter: &mut Adapter, adapter_path: &Path) {
     }
     if let Some(idl_path) = adapter.idl_path.as_mut() {
         *idl_path = resolve_relative_to(parent, idl_path);
+    }
+    for account in adapter.accounts.values_mut() {
+        let Some(owner) = account.owner.as_mut() else {
+            continue;
+        };
+        if let Some(program_so) = owner.program_so.as_mut() {
+            *program_so = resolve_relative_to(parent, program_so);
+        }
     }
 }
 
@@ -802,10 +871,98 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
         }
     }
 
+    validate_account_owners(adapter, path)?;
     validate_invariants_generic(adapter, path)?;
     validate_oracles(adapter, path)?;
     validate_scheduled_actions(adapter, path)?;
 
+    Ok(())
+}
+
+/// Validate the optional external-owner metadata on generic accounts.
+///
+/// - `kind = "agent"` accounts cannot opt into external ownership.
+/// - Exactly one of `owner.program_so` / `owner.pubkey` must be set;
+///   declaring both is ambiguous, declaring neither is an empty block.
+/// - Literal pubkeys must be base58-decodable to a 32-byte key.
+///
+/// Every diagnostic names the offending `[accounts].<name>.owner.*`
+/// TOML key so an author can jump straight to the line at fault.
+fn validate_account_owners(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
+    for (account_name, account) in &adapter.accounts {
+        let Some(owner) = account.owner.as_ref() else {
+            continue;
+        };
+        if matches!(account.kind, AccountKind::Agent) {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[accounts].{account_name}.owner"),
+                reason: format!(
+                    "account `{account_name}` declares external `owner` but `kind = \"agent\"`. \
+                     External ownership is only valid for `kind = \"shared\"` accounts; \
+                     agent-scoped accounts stay program-owned. Either remove the `owner` block \
+                     or change the account's `kind` to `shared`."
+                ),
+            });
+        }
+        match (owner.program_so.as_deref(), owner.pubkey.as_deref()) {
+            (Some(_), Some(_)) => {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[accounts].{account_name}.owner"),
+                    reason: format!(
+                        "account `{account_name}` declares both `owner.program_so` and \
+                         `owner.pubkey`; exactly one owner source is accepted. Pick the local \
+                         sibling-program path OR the literal base58 pubkey and remove the other."
+                    ),
+                });
+            }
+            (None, None) => {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[accounts].{account_name}.owner"),
+                    reason: format!(
+                        "account `{account_name}` declares an empty `owner` block. Set either \
+                         `owner.program_so = \"<path to .so>\"` for a local sibling program, \
+                         or `owner.pubkey = \"<base58>\"` for a literal external program \
+                         (e.g. Pyth)."
+                    ),
+                });
+            }
+            (Some(program_so), None) => {
+                if program_so.trim().is_empty() {
+                    return Err(AdapterError::Validation {
+                        path: path.to_string(),
+                        key: format!("[accounts].{account_name}.owner.program_so"),
+                        reason: format!(
+                            "account `{account_name}`: `owner.program_so` must be a non-empty path \
+                             to the sibling program's compiled `.so` artifact."
+                        ),
+                    });
+                }
+            }
+            (None, Some(pubkey)) => {
+                if pubkey.trim().is_empty() {
+                    return Err(AdapterError::Validation {
+                        path: path.to_string(),
+                        key: format!("[accounts].{account_name}.owner.pubkey"),
+                        reason: format!(
+                            "account `{account_name}`: `owner.pubkey` must be a non-empty \
+                             base58-encoded 32-byte pubkey."
+                        ),
+                    });
+                }
+                Pubkey::from_str(pubkey).map_err(|error| AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[accounts].{account_name}.owner.pubkey"),
+                    reason: format!(
+                        "account `{account_name}`: `owner.pubkey` `{pubkey}` is not a valid \
+                         base58-encoded 32-byte pubkey: {error}"
+                    ),
+                })?;
+            }
+        }
+    }
     Ok(())
 }
 
@@ -872,22 +1029,44 @@ fn validate_oracles(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
             });
         }
         if matches!(adapter.protocol, Protocol::Generic) {
-            if let Some(account) = oracle.account.as_deref() {
-                if !adapter.accounts.contains_key(account) {
-                    let mut declared: Vec<&str> =
-                        adapter.accounts.keys().map(String::as_str).collect();
-                    declared.sort_unstable();
-                    return Err(AdapterError::Validation {
-                        path: path.to_string(),
-                        key: format!("[[oracles]][{idx}].account"),
-                        reason: format!(
-                            "oracle `{}`: `account` references unknown account `{}`; \
-                             declare it under `[accounts]`. Declared: {:?}. \
-                             Supported oracle kinds: {:?}.",
-                            oracle.name, account, declared, ORACLE_KINDS
-                        ),
-                    });
-                }
+            let Some(account) = oracle.account.as_deref() else {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[[oracles]][{idx}].account"),
+                    reason: format!(
+                        "oracle `{}`: generic adapters must bind `[[oracles]].account` to a \
+                         declared shared account. Add `account = \"<name>\"` and declare that \
+                         account under `[accounts]` with `kind = \"shared\"`.",
+                        oracle.name
+                    ),
+                });
+            };
+            let Some(declared_account) = adapter.accounts.get(account) else {
+                let mut declared: Vec<&str> =
+                    adapter.accounts.keys().map(String::as_str).collect();
+                declared.sort_unstable();
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[[oracles]][{idx}].account"),
+                    reason: format!(
+                        "oracle `{}`: `account` references unknown account `{}`; \
+                         declare it under `[accounts]`. Declared: {:?}. \
+                         Supported oracle kinds: {:?}.",
+                        oracle.name, account, declared, ORACLE_KINDS
+                    ),
+                });
+            };
+            if !matches!(declared_account.kind, AccountKind::Shared) {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[[oracles]][{idx}].account"),
+                    reason: format!(
+                        "oracle `{}`: bound account `{}` is declared with \
+                         `kind = \"agent\"`, but oracle-bound accounts must be \
+                         `kind = \"shared\"` (one oracle account per simulation).",
+                        oracle.name, account
+                    ),
+                });
             }
         }
     }
@@ -1347,6 +1526,199 @@ protocol = "lending"
             err.to_string().contains("adapter identifier"),
             "got: {err}"
         );
+    }
+
+    #[test]
+    fn parses_shared_account_owner_pubkey() {
+        let toml_str = r#"
+protocol = "generic"
+program_so = "programs/resource_grinder/target/deploy/resource_grinder.so"
+idl_path = "fixtures/idls/resource-grinder.json"
+
+[accounts.player]
+kind = "agent"
+space = 32
+
+[accounts.oracle]
+kind = "shared"
+space = 50
+owner = { pubkey = "FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH" }
+
+[instructions]
+mine = { action = "mine" }
+
+[state_mapping]
+"player.gold" = "player.gold"
+
+[actions.mine]
+takes = []
+
+[observations]
+"player.gold" = "uint"
+
+[personas.grinder]
+action_rate_multiplier = 1.0
+action_weights = { mine = 1.0 }
+
+[[oracles]]
+name = "price_feed"
+kind = "pyth"
+account = "oracle"
+base_price = 100.0
+exponent = 0
+"#;
+        let adapter = parse_adapter_str(toml_str, "generic.toml").unwrap();
+        let oracle_account = adapter.accounts.get("oracle").unwrap();
+        let owner = oracle_account.owner.as_ref().expect("owner present");
+        assert_eq!(
+            owner.pubkey.as_deref(),
+            Some("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH")
+        );
+        assert!(owner.program_so.is_none());
+    }
+
+    #[test]
+    fn rejects_agent_account_with_external_owner() {
+        let toml_str = sample_generic_toml().replace(
+            "[accounts.player]\nkind = \"agent\"\nspace = 32",
+            "[accounts.player]\nkind = \"agent\"\nspace = 32\nowner = { pubkey = \"FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH\" }",
+        );
+        let err = parse_adapter_str(&toml_str, "owner.toml").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("[accounts].player.owner"), "got: {msg}");
+        assert!(msg.contains("kind = \"agent\""), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_ambiguous_owner_metadata() {
+        let toml_str = sample_generic_toml().replace(
+            "[accounts.marketplace]\nkind = \"shared\"\nspace = 512",
+            "[accounts.marketplace]\nkind = \"shared\"\nspace = 512\nowner = { program_so = \"foo.so\", pubkey = \"FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH\" }",
+        );
+        let err = parse_adapter_str(&toml_str, "owner.toml").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("[accounts].marketplace.owner"), "got: {msg}");
+        assert!(msg.contains("both"), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_empty_owner_block() {
+        let toml_str = sample_generic_toml().replace(
+            "[accounts.marketplace]\nkind = \"shared\"\nspace = 512",
+            "[accounts.marketplace]\nkind = \"shared\"\nspace = 512\nowner = {}",
+        );
+        let err = parse_adapter_str(&toml_str, "owner.toml").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("[accounts].marketplace.owner"), "got: {msg}");
+        assert!(msg.contains("empty `owner` block"), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_owner_pubkey_not_base58() {
+        let toml_str = sample_generic_toml().replace(
+            "[accounts.marketplace]\nkind = \"shared\"\nspace = 512",
+            "[accounts.marketplace]\nkind = \"shared\"\nspace = 512\nowner = { pubkey = \"not-a-pubkey\" }",
+        );
+        let err = parse_adapter_str(&toml_str, "owner.toml").unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("[accounts].marketplace.owner.pubkey"),
+            "got: {msg}"
+        );
+    }
+
+    #[test]
+    fn rejects_generic_oracle_bound_to_agent_account() {
+        let toml_str = r#"
+protocol = "generic"
+program_so = "programs/resource_grinder/target/deploy/resource_grinder.so"
+idl_path = "fixtures/idls/resource-grinder.json"
+
+[accounts.player]
+kind = "agent"
+space = 50
+
+[instructions]
+mine = { action = "mine" }
+
+[state_mapping]
+"player.gold" = "player.gold"
+
+[actions.mine]
+takes = []
+
+[observations]
+"player.gold" = "uint"
+
+[personas.grinder]
+action_rate_multiplier = 1.0
+action_weights = { mine = 1.0 }
+
+[[oracles]]
+name = "price_feed"
+kind = "admin-mock"
+account = "player"
+"#;
+        let err = parse_adapter_str(toml_str, "oracle.toml").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("[[oracles]][0].account"), "got: {msg}");
+        assert!(msg.contains("kind = \"shared\""), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_generic_oracle_without_account_binding() {
+        let toml_str = r#"
+protocol = "generic"
+program_so = "programs/resource_grinder/target/deploy/resource_grinder.so"
+idl_path = "fixtures/idls/resource-grinder.json"
+
+[accounts.player]
+kind = "agent"
+space = 32
+
+[instructions]
+mine = { action = "mine" }
+
+[state_mapping]
+"player.gold" = "player.gold"
+
+[actions.mine]
+takes = []
+
+[observations]
+"player.gold" = "uint"
+
+[personas.grinder]
+action_rate_multiplier = 1.0
+action_weights = { mine = 1.0 }
+
+[[oracles]]
+name = "price_feed"
+kind = "admin-mock"
+"#;
+        let err = parse_adapter_str(toml_str, "oracle.toml").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("[[oracles]][0].account"), "got: {msg}");
+        assert!(msg.contains("shared"), "got: {msg}");
+    }
+
+    #[test]
+    fn existing_shipped_adapters_parse_without_owner_metadata() {
+        for name in ["solend-fork", "perps-fork", "amm-fork"] {
+            let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join("fixtures")
+                .join("adapters")
+                .join(format!("{name}.toml"));
+            let adapter = load_adapter(&fixture)
+                .unwrap_or_else(|e| panic!("shipped `{name}` adapter should load: {e}"));
+            for account in adapter.accounts.values() {
+                assert!(
+                    account.owner.is_none(),
+                    "shipped `{name}` adapter account should parse without `owner` metadata"
+                );
+            }
+        }
     }
 
     #[test]
