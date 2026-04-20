@@ -12,3 +12,10 @@
 # Cargo.lock is regenerated per dev/CI machine.
 /programs/pyth_consumer_test_helper/target/
 /programs/pyth_consumer_test_helper/Cargo.lock
+
+# `riptide run` state + run artifacts — generated per invocation, not
+# source. User-authored `.riptide/adapters/`, `.riptide/personas/`,
+# and `.riptide/scenarios/` remain tracked in user repos; only the
+# transient state + run outputs are ignored.
+.riptide/last-run.json
+.riptide/runs/

@@ -1,180 +1,280 @@
-import { readFileSync } from "node:fs";
+// `riptide run` — jest-style multi-scenario runner.
+//
+// Behavior matrix (Sprint 8 spec R3.1–R3.6):
+//   $ riptide run                → discover all, run all
+//   $ riptide run <pattern>      → discover all, filter by glob
+//   $ riptide run <path.json>    → run a single run-config file (backward-compat)
+//   $ riptide run --only-failing → rerun only scenarios that failed last time
+//   $ riptide run --serve        → after the sweep, serve artifacts of the last scenario
+//
+// Disambiguation rule: if the positional arg ends in `.json` AND
+// exists on disk, it is treated as a file path. Otherwise it is a
+// glob pattern. Documented in the spec + resolveScenarios() docs.
+//
+// Exit codes per `cli/src/run/exit-codes.ts`:
+//   0 all-pass · 1 invariant-fire · 2 setup-error · 3 partial-abort · 130 SIGINT
+
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import chalk from "chalk";
-import ora from "ora";
 import { Command } from "commander";
 
-import { buildSimulateOptions, toRunConfig } from "../config.js";
-import { runOrchestrator } from "../orchestrator/index.js";
-import { writeArtifacts } from "../report/artifacts.js";
-import { renderSummary, renderColoredTable } from "../report/summary.js";
-import { renderTimeline } from "../report/timeline.js";
+import { monorepoRootFromModule } from "../orchestrator/index.js";
+import { resolveScenarios, runScenarios } from "../run/loop.js";
+import { createJestFormatter } from "../run/output.js";
+import { EXIT_CODES, exitCodeFromSummary } from "../run/exit-codes.js";
 import { blockUntilSignal, startDashboardServer } from "../serve/index.js";
 
+const DEFAULT_FIXTURES_ADAPTER_REL = path.join("fixtures", "adapters", "solend-fork.toml");
+
+export type AdapterResolution =
+  | { kind: "ok"; path: string }
+  | { kind: "ambiguous"; candidates: string[] }
+  | { kind: "none" };
+
 /**
- * `riptide run <config.json>` — thin wrapper that reads a JSON run
- * config (the same shape as `examples/configs/safe.json`), optionally
- * applies an `--adapter` override (default: the shipped solend-fork
- * lending adapter), and dispatches through the existing simulate
- * pipeline. Satisfies the R1.4 install-flow contract which
- * specifies the literal command `riptide run examples/configs/safe.json`.
+ * Default-adapter resolution order:
+ *   1. `--adapter <path>` (handled by the caller, not here)
+ *   2. single `.toml` under `<cwd>/.riptide/adapters/` — the scaffolded
+ *      adapter from `riptide init`. More than one → ambiguous result
+ *      so the caller can ask for `--adapter` explicitly.
+ *   3. Monorepo fallback, derived from the CLI module's on-disk
+ *      location (NOT from cwd). This keeps `cd cli && riptide run ...`,
+ *      `cd subdir && riptide run ...`, and repo-root invocations all
+ *      resolving to the same shipping fixture. Cwd-based resolution
+ *      was the Phase 2 review's Finding 1 — module-root fixes that.
+ *   4. Cwd-local `fixtures/adapters/solend-fork.toml` — legacy catch
+ *      for users with a custom fixtures layout rooted at cwd.
+ *
+ * `moduleRoot` override makes the module-root branch testable.
+ * Pass `null` to skip it explicitly; default queries
+ * `monorepoRootFromModule()`.
  */
+export function resolveDefaultAdapter(
+  cwd: string,
+  moduleRoot?: string | null
+): AdapterResolution {
+  const scaffoldedDir = path.join(cwd, ".riptide", "adapters");
+  if (existsSync(scaffoldedDir)) {
+    const tomls = readdirSync(scaffoldedDir)
+      .filter((e) => e.endsWith(".toml"))
+      .sort();
+    if (tomls.length === 1) {
+      return { kind: "ok", path: path.join(scaffoldedDir, tomls[0]!) };
+    }
+    if (tomls.length > 1) {
+      return {
+        kind: "ambiguous",
+        candidates: tomls.map((t) => path.join(scaffoldedDir, t))
+      };
+    }
+  }
+
+  const resolvedModuleRoot =
+    moduleRoot === undefined ? monorepoRootFromModule() ?? null : moduleRoot;
+  if (resolvedModuleRoot) {
+    const candidate = path.join(resolvedModuleRoot, DEFAULT_FIXTURES_ADAPTER_REL);
+    if (existsSync(candidate)) {
+      return { kind: "ok", path: candidate };
+    }
+  }
+
+  const cwdCandidate = path.resolve(cwd, DEFAULT_FIXTURES_ADAPTER_REL);
+  if (existsSync(cwdCandidate)) {
+    return { kind: "ok", path: cwdCandidate };
+  }
+  return { kind: "none" };
+}
+
 export function createRunCommand(): Command {
   return new Command("run")
-    .description("Run a simulation from a JSON run-config file")
-    .argument("<config>", "Path to a run-config JSON file (e.g. examples/configs/safe.json)")
+    .description(
+      "Run every scenario under .riptide/scenarios/ (jest-style). Passing a pattern filters; passing a .json path runs that single file."
+    )
+    .argument(
+      "[pattern-or-path]",
+      "Glob pattern (matches discovered scenario names) OR path to a single run-config .json file"
+    )
     .option(
       "--adapter <path>",
-      "Adapter TOML path (defaults to fixtures/adapters/solend-fork.toml if omitted)"
+      "Adapter TOML path. Defaults: single .toml under .riptide/adapters/ (scaffolded by 'riptide init'), else fixtures/adapters/solend-fork.toml for in-monorepo runs."
     )
-    .option("--format <format>", "Output format: human (default) or json", "human")
     .option(
-      "--allow-invariant-violations",
-      "Exit 0 even if declared invariants fire during the run (default: exit 1 on any firing)",
+      "--only-failing",
+      "Run only scenarios that failed or aborted in the most recent run (reads .riptide/last-run.json)",
       false
     )
     .option(
       "--serve",
-      "After the run completes, start the Riptide web dashboard (default port 4173) serving the artifacts. Blocks on Ctrl-C.",
+      "After the sweep, start the Riptide web dashboard (default port 4173) serving the last scenario's artifacts. Blocks on Ctrl-C.",
       false
     )
-    .action(async (configArg: string, cliOpts: Record<string, unknown>) => {
+    .option(
+      "--format <format>",
+      "Output format: human (default, jest-style) or json (RunSummary for multi-scenario, SimulationResult for single-scenario)",
+      "human"
+    )
+    .option(
+      "--allow-invariant-violations",
+      "Exit 0 even if declared invariants fire during any scenario (default: exit 1 on any firing). Mirrors engine flag; setup errors + SIGINT + engine crashes still return non-zero.",
+      false
+    )
+    .action(async (positional: string | undefined, cliOpts: Record<string, unknown>) => {
+      const cwd = process.cwd();
       const formatJson = cliOpts.format === "json";
-      const isTTY = process.stdout.isTTY && !formatJson;
+      const allowInvariantViolations = Boolean(cliOpts.allowInvariantViolations);
 
-      const absConfig = path.resolve(configArg);
-      let raw: string;
-      try {
-        raw = readFileSync(absConfig, "utf8");
-      } catch (err) {
-        const reason =
-          err && typeof err === "object" && "code" in err && err.code === "ENOENT"
-            ? `not found`
-            : `unreadable (${(err as Error).message ?? String(err)})`;
-        throw new Error(
-          `riptide run: run-config ${reason} at ${absConfig}\n` +
-            `Expected a JSON file with the fields { agents, ticks, scenario, seed, personas }.\n` +
-            `Try one of the shipped examples: examples/configs/safe.json or examples/configs/risky.json.`
-        );
-      }
-      let parsed: {
-        agents?: number;
-        ticks?: number;
-        scenario?: string;
-        seed?: number;
-        personas?: string[];
-        output_path?: string;
-      };
-      try {
-        parsed = JSON.parse(raw);
-      } catch (err) {
-        throw new Error(
-          `riptide run: failed to parse JSON at ${absConfig}: ${(err as Error).message}\n` +
-            `Check the run-config for a trailing comma or missing quote.`
-        );
-      }
-      if (
-        typeof parsed.agents !== "number" ||
-        typeof parsed.ticks !== "number" ||
-        typeof parsed.scenario !== "string" ||
-        typeof parsed.seed !== "number" ||
-        !Array.isArray(parsed.personas)
-      ) {
-        throw new Error(
-          `riptide run: run-config at ${absConfig} is missing one of the required fields ` +
-            `{ agents, ticks, scenario, seed, personas }.\n` +
-            `Reference shape: examples/configs/safe.json.`
-        );
-      }
-      const repoRoot = path.resolve(process.cwd());
-      const defaultAdapter = path.resolve(repoRoot, "fixtures/adapters/solend-fork.toml");
-      const adapter =
-        typeof cliOpts.adapter === "string" && (cliOpts.adapter as string).length > 0
-          ? cliOpts.adapter as string
-          : defaultAdapter;
-      const outputPath =
-        typeof parsed.output_path === "string" && parsed.output_path.length > 0
-          ? parsed.output_path
-          : path.join("examples/outputs", path.basename(absConfig, path.extname(absConfig)));
-
-      const { config } = buildSimulateOptions({
-        agents: parsed.agents,
-        ticks: parsed.ticks,
-        scenario: parsed.scenario,
-        seed: parsed.seed,
-        personas: parsed.personas.join(","),
-        adapter,
-        output: outputPath
+      const resolved = await resolveScenarios({
+        cwd,
+        positional,
+        onlyFailing: Boolean(cliOpts.onlyFailing)
       });
-      const runConfig = toRunConfig(config);
+      if (resolved.kind === "setup_error") {
+        if (formatJson) {
+          process.stdout.write(JSON.stringify({ error: resolved.message }) + "\n");
+        } else {
+          process.stderr.write(chalk.red(`${resolved.message}\n`));
+        }
+        process.exit(EXIT_CODES.SETUP_ERROR);
+      }
+
+      for (const warning of resolved.warnings) {
+        process.stderr.write(chalk.yellow(`warning: ${warning}\n`));
+      }
+
+      // Adapter resolution: explicit flag > scaffolded .riptide/
+      // adapters/<one>.toml > monorepo fixture > error. Emit a
+      // setup_error if we can't resolve anything so the user gets a
+      // clear next step instead of an engine-layer ENOENT.
+      let adapterPath: string | undefined;
+      if (typeof cliOpts.adapter === "string" && (cliOpts.adapter as string).length > 0) {
+        adapterPath = path.resolve(cliOpts.adapter as string);
+      } else {
+        const def = resolveDefaultAdapter(cwd);
+        if (def.kind === "ok") {
+          adapterPath = def.path;
+        } else if (def.kind === "ambiguous") {
+          const msg =
+            `riptide run: multiple adapters found under .riptide/adapters/; pass --adapter to disambiguate.\n` +
+            `Candidates:\n  ${def.candidates.join("\n  ")}`;
+          if (formatJson) {
+            process.stdout.write(JSON.stringify({ error: msg }) + "\n");
+          } else {
+            process.stderr.write(chalk.red(`${msg}\n`));
+          }
+          process.exit(EXIT_CODES.SETUP_ERROR);
+        } else {
+          const msg =
+            `riptide run: no adapter found. Expected one of:\n` +
+            `  - explicit --adapter <path>\n` +
+            `  - a single .toml under .riptide/adapters/ (run 'riptide init' to scaffold)\n` +
+            `  - fixtures/adapters/solend-fork.toml (for in-monorepo runs)`;
+          if (formatJson) {
+            process.stdout.write(JSON.stringify({ error: msg }) + "\n");
+          } else {
+            process.stderr.write(chalk.red(`${msg}\n`));
+          }
+          process.exit(EXIT_CODES.SETUP_ERROR);
+        }
+      }
+
+      // Human formatter is only wired in human mode. JSON mode stays
+      // silent on stdout during the run loop and emits a single JSON
+      // blob at the end so consumers can parse without stripping.
+      const formatter = formatJson
+        ? { handle: () => {} }
+        : createJestFormatter({ stdout: process.stdout, stderr: process.stderr });
 
       if (!formatJson) {
         process.stderr.write(
           chalk.bold(
-            `riptide run: agents=${runConfig.agents} ticks=${runConfig.ticks} scenario=${runConfig.scenario} seed=${runConfig.seed} personas=[${runConfig.personas.join(",")}]\n`
+            `riptide run: ${resolved.scenarios.length} scenario${resolved.scenarios.length === 1 ? "" : "s"}\n`
           )
         );
       }
 
-      const spinner = isTTY ? ora({ text: "Running simulation...", stream: process.stderr }).start() : null;
-      const startTime = Date.now();
-
-      let result;
-      try {
-        result = await runOrchestrator(runConfig, {
-          llmUrl: config.llm_url,
-          adapterPath: config.adapter_path,
-          allowInvariantViolations: Boolean(cliOpts.allowInvariantViolations)
-        });
-      } catch (err) {
-        if (spinner) spinner.fail(chalk.red("Simulation failed"));
-        if (formatJson) {
-          process.stdout.write(JSON.stringify({ error: (err as Error).message }, null, 2));
-        } else {
-          process.stderr.write(chalk.red(`\n✗ Run failed: ${(err as Error).message}\n`));
-        }
-        process.exitCode = 1;
-        return;
-      }
-
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-
-      if (spinner) {
-        spinner.succeed(chalk.green(`Simulation complete (${elapsed}s, ${result.total_ticks} ticks)`));
-      }
-
-      if (formatJson) {
-        process.stdout.write(JSON.stringify(result, null, 2));
-      } else {
-        if (isTTY) {
-          process.stdout.write(`\n${renderColoredTable(result)}\n\n`);
-        } else {
-          process.stdout.write(`${renderSummary(result)}\n\n`);
-        }
-        process.stdout.write(`${renderTimeline(result)}\n`);
-      }
-
-      const reproCommand = `riptide run ${configArg}${config.adapter_path ? ` --adapter ${config.adapter_path}` : ""}`;
-
-      const artifactPath = await writeArtifacts(result, runConfig.output_path, {
-        narrativeConfig: {
-          adapterPath: config.adapter_path ?? defaultAdapter,
-          reproCommand
-        }
+      const summary = await runScenarios({
+        scenarios: resolved.scenarios,
+        cwd,
+        adapterPath,
+        onEvent: formatter.handle
       });
 
-      if (!formatJson) {
-        process.stderr.write(chalk.green(`Wrote artifact: ${artifactPath}\n`));
-        const reportNote = path.join(path.dirname(artifactPath), "report.md");
-        process.stderr.write(chalk.green(`Wrote report:   ${reportNote}\n`));
+      if (formatJson) {
+        emitJsonOutput(summary, resolved.scenarios.length === 1);
       }
 
-      if (cliOpts.serve) {
-        const handle = await startDashboardServer(path.dirname(artifactPath));
+      // `--serve` MVP (R3.4): show the LAST scenario's artifacts only
+      // with a note about multi-scenario aggregation being Sprint 9+.
+      // Only starts a server if we actually produced artifacts (i.e.
+      // at least one pass or fail — aborted runs leave no dir).
+      if (cliOpts.serve && summary.lastArtifactsDir) {
+        if (summary.total > 1) {
+          process.stderr.write(
+            chalk.gray(
+              `note: --serve is showing the last scenario (${summary.scenarios.at(-1)?.name ?? "?"}). ` +
+                `Multi-scenario aggregation is Sprint 9+.\n`
+            )
+          );
+        }
+        const handle = await startDashboardServer(summary.lastArtifactsDir);
         process.stderr.write(chalk.cyan(`Dashboard: ${handle.url}\n`));
         process.stderr.write(chalk.gray(`  (Ctrl-C to stop)\n`));
         await blockUntilSignal(handle);
       }
+
+      const code = exitCodeFromSummary(summary);
+      // `--allow-invariant-violations` restores exit 0 when the ONLY
+      // reason for non-zero is invariant fires. Setup errors, SIGINT,
+      // and internal partial-aborts still surface their codes — this
+      // flag's contract is narrow per engine parity.
+      if (allowInvariantViolations && code === EXIT_CODES.INVARIANT_FIRE) {
+        process.exit(EXIT_CODES.SUCCESS);
+      }
+      process.exit(code);
     });
+}
+
+/**
+ * Emit a machine-readable JSON blob on stdout for `--format json`.
+ *
+ * - Single-scenario mode writes the full SimulationResult read from
+ *   the scenario's artifacts dir. This preserves the pre-Sprint-8
+ *   single-file CLI shape CI scripts may consume.
+ * - Multi-scenario mode writes the RunSummary (the same shape that
+ *   landed in `.riptide/last-run.json` plus totals).
+ */
+function emitJsonOutput(summary: import("../run/loop.js").RunSummary, singleScenario: boolean): void {
+  if (singleScenario) {
+    const record = summary.scenarios[0];
+    const artifactsDir = record?.artifacts_dir;
+    if (record && artifactsDir) {
+      const resultPath = path.join(artifactsDir, "simulation-result.json");
+      try {
+        const raw = readFileSync(resultPath, "utf8");
+        process.stdout.write(raw.endsWith("\n") ? raw : raw + "\n");
+        return;
+      } catch {
+        // fall through to summary-shape emission
+      }
+    }
+  }
+  process.stdout.write(
+    JSON.stringify(
+      {
+        pass: summary.pass,
+        fail: summary.fail,
+        aborted: summary.aborted,
+        skipped: summary.skipped,
+        total: summary.total,
+        signal_aborted: summary.signalAborted,
+        partial_abort: summary.partialAbort,
+        last_run_path: summary.lastRunPath,
+        scenarios: summary.scenarios
+      },
+      null,
+      2
+    ) + "\n"
+  );
 }
