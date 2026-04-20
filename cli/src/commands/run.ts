@@ -68,11 +68,20 @@ export function createRunCommand(): Command {
       "Restore pass-through engine stderr during each scenario (today's pre-Phase-4 chatter). Default is quiet — engine output only surfaces in the per-failure summary block.",
       false
     )
+    .option(
+      "--output-dir <path>",
+      "Override the artifact root (default: <cwd>/.riptide/runs). Each scenario lands at <output-dir>/<scenario-name>/simulation-result.json. Use for CI systems writing to mounted volumes.",
+      undefined
+    )
     .action(async (positional: string | undefined, cliOpts: Record<string, unknown>) => {
       const cwd = process.cwd();
       const formatJson = cliOpts.format === "json";
       const allowInvariantViolations = Boolean(cliOpts.allowInvariantViolations);
       const verbose = Boolean(cliOpts.verbose);
+      const outputDir =
+        typeof cliOpts.outputDir === "string" && (cliOpts.outputDir as string).length > 0
+          ? path.resolve(cliOpts.outputDir as string)
+          : undefined;
 
       const resolved = await resolveScenarios({
         cwd,
@@ -123,6 +132,7 @@ export function createRunCommand(): Command {
         adapterOverride,
         monorepoRoot: monorepoRootFromModule() ?? null,
         silent: !verbose,
+        outputDir,
         onEvent: formatter.handle
       });
 

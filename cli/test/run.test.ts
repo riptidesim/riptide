@@ -703,6 +703,56 @@ test("buildScenarioRun: explicit output_path in file wins over the default", asy
   assert.equal(build.runConfig.output_path, "my/custom/out");
 });
 
+test("buildScenarioRun: outputPathOverride wins over the run-config's output_path (T11)", async () => {
+  // T11 makes riptide-run always write to .riptide/runs/ regardless of
+  // what the scenario file declared. This is the override hook the loop
+  // uses — verify it wins even when the file has an explicit path.
+  const root = await tmpRoot("output-path-override");
+  const file = path.join(root, "rc.json");
+  await writeFile(
+    file,
+    JSON.stringify({
+      agents: 1,
+      ticks: 1,
+      scenario: "x",
+      seed: 1,
+      personas: [],
+      output_path: "fixtures/scenarios/foo/bar"
+    }),
+    "utf8"
+  );
+  const build = buildScenarioRun({
+    scenarioName: "foo/bar",
+    runConfigPath: file,
+    cwd: root,
+    outputPathOverride: path.join(root, ".riptide", "runs", "foo", "bar")
+  });
+  assert.equal(
+    build.runConfig.output_path,
+    path.join(root, ".riptide", "runs", "foo", "bar")
+  );
+});
+
+test("resolveArtifactsDir: default places artifacts under cwd/.riptide/runs/<scenario-name>", async () => {
+  const { resolveArtifactsDir } = await import("../src/run/loop.js");
+  const cwd = "/x/repo";
+  const p = resolveArtifactsDir({
+    scenario: { name: "solend-fork/hero-grid/w25-s40", runConfigPath: "/x.json" },
+    cwd
+  });
+  assert.equal(p, path.join(cwd, ".riptide", "runs", "solend-fork", "hero-grid", "w25-s40"));
+});
+
+test("resolveArtifactsDir: --output-dir override replaces the .riptide/runs root", async () => {
+  const { resolveArtifactsDir } = await import("../src/run/loop.js");
+  const cwd = "/x/repo";
+  const p = resolveArtifactsDir({
+    scenario: { name: "grinder/b", runConfigPath: "/x.json" },
+    cwd,
+    outputDir: "/mounted/volume"
+  });
+  assert.equal(p, path.join("/mounted/volume", "grinder", "b"));
+});
 
 // --- last-run round-trip ---
 
