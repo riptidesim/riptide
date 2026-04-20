@@ -186,18 +186,13 @@ riptide run --serve
 
 The `.riptide/` tree holds your adapter, persona library, and scenarios — version-control them alongside your program. `riptide run` with no arguments discovers every `.riptide/scenarios/**/run-config.json` and runs it sequentially; pass a glob pattern to filter, or an explicit `.json` path to run a single file. See [`docs/install.md`](docs/install.md#next-steps-after-install) for the full first-run walkthrough.
 
-For running the shipping bundles in a cloned monorepo (lending, perps, AMM, plus the Solend Nov 2022 replay), point `riptide run` at a shipping fixture path directly:
-
-```bash
-# Secondary path — for contributors working against the repo's own fixtures
-riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json --serve
-```
+The same short-form invocation works inside the cloned Riptide monorepo itself — `.riptide/scenarios/` is a symlink to `fixtures/scenarios/` at the repo root, so `riptide run solend-fork/hero-grid/w25-s40 --serve` discovers and runs the shipping hero-grid cell straight from a monorepo checkout. The full-path form (`riptide run fixtures/scenarios/<path>/run-config.json`) still works unchanged for existing CI and scripts.
 
 Prefer a container? The repo ships a multi-stage `Dockerfile` pinned to the full [`TOOLCHAIN.md`](TOOLCHAIN.md) stack:
 
 ```bash
 docker build -t riptide .
-docker run --rm riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json
+docker run --rm riptide run solend-fork/hero-grid/w25-s40
 ```
 
 > **Public distribution (GHCR `ghcr.io/riptidesim/riptide`, crates.io `riptide-engine`, npm `@riptide/cli`) is wired up and dry-run-verified in the repo but has not been published yet.** Until then, use the build-from-source or local-Docker paths above.
@@ -222,7 +217,7 @@ Exit codes follow a jest-style contract: `0` every scenario passed, `1` one or m
 For the shipping hero-grid `w25-s40` cell (mainnet-adjacent Solend fork, produces bad debt under whale concentration):
 
 ```bash
-riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json --serve
+riptide run solend-fork/hero-grid/w25-s40 --serve
 ```
 
 For the historical replay path:

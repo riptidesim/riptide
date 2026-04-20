@@ -94,7 +94,7 @@ The installer detects missing toolchains and prints actionable hints rather than
 
 ```bash
 # Canonical smoke: the shipping hero-grid cell
-riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json
+riptide run solend-fork/hero-grid/w25-s40
 
 # Regression gate (engine suites)
 cargo test -p riptide-engine
@@ -337,7 +337,7 @@ docs/description       # Documentation
 ### Before submitting
 
 1. **Run the regression gates** (see [Determinism & Regression Gates](#determinism--regression-gates)).
-2. **Test manually:** run the shipping demo (`riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json`) and confirm the hash is unchanged.
+2. **Test manually:** run the shipping demo (`riptide run solend-fork/hero-grid/w25-s40`) and confirm the hash is unchanged.
 3. **Keep PRs focused.** One logical change per PR. Don't mix an adapter addition with a skill rewrite.
 4. **Scrub for sprint numbers + internal task IDs.** Nothing user-facing should carry internal sprint/phase references.
 

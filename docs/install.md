@@ -22,7 +22,7 @@ The script is idempotent — rerunning it on an unchanged tree is safe and fast 
 
 ```bash
 docker build -t riptide .
-docker run --rm riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json
+docker run --rm riptide run solend-fork/hero-grid/w25-s40
 ```
 
 The multi-stage `Dockerfile` pins the full toolchain via sha256 digests: `rust:1.91.1-bookworm`, `node:24.11.1-bookworm-slim`, the Node tarball, and the Anza installer. The build stage compiles the engine, the CLI, and all five on-chain programs (`lending_pool`, `resource_grinder`, `admin_mock_oracle`, `perps-fork`, `amm-fork`). The runtime stage mirrors the `/src/` layout so every adapter's relative `program_so` path resolves without overrides, ships the `.so` artifacts (never the matching keypairs — the LiteSVM runtime does not need them), and wires `riptide` as the ENTRYPOINT. See `Dockerfile` for the full comment trail on why each pin is where it is.
@@ -67,11 +67,13 @@ riptide run --serve
 
 With no positional argument, `riptide run` discovers every `.riptide/scenarios/**/run-config.json` and executes them sequentially, printing a jest-style pass/fail summary. `--serve` starts the dashboard at `localhost:4173` on the last scenario's artifacts. Pass a glob pattern (`riptide run '*shock*'`) to filter the discovered list, or an explicit `.json` path to run a single file — the backward-compat path scripts + CI already rely on.
 
-For running against the repo's shipping bundles from a clone of the Riptide monorepo, the same `riptide run <fixture-path>` invocation works unchanged:
+For running against the repo's shipping bundles from a clone of the Riptide monorepo, the same short-form invocation works — `.riptide/scenarios/` is a symlink to `fixtures/scenarios/` at the repo root, so discovery picks up the shipping hero-grid + perps + AMM + replay fixtures automatically:
 
 ```bash
-riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json --serve
+riptide run solend-fork/hero-grid/w25-s40 --serve
 ```
+
+The full-path form (`riptide run fixtures/scenarios/<path>/run-config.json`) also still works for CI and scripts that already reference those paths.
 
 If you want Claude Code to accelerate the adapter-filling step, install the `riptide-adapt` skill under `skills/riptide-adapt/` and invoke it in-session pointing at your program source — it reads the IDL, generates the adapter TOML, and runs `riptide adapt` as a smoke test. Orthogonal to `riptide init`; either path alone is supported.
 
