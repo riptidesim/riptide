@@ -19,6 +19,7 @@ Three things Riptide does:
 | A **run-config** (scenario, seed, ticks, agent count)                                | A web dashboard (`localhost:4173`) — run metadata, timeseries, event stream, invariants highlighted                   |
 | Optionally: a **persona library** (shipping TOMLs ready to use, or hand-author yours)| A narrative case-study report citing specific ticks and events                                                         |
 | For historical incidents: a tx-sequence + oracle-trajectory JSON                     | A byte-for-byte reproduction of what went wrong alongside the synthetic sweep                                          |
+| *(optional)* `riptide init` in your Anchor repo                                      | A ready-to-fill `.riptide/` tree — adapter stub, starter personas, baseline scenario, version-control it with your program |
 
 ### Why LiteSVM?
 
@@ -171,6 +172,24 @@ cd riptide
 
 Linux is the supported path (macOS / Windows are out of scope — see [`docs/install.md`](docs/install.md)). Requires Rust, Node, and `cargo-build-sbf` on your `$PATH` — the installer checks and prints install hints if anything is missing.
 
+Once `riptide` is on your `$PATH`, the canonical first run is a drop-in: `riptide init` scaffolds a `.riptide/` working directory inside any Anchor repo, you fill in one stub adapter, and `riptide run` discovers every scenario you author and prints a jest-style pass/fail summary.
+
+```bash
+cd ~/path/to/your-anchor-program
+riptide init
+# edit .riptide/adapters/<program-name>.toml to match your program
+riptide run --serve
+```
+
+The `.riptide/` tree holds your adapter, persona library, and scenarios — version-control them alongside your program. `riptide run` with no arguments discovers every `.riptide/scenarios/**/run-config.json` and runs it sequentially; pass a glob pattern to filter, or an explicit `.json` path to run a single file. See [`docs/install.md`](docs/install.md#next-steps-after-install) for the full first-run walkthrough.
+
+For running the shipping bundles in a cloned monorepo (lending, perps, AMM, plus the Solend Nov 2022 replay), point `riptide run` at a shipping fixture path directly:
+
+```bash
+# Secondary path — for contributors working against the repo's own fixtures
+riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json --serve
+```
+
 Prefer a container? The repo ships a multi-stage `Dockerfile` pinned to the full [`TOOLCHAIN.md`](TOOLCHAIN.md) stack:
 
 ```bash
@@ -183,14 +202,21 @@ docker run --rm riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run
 ## Getting Started
 
 ```bash
-riptide run <run-config>                # Execute a simulation from a run-config JSON
-riptide run <run-config> --serve        # Same, then open the dashboard on localhost:4173
-riptide replay <replay-config>          # Replay a historical on-chain trajectory
-riptide adapt --adapter <toml>          # Smoke-test an adapter TOML end-to-end
-riptide simulate <config>               # Legacy alias — see docs/architecture.md
+riptide init                             # Scaffold .riptide/ in the current repo (adapter stub + personas + baseline scenario)
+riptide list                             # List every discovered scenario under .riptide/scenarios/
+riptide run                              # Discover + run every scenario in .riptide/scenarios/ (jest-style summary)
+riptide run <pattern>                    # Filter discovered scenarios by glob (e.g. '*w25*', 'hero-grid/*')
+riptide run <run-config.json>            # Run a single run-config file directly (backward-compat)
+riptide run --only-failing               # Rerun only scenarios that failed or aborted last time
+riptide run --serve                      # After the sweep, start the dashboard on localhost:4173
+riptide replay <replay-config>           # Replay a historical on-chain trajectory
+riptide adapt --adapter <toml>           # Smoke-test an adapter TOML end-to-end
+riptide simulate <config>                # Legacy explicit-flag path — see docs/architecture.md
 ```
 
-The canonical first run is the Solend-fork hero-grid `w25-s40` cell — mainnet-adjacent, produces bad debt, asserts the `no_bad_debt` invariant, and hashes byte-identical to the committed fixture:
+Exit codes follow a jest-style contract: `0` every scenario passed, `1` one or more invariants fired, `2` setup error (discovery missing, adapter not found, engine binary absent), `3` internal partial abort, `130` SIGINT. CI wrappers can gate merges on economic regressions without extra shell logic.
+
+For the shipping hero-grid `w25-s40` cell (mainnet-adjacent Solend fork, produces bad debt under whale concentration):
 
 ```bash
 riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json --serve

@@ -58,6 +58,14 @@ Inputs flow through two validators that share one mental model. The CLI reads ad
 
 On a run, the CLI compiles personas, pre-validates adapter + run-config, then shells out to the release-build engine binary with the config, policies, and output paths. The engine loads the adapter, boots LiteSVM, deploys the pinned `.so` from `programs/<name>/target/deploy/`, ticks the scenario, and writes `simulation-result.json`. Invariants are evaluated at exit; any firing causes a non-zero exit. The dashboard reads the result JSON — the engine has no network surface of its own.
 
+## Scenario discovery
+
+`riptide run` with no positional argument discovers every scenario the current repo declares and executes them sequentially. The convention is `.riptide/scenarios/**/run-config.json` walked recursively from the CWD — every matching file is treated as a scenario, and the scenario name is the directory path relative to `.riptide/scenarios/` with `/` preserved as the grouping separator (so `.riptide/scenarios/hero-grid/w25-s40/run-config.json` becomes scenario name `hero-grid/w25-s40`, matching jest's `describe` nesting). Names are stable and sorted, so reruns produce identical scenario ordering regardless of filesystem traversal order.
+
+Three invocation shapes share one command. `riptide run` runs everything discovered. `riptide run <pattern>` filters the discovered list by glob (`'*w25*'`, `'hero-grid/*'`). `riptide run <file-path>` runs a single run-config directly — the backward-compat path that scripts, CI, and the shipping fixtures still rely on; the file-existence check disambiguates it from a pattern. `riptide list` prints the discovered scenario list one per line, useful for CI integrations that want to know what will run before running it.
+
+Per-scenario results and the aggregate summary land in `.riptide/last-run.json` (schema pinned in `cli/src/run/last-run.ts`); `riptide run --only-failing` reads that file to rerun only the scenarios that failed or aborted most recently. The convention pairs with `.riptide/adapters/` and `.riptide/personas/` so every artifact Riptide reads — adapter, personas, scenarios — lives under the same version-controlled tree in the user's own repo.
+
 ## Further reading
 
 - [`vision.md`](vision.md) — why this shape, what's in scope, what isn't.

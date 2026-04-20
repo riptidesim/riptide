@@ -105,6 +105,10 @@ cargo test -p riptide-engine
 
 If all three are green, your environment is good.
 
+### Testing against your own Anchor program
+
+Contributors developing adapters against their own Anchor repos (rather than working on Riptide itself) should use the drop-in path — run `riptide init` inside your Anchor repo to scaffold `.riptide/` with an adapter stub, starter personas, and a baseline scenario, fill in the adapter TODOs, and then `riptide run` to discover and execute every scenario under `.riptide/scenarios/`. See [`docs/install.md`](docs/install.md#next-steps-after-install) for the full walkthrough. The monorepo path above stays as the authoritative workflow for contributors working on Riptide itself (engine, CLI, or the shipping bundles).
+
 ---
 
 ## Project Structure

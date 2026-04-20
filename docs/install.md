@@ -48,6 +48,33 @@ The engine's `env!("CARGO_MANIFEST_DIR")` bakes `/src/engine` (in Docker) or you
 
 GHCR, crates.io, and npm registries are wired up in release tooling and dry-run-verified, but not yet published. Build-from-source via `install.sh` and local `docker build` are the supported paths today. `@riptide/cli`'s postinstall binary downloader expects a GitHub Release artifact that is not yet cut, so `npm install -g` from a public registry will not work in this sprint — use `install.sh` or the Docker image instead. When a release is published this page will point at it.
 
+## Next steps after install
+
+Once `riptide` is on your `$PATH`, the canonical first run is a drop-in against your own Anchor program — no monorepo clone, no path typing.
+
+```bash
+cd ~/path/to/your-anchor-program
+riptide init
+```
+
+`riptide init` scaffolds a `.riptide/` working directory in the current repo: an adapter stub at `.riptide/adapters/<program-name>.toml` (with TODO comments pointing at `target/deploy/*.so` + `target/idl/*.json`), three starter personas under `.riptide/personas/`, a minimum-viable `.riptide/scenarios/baseline/run-config.json`, and an inline `GETTING-STARTED.md` one-screen guide. Check the tree into git alongside your program source — the `.riptide/` convention is the shipping contract.
+
+Fill in the adapter stub — the TODO comments name every block that needs editing — then run:
+
+```bash
+riptide run --serve
+```
+
+With no positional argument, `riptide run` discovers every `.riptide/scenarios/**/run-config.json` and executes them sequentially, printing a jest-style pass/fail summary. `--serve` starts the dashboard at `localhost:4173` on the last scenario's artifacts. Pass a glob pattern (`riptide run '*shock*'`) to filter the discovered list, or an explicit `.json` path to run a single file — the backward-compat path scripts + CI already rely on.
+
+For running against the repo's shipping bundles from a clone of the Riptide monorepo, the same `riptide run <fixture-path>` invocation works unchanged:
+
+```bash
+riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json --serve
+```
+
+If you want Claude Code to accelerate the adapter-filling step, install the `riptide-adapt` skill under `skills/riptide-adapt/` and invoke it in-session pointing at your program source — it reads the IDL, generates the adapter TOML, and runs `riptide adapt` as a smoke test. Orthogonal to `riptide init`; either path alone is supported.
+
 ## Upgrade path
 
 ```bash
