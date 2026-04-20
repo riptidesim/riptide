@@ -101,6 +101,18 @@ async function readOptionalFile(filePath: string): Promise<string | null> {
   }
 }
 
+/**
+ * Strip the CWD prefix from absolute paths embedded in served artifacts so
+ * the dashboard displays `fixtures/replays/…` instead of
+ * `/home/…/riptide/fixtures/replays/…`. Engine writes absolute paths into
+ * `simulation-result.json` and `report.md`; this is the display-layer fix.
+ * The files on disk are untouched.
+ */
+function relativizeCwdPaths(raw: string): string {
+  const cwdPrefix = process.cwd() + path.sep;
+  return raw.split(cwdPrefix).join("");
+}
+
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -154,11 +166,10 @@ function makeRequestHandler(runArtifactsDir: string) {
           });
           return;
         }
-        // Pass the raw bytes through instead of JSON.parse + stringify
-        // so (a) we avoid O(n) re-encoding cost on large runs and (b)
-        // the served bytes stay byte-identical to what the CLI wrote
-        // to disk — handy for anyone diffing.
-        sendText(res, 200, raw, "application/json");
+        // Strip CWD prefix from absolute paths so the dashboard shows
+        // `fixtures/replays/…` instead of `/home/…/riptide/fixtures/…`.
+        // Files on disk are unchanged.
+        sendText(res, 200, relativizeCwdPaths(raw), "application/json");
         return;
       }
       if (pathname === "/api/report") {
@@ -170,7 +181,7 @@ function makeRequestHandler(runArtifactsDir: string) {
           });
           return;
         }
-        sendText(res, 200, raw, "text/markdown");
+        sendText(res, 200, relativizeCwdPaths(raw), "text/markdown");
         return;
       }
       if (pathname === "/api/health") {
