@@ -733,14 +733,18 @@ test("buildScenarioRun: outputPathOverride wins over the run-config's output_pat
   );
 });
 
-test("resolveArtifactsDir: default places artifacts under cwd/.riptide/runs/<scenario-name>", async () => {
+test("resolveArtifactsDir: default produces a relative .riptide/runs/<scenario-name> path (not absolute)", async () => {
+  // Relative-by-default so the serialized SimulationResult's
+  // run_config.output_path — which the dashboard renders — reads
+  // as `.riptide/runs/…` instead of leaking the full dev-machine
+  // home dir into every result file.
   const { resolveArtifactsDir } = await import("../src/run/loop.js");
-  const cwd = "/x/repo";
   const p = resolveArtifactsDir({
     scenario: { name: "solend-fork/hero-grid/w25-s40", runConfigPath: "/x.json" },
-    cwd
+    cwd: "/x/repo"
   });
-  assert.equal(p, path.join(cwd, ".riptide", "runs", "solend-fork", "hero-grid", "w25-s40"));
+  assert.equal(p, path.join(".riptide", "runs", "solend-fork", "hero-grid", "w25-s40"));
+  assert.equal(path.isAbsolute(p), false);
 });
 
 test("resolveArtifactsDir: --output-dir override replaces the .riptide/runs root", async () => {

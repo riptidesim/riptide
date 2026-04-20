@@ -673,15 +673,23 @@ async function defaultRunOne(ctx: RunOneContext): Promise<RunOneResult> {
 
 /**
  * Compute the artifact directory for a scenario run. Default:
- * `<cwd>/.riptide/runs/<scenario-name>/` with `/` in the name
- * preserved as directory separators. Override: `<outputDir>/<scenario-name>/`
- * when --output-dir is passed.
+ * `.riptide/runs/<scenario-name>/` (relative to cwd) with `/` in the
+ * name preserved as directory separators. Override:
+ * `<outputDir>/<scenario-name>/` when --output-dir is passed (the
+ * caller already absolute-resolved outputDir at CLI parse time).
+ *
+ * The default stays RELATIVE on purpose — the engine writes the
+ * configured output_path into the serialized SimulationResult, and
+ * that value surfaces in the dashboard meta panel + any downstream
+ * consumer. A relative path reads cleanly ("artifacts: .riptide/runs/...")
+ * where an absolute one leaks `/home/<dev>/Work/...` into every
+ * result file a user might share.
  */
 export function resolveArtifactsDir(ctx: RunOneContext): string {
   const segments = ctx.scenario.name.split("/").filter((s) => s.length > 0);
   const root = ctx.outputDir
     ? path.resolve(ctx.outputDir)
-    : path.join(ctx.cwd, ".riptide", "runs");
+    : path.join(".riptide", "runs");
   if (segments.length === 0) {
     return root;
   }
