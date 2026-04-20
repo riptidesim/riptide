@@ -2,13 +2,16 @@
 // `cli/test/run-output.test.ts` — every change here must update the
 // pin test intentionally.
 //
-// Contract (R4.3, Sprint 8):
-// - 0   : all discovered scenarios ran + zero invariants fired
+// Contract (R4.3 + R9.2):
+// - 0   : all discovered scenarios ran + zero invariants fired, zero errors
 // - 1   : one or more scenarios had at least one invariant fire
-// - 2   : setup error (discovery missing, file not found, adapter load
-//         failure, engine binary missing)
-// - 3   : internal partial-abort (engine crashed mid-sweep — NOT
-//         signal-initiated)
+// - 2   : setup/runtime error — any scenario errored (wrong adapter,
+//         missing binary, engine exit 2, etc.) OR a global setup
+//         failure short-circuited the sweep before it started.
+// - 3   : internal partial-abort — reserved for post-hoc rollback
+//         scenarios the current run loop doesn't surface; kept in
+//         the enum so external CI integrations pinning it don't
+//         break, but never emitted by exitCodeFromSummary today.
 // - 130 : SIGINT-aborted (Unix convention, matches jest)
 
 import type { RunSummary } from "./loop.js";
@@ -25,7 +28,7 @@ export type ExitCode = (typeof EXIT_CODES)[keyof typeof EXIT_CODES];
 
 export function exitCodeFromSummary(summary: RunSummary): ExitCode {
   if (summary.signalAborted) return EXIT_CODES.SIGINT;
-  if (summary.partialAbort) return EXIT_CODES.PARTIAL_ABORT;
+  if (summary.error > 0) return EXIT_CODES.SETUP_ERROR;
   if (summary.fail > 0) return EXIT_CODES.INVARIANT_FIRE;
   return EXIT_CODES.SUCCESS;
 }

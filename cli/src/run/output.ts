@@ -1,23 +1,25 @@
 // Jest-style output formatter for `riptide run`.
 //
 // Subscribes to the RunEvent stream emitted by runScenarios() and
-// writes per-scenario pass/fail lines, a summary line, and per-
-// failure detail. Exact format pinned by `cli/test/run-output.test.ts`
+// writes per-scenario pass/fail/error lines, a summary line, and
+// per-failure detail. Exact format pinned by `cli/test/run-output.test.ts`
 // — do NOT change any literal below without updating the pin tests.
 //
-// FORMAT CONTRACT (Sprint 8 T04, frozen per R4.5):
+// FORMAT CONTRACT (R4.5 frozen + R9.2 expanded classifier):
 //
-// Per-scenario PASS line:   `✓ <name>  (<secs>s, 0 invariant fires)`
-// Per-scenario FAIL line:   `✗ <name>  (<secs>s, <N> invariant fires: <first-inv> at tick <tick>)`
-// Plain-ASCII fallback:     `ok` / `FAIL` replacing `✓` / `✗`
+// Per-scenario PASS line:    `✓ <name>  (<secs>s, 0 invariant fires)`
+// Per-scenario FAIL line:    `✗ <name>  (<secs>s, <N> invariant fires: <first-inv> at tick <tick>)`
+// Per-scenario ERROR line:   `! <name>  (<secs>s, error: <message-head>)`
+// Plain-ASCII fallback:      `ok` / `FAIL` / `ERROR` replace glyphs
 //   (triggers on `!process.stdout.isTTY` OR `NO_COLOR` set)
-// Summary line (always):    `<P> pass · <F> fail · <K> skip`
-// Per-failure block:        `  ✗ <name>` + one `    - <inv> at tick <tick>` per fire
-// Dashboard echo:           printed only when `--serve` was passed
+// Summary line (always):     `<P> pass · <F> fail · <E> error · <K> skip`
+// Per-failure block (fail):  `  ✗ <name>` + one `    - <inv> at tick <tick>` per fire
+// Per-failure block (error): `  ! <name>` + `    - error: <message>`
+// Dashboard echo:            printed only when `--serve` was passed
 //
 // Schema for `.riptide/last-run.json` that this formatter + the
 // `--only-failing` filter both consume is documented at the top of
-// `cli/src/run/last-run.ts` and is frozen from Sprint 8 T03 onward.
+// `cli/src/run/last-run.ts`.
 
 import type { Writable } from "node:stream";
 
@@ -43,10 +45,21 @@ export function shouldUsePlainAscii(env: NodeJS.ProcessEnv, isTTY: boolean): boo
   return false;
 }
 
+export interface Glyphs {
+  ok: string;
+  fail: string;
+  error: string;
+}
+
+export function glyphsForMode(plain: boolean): Glyphs {
+  return plain
+    ? { ok: "ok", fail: "FAIL", error: "ERROR" }
+    : { ok: "✓", fail: "✗", error: "!" };
+}
+
 export function createJestFormatter(opts: FormatterOptions): Formatter {
   const plain = opts.plainAscii ?? shouldUsePlainAscii(process.env, Boolean(process.stdout.isTTY));
-  const okGlyph = plain ? "ok" : "✓";
-  const failGlyph = plain ? "FAIL" : "✗";
+  const glyphs = glyphsForMode(plain);
 
   function handle(event: RunEvent): void {
     switch (event.type) {
@@ -55,11 +68,11 @@ export function createJestFormatter(opts: FormatterOptions): Formatter {
       case "warning":
         return;
       case "scenario_end": {
-        opts.stdout.write(formatScenarioLine(event.record, okGlyph, failGlyph) + "\n");
+        opts.stdout.write(formatScenarioLine(event.record, glyphs.ok, glyphs.fail, glyphs.error) + "\n");
         return;
       }
       case "run_end": {
-        writeSummary(opts.stdout, event.summary, failGlyph);
+        writeSummary(opts.stdout, event.summary, glyphs);
         if (opts.dashboardUrl) {
           opts.stdout.write(`Dashboard: ${opts.dashboardUrl}\n`);
         }
@@ -74,7 +87,8 @@ export function createJestFormatter(opts: FormatterOptions): Formatter {
 export function formatScenarioLine(
   record: ScenarioRecord,
   okGlyph: string,
-  failGlyph: string
+  failGlyph: string,
+  errorGlyph: string = failGlyph
 ): string {
   const secs = record.wall_clock_s.toFixed(1);
   if (record.status === "pass") {
@@ -86,41 +100,60 @@ export function formatScenarioLine(
     const detail = first ? `: ${first.name} at tick ${first.tick}` : "";
     return `${failGlyph} ${record.name}  (${secs}s, ${n} invariant fire${n === 1 ? "" : "s"}${detail})`;
   }
-  // aborted
-  return `${failGlyph} ${record.name}  (${secs}s, aborted${record.error ? `: ${record.error}` : ""})`;
+  if (record.status === "skipped") {
+    return `- ${record.name}  (skipped${record.error ? `: ${record.error}` : ""})`;
+  }
+  // error
+  const head = record.error ? firstLine(record.error) : "setup failed";
+  return `${errorGlyph} ${record.name}  (${secs}s, error: ${head})`;
 }
 
 export function formatSummaryLine(summary: RunSummary): string {
-  return `${summary.pass} pass · ${summary.fail} fail · ${summary.skipped + summary.aborted} skip`;
+  return (
+    `${summary.pass} pass · ${summary.fail} fail · ${summary.error} error · ${summary.skipped} skip`
+  );
 }
 
-export function formatFailureBlock(record: ScenarioRecord, failGlyph: string): string {
+export function formatFailureBlock(
+  record: ScenarioRecord,
+  failGlyph: string,
+  errorGlyph: string = failGlyph
+): string {
   const lines: string[] = [];
-  lines.push(`  ${failGlyph} ${record.name}`);
-  if (record.status === "aborted" && record.error) {
-    lines.push(`    - aborted: ${record.error}`);
+  if (record.status === "error") {
+    lines.push(`  ${errorGlyph} ${record.name}`);
+    if (record.error) {
+      lines.push(`    - error: ${record.error}`);
+    }
+    return lines.join("\n");
   }
+  lines.push(`  ${failGlyph} ${record.name}`);
   for (const fire of record.invariant_fires) {
     lines.push(`    - ${fire.name} at tick ${fire.tick}`);
   }
   return lines.join("\n");
 }
 
-function writeSummary(stdout: Writable, summary: RunSummary, failGlyph: string): void {
+function writeSummary(stdout: Writable, summary: RunSummary, glyphs: Glyphs): void {
   // blank separator line before summary so per-scenario list doesn't
   // collide with the totals visually. jest does the same.
   stdout.write("\n");
   stdout.write(formatSummaryLine(summary) + "\n");
 
-  const failures = summary.scenarios.filter(
-    (s) => s.status === "fail" || s.status === "aborted"
+  const interesting = summary.scenarios.filter(
+    (s) => s.status === "fail" || s.status === "error"
   );
-  if (failures.length > 0) {
+  if (interesting.length > 0) {
     stdout.write("\n");
-    for (const record of failures) {
-      stdout.write(formatFailureBlock(record, failGlyph) + "\n");
+    for (const record of interesting) {
+      stdout.write(formatFailureBlock(record, glyphs.fail, glyphs.error) + "\n");
     }
   }
+}
+
+function firstLine(s: string): string {
+  const idx = s.indexOf("\n");
+  return idx === -1 ? s : s.slice(0, idx);
 }
 
 /** Convenience helper for plain-text extraction of invariant-fire detail. */

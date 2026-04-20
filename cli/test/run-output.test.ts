@@ -112,29 +112,50 @@ test("formatScenarioLine: plain-ASCII glyphs replace ✓ / ✗ with ok / FAIL", 
   assert.equal(fail, "FAIL b  (0.1s, 1 invariant fire: inv at tick 1)");
 });
 
-test("formatScenarioLine: aborted line names the abort reason", () => {
+test("formatScenarioLine: error line names the first line of the error message", () => {
   const line = formatScenarioLine(
     {
       name: "c",
       run_config_path: "/x",
-      status: "aborted",
+      status: "error",
       wall_clock_s: 0,
       invariant_fires: [],
-      error: "engine crashed"
+      error: "engine crashed\nmore detail"
     },
     "✓",
-    "✗"
+    "✗",
+    "!"
   );
-  assert.equal(line, "✗ c  (0.0s, aborted: engine crashed)");
+  assert.equal(line, "! c  (0.0s, error: engine crashed)");
+});
+
+test("formatScenarioLine: skipped line prints a muted placeholder", () => {
+  const line = formatScenarioLine(
+    {
+      name: "d",
+      run_config_path: "/x",
+      status: "skipped",
+      wall_clock_s: 0,
+      invariant_fires: [],
+      error: "skipped: SIGINT received before scenario could start"
+    },
+    "✓",
+    "✗",
+    "!"
+  );
+  assert.equal(
+    line,
+    "- d  (skipped: skipped: SIGINT received before scenario could start)"
+  );
 });
 
 // --- Summary line format ---
 
-test("formatSummaryLine: exact shape '<P> pass · <F> fail · <K> skip'", () => {
+test("formatSummaryLine: exact shape '<P> pass · <F> fail · <E> error · <K> skip'", () => {
   const summary: RunSummary = {
     pass: 3,
     fail: 1,
-    aborted: 0,
+    error: 0,
     skipped: 2,
     total: 6,
     signalAborted: false,
@@ -142,14 +163,14 @@ test("formatSummaryLine: exact shape '<P> pass · <F> fail · <K> skip'", () => 
     lastRunPath: "/x",
     scenarios: []
   };
-  assert.equal(formatSummaryLine(summary), "3 pass · 1 fail · 2 skip");
+  assert.equal(formatSummaryLine(summary), "3 pass · 1 fail · 0 error · 2 skip");
 });
 
-test("formatSummaryLine: aborted counts roll into skip", () => {
+test("formatSummaryLine: errors counted separately from skip (R9.2 classifier expansion)", () => {
   const summary: RunSummary = {
     pass: 1,
     fail: 0,
-    aborted: 2,
+    error: 2,
     skipped: 0,
     total: 3,
     signalAborted: false,
@@ -157,7 +178,7 @@ test("formatSummaryLine: aborted counts roll into skip", () => {
     lastRunPath: "/x",
     scenarios: []
   };
-  assert.equal(formatSummaryLine(summary), "1 pass · 0 fail · 2 skip");
+  assert.equal(formatSummaryLine(summary), "1 pass · 0 fail · 2 error · 0 skip");
 });
 
 // --- Per-failure detail block ---
@@ -180,17 +201,17 @@ test("formatFailureBlock: one indented bullet per fire, each naming inv + tick",
   );
 });
 
-test("formatFailureBlock: aborted record names the abort reason", () => {
+test("formatFailureBlock: error record uses the error glyph + 'error:' prefix", () => {
   const record: ScenarioRecord = {
     name: "y",
     run_config_path: "/x",
-    status: "aborted",
+    status: "error",
     wall_clock_s: 0,
     invariant_fires: [],
     error: "engine crashed"
   };
-  const block = formatFailureBlock(record, "✗");
-  assert.equal(block, ["  ✗ y", "    - aborted: engine crashed"].join("\n"));
+  const block = formatFailureBlock(record, "✗", "!");
+  assert.equal(block, ["  ! y", "    - error: engine crashed"].join("\n"));
 });
 
 // --- Plain-ASCII detection ---
@@ -248,7 +269,7 @@ test("createJestFormatter: emits per-scenario line on scenario_end, summary on r
     summary: {
       pass: 1,
       fail: 1,
-      aborted: 0,
+      error: 0,
       skipped: 0,
       total: 2,
       signalAborted: false,
@@ -279,7 +300,7 @@ test("createJestFormatter: emits per-scenario line on scenario_end, summary on r
   assert.equal(lines[1], "FAIL bravo  (0.2s, 1 invariant fire: inv at tick 1)");
   // blank separator, then summary, then blank separator, then failure block
   assert.equal(lines[2], "");
-  assert.equal(lines[3], "1 pass · 1 fail · 0 skip");
+  assert.equal(lines[3], "1 pass · 1 fail · 0 error · 0 skip");
   assert.equal(lines[4], "");
   assert.equal(lines[5], "  FAIL bravo");
   assert.equal(lines[6], "    - inv at tick 1");
@@ -304,7 +325,7 @@ test("createJestFormatter: dashboard URL echoed only when provided", () => {
     summary: {
       pass: 1,
       fail: 0,
-      aborted: 0,
+      error: 0,
       skipped: 0,
       total: 1,
       signalAborted: false,
@@ -331,7 +352,7 @@ test("exit code: 0 when all scenarios passed and no abort", () => {
   const summary: RunSummary = {
     pass: 3,
     fail: 0,
-    aborted: 0,
+    error: 0,
     skipped: 0,
     total: 3,
     signalAborted: false,
@@ -347,7 +368,7 @@ test("exit code: 1 when at least one invariant fired", () => {
   const summary: RunSummary = {
     pass: 2,
     fail: 1,
-    aborted: 0,
+    error: 0,
     skipped: 0,
     total: 3,
     signalAborted: false,
@@ -359,11 +380,11 @@ test("exit code: 1 when at least one invariant fired", () => {
   assert.equal(EXIT_CODES.INVARIANT_FIRE, 1);
 });
 
-test("exit code: 3 on internal partial abort (engine crash, not signal)", () => {
+test("exit code: 2 when one or more scenarios errored (R9.2 reclassification)", () => {
   const summary: RunSummary = {
     pass: 1,
     fail: 0,
-    aborted: 1,
+    error: 1,
     skipped: 0,
     total: 2,
     signalAborted: false,
@@ -371,15 +392,15 @@ test("exit code: 3 on internal partial abort (engine crash, not signal)", () => 
     lastRunPath: "/x",
     scenarios: []
   };
-  assert.equal(exitCodeFromSummary(summary), EXIT_CODES.PARTIAL_ABORT);
-  assert.equal(EXIT_CODES.PARTIAL_ABORT, 3);
+  assert.equal(exitCodeFromSummary(summary), EXIT_CODES.SETUP_ERROR);
+  assert.equal(EXIT_CODES.SETUP_ERROR, 2);
 });
 
 test("exit code: 130 on SIGINT (Unix convention, wins over fail/abort)", () => {
   const summary: RunSummary = {
     pass: 0,
     fail: 1,
-    aborted: 1,
+    error: 1,
     skipped: 1,
     total: 3,
     signalAborted: true,

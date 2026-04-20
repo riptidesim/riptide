@@ -1,13 +1,12 @@
 // `.riptide/last-run.json` schema + read/write helpers.
 //
-// Frozen schema (schema_version = 1) — consumed by `--only-failing`
-// and T04's output formatter. Every `riptide run` invocation writes
-// this file at the end (including aborted runs, with status="aborted"
-// entries for incomplete scenarios). Documented here as the single
+// schema_version = 1 — consumed by `--only-failing` and T04's output
+// formatter. Every `riptide run` invocation writes this file at the
+// end (including SIGINT-aborted runs). Documented here as the single
 // source of truth; T04's output formatter references this shape.
 //
 // ----------------------------------------------------------------------
-// SCHEMA v1 (FROZEN as of Sprint 8 T03 / 2026-04-19):
+// SCHEMA v1:
 //
 // {
 //   "schema_version": 1,
@@ -19,7 +18,7 @@
 //     {
 //       "name": "hero-grid/w25-s40",       // discovery-derived name
 //       "run_config_path": "/abs/path/run-config.json",
-//       "status": "pass" | "fail" | "aborted",
+//       "status": "pass" | "fail" | "error" | "skipped",
 //       "wall_clock_s": <number>,          // 3-decimal seconds
 //       "invariant_fires": [
 //         { "name": "<invariant-name>", "tick": <number> }
@@ -34,9 +33,14 @@
 // Status mapping:
 // - "pass"    — scenario completed, zero invariant fires
 // - "fail"    — scenario completed, one or more invariant fires
-// - "aborted" — scenario either (a) skipped because a SIGINT landed
-//               before it could start, or (b) engine crashed /
-//               orchestrator failed to complete the scenario
+// - "error"   — engine exited non-zero mid-setup or mid-run, or the
+//               orchestrator itself failed (missing binary, wrong
+//               adapter, etc.). No trustworthy SimulationResult.
+// - "skipped" — not executed because SIGINT landed before it started.
+//
+// Back-compat: readLastRun normalizes stale `status: "aborted"` values
+// (written pre-Phase-4) to `"error"`, so --only-failing keeps matching
+// the same scenarios without forcing a rerun.
 //
 // ----------------------------------------------------------------------
 
@@ -51,7 +55,7 @@ export interface InvariantFire {
   tick: number;
 }
 
-export type ScenarioStatus = "pass" | "fail" | "aborted";
+export type ScenarioStatus = "pass" | "fail" | "error" | "skipped";
 
 export interface ScenarioRecord {
   name: string;
@@ -86,11 +90,18 @@ export async function writeLastRun(cwd: string, payload: LastRun): Promise<strin
 export async function readLastRun(cwd: string): Promise<LastRun | null> {
   try {
     const raw = await readFile(lastRunPath(cwd), "utf8");
-    const parsed = JSON.parse(raw) as LastRun;
+    const parsed = JSON.parse(raw) as LastRun & { scenarios: Array<ScenarioRecord & { status: string }> };
     if (parsed.schema_version !== LAST_RUN_SCHEMA_VERSION) {
       return null;
     }
-    return parsed;
+    // Normalize pre-Phase-4 "aborted" status to "error" so
+    // --only-failing keeps working against stale files.
+    for (const s of parsed.scenarios) {
+      if ((s.status as string) === "aborted") {
+        s.status = "error";
+      }
+    }
+    return parsed as LastRun;
   } catch (err) {
     if (err && typeof err === "object" && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
       return null;
@@ -99,11 +110,11 @@ export async function readLastRun(cwd: string): Promise<LastRun | null> {
   }
 }
 
-/** Names of scenarios whose last run failed or aborted. Used by `--only-failing`. */
+/** Names of scenarios whose last run failed or errored. Used by `--only-failing`. */
 export function failingNames(last: LastRun): Set<string> {
   const out = new Set<string>();
   for (const s of last.scenarios) {
-    if (s.status === "fail" || s.status === "aborted") {
+    if (s.status === "fail" || s.status === "error") {
       out.add(s.name);
     }
   }

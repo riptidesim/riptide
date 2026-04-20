@@ -33,7 +33,7 @@ import {
   type RunOneContext,
   type RunOneResult
 } from "../src/run/loop.js";
-import { resolveDefaultAdapter } from "../src/commands/run.js";
+import { resolveAdapterForScenario } from "../src/run/adapter.js";
 import {
   LAST_RUN_SCHEMA_VERSION,
   lastRunPath,
@@ -82,8 +82,8 @@ function failResult(fires: Array<{ name: string; tick: number }>, wallClockS = 0
   };
 }
 
-function abortResult(error: string): RunOneResult {
-  return { kind: "aborted", wallClockS: 0, error };
+function errorResult(error: string): RunOneResult {
+  return { kind: "error", wallClockS: 0, error };
 }
 
 // --- resolveScenarios ---
@@ -195,7 +195,7 @@ test("resolveScenarios: --only-failing filters by last-run.json statuses", async
       {
         name: "bravo",
         run_config_path: bravoFile,
-        status: "aborted",
+        status: "error",
         wall_clock_s: 0,
         invariant_fires: []
       },
@@ -261,7 +261,7 @@ test("runScenarios: sequential invocation in discovery-sorted order", async () =
   );
   assert.equal(summary.pass, 3);
   assert.equal(summary.fail, 0);
-  assert.equal(summary.aborted, 0);
+  assert.equal(summary.error, 0);
 });
 
 test("runScenarios: writes .riptide/last-run.json with v1 schema", async () => {
@@ -302,13 +302,13 @@ test("runScenarios: writes .riptide/last-run.json with v1 schema", async () => {
   assert.equal(parsed.partial_abort, false);
 });
 
-test("runScenarios: aborted scenario records 'aborted' + partialAbort flag", async () => {
-  const root = await tmpRoot("run-abort");
+test("runScenarios: errored scenario records 'error' status + partialAbort flag", async () => {
+  const root = await tmpRoot("run-error");
   await mkdir(path.join(root, ".riptide"), { recursive: true });
   const scenarios: ResolvedScenario[] = [
     { name: "alpha", runConfigPath: path.join(root, "a.json") }
   ];
-  const runOne = async (): Promise<RunOneResult> => abortResult("engine crashed");
+  const runOne = async (): Promise<RunOneResult> => errorResult("engine crashed");
 
   const summary = await runScenarios({
     scenarios,
@@ -317,11 +317,48 @@ test("runScenarios: aborted scenario records 'aborted' + partialAbort flag", asy
     handleSignals: false
   });
 
-  assert.equal(summary.aborted, 1);
+  assert.equal(summary.error, 1);
   assert.equal(summary.partialAbort, true);
   assert.equal(summary.signalAborted, false);
-  assert.equal(summary.scenarios[0]!.status, "aborted");
+  assert.equal(summary.scenarios[0]!.status, "error");
   assert.equal(summary.scenarios[0]!.error, "engine crashed");
+});
+
+test("runScenarios: distinguishes error (exit 2) from fail (invariant fire) in records", async () => {
+  // Mixed-bundle regression guard (T09 done-when #6): verify the
+  // run loop records errored scenarios with status "error" and
+  // invariant-firing scenarios with status "fail" in the same sweep.
+  const root = await tmpRoot("run-mixed-classification");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  const scenarios: ResolvedScenario[] = [
+    { name: "grinder/broken", runConfigPath: path.join(root, "g.json") },
+    { name: "solend/baseline", runConfigPath: path.join(root, "s.json") },
+    { name: "solend/failing", runConfigPath: path.join(root, "f.json") }
+  ];
+  const runOne = async (ctx: RunOneContext): Promise<RunOneResult> => {
+    if (ctx.scenario.name === "grinder/broken") {
+      return errorResult("riptide-engine exited with code 2.");
+    }
+    if (ctx.scenario.name === "solend/failing") {
+      return failResult([{ name: "tvl_ok", tick: 5 }], 0.2);
+    }
+    return passResult(0.1);
+  };
+
+  const summary = await runScenarios({
+    scenarios,
+    cwd: root,
+    runOne,
+    handleSignals: false
+  });
+
+  assert.equal(summary.pass, 1);
+  assert.equal(summary.fail, 1);
+  assert.equal(summary.error, 1);
+  assert.equal(summary.skipped, 0);
+  assert.equal(summary.scenarios[0]!.status, "error");
+  assert.equal(summary.scenarios[1]!.status, "pass");
+  assert.equal(summary.scenarios[2]!.status, "fail");
 });
 
 test("runScenarios: events emitted in the correct order", async () => {
@@ -410,88 +447,150 @@ test("extractInvariantFires: pulls (name, tick) pairs from events[] in emission 
   ]);
 });
 
-// --- default adapter resolution (Finding 1) ---
+// --- per-scenario adapter resolution (R9.1) ---
 
-test("resolveDefaultAdapter: single .toml under .riptide/adapters/ → ok", async () => {
-  const root = await tmpRoot("adapter-single");
-  const adaptersDir = path.join(root, ".riptide", "adapters");
-  await mkdir(adaptersDir, { recursive: true });
-  const adapterFile = path.join(adaptersDir, "my-program.toml");
-  await writeFile(adapterFile, "protocol = \"lending\"\n");
+test("resolveAdapterForScenario: --adapter override wins every other branch", async () => {
+  const root = await tmpRoot("adapter-override");
+  const overrideToml = path.join(root, "pinned.toml");
+  await writeFile(overrideToml, "x\n");
 
-  const res = resolveDefaultAdapter(root);
+  // Even with a scaffolded + monorepo + run-config-declared adapter, the
+  // global override must win. We give the resolver the override to prove
+  // the short-circuit without actually populating the other candidates.
+  const res = resolveAdapterForScenario(
+    { name: "whatever/x", runConfigPath: "/nonexistent.json" },
+    { cwd: root, monorepoRoot: null, globalOverride: overrideToml }
+  );
+  assert.equal(res.kind, "ok");
+  if (res.kind !== "ok") return;
+  assert.equal(res.path, path.resolve(overrideToml));
+  assert.equal(res.source, "override");
+});
+
+test("resolveAdapterForScenario: scenario's run-config 'adapter' field wins over monorepo bundle", async () => {
+  const root = await tmpRoot("adapter-runconfig");
+  const scenarioDir = path.join(root, ".riptide", "scenarios", "custom", "one");
+  await mkdir(scenarioDir, { recursive: true });
+  const adapterFile = path.join(scenarioDir, "declared.toml");
+  await writeFile(adapterFile, "x\n");
+  const runConfigPath = path.join(scenarioDir, "run-config.json");
+  await writeFile(
+    runConfigPath,
+    JSON.stringify({
+      agents: 1, ticks: 1, scenario: "x", seed: 1, personas: [],
+      adapter: "declared.toml"
+    })
+  );
+
+  const res = resolveAdapterForScenario(
+    { name: "custom/one", runConfigPath },
+    { cwd: root, monorepoRoot: null }
+  );
   assert.equal(res.kind, "ok");
   if (res.kind !== "ok") return;
   assert.equal(res.path, adapterFile);
+  assert.equal(res.source, "run-config");
 });
 
-test("resolveDefaultAdapter: scaffolded adapter wins over monorepo fallback", async () => {
-  const root = await tmpRoot("adapter-precedence");
-  const scaffoldedDir = path.join(root, ".riptide", "adapters");
-  await mkdir(scaffoldedDir, { recursive: true });
-  const scaffolded = path.join(scaffoldedDir, "my-program.toml");
+test("resolveAdapterForScenario: monorepo bundle fallback derives from first path segment", async () => {
+  // Mixed-bundle scenarios in the monorepo must pick the bundle adapter
+  // that matches their name prefix. resource-grinder scenarios must NOT
+  // end up using solend-fork's adapter — that's the T09 bug.
+  const monorepo = await tmpRoot("adapter-bundle");
+  const adaptersDir = path.join(monorepo, "fixtures", "adapters");
+  await mkdir(adaptersDir, { recursive: true });
+  const grinderAdapter = path.join(adaptersDir, "resource-grinder.toml");
+  const solendAdapter = path.join(adaptersDir, "solend-fork.toml");
+  await writeFile(grinderAdapter, "g\n");
+  await writeFile(solendAdapter, "s\n");
+
+  const cwd = await tmpRoot("adapter-bundle-cwd");
+  const resGrinder = resolveAdapterForScenario(
+    {
+      name: "resource-grinder/botter-share-sweep",
+      runConfigPath: "/nonexistent.json"
+    },
+    { cwd, monorepoRoot: monorepo }
+  );
+  const resSolend = resolveAdapterForScenario(
+    {
+      name: "solend-fork/hero-grid/w25-s40",
+      runConfigPath: "/nonexistent.json"
+    },
+    { cwd, monorepoRoot: monorepo }
+  );
+
+  assert.equal(resGrinder.kind, "ok");
+  assert.equal(resSolend.kind, "ok");
+  if (resGrinder.kind !== "ok" || resSolend.kind !== "ok") return;
+  assert.equal(resGrinder.path, grinderAdapter);
+  assert.equal(resSolend.path, solendAdapter);
+  assert.equal(resGrinder.source, "bundle");
+  assert.equal(resSolend.source, "bundle");
+});
+
+test("resolveAdapterForScenario: scaffolded .riptide/adapters/<one>.toml is the user-repo fallback", async () => {
+  const cwd = await tmpRoot("adapter-scaffold");
+  const scaffoldDir = path.join(cwd, ".riptide", "adapters");
+  await mkdir(scaffoldDir, { recursive: true });
+  const scaffolded = path.join(scaffoldDir, "my-program.toml");
   await writeFile(scaffolded, "x\n");
 
-  // Also lay down a monorepo-shaped fallback to prove it's NOT chosen.
-  const monorepoFixture = path.join(root, "fixtures", "adapters");
-  await mkdir(monorepoFixture, { recursive: true });
-  await writeFile(path.join(monorepoFixture, "solend-fork.toml"), "y\n");
-
-  const res = resolveDefaultAdapter(root);
+  const res = resolveAdapterForScenario(
+    { name: "scenario/alpha", runConfigPath: "/nonexistent.json" },
+    { cwd, monorepoRoot: null }
+  );
   assert.equal(res.kind, "ok");
   if (res.kind !== "ok") return;
   assert.equal(res.path, scaffolded);
+  assert.equal(res.source, "scaffold");
 });
 
-test("resolveDefaultAdapter: multiple .tomls under .riptide/adapters/ → ambiguous", async () => {
-  const root = await tmpRoot("adapter-multi");
-  const adaptersDir = path.join(root, ".riptide", "adapters");
-  await mkdir(adaptersDir, { recursive: true });
-  await writeFile(path.join(adaptersDir, "a.toml"), "x\n");
-  await writeFile(path.join(adaptersDir, "b.toml"), "y\n");
+test("resolveAdapterForScenario: multiple scaffolded adapters → error (ambiguous)", async () => {
+  const cwd = await tmpRoot("adapter-scaffold-multi");
+  const scaffoldDir = path.join(cwd, ".riptide", "adapters");
+  await mkdir(scaffoldDir, { recursive: true });
+  await writeFile(path.join(scaffoldDir, "a.toml"), "x\n");
+  await writeFile(path.join(scaffoldDir, "b.toml"), "y\n");
 
-  const res = resolveDefaultAdapter(root);
-  assert.equal(res.kind, "ambiguous");
-  if (res.kind !== "ambiguous") return;
-  assert.equal(res.candidates.length, 2);
+  const res = resolveAdapterForScenario(
+    { name: "scenario/alpha", runConfigPath: "/nonexistent.json" },
+    { cwd, monorepoRoot: null }
+  );
+  assert.equal(res.kind, "error");
+  if (res.kind !== "error") return;
+  assert.match(res.message, /multiple TOMLs/);
 });
 
-test("resolveDefaultAdapter: falls back to monorepo fixture (module-root derived) regardless of cwd", async () => {
-  // Injected moduleRoot emulates the CLI being invoked from a deep
-  // subdirectory — cwd has no fixtures/ layout, but module-root does.
-  // This is the Phase 2 review Finding 1 fix: resolution MUST NOT
-  // depend on cwd pointing at repo root.
-  const cwd = await tmpRoot("adapter-module-root-cwd");
-  const fakeMonorepo = await tmpRoot("adapter-module-root-fake");
-  const fixtureDir = path.join(fakeMonorepo, "fixtures", "adapters");
-  await mkdir(fixtureDir, { recursive: true });
-  const fixture = path.join(fixtureDir, "solend-fork.toml");
-  await writeFile(fixture, "y\n");
-
-  const res = resolveDefaultAdapter(cwd, fakeMonorepo);
-  assert.equal(res.kind, "ok");
-  if (res.kind !== "ok") return;
-  assert.equal(res.path, fixture);
+test("resolveAdapterForScenario: nothing anywhere → error with resolution trace", async () => {
+  const cwd = await tmpRoot("adapter-none");
+  const res = resolveAdapterForScenario(
+    { name: "scenario/x", runConfigPath: "/nonexistent.json" },
+    { cwd, monorepoRoot: null }
+  );
+  assert.equal(res.kind, "error");
+  if (res.kind !== "error") return;
+  assert.match(res.message, /could not resolve an adapter/);
 });
 
-test("resolveDefaultAdapter: cwd-local fixtures/adapters/ is the last-resort fallback", async () => {
-  const cwd = await tmpRoot("adapter-cwd-fallback");
-  const cwdFixture = path.join(cwd, "fixtures", "adapters", "solend-fork.toml");
-  await mkdir(path.dirname(cwdFixture), { recursive: true });
-  await writeFile(cwdFixture, "y\n");
+test("resolveAdapterForScenario: monorepo fallback fires only when first-segment adapter exists", async () => {
+  // Scenario name 'unknown-bundle/x' with no matching fixtures/adapters/
+  // entry falls through to the next step (user-repo scaffold); if that's
+  // missing too, errors out.
+  const monorepo = await tmpRoot("adapter-bundle-missing");
+  await mkdir(path.join(monorepo, "fixtures", "adapters"), { recursive: true });
+  // only solend-fork present
+  await writeFile(
+    path.join(monorepo, "fixtures", "adapters", "solend-fork.toml"),
+    "y\n"
+  );
 
-  // Pass moduleRoot: null so the module-root branch is skipped and
-  // we actually exercise the cwd-local fallback.
-  const res = resolveDefaultAdapter(cwd, null);
-  assert.equal(res.kind, "ok");
-  if (res.kind !== "ok") return;
-  assert.equal(res.path, cwdFixture);
-});
-
-test("resolveDefaultAdapter: nothing anywhere → none", async () => {
-  const root = await tmpRoot("adapter-none");
-  const res = resolveDefaultAdapter(root, null);
-  assert.equal(res.kind, "none");
+  const cwd = await tmpRoot("adapter-bundle-missing-cwd");
+  const res = resolveAdapterForScenario(
+    { name: "unknown-bundle/x", runConfigPath: "/nonexistent.json" },
+    { cwd, monorepoRoot: monorepo }
+  );
+  assert.equal(res.kind, "error");
 });
 
 // --- buildScenarioRun: validator_url passthrough + default output path ---

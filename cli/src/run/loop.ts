@@ -22,6 +22,11 @@ import { runOrchestrator } from "../orchestrator/index.js";
 import { writeArtifacts } from "../report/artifacts.js";
 import type { SimulationResult } from "../compiler/schema.js";
 
+import {
+  createAdapterResolver,
+  type AdapterResolverDeps,
+  type ScenarioAdapterResolution
+} from "./adapter.js";
 import { filterScenariosByPattern } from "./glob.js";
 import {
   failingNames,
@@ -48,7 +53,9 @@ export type RunEvent =
 export interface RunSummary {
   pass: number;
   fail: number;
-  aborted: number;
+  /** Setup / engine-crash errors — scenarios that never produced a trustworthy result. */
+  error: number;
+  /** SIGINT-skipped scenarios that never started. */
   skipped: number;
   total: number;
   signalAborted: boolean;
@@ -209,12 +216,15 @@ export interface RunScenariosInput {
   scenarios: ResolvedScenario[];
   cwd: string;
   /**
-   * Adapter TOML to pass to the engine for every scenario. Expected
-   * to be set by the command layer (`cli/src/commands/run.ts`
-   * :: resolveDefaultAdapter) so loop.ts stays free of filesystem
-   * defaulting logic.
+   * Global adapter override passed via `--adapter <path>`. When set,
+   * it wins for every scenario; when unset, the per-scenario resolver
+   * in `cli/src/run/adapter.ts` picks an adapter per scenario using
+   * the scenario's run-config field, the monorepo bundle fallback, or
+   * the scaffolded `.riptide/adapters/<one>.toml` convention.
    */
-  adapterPath?: string;
+  adapterOverride?: string;
+  /** Module-root hint for the monorepo bundle fallback. Tests pass `null` to disable. */
+  monorepoRoot?: string | null;
   onEvent?: (event: RunEvent) => void;
   /** Injection hook for tests — substitute the orchestrator invocation. */
   runOne?: (ctx: RunOneContext) => Promise<RunOneResult>;
@@ -229,6 +239,8 @@ export interface RunOneContext {
   scenario: ResolvedScenario;
   cwd: string;
   adapterPath?: string;
+  /** Source label for debugging + verbose output ("override" | "run-config" | "bundle" | "scaffold"). */
+  adapterSource?: string;
 }
 
 export type RunOneResult =
@@ -240,7 +252,7 @@ export type RunOneResult =
       result: SimulationResult;
       fires: InvariantFire[];
     }
-  | { kind: "aborted"; wallClockS: number; error: string };
+  | { kind: "error"; wallClockS: number; error: string };
 
 /**
  * Execute the resolved scenarios sequentially and return the final
@@ -252,6 +264,17 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
   const onEvent = input.onEvent ?? (() => {});
   const runOne = input.runOne ?? defaultRunOne;
   const handleSignals = input.handleSignals !== false;
+
+  // Per-scenario adapter resolver. Injection-friendly so tests can
+  // skip resolution entirely by passing a fake runOne; when runOne is
+  // the default engine path we lean on the resolver to pick an
+  // adapter per scenario.
+  const resolverDeps: AdapterResolverDeps = {
+    cwd: input.cwd,
+    monorepoRoot: input.monorepoRoot ?? null,
+    globalOverride: input.adapterOverride
+  };
+  const resolveAdapter = createAdapterResolver(resolverDeps);
 
   const startedAt = new Date().toISOString();
 
@@ -266,7 +289,7 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
   const records: ScenarioRecord[] = [];
   let pass = 0;
   let fail = 0;
-  let aborted = 0;
+  let error = 0;
   let skipped = 0;
   let partialAbort = false;
   let lastArtifactsDir: string | undefined;
@@ -278,12 +301,11 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
     const total = input.scenarios.length;
 
     if (signalAborted) {
-      // Remaining scenarios were never started — record as aborted
-      // with zero wall-clock so the user sees what was skipped.
+      // Remaining scenarios were never started — skipped.
       const record: ScenarioRecord = {
         name: scenario.name,
         run_config_path: scenario.runConfigPath,
-        status: "aborted",
+        status: "skipped",
         wall_clock_s: 0,
         invariant_fires: [],
         error: "skipped: SIGINT received before scenario could start"
@@ -295,16 +317,40 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
 
     onEvent({ type: "scenario_start", index: i, total, scenario });
 
+    let adapterResolution: ScenarioAdapterResolution | null = null;
     let runResult: RunOneResult;
+
     try {
-      runResult = await runOne({
-        scenario,
-        cwd: input.cwd,
-        adapterPath: input.adapterPath
-      });
+      // Resolve the adapter only when the caller relies on the default
+      // runOne. Injected test runOnes provide their own adapter paths
+      // (or ignore them entirely) so the resolver's filesystem checks
+      // don't leak into unit tests.
+      const adapterPath = (() => {
+        if (input.runOne) return input.adapterOverride;
+        adapterResolution = resolveAdapter(scenario);
+        if (adapterResolution.kind === "error") {
+          return undefined;
+        }
+        return adapterResolution.path;
+      })();
+
+      if (adapterResolution && adapterResolution.kind === "error") {
+        runResult = {
+          kind: "error",
+          wallClockS: 0,
+          error: adapterResolution.message
+        };
+      } else {
+        runResult = await runOne({
+          scenario,
+          cwd: input.cwd,
+          adapterPath,
+          adapterSource: adapterResolution?.kind === "ok" ? adapterResolution.source : undefined
+        });
+      }
     } catch (err) {
       runResult = {
-        kind: "aborted",
+        kind: "error",
         wallClockS: 0,
         error: errMessage(err)
       };
@@ -320,7 +366,7 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
       fail += 1;
       if (runResult.kind === "fail") lastArtifactsDir = runResult.artifactsDir;
     } else {
-      aborted += 1;
+      error += 1;
       partialAbort = true;
     }
 
@@ -346,7 +392,7 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
   const summary: RunSummary = {
     pass,
     fail,
-    aborted,
+    error,
     skipped,
     total: input.scenarios.length,
     signalAborted,
@@ -385,7 +431,7 @@ function recordForResult(scenario: ResolvedScenario, result: RunOneResult): Scen
   return {
     name: scenario.name,
     run_config_path: scenario.runConfigPath,
-    status: "aborted",
+    status: "error",
     wall_clock_s: roundSec(result.wallClockS),
     invariant_fires: [],
     error: result.error
