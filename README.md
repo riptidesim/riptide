@@ -115,9 +115,12 @@ flowchart LR
 # need to hand-author — personas, scenarios, and invariants all
 # reference what you declare here.
 
+# Paths below are resolved relative to this file's parent directory,
+# so from `.riptide/adapters/` two dot-dot segments reach the
+# Anchor repo's top-level `target/` tree.
 protocol   = "generic"
-program_so = "target/deploy/my_liquid_staking.so"
-idl_path   = "target/idl/my_liquid_staking.json"
+program_so = "../../target/deploy/my_liquid_staking.so"
+idl_path   = "../../target/idl/my_liquid_staking.json"
 
 # Accounts the program reads and writes.
 # "shared" = one instance for all agents (like a staking pool).
@@ -139,7 +142,7 @@ space = 80
 [accounts.price_feed]
 kind  = "shared"
 space = 50
-owner = { program_so = "target/deploy/admin_mock_oracle.so" }
+owner = { program_so = "../../target/deploy/admin_mock_oracle.so" }
 
 # Instructions personas can fire. `amount` is runtime-bound
 # (the persona picks a value per-tick).

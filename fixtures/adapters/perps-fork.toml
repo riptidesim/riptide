@@ -37,8 +37,11 @@
 # scheduled actions, `Primitive::on_scheduled_action`'s default
 # no-op hook handles the path, and a later bundle can declare
 # `update_funding_rate` here without reshaping engine code.
-# - `[invariants]` lives inline below; the perps scratch scripts
-# extend it with additional checks at merge time.
+# - `[invariants]` lives inline below; the two checks declared are
+# the shipping invariants for this adapter. The perps scratch script
+# only appends persona TOMLs at merge time (see
+# `# === SIDECAR-CUT ===` below) — it does not inject additional
+# invariants.
 #
 # **What the generic oracle surface here does NOT yet cover:**
 # - more than one `[[oracles]]` entry per adapter (loader rejects 2+
