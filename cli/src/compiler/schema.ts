@@ -63,7 +63,13 @@ export const RunConfigSchema = z.object({
   scenario: z.string().min(1),
   seed: z.number().int().nonnegative(),
   personas: z.array(PersonaIdSchema),
-  validator_url: z.string().url(),
+  // Serde on the engine side accepts any string here (LiteSVM runs ignore
+  // the field; only the validator-parity path connects to the URL). The
+  // CLI used to enforce `.url()`, but shipping run-configs authored before
+  // Sprint 4 carry a `"unused"` placeholder — rejecting those would break
+  // byte-stable rerun of every pre-Sprint-8 fixture via `riptide run`.
+  // Keep the Zod layer in lockstep with serde: accept any non-empty string.
+  validator_url: z.string().min(1),
   output_path: z.string().min(1)
 });
 

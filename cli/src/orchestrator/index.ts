@@ -42,6 +42,15 @@ export interface OrchestratorOptions {
    * monorepo root derived from this module's on-disk location.
    */
   moduleRoot?: string | null;
+  /**
+   * Absolute path to a pre-compiled `policies.json` sitting next to a
+   * user-authored `run-config.json`. When set, the orchestrator skips
+   * `compilePersonas` and hands the file to the engine verbatim. This
+   * is the path Sprint 4/5/6 shipping bundles rely on — their
+   * `policies.json` pairs are part of the determinism contract and the
+   * LLM-free persona fallback table only covers five lending archetypes.
+   */
+  policiesPath?: string;
 }
 
 export interface ReplayOrchestratorInput {
@@ -130,11 +139,6 @@ export async function runOrchestrator(
     options.moduleRoot === undefined ? monorepoRootFromModule() ?? null : options.moduleRoot
   );
 
-  const policies = await compilePersonas(runConfig.personas, {
-    llmUrl: options.llmUrl,
-    warn
-  });
-
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "riptide-run-"));
   try {
     const configPath = path.join(tmpDir, "run-config.json");
@@ -142,7 +146,21 @@ export async function runOrchestrator(
     const outputPath = path.join(tmpDir, "simulation-result.json");
 
     await writeFile(configPath, JSON.stringify(runConfig, null, 2));
-    await writeFile(policiesPath, JSON.stringify(policies, null, 2));
+
+    // Prefer a caller-supplied policies.json (shipping bundle path —
+    // policies co-authored with the run-config, byte-stable). Fall
+    // through to the LLM-or-fallback compile path only when no
+    // adjacent policies file was found.
+    if (options.policiesPath) {
+      const raw = await readFile(options.policiesPath, "utf8");
+      await writeFile(policiesPath, raw);
+    } else {
+      const policies = await compilePersonas(runConfig.personas, {
+        llmUrl: options.llmUrl,
+        warn
+      });
+      await writeFile(policiesPath, JSON.stringify(policies, null, 2));
+    }
 
     const args = [
       "--config",
