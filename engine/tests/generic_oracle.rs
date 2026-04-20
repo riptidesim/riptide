@@ -368,6 +368,353 @@ fn shock_injection_roundtrip_through_admin_mock_layout() {
     assert_eq!(decoded.exponent, 0);
 }
 
+#[cfg(feature = "litesvm-backend")]
+mod owner_aware_bootstrap {
+    //! Gate: oracle-bootstrap-owner. Proves that an owner-aware generic
+    //! adapter creates the bound shared oracle account with the
+    //! adapter-declared owner pubkey and pre-populates tick-0 bytes
+    //! through the shipping layout dispatcher — never a silent fallback
+    //! to `program_id` and never an all-zero buffer.
+    use std::path::{Path, PathBuf};
+    use std::str::FromStr;
+    use std::sync::OnceLock;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::fs;
+    use std::collections::BTreeMap;
+
+    use riptide_engine::{
+        adapter::{load_adapter, parse_adapter_str, OracleKind},
+        primitive::{GenericBootstrapConfig, GenericHarness},
+        scenario::{oracle_layout_for, OracleUpdate},
+    };
+    use solana_sdk::{
+        pubkey::Pubkey,
+        signature::{read_keypair_file, Signer},
+    };
+
+    fn workspace_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("engine crate has a parent workspace")
+            .to_path_buf()
+    }
+
+    fn admin_mock_oracle_so() -> PathBuf {
+        workspace_root().join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so")
+    }
+
+    fn admin_mock_oracle_keypair() -> PathBuf {
+        workspace_root()
+            .join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle-keypair.json")
+    }
+
+    fn resource_grinder_so() -> PathBuf {
+        workspace_root().join("programs/resource_grinder/target/deploy/resource_grinder.so")
+    }
+
+    fn resource_grinder_idl() -> PathBuf {
+        workspace_root().join("fixtures/idls/resource-grinder.json")
+    }
+
+    fn skip_if_missing(paths: &[&Path]) -> bool {
+        for path in paths {
+            if !path.exists() {
+                eprintln!(
+                    "skipping owner-aware-bootstrap test: {} missing (build with `cargo build-sbf`)",
+                    path.display()
+                );
+                return true;
+            }
+        }
+        false
+    }
+
+    fn adapter_toml_with_owner(
+        owner_clause: &str,
+        base_price: f64,
+        exponent: i8,
+        oracle_space: usize,
+        oracle_kind: &str,
+        extra_oracle_entries: &str,
+    ) -> String {
+        let so = resource_grinder_so().display().to_string();
+        let idl = resource_grinder_idl().display().to_string();
+        format!(
+            r#"
+protocol = "generic"
+program_so = "{so}"
+idl_path = "{idl}"
+
+[accounts.player]
+kind = "agent"
+space = 48
+
+[accounts.oracle]
+kind = "shared"
+space = {oracle_space}
+{owner_clause}
+
+[instructions]
+mine = {{ action = "mine", amount = "amount" }}
+
+[state_mapping]
+"player.gold" = "player.gold"
+
+[actions.mine]
+takes = ["amount"]
+
+[observations]
+"player.gold" = "uint"
+
+[personas.grinder]
+action_rate_multiplier = 1.0
+action_weights = {{ mine = 1.0 }}
+
+[[oracles]]
+name = "price_feed"
+kind = "{oracle_kind}"
+account = "oracle"
+base_price = {base_price}
+exponent = {exponent}
+{extra_oracle_entries}
+"#
+        )
+    }
+
+    fn tmpdir_for(test_name: &str) -> PathBuf {
+        static SEQ: AtomicU64 = AtomicU64::new(0);
+        static ROOT: OnceLock<PathBuf> = OnceLock::new();
+        let root = ROOT
+            .get_or_init(|| {
+                let pid = std::process::id();
+                let nanos = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos();
+                let base = std::env::temp_dir().join(format!("riptide-owner-{pid}-{nanos}"));
+                fs::create_dir_all(&base).expect("create tmp root");
+                base
+            })
+            .clone();
+        let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+        let dir = root.join(format!("{test_name}-{seq}"));
+        fs::create_dir_all(&dir).expect("create scoped tmp dir");
+        dir
+    }
+
+    fn write_adapter(path: &Path, toml: &str) {
+        fs::write(path, toml).expect("write adapter toml");
+    }
+
+    #[test]
+    fn bootstrap_creates_oracle_account_with_declared_owner_and_tick0_bytes() {
+        let admin_so = admin_mock_oracle_so();
+        let admin_kp = admin_mock_oracle_keypair();
+        let grinder_so = resource_grinder_so();
+        let grinder_idl = resource_grinder_idl();
+        if skip_if_missing(&[&admin_so, &admin_kp, &grinder_so, &grinder_idl]) {
+            return;
+        }
+
+        let owner_clause = format!(
+            r#"owner = {{ program_so = "{}" }}"#,
+            admin_so.display()
+        );
+        let toml = adapter_toml_with_owner(&owner_clause, 100.0, 0, 50, "admin-mock", "");
+        let adapter_path = tmpdir_for("owner").join("adapter.toml");
+        write_adapter(&adapter_path, &toml);
+        let adapter = load_adapter(&adapter_path).expect("load owner-aware adapter");
+
+        let harness = GenericHarness::bootstrap(GenericBootstrapConfig {
+            program_so: grinder_so,
+            idl_path: grinder_idl,
+            agent_count: 1,
+            adapter: adapter.clone(),
+        })
+        .expect("bootstrap owner-aware generic harness");
+
+        let sibling_kp =
+            read_keypair_file(&admin_kp).expect("read admin_mock_oracle keypair");
+        let expected_owner = sibling_kp.pubkey();
+        let (oracle_pubkey, oracle_account) =
+            harness_oracle_account(&harness, "oracle");
+
+        assert_eq!(
+            oracle_account.owner, expected_owner,
+            "bound oracle account owner must equal sibling-program keypair pubkey, \
+             not a silent fallback to program_id ({} vs program_id {})",
+            oracle_account.owner, harness.program_id
+        );
+        assert_ne!(
+            oracle_account.owner, harness.program_id,
+            "bound oracle account must NOT be owned by the simulated program when an \
+             external owner is declared"
+        );
+
+        let layout = oracle_layout_for(OracleKind::AdminMock);
+        let expected_bytes = layout
+            .encode(
+                harness.admin.pubkey().to_bytes(),
+                &OracleUpdate { price: 100.0, exponent: 0 },
+            )
+            .expect("encode admin-mock tick-0 bytes");
+        let byte_len = layout.byte_len();
+        assert_eq!(
+            &oracle_account.data[..byte_len],
+            &expected_bytes[..],
+            "tick-0 oracle bytes must match the adapter-declared base_price/exponent \
+             through the admin-mock layout; pubkey {oracle_pubkey}"
+        );
+        let decoded = layout.decode(&oracle_account.data).expect("decode tick-0");
+        assert!((decoded.price - 100.0).abs() < 1e-9);
+        assert_eq!(decoded.exponent, 0);
+    }
+
+    #[test]
+    fn bootstrap_creates_oracle_account_with_literal_owner_pubkey() {
+        let grinder_so = resource_grinder_so();
+        let grinder_idl = resource_grinder_idl();
+        if skip_if_missing(&[&grinder_so, &grinder_idl]) {
+            return;
+        }
+        // Use a well-known literal key (Pyth's current deployment address
+        // is a long-standing public pubkey used in docs).
+        let literal = "FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH";
+        let owner_clause = format!(r#"owner = {{ pubkey = "{literal}" }}"#);
+        // Pyth layout needs 3312 bytes.
+        let toml = adapter_toml_with_owner(&owner_clause, 150.0, -2, 3312, "pyth", "");
+        let adapter_path = tmpdir_for("literal").join("adapter.toml");
+        write_adapter(&adapter_path, &toml);
+        let adapter = load_adapter(&adapter_path).expect("load literal-owner adapter");
+
+        let harness = GenericHarness::bootstrap(GenericBootstrapConfig {
+            program_so: grinder_so,
+            idl_path: grinder_idl,
+            agent_count: 1,
+            adapter,
+        })
+        .expect("bootstrap literal-owner harness");
+        let (_, oracle_account) = harness_oracle_account(&harness, "oracle");
+        assert_eq!(oracle_account.owner, Pubkey::from_str(literal).unwrap());
+        // Pyth layout decodes back to the declared base_price/exponent.
+        let layout = oracle_layout_for(OracleKind::Pyth);
+        let decoded = layout.decode(&oracle_account.data).expect("decode pyth tick-0");
+        assert!((decoded.price - 150.0).abs() < 1e-6, "got {}", decoded.price);
+        assert_eq!(decoded.exponent, -2);
+    }
+
+    #[test]
+    fn bootstrap_rejects_multiple_oracle_entries() {
+        let grinder_so = resource_grinder_so();
+        let grinder_idl = resource_grinder_idl();
+        if skip_if_missing(&[&grinder_so, &grinder_idl]) {
+            return;
+        }
+        let owner_clause = r#"owner = { pubkey = "FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH" }"#;
+        let extra = r#"
+[[oracles]]
+name = "secondary"
+kind = "admin-mock"
+account = "oracle"
+base_price = 50.0
+exponent = 0
+"#;
+        let toml = adapter_toml_with_owner(owner_clause, 100.0, 0, 3312, "pyth", extra);
+        // parse_adapter_str is fine for this negative test — no filesystem
+        // owner.program_so so no path resolution needed.
+        let adapter = parse_adapter_str(&toml, "multi.toml").expect("parse multi-oracle adapter");
+        let result = GenericHarness::bootstrap(GenericBootstrapConfig {
+            program_so: grinder_so,
+            idl_path: grinder_idl,
+            agent_count: 1,
+            adapter,
+        });
+        let err = match result {
+            Ok(_) => panic!("two oracles should fail bootstrap"),
+            Err(error) => error,
+        };
+        let msg = format!("{err:#}");
+        assert!(
+            msg.contains("single oracle") || msg.contains("single-oracle"),
+            "expected single-oracle diagnostic, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn bootstrap_rejects_oracle_space_below_layout_floor() {
+        let grinder_so = resource_grinder_so();
+        let grinder_idl = resource_grinder_idl();
+        if skip_if_missing(&[&grinder_so, &grinder_idl]) {
+            return;
+        }
+        let owner_clause =
+            r#"owner = { pubkey = "FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH" }"#;
+        // admin-mock layout floor is 50 bytes; declare 32 (still passes the
+        // 8-byte discriminator floor but fails the layout floor).
+        let toml = adapter_toml_with_owner(owner_clause, 100.0, 0, 32, "admin-mock", "");
+        let adapter = parse_adapter_str(&toml, "tight.toml").expect("parse tight-space adapter");
+        let result = GenericHarness::bootstrap(GenericBootstrapConfig {
+            program_so: grinder_so,
+            idl_path: grinder_idl,
+            agent_count: 1,
+            adapter,
+        });
+        let err = match result {
+            Ok(_) => panic!("space below layout floor should fail"),
+            Err(error) => error,
+        };
+        let msg = format!("{err:#}");
+        assert!(msg.contains("50"), "expected layout floor in message, got: {msg}");
+    }
+
+    #[test]
+    fn bootstrap_rejects_missing_sibling_keypair() {
+        // Point owner.program_so at a non-existent .so — should fail at
+        // load-time (validate_resolved_paths), before the tick loop.
+        let grinder_so = resource_grinder_so();
+        let grinder_idl = resource_grinder_idl();
+        if skip_if_missing(&[&grinder_so, &grinder_idl]) {
+            return;
+        }
+        let fake = tmpdir_for("missing").join("missing_program.so");
+        let owner_clause = format!(r#"owner = {{ program_so = "{}" }}"#, fake.display());
+        let toml = adapter_toml_with_owner(&owner_clause, 100.0, 0, 50, "admin-mock", "");
+        let adapter_path = tmpdir_for("missing-adapter").join("adapter.toml");
+        write_adapter(&adapter_path, &toml);
+        let err = load_adapter(&adapter_path).expect_err("missing .so should fail load");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("owner.program_so") || msg.contains("owner program"),
+            "expected owner.program_so diagnostic, got: {msg}"
+        );
+    }
+
+    /// Helper: fetch the bound oracle account from the harness's svm and
+    /// return its (pubkey, solana account). Cracks open private fields
+    /// through the public API by doing an svm read through the primitive
+    /// boundary; the harness exposes `program_id`/`admin` publicly so we
+    /// go through `account_bytes` + `shared_accounts`-style lookup via
+    /// the public `observation_values` path and drop to the raw account
+    /// bytes through a helper.
+    fn harness_oracle_account(
+        harness: &GenericHarness,
+        name: &str,
+    ) -> (Pubkey, solana_account::Account) {
+        // Inspect the harness's private state through its documented
+        // public wrappers. We use the raw LiteSVM handle the harness
+        // exposes via `inspect_shared_account` added in T02.
+        let pubkey = harness
+            .inspect_shared_account_pubkey(name)
+            .unwrap_or_else(|| panic!("shared account `{name}` missing from harness"));
+        let account = harness
+            .inspect_shared_account(name)
+            .unwrap_or_else(|| panic!("shared account `{name}` has no on-chain state"));
+        let _ = BTreeMap::<String, ()>::new(); // keep import stable
+        (pubkey, account)
+    }
+}
+
 #[test]
 fn solend_fork_adapter_parses_without_oracles_block() {
     // Backwards compat: 's shipped solend-fork adapter must

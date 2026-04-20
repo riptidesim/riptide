@@ -13,7 +13,9 @@ use std::collections::BTreeMap;
 use anyhow::{anyhow, bail, Context, Result};
 
 use crate::{
-    adapter::{AccountKind, Adapter, ArgLiteral, InstructionMapping, ObservationType},
+    adapter::{
+        AccountDefinition, AccountKind, Adapter, ArgLiteral, InstructionMapping, ObservationType,
+    },
     agent::policy::RuntimeAction,
     types::{
         ComparisonOp, ObservationValue, Policy, PositionSizing, PositionSizingStrategy, Trigger,
@@ -23,15 +25,20 @@ use crate::{
 
 #[cfg(any(feature = "litesvm-backend", test))]
 use {
+    crate::adapter::loader::sibling_deploy_keypair_path,
+    crate::scenario::{oracle_layout_for, OracleUpdate},
     litesvm::LiteSVM,
     solana_account::Account,
     solana_sdk::{
         instruction::{AccountMeta, Instruction},
         pubkey::Pubkey,
-        signature::{Keypair, Signer},
+        signature::{read_keypair_file, Keypair, Signer},
     },
     solana_transaction::{Transaction, TransactionError},
-    std::path::{Path, PathBuf},
+    std::{
+        path::{Path, PathBuf},
+        str::FromStr,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
@@ -869,8 +876,13 @@ impl GenericHarness {
             generic_airdrop(&mut svm, &agent.pubkey(), per_identity_lamports)?;
         }
 
-        let (agent_accounts, shared_accounts) =
-            bootstrap_generic_accounts(&mut svm, &config.adapter, config.agent_count, &program_id)?;
+        let (agent_accounts, shared_accounts) = bootstrap_generic_accounts(
+            &mut svm,
+            &config.adapter,
+            config.agent_count,
+            &program_id,
+            &admin.pubkey(),
+        )?;
 
         Ok(Self {
             svm,
@@ -883,6 +895,23 @@ impl GenericHarness {
             shared_accounts,
             current_slot: 0,
         })
+    }
+
+    /// Look up a shared account's pubkey by its adapter-declared name.
+    /// Returns `None` for agent-scoped accounts or unknown names.
+    /// Used by integration tests that need to inspect an
+    /// adapter-bootstrapped account without reaching into private
+    /// fields.
+    pub fn inspect_shared_account_pubkey(&self, name: &str) -> Option<Pubkey> {
+        self.shared_accounts.get(name).copied()
+    }
+
+    /// Read the current on-chain state of a shared account by its
+    /// adapter-declared name. Returns `None` if the account is not
+    /// declared or has not been materialized yet.
+    pub fn inspect_shared_account(&self, name: &str) -> Option<Account> {
+        let pubkey = self.shared_accounts.get(name)?;
+        self.svm.get_account(pubkey)
     }
 
     fn resolve_account_meta(
@@ -1308,7 +1337,42 @@ fn bootstrap_generic_accounts(
     adapter: &Adapter,
     agent_count: usize,
     program_id: &Pubkey,
+    admin: &Pubkey,
 ) -> Result<(BTreeMap<String, Vec<Pubkey>>, BTreeMap<String, Pubkey>)> {
+    if adapter.oracles.len() > 1 {
+        bail!(
+            "generic adapter declares {} `[[oracles]]` entries but the current scenario and \
+             replay surfaces still emit a single oracle update stream. Single-oracle generic \
+             semantics are an explicit contract for now — reduce to one `[[oracles]]` entry or \
+             wait for multi-oracle dispatch to land.",
+            adapter.oracles.len()
+        );
+    }
+    // Pre-resolve the (at-most-one) oracle binding so account creation
+    // has access to the layout floor and the starting oracle bytes.
+    let oracle_binding = match adapter.oracles.first() {
+        Some(oracle) => {
+            let account = oracle.account.as_deref().ok_or_else(|| {
+                anyhow!(
+                    "generic adapter oracle `{}` has no `account` binding. The loader is \
+                     expected to catch this — reaching it at bootstrap time implies a stale \
+                     adapter was passed directly without going through `load_adapter`.",
+                    oracle.name
+                )
+            })?;
+            let layout = oracle_layout_for(oracle.kind);
+            Some(OracleBinding {
+                account_name: account.to_string(),
+                layout,
+                update: OracleUpdate {
+                    price: oracle.base_price,
+                    exponent: oracle.exponent,
+                },
+            })
+        }
+        None => None,
+    };
+
     let mut agent_accounts = BTreeMap::new();
     let mut shared_accounts = BTreeMap::new();
 
@@ -1316,6 +1380,7 @@ fn bootstrap_generic_accounts(
         let lamports = svm.minimum_balance_for_rent_exemption(definition.space);
         match definition.kind {
             AccountKind::Agent => {
+                let owner = *program_id;
                 let mut pubkeys = Vec::with_capacity(agent_count);
                 for _ in 0..agent_count {
                     let pubkey = Pubkey::new_unique();
@@ -1324,7 +1389,7 @@ fn bootstrap_generic_accounts(
                         Account {
                             lamports,
                             data: vec![0u8; definition.space],
-                            owner: *program_id,
+                            owner,
                             ..Default::default()
                         },
                     )
@@ -1338,13 +1403,49 @@ fn bootstrap_generic_accounts(
                 agent_accounts.insert(account_name.clone(), pubkeys);
             }
             AccountKind::Shared => {
+                let owner = resolve_shared_account_owner(account_name, definition, program_id)?;
                 let pubkey = Pubkey::new_unique();
+                let is_oracle = oracle_binding
+                    .as_ref()
+                    .is_some_and(|binding| binding.account_name == *account_name);
+                let data = if is_oracle {
+                    let binding = oracle_binding
+                        .as_ref()
+                        .expect("oracle_binding checked above");
+                    let floor = binding.layout.byte_len();
+                    if definition.space < floor {
+                        bail!(
+                            "generic adapter oracle account `{account_name}` declared \
+                             `space = {}` but the `{:?}` oracle layout needs at least {floor} \
+                             bytes. Raise `[accounts.{account_name}].space` to at least {floor}.",
+                            definition.space,
+                            adapter
+                                .oracles
+                                .first()
+                                .map(|o| o.kind)
+                                .expect("oracle_binding implies first() is Some"),
+                        );
+                    }
+                    let mut buf = binding
+                        .layout
+                        .encode(admin.to_bytes(), &binding.update)
+                        .with_context(|| {
+                            format!(
+                                "encode tick-0 oracle bytes for generic adapter oracle \
+                                 account `{account_name}`"
+                            )
+                        })?;
+                    buf.resize(definition.space, 0);
+                    buf
+                } else {
+                    vec![0u8; definition.space]
+                };
                 svm.set_account(
                     pubkey,
                     Account {
                         lamports,
-                        data: vec![0u8; definition.space],
-                        owner: *program_id,
+                        data,
+                        owner,
                         ..Default::default()
                     },
                 )
@@ -1357,6 +1458,66 @@ fn bootstrap_generic_accounts(
     }
 
     Ok((agent_accounts, shared_accounts))
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+struct OracleBinding {
+    account_name: String,
+    layout: Box<dyn crate::scenario::OracleLayout>,
+    update: OracleUpdate,
+}
+
+/// Resolve the on-chain owner pubkey for a shared account according to
+/// the adapter's declared ownership metadata. Falls back to the
+/// simulated program id when no external owner is declared — preserving
+/// the pre-owner-aware behavior for every shipped adapter that opts out.
+#[cfg(any(feature = "litesvm-backend", test))]
+fn resolve_shared_account_owner(
+    account_name: &str,
+    definition: &AccountDefinition,
+    program_id: &Pubkey,
+) -> Result<Pubkey> {
+    let Some(owner) = definition.owner.as_ref() else {
+        return Ok(*program_id);
+    };
+    if let Some(pubkey_str) = owner.pubkey.as_deref() {
+        return Pubkey::from_str(pubkey_str).map_err(|error| {
+            anyhow!(
+                "resolve owner for shared account `{account_name}`: `owner.pubkey` `{pubkey_str}` \
+                 is not a valid base58-encoded pubkey: {error}"
+            )
+        });
+    }
+    if let Some(program_so) = owner.program_so.as_deref() {
+        let so_path = Path::new(program_so);
+        let keypair_path = sibling_deploy_keypair_path(so_path).ok_or_else(|| {
+            anyhow!(
+                "resolve owner for shared account `{account_name}`: cannot derive sibling \
+                 keypair path from `{program_so}`"
+            )
+        })?;
+        if !keypair_path.exists() {
+            bail!(
+                "resolve owner for shared account `{account_name}`: sibling-program keypair not \
+                 found at {}. Build the sibling program with `cargo build-sbf` (which generates \
+                 the keypair) before running the simulation.",
+                keypair_path.display()
+            );
+        }
+        let keypair = read_keypair_file(&keypair_path).map_err(|error| {
+            anyhow!(
+                "resolve owner for shared account `{account_name}`: failed to read sibling \
+                 keypair {}: {error}",
+                keypair_path.display()
+            )
+        })?;
+        return Ok(keypair.pubkey());
+    }
+    // The loader rejects empty owner blocks, but defend the invariant.
+    bail!(
+        "resolve owner for shared account `{account_name}`: owner block declared but neither \
+         `program_so` nor `pubkey` is set"
+    );
 }
 
 #[cfg(test)]
