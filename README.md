@@ -8,7 +8,7 @@ Three things Riptide does:
 
 - **Simulate** — runs your real compiled BPF program inside a fast in-process Solana VM (LiteSVM), driven by your actual IDL.
 - **Stress-test** — unleashes hundreds of adversarial agents (whales, arbitrageurs, sandwich attackers, liquidators, LPs, rug pullers) across price shocks, oracle trajectories, and parameter sweeps you declare.
-- **Reproduce** — every run is byte-for-byte deterministic from declarative TOML files alone; every invariant you declare becomes a CI gate (engine exits non-zero when one fires).
+- **Gate** — every run is byte-for-byte deterministic from declarative TOML files alone, so the same seed always produces the same sha256 output; every invariant you declare becomes a CI gate (engine exits non-zero when one fires).
 
 ### Riptide in 60 seconds
 
@@ -18,7 +18,7 @@ Three things Riptide does:
 | An **adapter TOML** wiring accounts, actions, observations, invariants               | Machine-checkable invariant exit codes (`0` = all held, `1` = at least one fired) ready for CI                         |
 | A **run-config** (scenario, seed, ticks, agent count)                                | A web dashboard (`localhost:4173`) — run metadata, timeseries, event stream, invariants highlighted                   |
 | Optionally: a **persona library** (shipping TOMLs ready to use, or hand-author yours)| A narrative case-study report citing specific ticks and events                                                         |
-| For historical incidents: a tx-sequence + oracle-trajectory JSON                     | A byte-for-byte reproduction of what went wrong alongside the synthetic sweep                                          |
+| *(optional)* a declared tx-sequence + oracle-trajectory JSON                         | A byte-stable replay of that trajectory against the same adapter, with declared invariants evaluated every tick        |
 | *(optional)* `riptide init` in your Anchor repo                                      | A ready-to-fill `.riptide/` tree — adapter stub, starter personas, baseline scenario, version-control it with your program |
 
 ### Why LiteSVM?
@@ -32,7 +32,7 @@ Riptide aims to make economic safety a machine-checkable question instead of a t
 - **For protocol teams:** a rehearsal ground for launch parameters — pick from a regime you have deterministic evidence for, not gut feel.
 - **For auditors and security researchers:** a reproducible artifact — when you claim a failure mode exists, the adapter TOML + run-config is the whole claim. A reviewer reruns it on their machine and the same bytes come out.
 
-From pre-launch stress tests to post-incident reproductions to game-economy sandboxes, Riptide makes *"what happens if..."* a question with a byte-stable answer.
+From pre-launch stress tests to trajectory replays to game-economy sandboxes, Riptide makes *"what happens if..."* a question with a byte-stable answer. It is a lab for exploring the parameter space around your program — not an oracle for predicting mainnet outcomes.
 
 ## Screenshots
 
@@ -44,23 +44,23 @@ Terminal output when running the same cell:
 
 ```
 $ riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json
+riptide run: 1 scenario
+TICK 1/20
+... (engine tick progress elided)
+TICK 20/20
+ok w25-s40  (0.1s, 0 invariant fires)
 
-[engine] loading adapter: fixtures/adapters/solend-fork.toml
-[engine] booting LiteSVM · deploying lending_pool.so
-[engine] scenario: whale-shock-grid · 100 agents · 180 ticks · seed 42
-[engine] tick   0 · 0 events · 0 invariants fired
-[engine] tick  85 · liquidation cascade begins · 3 events
-[engine] tick 120 · INVARIANT FIRED: no_bad_debt (violated at tick 120)
-[engine] tick 180 · run complete
-[engine] writing /tmp/riptide-out.json · sha256 89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11
+1 pass · 0 fail · 0 skip
 
-exit 1   (invariant fired — CI-gateable)
+exit 0
 ```
+
+The hero grid sweeps the `whale-share × shock-magnitude` parameter region and records each cell's `cumulative_bad_debt` in its `simulation-result.json`; the grid's value is the *region map* — which cells end up inside the bad-debt neighborhood and which don't. Invariant-driven CI gating is a separate mode: declare `[[invariants]]` on your own adapter (like the shipping replay adapter does for `no_bad_debt` — `fixtures/replays/solend-nov-2022/adapter.toml`) and the engine exits `1` the moment any invariant fires, so the same `riptide run` output pattern doubles as a CI gate.
 
 ## Use Cases
 
 - **Pre-launch stress testing** — map the parameter neighborhood where your protocol breaks before mainnet does; ship with a grid attached to the design doc.
-- **Historical incident reproduction** — point Riptide at a real on-chain failure (the Solend June 2022 whale-risk incident ships as a reference replay), reproduce it byte-for-byte, and assert an invariant fires at the cascade tick.
+- **Trajectory replay** — declare a tx-sequence + oracle-trajectory against the same adapter your synthetic sweeps use, and Riptide replays it byte-stably tick-by-tick with invariants evaluated every tick (the Solend June 2022 whale-risk incident ships as a reference replay — a trajectory declared on disk, not a claim about mainnet state).
 - **Launch parameter selection** — run safe-vs-risky side-by-side comparisons to pick launch parameters with deterministic evidence instead of gut feel.
 - **CI integration** — declare invariants inline in your adapter; the engine exits 1 the moment any invariant fires, so your pipeline blocks on economic regressions the same way it blocks on test regressions.
 - **Post-audit verification** — bound an auditor's theoretical concern with a Riptide grid to see whether it actually manifests under the parameter regimes you chose.
@@ -96,7 +96,7 @@ flowchart LR
 2. **Scenario Generation** — Match your adapter's shape against the **failure-mode taxonomy** (a catalog of named failure categories like `whale_concentration`, `liquidation_cascade`, `price_manipulation_via_swap` — curated from real DeFi incidents). Propose parameter sweeps — 1D or 2D grids where every cell is a complete bootable sub-scenario. Assign adversarial personas from the library.
 3. **Deterministic Simulation** — LiteSVM executes your real BPF program tick-by-tick. Personas fire instructions based on trigger conditions (`observation.utilization > 0.9 → withdraw_all`). Invariants evaluate every tick. Same seed → same sha256, always; enforced by a regression test.
 4. **Discovery & Reporting** — A mechanical report (metrics, events, invariant firings, summary) lands on disk as JSON. A narrative report (LLM cites specific ticks and event types, reads like a case study) lands as markdown. The web dashboard at `localhost:4173` renders everything visually with invariant firings highlighted red.
-5. **Historical Replay** — Point Riptide at a real on-chain tx sequence + oracle trajectory (the Solend June 2022 whale-risk incident ships as a reference replay). Riptide reproduces it byte-for-byte against the same adapter your synthetic sweeps use, and asserts your declared invariants fire at the historically correct tick.
+5. **Trajectory Replay** — Declare a tx-sequence + oracle-trajectory against the same adapter your synthetic sweeps use (the Solend June 2022 whale-risk incident ships as a reference replay). Riptide runs that declared trajectory deterministically tick-by-tick, and asserts your declared invariants fire at the declared ticks. The replay is a byte-stable run of what you declared — not a forensic reconstruction of what happened on-chain.
 
 > **Claude Code skills are optional accelerators, not requirements.** The `riptide-adapt`, `riptide-scenarios`, and `riptide-narrative` skills let a session-native LLM do first passes on adapter generation, scenario proposal, and report writing — typing them into any Claude Code session beats manual authoring on speed. You can hand-author every artifact instead: adapter TOML, persona TOMLs, scenarios, and run-configs are plain files you edit directly. The engine doesn't require any skill to run; the skills exist because most devs want faster starting points.
 

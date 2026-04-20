@@ -48,7 +48,7 @@ What LiteSVM does not model: gossip, vote, PoH, full consensus behavior. The spe
 
 ## Determinism
 
-Same seed in, same bytes out, byte-for-byte, across the lending, perps, AMM, and generic bundles. The `e2e_determinism` integration test enforces this on every `cargo test -p riptide-engine` run by executing the same fixture twice and asserting the result JSON is byte-identical. Replay mode extends the same guarantee to historical trajectories — `riptide replay fixtures/replays/solend-nov-2022/config.json` reproduces the Solend June 2022 whale-risk incident and asserts a declared `no_bad_debt` invariant fires at the cascade tick.
+Same seed in, same bytes out, byte-for-byte, across the lending, perps, AMM, and generic bundles. The `e2e_determinism` integration test enforces this on every `cargo test -p riptide-engine` run by executing the same fixture twice and asserting the result JSON is byte-identical. Replay mode extends the same guarantee to declared trajectories — `riptide replay fixtures/replays/solend-nov-2022/config.json` runs the shipping Solend June 2022 whale-risk trajectory deterministically against its replay-scoped adapter and asserts the declared `no_bad_debt` invariant fires at the declared cascade tick. The replay is a byte-stable run of a declared scenario, not a forensic reconstruction of mainnet state.
 
 Determinism is what makes the grid re-derivable by an adversarial reviewer: the adapter TOML + persona TOML + run-config + engine binary are the whole input. Nothing else is load-bearing.
 
