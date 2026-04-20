@@ -19,3 +19,6 @@
 # transient state + run outputs are ignored.
 .riptide/last-run.json
 .riptide/runs/
+
+# Replay engine build artifacts — re-generated on every `riptide replay` run
+fixtures/replays/*/riptide-output/
