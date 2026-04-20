@@ -5,7 +5,7 @@
 // and exit codes. Everything here is testable in isolation via `scaffold`.
 
 import { existsSync, readFileSync } from "node:fs";
-import { cp, mkdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -275,7 +275,47 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
   );
   created.push(path.join(".riptide", "GETTING-STARTED.md"));
 
+  // .gitignore entries for volatile run output (R11.2). Appends to
+  // an existing .gitignore when present, creates a fresh one otherwise.
+  // We match exact-line entries to avoid duplicating on re-run.
+  const gitignoreResult = await ensureGitignoreEntries(cwd);
+  if (gitignoreResult.touched) {
+    created.push(".gitignore");
+  }
+
   return { created, programName };
+}
+
+const GITIGNORE_ENTRIES = [".riptide/runs/", ".riptide/last-run.json"] as const;
+
+async function ensureGitignoreEntries(cwd: string): Promise<{ touched: boolean }> {
+  const gitignorePath = path.join(cwd, ".gitignore");
+  let existing = "";
+  try {
+    existing = await readFile(gitignorePath, "utf8");
+  } catch (err) {
+    if (err && typeof err === "object" && "code" in err && err.code !== "ENOENT") {
+      throw err;
+    }
+  }
+
+  const existingLines = existing.split("\n").map((l) => l.trim());
+  const toAppend: string[] = [];
+  for (const entry of GITIGNORE_ENTRIES) {
+    if (!existingLines.includes(entry)) {
+      toAppend.push(entry);
+    }
+  }
+  if (toAppend.length === 0) {
+    return { touched: false };
+  }
+
+  const hasTrailingNewline = existing.length === 0 || existing.endsWith("\n");
+  const prefix = hasTrailingNewline ? "" : "\n";
+  const header = existing.length === 0 ? "# Riptide run state (auto-added by riptide init)\n" : "\n# Riptide run state (auto-added by riptide init)\n";
+  const body = toAppend.join("\n") + "\n";
+  await writeFile(gitignorePath, existing + prefix + header + body, "utf8");
+  return { touched: true };
 }
 
 export class RiptideDirExistsError extends Error {
