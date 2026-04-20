@@ -5,7 +5,7 @@
 // per-failure detail. Exact format pinned by `cli/test/run-output.test.ts`
 // — do NOT change any literal below without updating the pin tests.
 //
-// FORMAT CONTRACT (R4.5 frozen + R9.2 expanded classifier):
+// FORMAT CONTRACT (R4.5 frozen + R9.2 classifier + R10 hygiene):
 //
 // Per-scenario PASS line:    `✓ <name>  (<secs>s, 0 invariant fires)`
 // Per-scenario FAIL line:    `✗ <name>  (<secs>s, <N> invariant fires: <first-inv> at tick <tick>)`
@@ -14,14 +14,27 @@
 //   (triggers on `!process.stdout.isTTY` OR `NO_COLOR` set)
 // Summary line (always):     `<P> pass · <F> fail · <E> error · <K> skip`
 // Per-failure block (fail):  `  ✗ <name>` + one `    - <inv> at tick <tick>` per fire
-// Per-failure block (error): `  ! <name>` + `    - error: <message>`
+//                            + optional `    engine stderr:` tail (R10.4: never inline)
+// Per-failure block (error): `  ! <name>` + `    - error: <message>` + stderr tail
 // Dashboard echo:            printed only when `--serve` was passed
+//
+// Colors (R10.3): green ✓/pass · red ✗/fail · yellow !/error · bold summary.
+// Paths displayed (either in the scenario line message or inside captured
+// stderr) are CWD-relativized before print (R10.2). Stderr capture is a
+// single source — no duplication between inline + summary (R10.4).
 //
 // Schema for `.riptide/last-run.json` that this formatter + the
 // `--only-failing` filter both consume is documented at the top of
 // `cli/src/run/last-run.ts`.
 
 import type { Writable } from "node:stream";
+
+import {
+  pickColorizer,
+  relativizePathsInBlob,
+  shouldUseColor,
+  type Colorizer
+} from "../display/index.js";
 
 import type { RunEvent, RunSummary } from "./loop.js";
 import type { InvariantFire, ScenarioRecord } from "./last-run.js";
@@ -31,6 +44,10 @@ export interface FormatterOptions {
   stderr: Writable;
   /** Force plain-ASCII glyphs regardless of TTY / NO_COLOR detection. */
   plainAscii?: boolean;
+  /** Force color escape codes on/off regardless of env detection. Defaults to env-based. */
+  color?: boolean;
+  /** CWD used for path relativization in displayed paths and engine stderr. */
+  cwd?: string;
   /** If set, echoed at end when a non-zero pass count wrote artifacts. */
   dashboardUrl?: string | null;
 }
@@ -59,7 +76,10 @@ export function glyphsForMode(plain: boolean): Glyphs {
 
 export function createJestFormatter(opts: FormatterOptions): Formatter {
   const plain = opts.plainAscii ?? shouldUsePlainAscii(process.env, Boolean(process.stdout.isTTY));
+  const useColor = opts.color ?? shouldUseColor(process.env, Boolean(process.stdout.isTTY));
   const glyphs = glyphsForMode(plain);
+  const c = pickColorizer(useColor);
+  const cwd = opts.cwd ?? process.cwd();
 
   function handle(event: RunEvent): void {
     switch (event.type) {
@@ -68,13 +88,20 @@ export function createJestFormatter(opts: FormatterOptions): Formatter {
       case "warning":
         return;
       case "scenario_end": {
-        opts.stdout.write(formatScenarioLine(event.record, glyphs.ok, glyphs.fail, glyphs.error) + "\n");
+        const raw = formatScenarioLine(
+          event.record,
+          glyphs.ok,
+          glyphs.fail,
+          glyphs.error
+        );
+        const relativized = relativizePathsInBlob(raw, cwd);
+        opts.stdout.write(colorizeScenarioLine(relativized, event.record, c) + "\n");
         return;
       }
       case "run_end": {
-        writeSummary(opts.stdout, event.summary, glyphs);
+        writeSummary(opts.stdout, event.summary, glyphs, c, cwd);
         if (opts.dashboardUrl) {
-          opts.stdout.write(`Dashboard: ${opts.dashboardUrl}\n`);
+          opts.stdout.write(c.cyan(`Dashboard: ${opts.dashboardUrl}`) + "\n");
         }
         return;
       }
@@ -134,11 +161,31 @@ export function formatFailureBlock(
   return lines.join("\n");
 }
 
-function writeSummary(stdout: Writable, summary: RunSummary, glyphs: Glyphs): void {
-  // blank separator line before summary so per-scenario list doesn't
-  // collide with the totals visually. jest does the same.
+function colorizeScenarioLine(line: string, record: ScenarioRecord, c: Colorizer): string {
+  if (record.status === "pass") return c.green(line);
+  if (record.status === "fail") return c.red(line);
+  if (record.status === "error") return c.yellow(line);
+  return c.dim(line);
+}
+
+function colorizeFailureHeader(
+  record: ScenarioRecord,
+  headerLine: string,
+  c: Colorizer
+): string {
+  if (record.status === "error") return c.yellow(headerLine);
+  return c.red(headerLine);
+}
+
+function writeSummary(
+  stdout: Writable,
+  summary: RunSummary,
+  glyphs: Glyphs,
+  c: Colorizer,
+  cwd: string
+): void {
   stdout.write("\n");
-  stdout.write(formatSummaryLine(summary) + "\n");
+  stdout.write(c.bold(formatSummaryLine(summary)) + "\n");
 
   const interesting = summary.scenarios.filter(
     (s) => s.status === "fail" || s.status === "error"
@@ -146,7 +193,22 @@ function writeSummary(stdout: Writable, summary: RunSummary, glyphs: Glyphs): vo
   if (interesting.length > 0) {
     stdout.write("\n");
     for (const record of interesting) {
-      stdout.write(formatFailureBlock(record, glyphs.fail, glyphs.error) + "\n");
+      const block = formatFailureBlock(record, glyphs.fail, glyphs.error);
+      const firstNewline = block.indexOf("\n");
+      const header = firstNewline === -1 ? block : block.slice(0, firstNewline);
+      const body = firstNewline === -1 ? "" : block.slice(firstNewline + 1);
+      stdout.write(colorizeFailureHeader(record, header, c) + "\n");
+      if (body) {
+        stdout.write(relativizePathsInBlob(body, cwd) + "\n");
+      }
+      if (record.engine_stderr && record.engine_stderr.trim().length > 0) {
+        stdout.write(c.dim("    engine stderr:") + "\n");
+        const rewritten = relativizePathsInBlob(record.engine_stderr, cwd);
+        for (const raw of rewritten.split("\n")) {
+          if (raw.length === 0) continue;
+          stdout.write(c.dim(`      ${raw}`) + "\n");
+        }
+      }
     }
   }
 }

@@ -225,6 +225,14 @@ export interface RunScenariosInput {
   adapterOverride?: string;
   /** Module-root hint for the monorepo bundle fallback. Tests pass `null` to disable. */
   monorepoRoot?: string | null;
+  /**
+   * When true, suppress live engine-stderr pass-through during each
+   * scenario run. Captured stderr is attached to scenario records so
+   * the formatter can surface it in the per-failure block. Default
+   * true for `riptide run` (quiet-by-default per R10.1); the CLI sets
+   * it false under `--verbose`.
+   */
+  silent?: boolean;
   onEvent?: (event: RunEvent) => void;
   /** Injection hook for tests — substitute the orchestrator invocation. */
   runOne?: (ctx: RunOneContext) => Promise<RunOneResult>;
@@ -241,18 +249,34 @@ export interface RunOneContext {
   adapterPath?: string;
   /** Source label for debugging + verbose output ("override" | "run-config" | "bundle" | "scaffold"). */
   adapterSource?: string;
+  /** True → orchestrator runs in silent mode, stderr captured not streamed. */
+  silent?: boolean;
 }
 
 export type RunOneResult =
-  | { kind: "pass"; wallClockS: number; artifactsDir: string; result: SimulationResult }
+  | {
+      kind: "pass";
+      wallClockS: number;
+      artifactsDir: string;
+      result: SimulationResult;
+      /** Captured engine stderr when silent mode was on (informational). */
+      engineStderr?: string;
+    }
   | {
       kind: "fail";
       wallClockS: number;
       artifactsDir: string;
       result: SimulationResult;
       fires: InvariantFire[];
+      engineStderr?: string;
     }
-  | { kind: "error"; wallClockS: number; error: string };
+  | {
+      kind: "error";
+      wallClockS: number;
+      error: string;
+      /** Captured engine stderr when available — used to surface real engine diagnostics. */
+      engineStderr?: string;
+    };
 
 /**
  * Execute the resolved scenarios sequentially and return the final
@@ -345,14 +369,19 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
           scenario,
           cwd: input.cwd,
           adapterPath,
-          adapterSource: adapterResolution?.kind === "ok" ? adapterResolution.source : undefined
+          adapterSource: adapterResolution?.kind === "ok" ? adapterResolution.source : undefined,
+          silent: input.silent !== false
         });
       }
     } catch (err) {
       runResult = {
         kind: "error",
         wallClockS: 0,
-        error: errMessage(err)
+        error: errMessage(err),
+        engineStderr:
+          err && typeof err === "object" && "stderrFull" in err
+            ? ((err as { stderrFull?: string }).stderrFull ?? undefined)
+            : undefined
       };
     }
 
@@ -425,7 +454,8 @@ function recordForResult(scenario: ResolvedScenario, result: RunOneResult): Scen
       status: "fail",
       wall_clock_s: roundSec(result.wallClockS),
       invariant_fires: result.fires,
-      artifacts_dir: result.artifactsDir
+      artifacts_dir: result.artifactsDir,
+      engine_stderr: result.engineStderr
     };
   }
   return {
@@ -434,7 +464,8 @@ function recordForResult(scenario: ResolvedScenario, result: RunOneResult): Scen
     status: "error",
     wall_clock_s: roundSec(result.wallClockS),
     invariant_fires: [],
-    error: result.error
+    error: result.error,
+    engine_stderr: result.engineStderr
   };
 }
 
@@ -577,13 +608,27 @@ async function defaultRunOne(ctx: RunOneContext): Promise<RunOneResult> {
   );
   const policiesPath = existsSync(adjacentPolicies) ? adjacentPolicies : undefined;
 
+  const silent = ctx.silent !== false;
+
   const started = Date.now();
-  const result = await runOrchestrator(build.runConfig, {
-    llmUrl: build.simulateOptions.llm_url,
-    adapterPath: build.simulateOptions.adapter_path,
-    allowInvariantViolations: true,
-    policiesPath
-  });
+  let result: SimulationResult;
+  try {
+    result = await runOrchestrator(build.runConfig, {
+      llmUrl: build.simulateOptions.llm_url,
+      adapterPath: build.simulateOptions.adapter_path,
+      allowInvariantViolations: true,
+      policiesPath,
+      silent
+    });
+  } catch (err) {
+    const elapsed = (Date.now() - started) / 1000;
+    const message = err instanceof Error ? err.message : String(err);
+    const captured =
+      err && typeof err === "object" && "stderrFull" in err
+        ? ((err as { stderrFull?: string }).stderrFull ?? undefined)
+        : undefined;
+    return { kind: "error", wallClockS: elapsed, error: message, engineStderr: captured };
+  }
   const elapsedS = (Date.now() - started) / 1000;
 
   const fires = extractInvariantFires(result);

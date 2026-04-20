@@ -65,6 +65,14 @@ export interface ScenarioRecord {
   invariant_fires: InvariantFire[];
   artifacts_dir?: string;
   error?: string;
+  /**
+   * Captured engine stderr, populated when the run loop ran in silent
+   * mode. Transient — not serialized to `.riptide/last-run.json` — used
+   * only for formatting per-failure detail blocks. Added in Phase 4 to
+   * de-duplicate stderr (was both pass-through live AND in the failure
+   * block; now only in the failure block).
+   */
+  engine_stderr?: string;
 }
 
 export interface LastRun {
@@ -83,7 +91,18 @@ export function lastRunPath(cwd: string): string {
 export async function writeLastRun(cwd: string, payload: LastRun): Promise<string> {
   const target = lastRunPath(cwd);
   await mkdir(path.dirname(target), { recursive: true });
-  await writeFile(target, JSON.stringify(payload, null, 2) + "\n", "utf8");
+  // Strip the transient engine_stderr field so last-run.json stays a
+  // stable, byte-small state file. The field is used by the in-memory
+  // formatter for failure-block display only.
+  const sanitized: LastRun = {
+    ...payload,
+    scenarios: payload.scenarios.map((s) => {
+      const { engine_stderr, ...rest } = s;
+      void engine_stderr;
+      return rest;
+    })
+  };
+  await writeFile(target, JSON.stringify(sanitized, null, 2) + "\n", "utf8");
   return target;
 }
 

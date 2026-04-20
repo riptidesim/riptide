@@ -236,7 +236,7 @@ test("createJestFormatter: emits per-scenario line on scenario_end, summary on r
     buf += c;
   });
 
-  const fmt = createJestFormatter({ stdout, stderr: new PassThrough(), plainAscii: true });
+  const fmt = createJestFormatter({ stdout, stderr: new PassThrough(), plainAscii: true, color: false });
   fmt.handle({ type: "run_start", total: 2, cwd: "/x" });
   fmt.handle({
     type: "scenario_end",
@@ -318,6 +318,7 @@ test("createJestFormatter: dashboard URL echoed only when provided", () => {
     stdout,
     stderr: new PassThrough(),
     plainAscii: true,
+    color: false,
     dashboardUrl: "http://localhost:4173"
   });
   fmt.handle({
@@ -418,6 +419,189 @@ test("EXIT_CODES constants are frozen at 0 / 1 / 2 / 3 / 130", () => {
   assert.equal(EXIT_CODES.SETUP_ERROR, 2);
   assert.equal(EXIT_CODES.PARTIAL_ABORT, 3);
   assert.equal(EXIT_CODES.SIGINT, 130);
+});
+
+// --- R10 hygiene: colors, path relativization, engine stderr de-dup ---
+
+test("createJestFormatter: color=true wraps the pass line in green ANSI", () => {
+  const stdout = new PassThrough();
+  stdout.setEncoding("utf8");
+  let buf = "";
+  stdout.on("data", (c: string) => {
+    buf += c;
+  });
+
+  const fmt = createJestFormatter({
+    stdout,
+    stderr: new PassThrough(),
+    plainAscii: true,
+    color: true
+  });
+  fmt.handle({
+    type: "scenario_end",
+    index: 0,
+    total: 1,
+    scenario: { name: "alpha", runConfigPath: "/a" },
+    record: {
+      name: "alpha",
+      run_config_path: "/a",
+      status: "pass",
+      wall_clock_s: 0.1,
+      invariant_fires: []
+    }
+  });
+
+  // ANSI 32 is green; trailing reset is \x1b[0m.
+  assert.match(buf, /\x1b\[32m.*ok alpha.*\x1b\[0m/);
+});
+
+test("createJestFormatter: color=false emits NO escape codes (NO_COLOR path)", () => {
+  const stdout = new PassThrough();
+  stdout.setEncoding("utf8");
+  let buf = "";
+  stdout.on("data", (c: string) => {
+    buf += c;
+  });
+
+  const fmt = createJestFormatter({
+    stdout,
+    stderr: new PassThrough(),
+    plainAscii: true,
+    color: false
+  });
+  fmt.handle({
+    type: "scenario_end",
+    index: 0,
+    total: 1,
+    scenario: { name: "x", runConfigPath: "/a" },
+    record: {
+      name: "x",
+      run_config_path: "/a",
+      status: "pass",
+      wall_clock_s: 0.1,
+      invariant_fires: []
+    }
+  });
+  fmt.handle({
+    type: "run_end",
+    summary: {
+      pass: 1,
+      fail: 0,
+      error: 0,
+      skipped: 0,
+      total: 1,
+      signalAborted: false,
+      partialAbort: false,
+      lastRunPath: "/x",
+      scenarios: [
+        {
+          name: "x",
+          run_config_path: "/a",
+          status: "pass",
+          wall_clock_s: 0.1,
+          invariant_fires: []
+        }
+      ]
+    }
+  });
+  // No escape codes anywhere in the output.
+  assert.equal(buf.includes("\x1b["), false, "expected plain ASCII output under color=false");
+});
+
+test("createJestFormatter: engine stderr rendered once in the failure block (no duplication)", () => {
+  const stdout = new PassThrough();
+  stdout.setEncoding("utf8");
+  let buf = "";
+  stdout.on("data", (c: string) => {
+    buf += c;
+  });
+
+  const fmt = createJestFormatter({
+    stdout,
+    stderr: new PassThrough(),
+    plainAscii: true,
+    color: false
+  });
+  const record = {
+    name: "broken",
+    run_config_path: "/b",
+    status: "error" as const,
+    wall_clock_s: 0,
+    invariant_fires: [],
+    error: "engine exited 2",
+    engine_stderr: "line-a\nline-b\n"
+  };
+  fmt.handle({
+    type: "scenario_end",
+    index: 0,
+    total: 1,
+    scenario: { name: "broken", runConfigPath: "/b" },
+    record
+  });
+  fmt.handle({
+    type: "run_end",
+    summary: {
+      pass: 0,
+      fail: 0,
+      error: 1,
+      skipped: 0,
+      total: 1,
+      signalAborted: false,
+      partialAbort: true,
+      lastRunPath: "/x",
+      scenarios: [record]
+    }
+  });
+
+  // Engine stderr lines appear exactly once (in the failure block),
+  // not twice (no inline pass-through duplication).
+  const aMatches = (buf.match(/line-a/g) ?? []).length;
+  const bMatches = (buf.match(/line-b/g) ?? []).length;
+  assert.equal(aMatches, 1, "engine stderr line 'line-a' should appear exactly once");
+  assert.equal(bMatches, 1, "engine stderr line 'line-b' should appear exactly once");
+});
+
+test("createJestFormatter: absolute paths inside cwd are rewritten relative in scenario line", () => {
+  const stdout = new PassThrough();
+  stdout.setEncoding("utf8");
+  let buf = "";
+  stdout.on("data", (c: string) => {
+    buf += c;
+  });
+
+  const fmt = createJestFormatter({
+    stdout,
+    stderr: new PassThrough(),
+    plainAscii: true,
+    color: false,
+    cwd: "/home/u/repo"
+  });
+  fmt.handle({
+    type: "scenario_end",
+    index: 0,
+    total: 1,
+    scenario: { name: "b", runConfigPath: "/home/u/repo/.riptide/scenarios/b/run-config.json" },
+    record: {
+      name: "b",
+      run_config_path: "/home/u/repo/.riptide/scenarios/b/run-config.json",
+      status: "error",
+      wall_clock_s: 0,
+      invariant_fires: [],
+      error: "adapter not found at /home/u/repo/fixtures/adapters/missing.toml"
+    }
+  });
+  // Absolute path inside cwd → relative. Absolute path OUTSIDE cwd
+  // would have been preserved — not asserted here since the record
+  // doesn't carry one.
+  assert.ok(
+    buf.includes("fixtures/adapters/missing.toml"),
+    `expected relativized path in output: ${buf}`
+  );
+  assert.equal(
+    buf.includes("/home/u/repo/fixtures"),
+    false,
+    "absolute path should not appear after relativization"
+  );
 });
 
 // --- Helpers ---

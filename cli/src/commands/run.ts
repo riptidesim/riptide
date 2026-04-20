@@ -63,10 +63,16 @@ export function createRunCommand(): Command {
       "Exit 0 even if declared invariants fire during any scenario (default: exit 1 on any firing). Mirrors engine flag; setup errors + SIGINT + engine crashes still return non-zero.",
       false
     )
+    .option(
+      "-v, --verbose",
+      "Restore pass-through engine stderr during each scenario (today's pre-Phase-4 chatter). Default is quiet — engine output only surfaces in the per-failure summary block.",
+      false
+    )
     .action(async (positional: string | undefined, cliOpts: Record<string, unknown>) => {
       const cwd = process.cwd();
       const formatJson = cliOpts.format === "json";
       const allowInvariantViolations = Boolean(cliOpts.allowInvariantViolations);
+      const verbose = Boolean(cliOpts.verbose);
 
       const resolved = await resolveScenarios({
         cwd,
@@ -99,13 +105,15 @@ export function createRunCommand(): Command {
       // blob at the end so consumers can parse without stripping.
       const formatter = formatJson
         ? { handle: () => {} }
-        : createJestFormatter({ stdout: process.stdout, stderr: process.stderr });
+        : createJestFormatter({
+            stdout: process.stdout,
+            stderr: process.stderr,
+            cwd
+          });
 
       if (!formatJson) {
         process.stderr.write(
-          chalk.bold(
-            `riptide run: ${resolved.scenarios.length} scenario${resolved.scenarios.length === 1 ? "" : "s"}\n`
-          )
+          `riptide run: ${resolved.scenarios.length} scenario${resolved.scenarios.length === 1 ? "" : "s"}\n`
         );
       }
 
@@ -114,6 +122,7 @@ export function createRunCommand(): Command {
         cwd,
         adapterOverride,
         monorepoRoot: monorepoRootFromModule() ?? null,
+        silent: !verbose,
         onEvent: formatter.handle
       });
 

@@ -15,9 +15,24 @@ import {
 export interface SpawnResult {
   code: number;
   stderrTail: string;
+  /** Full captured stderr. Populated when the spawner runs in silent mode. */
+  stderrFull?: string;
 }
 
-export type Spawner = (bin: string, args: string[]) => Promise<SpawnResult>;
+export type Spawner = (bin: string, args: string[], opts?: SpawnerOptions) => Promise<SpawnResult>;
+
+export interface SpawnerOptions {
+  /**
+   * When true, capture engine stderr without writing it to
+   * `process.stderr`. The full captured text surfaces on the
+   * SpawnResult.stderrFull field so the caller can inline it in
+   * failure blocks under `riptide run`. Default (undefined/false)
+   * preserves the historical pass-through for `riptide simulate`,
+   * `riptide replay`, and the adapt smoke-test — keeps per-command
+   * behavior explicit.
+   */
+  silent?: boolean;
+}
 
 export interface OrchestratorOptions {
   spawner?: Spawner;
@@ -26,6 +41,13 @@ export interface OrchestratorOptions {
   llmUrl?: string;
   /** Absolute path to a pre-validated adapter TOML, or undefined. */
   adapterPath?: string;
+  /**
+   * Suppress live engine stderr pass-through. Captured stderr still
+   * lands on SpawnResult for inclusion in error messages. Default is
+   * pass-through (today's behavior) so non-run commands keep their
+   * live output.
+   */
+  silent?: boolean;
   /**
    * forward the `--allow-invariant-violations` flag
    * into the engine. When true, the engine exits 0 even if one or
@@ -177,7 +199,9 @@ export async function runOrchestrator(
       args.push("--allow-invariant-violations");
     }
 
-    const { code, stderrTail } = await spawner(enginePath, args);
+    const { code, stderrTail, stderrFull } = await spawner(enginePath, args, {
+      silent: options.silent
+    });
     if (code !== 0) {
       const tail = stderrTail.trim();
       const suffix = tail ? `\n--- engine stderr (tail) ---\n${tail}` : "";
@@ -194,9 +218,14 @@ export async function runOrchestrator(
           const parsed = SimulationResultSchema.parse(JSON.parse(raw));
           const error = new Error(
             `riptide-engine exited with code 1 — invariant violation(s) recorded.${suffix}`
-          ) as Error & { simulationResult?: SimulationResult; exitCode?: number };
+          ) as Error & {
+            simulationResult?: SimulationResult;
+            exitCode?: number;
+            stderrFull?: string;
+          };
           error.simulationResult = parsed;
           error.exitCode = 1;
+          error.stderrFull = stderrFull;
           throw error;
         } catch (readErr) {
           if ((readErr as Error).message?.startsWith("riptide-engine exited")) {
@@ -205,7 +234,13 @@ export async function runOrchestrator(
           // fall through to the generic error below.
         }
       }
-      throw new Error(`riptide-engine exited with code ${code}.${suffix}`);
+      const err = new Error(`riptide-engine exited with code ${code}.${suffix}`) as Error & {
+        stderrFull?: string;
+        exitCode?: number;
+      };
+      err.stderrFull = stderrFull;
+      err.exitCode = code;
+      throw err;
     }
 
     const raw = await readFile(outputPath, "utf8");
@@ -372,18 +407,25 @@ async function which(bin: string, env: NodeJS.ProcessEnv): Promise<string | unde
   return undefined;
 }
 
-const defaultSpawner: Spawner = (bin, args) => {
-  // Pipe stderr so we can both stream it live to the user AND keep a rolling
-  // tail buffer for the error message on non-zero exit. Inherit-only would
-  // lose the engine's actual error text, which is exactly what the caller
-  // needs when the engine fails mid-setup.
+const defaultSpawner: Spawner = (bin, args, opts) => {
+  const silent = opts?.silent === true;
+  // In non-silent mode we pipe stderr so we can BOTH stream it live
+  // to the user AND keep a rolling tail for the error message. In
+  // silent mode we capture the full stderr stream for later display
+  // (riptide run's failure block) without any live pass-through.
   const child = spawn(bin, args, { stdio: ["ignore", "ignore", "pipe"] });
   const chunks: string[] = [];
   let chunksBytes = 0;
+  const fullBuf: string[] = [];
 
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", (chunk: string) => {
-    process.stderr.write(chunk);
+    if (!silent) {
+      process.stderr.write(chunk);
+    }
+    if (silent) {
+      fullBuf.push(chunk);
+    }
     chunks.push(chunk);
     chunksBytes += chunk.length;
     while (chunksBytes > STDERR_TAIL_BYTES && chunks.length > 1) {
@@ -400,7 +442,11 @@ const defaultSpawner: Spawner = (bin, args) => {
         return;
       }
       const tail = chunks.join("").slice(-STDERR_TAIL_BYTES);
-      resolve({ code, stderrTail: tail });
+      resolve({
+        code,
+        stderrTail: tail,
+        stderrFull: silent ? fullBuf.join("") : undefined
+      });
     });
   });
 };
