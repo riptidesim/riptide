@@ -1,0 +1,5 @@
+{
+  "adapter": "./adapter.toml",
+  "trajectory_dir": ".",
+  "output_path": "riptide-output/replays/liquid-staking-kelp-depeg-queue-open-2026"
+}

@@ -1,0 +1,34 @@
+{
+  "result_sha256": "4c8863155abdab063c6fa6b98d6fd87c7a7fe8d27cf704e79b75911e50b09f1c",
+  "total_ticks": 5,
+  "event_count": 14,
+  "invariant_firings": {
+    "no_slash_during_healthy_run": 2,
+    "no_queue_formation": 3,
+    "no_catastrophic_depeg": 2
+  },
+  "invariant_first_firing_tick": {
+    "no_slash_during_healthy_run": 4,
+    "no_queue_formation": 3,
+    "no_catastrophic_depeg": 4
+  },
+  "summary": {
+    "agents_active": 6,
+    "agents_depleted": 0,
+    "agents_liquidated": 0,
+    "pool.cumulative_slashed_max": 2000.0,
+    "pool.cumulative_slashed_min": 0.0,
+    "pool.exchange_rate_bps_max": 10000.0,
+    "pool.exchange_rate_bps_min": 2000.0,
+    "pool.lst_supply_max": 10000.0,
+    "pool.lst_supply_min": 2500.0,
+    "pool.pending_unstake_assets_max": 6000.0,
+    "pool.pending_unstake_assets_min": 0.0,
+    "pool.pending_unstake_count_max": 4.0,
+    "pool.pending_unstake_count_min": 0.0,
+    "pool.reserve_buffer_max": 2000.0,
+    "pool.reserve_buffer_min": 500.0,
+    "pool.total_assets_max": 10000.0,
+    "pool.total_assets_min": 6500.0
+  }
+}

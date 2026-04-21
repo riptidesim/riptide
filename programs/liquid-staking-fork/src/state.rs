@@ -113,7 +113,15 @@ pub struct PoolState {
     pub pending_unstake_count: u64,
     /// Underlying-per-LST exchange rate, in bps of 10_000. Starts at
     /// `DEFAULT_EXCHANGE_RATE_BPS` and drops when `apply_slash`
-    /// shrinks `total_assets` against a constant `lst_supply`.
+    /// shrinks `total_assets` while `lst_supply` and
+    /// `pending_unstake_assets` are unchanged. The rate reflects
+    /// backing *for remaining LST holders only*:
+    /// `(total_assets - pending_unstake_assets) / lst_supply`. Queue
+    /// entries are senior — their claim is locked at the assets owed
+    /// when the request was posted — so a slash that lands while the
+    /// queue is open is absorbed entirely by active LST, producing a
+    /// sharper depeg signal than a naive `total_assets / lst_supply`
+    /// ratio would show.
     pub exchange_rate_bps: u64,
     /// Cumulative slash magnitude in underlying units, monotonic.
     pub cumulative_slashed: u64,
@@ -231,19 +239,85 @@ pub fn lst_to_assets(lst_amount: u64, exchange_rate_bps: u64) -> Result<u64, Liq
     Ok(owed.min(u64::MAX as u128) as u64)
 }
 
-/// Recompute `exchange_rate_bps` from `total_assets` and `lst_supply`
-/// after a slash. Keeps the post-slash LST:asset ratio accurate so
-/// future `request_unstake` calls mint the right assets.
+/// Recompute `exchange_rate_bps` after a slash.
+///
+/// The rate is the backing available to *remaining* LST holders, not
+/// the raw `total_assets / lst_supply` ratio. Queue entries are senior:
+/// `pending_unstake_assets` is a fixed-asset liability the pool already
+/// owes at the rate that applied when the request was posted, so those
+/// units of `total_assets` are not available to back live LST and must
+/// be excluded from the ratio.
+///
+/// Formula: `(total_assets - pending_unstake_assets) * BPS / lst_supply`.
+///
+/// Without this subtraction, a slash that lands while the queue is open
+/// *raises* the reported rate — the scenario exactly inverted. Example:
+/// stake 1_000, queue 500, then slash 50% of delegated stake. The raw
+/// ratio gives 600/500 = 12_000 bps (peg appears to strengthen). The
+/// honest ratio gives (600 - 500)/500 = 2_000 bps — an 80% depeg, which
+/// is what Sprint 10 R1.2 is modeling.
 ///
 /// With zero LST supply the rate is pinned to `DEFAULT_EXCHANGE_RATE_BPS`
 /// so a slash on a cold pool is idempotent.
-pub fn recompute_exchange_rate(total_assets: u64, lst_supply: u64) -> u64 {
+pub fn recompute_exchange_rate(
+    total_assets: u64,
+    lst_supply: u64,
+    pending_unstake_assets: u64,
+) -> u64 {
     if lst_supply == 0 {
         return DEFAULT_EXCHANGE_RATE_BPS;
     }
-    let rate = (total_assets as u128)
+    let backing = total_assets.saturating_sub(pending_unstake_assets);
+    let rate = (backing as u128)
         .checked_mul(BPS_DENOMINATOR)
         .unwrap_or(u128::MAX)
         / lst_supply as u128;
     rate.min(u64::MAX as u128) as u64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_queue_matches_raw_ratio() {
+        // With no queue entries, the rate is the plain total/lst ratio.
+        // This is the regime the existing replay fixture exercises
+        // (slash lands before any request_unstake).
+        assert_eq!(recompute_exchange_rate(1_000, 1_000, 0), 10_000);
+        assert_eq!(recompute_exchange_rate(600, 1_000, 0), 6_000);
+    }
+
+    #[test]
+    fn slash_while_queue_open_depegs_active_lst() {
+        // The Sprint 10 R1.2 regime. Pool state mirrors the trace in
+        // the bug writeup: stake 1_000 → queue 500 LST (pending=500,
+        // lst=500, total unchanged at 1_000) → slash 50% of delegated
+        // (total 1_000 → 600). Pre-fix this returned 12_000 bps (peg
+        // *strengthened*). The honest signal is 2_000 bps — an 80%
+        // depeg absorbed entirely by the remaining 500 LST.
+        assert_eq!(recompute_exchange_rate(600, 500, 500), 2_000);
+    }
+
+    #[test]
+    fn zero_lst_supply_pins_to_default() {
+        // Slash on a cold pool must be idempotent even if pending is
+        // somehow non-zero — no live LST means no meaningful ratio.
+        assert_eq!(
+            recompute_exchange_rate(0, 0, 0),
+            DEFAULT_EXCHANGE_RATE_BPS
+        );
+        assert_eq!(
+            recompute_exchange_rate(1_000, 0, 500),
+            DEFAULT_EXCHANGE_RATE_BPS
+        );
+    }
+
+    #[test]
+    fn pending_above_total_saturates_to_zero() {
+        // Defensive: the invariant is pending <= total, but if a future
+        // code path breaks it we want a "fully depegged" reading (0),
+        // not an underflow-driven huge number from wrapping subtraction.
+        assert_eq!(recompute_exchange_rate(100, 500, 600), 0);
+    }
 }

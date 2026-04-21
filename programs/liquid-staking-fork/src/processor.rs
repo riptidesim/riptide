@@ -348,6 +348,7 @@ impl Processor {
                 pool_state.exchange_rate_bps = recompute_exchange_rate(
                     pool_state.total_assets,
                     pool_state.lst_supply,
+                    pool_state.pending_unstake_assets,
                 );
 
                 Self::write_state(pool, &pool_state)
