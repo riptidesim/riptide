@@ -97,22 +97,39 @@ struct SimulateCli {
     about = "Replay a declared instruction/oracle trajectory against a Riptide adapter",
     long_about = "Boots the adapter's program in LiteSVM, replays trajectory.json + optional \
                   oracle-trajectory.json / initial-state.json from a replay fixture directory, \
-                  and writes a SimulationResult JSON to --output."
+                  and writes a SimulationResult JSON to --output.\n\n\
+                  Multi-component replays pass --config <file>.json pointing at a JSON with a \
+                  `components` array; the engine then bootstraps every declared component into \
+                  one LiteSVM, evaluates declared bridges between upstream and downstream \
+                  components in declaration order, and writes a single qualified SimulationResult \
+                  to --output. Legacy single-component `{ adapter, trajectory_dir, output_path }` \
+                  config files pass through the existing replay path unchanged."
 )]
 struct ReplayCli {
-    /// Adapter TOML to boot for the replay.
-    #[arg(value_name = "ADAPTER")]
-    adapter: PathBuf,
+    /// Adapter TOML to boot for the replay. Optional when --config is
+    /// supplied.
+    #[arg(value_name = "ADAPTER", required_unless_present = "config")]
+    adapter: Option<PathBuf>,
 
-    /// Directory containing trajectory.json and optional oracle-trajectory.json / initial-state.json.
-    #[arg(value_name = "TRAJECTORY_DIR")]
-    trajectory_dir: PathBuf,
+    /// Directory containing trajectory.json and optional
+    /// oracle-trajectory.json / initial-state.json. Optional when
+    /// --config is supplied.
+    #[arg(value_name = "TRAJECTORY_DIR", required_unless_present = "config")]
+    trajectory_dir: Option<PathBuf>,
+
+    /// Path to a replay config JSON. When set, the positional
+    /// ADAPTER / TRAJECTORY_DIR are ignored and the engine
+    /// auto-detects legacy vs multi-component shape from the config
+    /// contents.
+    #[arg(long, value_name = "FILE", conflicts_with_all = ["adapter", "trajectory_dir"])]
+    config: Option<PathBuf>,
 
     /// Path where the replay result JSON should be written.
     #[arg(long, value_name = "FILE")]
     output: PathBuf,
 
-    /// Optional override for the compiled program `.so`.
+    /// Optional override for the compiled program `.so`. Only applies
+    /// to the legacy single-component path.
     #[arg(long, value_name = "FILE")]
     program_so: Option<PathBuf>,
 
@@ -497,15 +514,59 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
 }
 
 fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
-    let adapter = load_adapter(&cli.adapter).map_err(|e| anyhow::anyhow!("{e}"))?;
-    let bundle = load_replay_bundle(&cli.trajectory_dir, &adapter)
+    // When --config is supplied, auto-detect legacy vs
+    // multi-component shape from the config contents and route.
+    // Multi-component configs land on `run_multi_replay`; legacy
+    // configs are expanded and routed through the existing
+    // single-component path below.
+    let (adapter_path, trajectory_dir, multi_cfg_with_base) = match cli.config.as_ref() {
+        Some(config_path) => {
+            let base = config_path
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| PathBuf::from("."));
+            let shape = riptide_engine::replay::load_replay_config(config_path)
+                .map_err(|e| anyhow::anyhow!("load replay config {}: {e:#}", config_path.display()))?;
+            match shape {
+                riptide_engine::replay::ReplayConfigShape::Legacy(legacy) => {
+                    let adapter_path = resolve_config_path(&base, &legacy.adapter);
+                    let trajectory_dir = resolve_config_path(&base, &legacy.trajectory_dir);
+                    (adapter_path, trajectory_dir, None)
+                }
+                riptide_engine::replay::ReplayConfigShape::Multi(multi) => {
+                    // Multi-component replay: hand off to the
+                    // coordinator entirely. No further single-
+                    // component inputs are needed.
+                    (PathBuf::new(), PathBuf::new(), Some((multi, base)))
+                }
+            }
+        }
+        None => {
+            let adapter = cli
+                .adapter
+                .clone()
+                .expect("clap `required_unless_present` guarantees adapter or config");
+            let trajectory = cli
+                .trajectory_dir
+                .clone()
+                .expect("clap `required_unless_present` guarantees trajectory_dir or config");
+            (adapter, trajectory, None)
+        }
+    };
+
+    if let Some((multi, base)) = multi_cfg_with_base {
+        return run_multi_component_replay_command(multi, &base, &cli.output);
+    }
+
+    let adapter = load_adapter(&adapter_path).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let bundle = load_replay_bundle(&trajectory_dir, &adapter)
         .map_err(|e| anyhow::anyhow!("load replay bundle: {e:#}"))?;
     let actor_count = bundle.actor_ids.len();
 
     eprintln!(
         "riptide-engine replay: adapter={} trajectory={} actors={} ticks={}",
-        cli.adapter.display(),
-        cli.trajectory_dir.display(),
+        adapter_path.display(),
+        trajectory_dir.display(),
         actor_count,
         bundle.total_ticks,
     );
@@ -594,6 +655,52 @@ fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
         Ok(EngineOutcome::InvariantFired(firing_count))
     } else {
         Ok(EngineOutcome::Clean)
+    }
+}
+
+/// Drive the multi-component replay command. Bootstraps every
+/// declared component into one shared LiteSVM, runs the coordinator
+/// tick loop with bridge propagation, and writes a qualified
+/// SimulationResult to `--output`.
+fn run_multi_component_replay_command(
+    cfg: riptide_engine::replay::MultiReplayConfig,
+    base_path: &Path,
+    output_path: &Path,
+) -> anyhow::Result<EngineOutcome> {
+    let component_names: Vec<&str> = cfg.components.iter().map(|c| c.name.as_str()).collect();
+    eprintln!(
+        "riptide-engine replay (multi-component): components={:?} bridges={} output={}",
+        component_names,
+        cfg.bridges.len(),
+        output_path.display(),
+    );
+    let mut harness = riptide_engine::replay::MultiComponentHarness::bootstrap(&cfg, base_path)
+        .map_err(|e| anyhow::anyhow!("bootstrap multi-component harness: {e:#}"))?;
+    eprintln!(
+        "LiteSVM ready: components={} bridges={}",
+        harness.components().len(),
+        harness.bridges.len(),
+    );
+    let result =
+        riptide_engine::replay::run_multi_replay(&mut harness, output_path.display().to_string())
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+    write_result(output_path, &result)?;
+    eprintln!("wrote {}", output_path.display());
+
+    let firing_count = count_invariant_firings(&result);
+    if firing_count > 0 {
+        Ok(EngineOutcome::InvariantFired(firing_count))
+    } else {
+        Ok(EngineOutcome::Clean)
+    }
+}
+
+fn resolve_config_path(base: &Path, value: &str) -> PathBuf {
+    let raw = PathBuf::from(value);
+    if raw.is_absolute() {
+        raw
+    } else {
+        base.join(raw)
     }
 }
 

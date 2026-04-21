@@ -11,11 +11,25 @@ import { renderSummary, renderColoredTable } from "../report/summary.js";
 import { renderTimeline } from "../report/timeline.js";
 import { blockUntilSignal, startDashboardServer } from "../serve/index.js";
 
-interface ReplayConfigFile {
+interface LegacyReplayConfigFile {
   adapter?: string;
   trajectory_dir?: string;
   output_path?: string;
 }
+
+interface MultiComponentEntry {
+  name?: string;
+  adapter?: string;
+  trajectory_dir?: string;
+}
+
+interface MultiReplayConfigFile {
+  components?: unknown;
+  bridges?: unknown;
+  output_path?: string;
+}
+
+type ReplayConfigFile = LegacyReplayConfigFile & MultiReplayConfigFile;
 
 export function createReplayCommand(): Command {
   return new Command("replay")
@@ -47,7 +61,10 @@ export function createReplayCommand(): Command {
             : `unreadable (${(err as Error).message ?? String(err)})`;
         throw new Error(
           `riptide replay: replay-config ${reason} at ${absConfig}\n` +
-            `Expected a JSON file with { adapter, trajectory_dir, output_path? }.`
+            `Expected a JSON file shaped either as a legacy single-component replay\n` +
+            `  { adapter, trajectory_dir, output_path? }\n` +
+            `or a multi-component cross-protocol replay\n` +
+            `  { components: [ { name, adapter, trajectory_dir }, ... ], bridges?: [...], output_path? }.`
         );
       }
 
@@ -61,31 +78,79 @@ export function createReplayCommand(): Command {
         );
       }
 
-      if (typeof parsed.adapter !== "string" || typeof parsed.trajectory_dir !== "string") {
+      // A replay config is either single-component
+      // `{ adapter, trajectory_dir, output_path? }` or multi-component
+      // `{ components: [...], bridges?: [...], output_path? }`. The
+      // CLI auto-detects the shape so every shipping single-program
+      // fixture keeps working without migration, and the new
+      // cross-protocol contagion proof path lands through the same
+      // `riptide replay <config>` entrypoint.
+      const isMulti = Array.isArray(parsed.components);
+      const isLegacy =
+        typeof parsed.adapter === "string" && typeof parsed.trajectory_dir === "string";
+      if (!isMulti && !isLegacy) {
         throw new Error(
-          `riptide replay: replay-config at ${absConfig} is missing one of the required fields ` +
-            `{ adapter, trajectory_dir }.`
+          `riptide replay: replay-config at ${absConfig} is neither a legacy ` +
+            `{ adapter, trajectory_dir } shape nor a multi-component { components: [...] } shape.\n` +
+            `See examples/replays/* for both shapes.`
         );
       }
 
       const configDir = path.dirname(absConfig);
-      const adapterPath = path.resolve(configDir, parsed.adapter);
-      const trajectoryDir = path.resolve(configDir, parsed.trajectory_dir);
-      const outputPath =
-        typeof parsed.output_path === "string" && parsed.output_path.length > 0
-          ? path.resolve(configDir, parsed.output_path)
-          : path.join(
-              "riptide-output",
-              "replays",
-              path.basename(trajectoryDir)
+      let adapterPath: string | undefined;
+      let trajectoryDir: string | undefined;
+      let outputPath: string;
+      let displayLine: string;
+
+      if (isMulti) {
+        const components = parsed.components as MultiComponentEntry[];
+        const componentNames: string[] = [];
+        for (const [idx, component] of components.entries()) {
+          if (
+            !component ||
+            typeof component.name !== "string" ||
+            typeof component.adapter !== "string" ||
+            typeof component.trajectory_dir !== "string"
+          ) {
+            throw new Error(
+              `riptide replay: multi-component config at ${absConfig} has an ` +
+                `invalid entry at components[${idx}] — each entry needs ` +
+                `{ name, adapter, trajectory_dir }.`
             );
+          }
+          componentNames.push(component.name);
+        }
+        if (components.length < 2) {
+          throw new Error(
+            `riptide replay: multi-component config at ${absConfig} declares ` +
+              `${components.length} component(s); at least 2 are required.`
+          );
+        }
+        outputPath =
+          typeof parsed.output_path === "string" && parsed.output_path.length > 0
+            ? path.resolve(configDir, parsed.output_path)
+            : path.join(
+                "riptide-output",
+                "replays",
+                `${componentNames.join("-")}-multi`
+              );
+        displayLine = `riptide replay (multi-component): components=${componentNames.join(", ")}\n`;
+      } else {
+        adapterPath = path.resolve(configDir, parsed.adapter as string);
+        trajectoryDir = path.resolve(configDir, parsed.trajectory_dir as string);
+        outputPath =
+          typeof parsed.output_path === "string" && parsed.output_path.length > 0
+            ? path.resolve(configDir, parsed.output_path)
+            : path.join(
+                "riptide-output",
+                "replays",
+                path.basename(trajectoryDir)
+              );
+        displayLine = `riptide replay: adapter=${adapterPath} trajectory=${trajectoryDir}\n`;
+      }
 
       if (!formatJson) {
-        process.stderr.write(
-          chalk.bold(
-            `riptide replay: adapter=${adapterPath} trajectory=${trajectoryDir}\n`
-          )
-        );
+        process.stderr.write(chalk.bold(displayLine));
       }
 
       const spinner = isTTY
@@ -97,11 +162,13 @@ export function createReplayCommand(): Command {
       let invariantFiring = false;
       try {
         result = await runReplayOrchestrator(
-          {
-            adapterPath,
-            trajectoryDir,
-            outputPath
-          },
+          isMulti
+            ? { configPath: absConfig, outputPath }
+            : {
+                adapterPath: adapterPath!,
+                trajectoryDir: trajectoryDir!,
+                outputPath
+              },
           {
             allowInvariantViolations: Boolean(cliOpts.allowInvariantViolations)
           }
@@ -159,9 +226,14 @@ export function createReplayCommand(): Command {
       }
 
       const reproCommand = `riptide replay ${configArg}`;
+      // Multi-component replays do not have a single adapter path;
+      // fall back to the config file path for the narrative surface
+      // so the rerun hint still points at a concrete file the user
+      // can inspect.
+      const narrativeAdapterPath = adapterPath ?? absConfig;
       const artifactPath = await writeArtifacts(result, outputPath, {
         narrativeConfig: {
-          adapterPath,
+          adapterPath: narrativeAdapterPath,
           reproCommand
         }
       });

@@ -466,7 +466,7 @@ fn resolve_replay_instruction<'a>(
     Ok(ReplayInstructionResolution::Raw { instruction })
 }
 
-fn resolve_instruction_for_action<'a>(
+pub(crate) fn resolve_instruction_for_action<'a>(
     idl: &'a GenericIdl,
     adapter: &'a Adapter,
     action_name: &str,
@@ -867,9 +867,9 @@ pub struct GenericHarness {
 /// the binding stays durable across harness mutations.
 #[cfg(any(feature = "litesvm-backend", test))]
 #[derive(Debug, Clone)]
-struct RuntimeOracleBinding {
-    account_name: String,
-    kind: OracleKind,
+pub(crate) struct RuntimeOracleBinding {
+    pub(crate) account_name: String,
+    pub(crate) kind: OracleKind,
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
@@ -1491,7 +1491,7 @@ fn json_f64_gen(value: f64) -> serde_json::Value {
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
-fn load_generic_program_bytes(path: &Path) -> Result<Vec<u8>> {
+pub(crate) fn load_generic_program_bytes(path: &Path) -> Result<Vec<u8>> {
     if !path.exists() {
         bail!(
             "generic program .so not found at {}\nRun the matching `cargo build-sbf` command for this adapter first.",
@@ -1502,14 +1502,14 @@ fn load_generic_program_bytes(path: &Path) -> Result<Vec<u8>> {
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
-fn generic_airdrop(svm: &mut LiteSVM, address: &Pubkey, lamports: u64) -> Result<()> {
+pub(crate) fn generic_airdrop(svm: &mut LiteSVM, address: &Pubkey, lamports: u64) -> Result<()> {
     svm.airdrop(address, lamports)
         .map_err(|error| anyhow!("airdrop to {address}: {error:?}"))
         .map(|_| ())
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
-fn bootstrap_generic_accounts(
+pub(crate) fn bootstrap_generic_accounts(
     svm: &mut LiteSVM,
     adapter: &Adapter,
     agent_count: usize,

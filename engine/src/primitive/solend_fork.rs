@@ -607,14 +607,14 @@ fn json_f64(value: f64) -> serde_json::Value {
 }
 
 /// Airdrop lamports to an address in LiteSVM.
-fn airdrop(svm: &mut LiteSVM, address: &Pubkey, lamports: u64) -> Result<()> {
+pub(crate) fn airdrop(svm: &mut LiteSVM, address: &Pubkey, lamports: u64) -> Result<()> {
     svm.airdrop(address, lamports)
         .map_err(|e| anyhow!("airdrop to {address}: {e:?}"))
         .map(|_| ())
 }
 
 /// Build, sign, and send a transaction through LiteSVM.
-fn send_tx(
+pub(crate) fn send_tx(
     svm: &mut LiteSVM,
     payer: &Keypair,
     instructions: Vec<solana_sdk::instruction::Instruction>,

@@ -76,8 +76,18 @@ export interface OrchestratorOptions {
 }
 
 export interface ReplayOrchestratorInput {
-  adapterPath: string;
-  trajectoryDir: string;
+  /** Single-component replay: adapter TOML path. Mutually exclusive with `configPath`. */
+  adapterPath?: string;
+  /** Single-component replay: trajectory directory path. Mutually exclusive with `configPath`. */
+  trajectoryDir?: string;
+  /**
+   * Multi-component replay: path to a replay config JSON containing a
+   * `components` array (and optional `bridges`). When set, the engine
+   * is invoked with `replay --config <path>` and the orchestrator
+   * does not need adapter/trajectory separately. Mutually exclusive
+   * with `adapterPath` / `trajectoryDir`.
+   */
+  configPath?: string;
   outputPath: string;
 }
 
@@ -267,7 +277,26 @@ export async function runReplayOrchestrator(
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "riptide-replay-"));
   try {
     const outputPath = path.join(tmpDir, "simulation-result.json");
-    const args = ["replay", replay.adapterPath, replay.trajectoryDir, "--output", outputPath];
+    // Accept either (adapterPath + trajectoryDir) for the legacy
+    // single-component path OR (configPath) for the multi-component
+    // path. The engine binary auto-detects the config shape; the
+    // orchestrator only has to shape the argv correctly.
+    let args: string[];
+    if (replay.configPath) {
+      if (replay.adapterPath || replay.trajectoryDir) {
+        throw new Error(
+          "runReplayOrchestrator: `configPath` is mutually exclusive with `adapterPath`/`trajectoryDir`"
+        );
+      }
+      args = ["replay", "--config", replay.configPath, "--output", outputPath];
+    } else {
+      if (!replay.adapterPath || !replay.trajectoryDir) {
+        throw new Error(
+          "runReplayOrchestrator: missing inputs — pass either `configPath` or both `adapterPath` + `trajectoryDir`"
+        );
+      }
+      args = ["replay", replay.adapterPath, replay.trajectoryDir, "--output", outputPath];
+    }
     if (options.allowInvariantViolations) {
       args.push("--allow-invariant-violations");
     }
