@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "name": "lst-lending-contagion-proof-downstream",
+    "description": "Downstream lending component for the cross-protocol contagion proof. Five whale positions share a single pool; collateral price comes ONLY from the declared bridge reading upstream liquid-staking pool.exchange_rate_bps. The terminal liquidation cascade at tick 4 runs after the bridge has already dropped the collateral oracle from $100 to $60 (upstream slash at tick 3), so the realized bad debt is attributable to the upstream depeg, not to a manual lending-side oracle trajectory.",
+    "source": "fixtures/replays/lending-whale-bad-debt — same whale-concentrated-borrow geometry and terminal cascade shape, rewired so the oracle source is the bridge."
+  },
+  "ticks": [
+    {
+      "tick": 4,
+      "instructions": [
+        { "name": "liquidate", "agent": "otc-liquidator-0", "args": { "amount": 6400, "target": "whale-0" } },
+        { "name": "liquidate", "agent": "otc-liquidator-1", "args": { "amount": 6400, "target": "whale-1" } },
+        { "name": "liquidate", "agent": "otc-liquidator-2", "args": { "amount": 6400, "target": "whale-2" } },
+        { "name": "liquidate", "agent": "otc-liquidator-3", "args": { "amount": 6400, "target": "whale-3" } },
+        { "name": "liquidate", "agent": "otc-liquidator-4", "args": { "amount": 6400, "target": "whale-4" } }
+      ]
+    }
+  ]
+}

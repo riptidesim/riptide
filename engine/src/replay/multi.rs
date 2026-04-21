@@ -721,24 +721,30 @@ fn value_to_f64(v: &Value) -> Option<f64> {
 
 fn bootstrap_generic_component(
     svm: &mut LiteSVM,
-    base_path: &Path,
+    _base_path: &Path,
     adapter: &Adapter,
     agent_count: usize,
 ) -> Result<GenericComponent> {
+    // `load_adapter` rewrites generic `program_so` / `idl_path` to be
+    // relative to the adapter file's own parent (same contract the
+    // single-component replay path relies on), so the adapter struct
+    // already carries paths that resolve correctly against the current
+    // working directory. Do NOT re-resolve them against the config's
+    // base_path — that would double-prefix the adapter parent onto an
+    // already-rewritten path when the config points at a sibling
+    // adapter via a relative `../other/adapter.toml`.
     let program_so = PathBuf::from(
         adapter
             .program_so
             .as_deref()
             .ok_or_else(|| anyhow!("generic component adapter is missing `program_so`"))?,
     );
-    let program_so = resolve_path(base_path, &program_so.to_string_lossy());
     let idl_path = PathBuf::from(
         adapter
             .idl_path
             .as_deref()
             .ok_or_else(|| anyhow!("generic component adapter is missing `idl_path`"))?,
     );
-    let idl_path = resolve_path(base_path, &idl_path.to_string_lossy());
 
     let program_bytes = load_generic_program_bytes(&program_so)?;
     let idl = load_generic_idl(&idl_path)?;
