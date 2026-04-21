@@ -303,8 +303,10 @@ cargo test -p riptide-engine --test litesvm_parity
 cargo test -p riptide-engine --test e2e_determinism
 cargo test -p riptide-engine --test perps_fork_roundtrip
 cargo test -p riptide-engine --test amm_fork_roundtrip
+cargo test -p riptide-engine --test liquid_staking_fork_roundtrip
 cargo test -p riptide-engine --test replay_framework
 cargo test -p riptide-engine --test replay_solend_june_2022
+cargo test -p riptide-engine --test replay_liquid_staking_kelp_depeg_2026
 
 # CLI suite
 (cd cli && npm test)
@@ -317,6 +319,7 @@ cargo test -p riptide-engine --test replay_solend_june_2022
 | Solend-fork hero-grid `w25-s40` | `89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11` |
 | Perps-fork scratch | `1518bcfdeb6cdb7d538be86584195b4b348b73beed610003d4a35939994f1878` |
 | AMM-fork scratch | `5de060cdcacfbacaa598a387a9f249e7633fedac449f137d62c0ede9cf10624f` |
+| Liquid-staking Kelp-style depeg replay (canonical `result_sha256`) | `6349648ebf34ba159a2d0285682ac328b4061e664bca1bbc205d58cf691be831` |
 
 If your PR flips any of these, include the conscious-retune justification in the PR description — why the new bytes are correct, what changed in the adapter / scenario / engine that causes the shift, and why the old hash is no longer load-bearing.
 
