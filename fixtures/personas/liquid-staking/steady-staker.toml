@@ -1,0 +1,17 @@
+# Liquid-staking persona — steady staker.
+#
+# Standalone TOML fragment the future `scripts/liquid-staking-scratch.sh`
+# sidecar will concatenate onto a truncated copy of
+# `fixtures/adapters/liquid-staking-fork.toml` below the
+# `# === SIDECAR-CUT ===` marker. Matches the perps-fork / amm-fork
+# sidecar shape.
+#
+# Low-rate, stake-dominant. Represents the quiet majority that holds
+# LST through volatility and does not react to short-term depeg noise.
+# No triggers — the steady-staker is the reference population against
+# which panic-exiter / arb-redeemer pressure is measured.
+[personas.steady-staker]
+label = "Steady staker"
+action_rate_multiplier = 0.5
+action_weights = { stake = 0.9, request_unstake = 0.05, claim_unstake = 0.05 }
+triggers = []

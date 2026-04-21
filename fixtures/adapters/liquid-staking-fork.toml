@@ -48,11 +48,11 @@
 #   and amm-fork uses (`pool` shared, `lp_position` agent).
 #
 # Layer 2 personas — the differentiated liquid-staking library
-# (`steady-staker`, `yield-maxi`, `panic-exiter`, `arb-redeemer`) —
-# lands as standalone fragments under `fixtures/personas/liquid-staking/`.
-# A future `scripts/liquid-staking-scratch.sh` sidecar script will
-# truncate this file at the `# === SIDECAR-CUT ===` marker and append
-# the real persona library before invoking the engine, matching the
+# (`steady-staker`, `yield-maxi`, `panic-exiter`, `arb-redeemer`) — ship
+# both as standalone fragments under `fixtures/personas/liquid-staking/`
+# and inlined above the `# === SIDECAR-CUT ===` marker below. A future
+# `scripts/liquid-staking-scratch.sh` sidecar script can truncate this
+# file at the marker and re-append the per-file fragments, matching the
 # sidecar-runner pattern the other bundles established.
 
 protocol = "generic"
@@ -156,11 +156,49 @@ field = "pool.exchange_rate_bps"
 op = "<="
 value = 100000
 
+# Differentiated liquid-staking persona library. Mirrored verbatim from
+# `fixtures/personas/liquid-staking/*.toml` so the shipping adapter can
+# bootstrap named-persona scenarios under
+# `fixtures/scenarios/liquid-staking-fork/` without a sidecar pass. The
+# per-file fragments remain the canonical sources for a future
+# `scripts/liquid-staking-scratch.sh` that truncates at the
+# `# === SIDECAR-CUT ===` marker below and re-appends them.
+
+[personas.steady-staker]
+label = "Steady staker"
+action_rate_multiplier = 0.5
+action_weights = { stake = 0.9, request_unstake = 0.05, claim_unstake = 0.05 }
+triggers = []
+
+[personas.yield-maxi]
+label = "Yield maximizer"
+action_rate_multiplier = 1.5
+action_weights = { stake = 1.0, request_unstake = 0.05, claim_unstake = 0.05 }
+triggers = [
+  { if = "pool.exchange_rate_bps > 10500", then = "request_unstake", weight_boost = 2.0 },
+]
+
+[personas.panic-exiter]
+label = "Panic exiter"
+action_rate_multiplier = 1.0
+action_weights = { stake = 0.05, request_unstake = 0.8, claim_unstake = 0.15 }
+triggers = [
+  { if = "pool.exchange_rate_bps < 9500", then = "request_unstake", weight_boost = 5.0 },
+]
+
+[personas.arb-redeemer]
+label = "Arb redeemer"
+action_rate_multiplier = 1.2
+action_weights = { stake = 0.2, request_unstake = 0.5, claim_unstake = 0.3 }
+triggers = [
+  { if = "pool.pending_unstake_count > 0", then = "claim_unstake", weight_boost = 2.5 },
+]
+
 # === SIDECAR-CUT ===
 # A future `scripts/liquid-staking-scratch.sh` will truncate this file
 # at the `# === SIDECAR-CUT ===` line above and append
 # `fixtures/personas/liquid-staking/{steady-staker,yield-maxi,panic-exiter,arb-redeemer}.toml`
-# for the real liquid-staking persona library (T03) before handing the
+# for the real liquid-staking persona library before handing the
 # result to the engine. The block below is the smoke-test persona set
 # used by `riptide adapt --adapter …` with names that match
 # `cli/src/adapt/smoke.ts`'s generic run-config (`grinder` / `botter` /

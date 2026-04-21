@@ -1,0 +1,21 @@
+# Liquid-staking persona — arb redeemer.
+#
+# Standalone TOML fragment the future `scripts/liquid-staking-scratch.sh`
+# sidecar will concatenate onto a truncated copy of
+# `fixtures/adapters/liquid-staking-fork.toml` below the
+# `# === SIDECAR-CUT ===` marker.
+#
+# Queue-aware churner. Splits weight between `request_unstake` and
+# `claim_unstake` so the persona both contributes to redemption
+# pressure AND sweeps whatever reserve refills between ticks. The
+# pending-queue trigger boosts `claim_unstake` weight whenever the
+# pool has a non-zero queue — modelling the arbitrageur who watches
+# for liquidity-refill moments and settles their share ahead of the
+# queued population.
+[personas.arb-redeemer]
+label = "Arb redeemer"
+action_rate_multiplier = 1.2
+action_weights = { stake = 0.2, request_unstake = 0.5, claim_unstake = 0.3 }
+triggers = [
+  { if = "pool.pending_unstake_count > 0", then = "claim_unstake", weight_boost = 2.5 },
+]
