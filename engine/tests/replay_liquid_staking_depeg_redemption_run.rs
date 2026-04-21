@@ -1,7 +1,7 @@
-//! Liquid-staking Kelp-style depeg + withdrawal-run replay gate.
+//! Liquid-staking depeg + withdrawal-run replay gate.
 //!
-//! Locks five things on the `liquid-staking-kelp-depeg-2026` fixture
-//! under `fixtures/replays/`:
+//! Locks five things on the `liquid-staking-depeg-redemption-run`
+//! fixture under `fixtures/replays/`:
 //!
 //! 1. The replay runs end-to-end through the generic-harness path
 //! (not the lending LiteSvmHarness) against a replay-scoped adapter
@@ -19,9 +19,8 @@
 //! redemption-pressure proof where at least one machine-checkable
 //! invariant fires at a named tick, with a stable rerun command and
 //! artifact set. The proof is single-program on purpose — it does NOT
-//! model cross-protocol Aave-style contagion. The Kelp-style /
-//! rsETH-style framing is only about the failure *shape* (slash →
-//! rate depeg → redemption run → queue formation).
+//! model cross-protocol Aave-style contagion. Historical inspiration
+//! for the depeg + queue geometry: the 2024 Kelp / rsETH depeg.
 
 #![cfg(feature = "litesvm-backend")]
 #![cfg(not(doctest))]
@@ -54,7 +53,7 @@ fn fixture_dir() -> PathBuf {
     monorepo_root()
         .join("fixtures")
         .join("replays")
-        .join("liquid-staking-kelp-depeg-2026")
+        .join("liquid-staking-depeg-redemption-run")
 }
 
 fn skip_if_missing(path: &Path, label: &str) -> bool {
@@ -144,8 +143,64 @@ fn first_firing_tick(result: &SimulationResult, invariant_name: &str) -> Option<
         .map(|event| event.tick)
 }
 
+/// One-shot helper to regenerate `expected-summary.json` after a
+/// deliberate fixture or program change. Gated on
+/// `RIPTIDE_DUMP_EXPECTED=1` so it never runs in CI and costs nothing
+/// when nobody asks. Run:
+///   `RIPTIDE_DUMP_EXPECTED=1 cargo test --features litesvm-backend \
+///     --test replay_liquid_staking_depeg_redemption_run \
+///     dump_expected_summary -- --nocapture`
 #[test]
-fn liquid_staking_kelp_depeg_2026_matches_expected_and_is_deterministic() {
+fn dump_expected_summary() {
+    if std::env::var("RIPTIDE_DUMP_EXPECTED").ok().as_deref() != Some("1") {
+        return;
+    }
+    let result = run_fixture();
+    let hash = canonical_hash(&result);
+    let invariant_rows = result
+        .summary
+        .get("invariants_fired")
+        .and_then(|v| v.as_array())
+        .expect("replay adapter declares invariants");
+    let firings: BTreeMap<String, usize> = invariant_rows
+        .iter()
+        .map(|row| {
+            let name = row["name"].as_str().unwrap().to_string();
+            let n = row["firings"].as_u64().unwrap() as usize;
+            (name, n)
+        })
+        .collect();
+    let first_ticks: BTreeMap<String, u32> = firings
+        .keys()
+        .map(|name| {
+            let tick = first_firing_tick(&result, name)
+                .unwrap_or_else(|| panic!("no firing for invariant `{name}`"));
+            (name.clone(), tick)
+        })
+        .collect();
+    let summary_subset: BTreeMap<String, Value> = result
+        .summary
+        .iter()
+        .filter(|(k, _)| k.as_str() != "invariants_fired")
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+
+    let dump = serde_json::json!({
+        "result_sha256": hash,
+        "total_ticks": result.total_ticks,
+        "event_count": result.events.len(),
+        "invariant_firings": firings,
+        "invariant_first_firing_tick": first_ticks,
+        "summary": summary_subset,
+    });
+    println!(
+        "===== BEGIN expected-summary.json =====\n{}\n===== END expected-summary.json =====",
+        serde_json::to_string_pretty(&dump).unwrap()
+    );
+}
+
+#[test]
+fn liquid_staking_depeg_redemption_run_matches_expected_and_is_deterministic() {
     // Artifact gate runs up front: CI hard-fails on a missing SBF
     // artifact (`skip_if_missing` panics when `CI` is set), local dev
     // soft-skips by early-returning from the test body. This is the
@@ -186,15 +241,15 @@ fn liquid_staking_kelp_depeg_2026_matches_expected_and_is_deterministic() {
 
     assert_eq!(
         first, second,
-        "liquid-staking Kelp-depeg replay diverged across back-to-back runs",
+        "liquid-staking depeg+redemption-run replay diverged across back-to-back runs",
     );
 
     let actual_hash = canonical_hash(&first);
     assert_eq!(
         actual_hash,
         expected.result_sha256,
-        "liquid-staking Kelp-depeg replay hash drifted; update \
-         fixtures/replays/liquid-staking-kelp-depeg-2026/expected-summary.json if \
+        "liquid-staking depeg+redemption-run replay hash drifted; update \
+         fixtures/replays/liquid-staking-depeg-redemption-run/expected-summary.json if \
          the new output is intentional",
     );
 
@@ -202,7 +257,7 @@ fn liquid_staking_kelp_depeg_2026_matches_expected_and_is_deterministic() {
     assert_eq!(first.events.len(), expected.event_count);
     assert_eq!(
         first.run_config.scenario,
-        "replay:liquid-staking-kelp-style-depeg-2026"
+        "replay:liquid-staking-depeg-redemption-run"
     );
 
     let invariant_rows = first

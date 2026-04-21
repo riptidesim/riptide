@@ -1,23 +1,26 @@
-# Kelp-Style LST Depeg + Withdrawal-Run Pressure Replay
+# LST Depeg + Withdrawal-Run Pressure Replay
 
-Named liquid-staking proof artifact for the Riptide liquid-staking-fork
-bundle. Replay-mode rendering of the failure *shape* that surfaced in
-the 2024–2026 Kelp / rsETH depeg window: an authority-gated
-`apply_slash` shrinks delegated assets, the exchange rate falls, and a
-subsequent redemption cohort overruns the pool's liquid reserve and
-lands on the withdrawal queue.
+Named liquid-staking proof artifact for the Riptide
+`liquid-staking-fork` bundle. Replay-mode rendering of a
+**single-program failure shape**: an authority-gated `apply_slash`
+shrinks delegated assets, the exchange rate falls, and a subsequent
+redemption cohort overruns the pool's liquid reserve and lands on
+the withdrawal queue.
+
+Historical inspiration: the 2024 Kelp / rsETH depeg. The geometry
+this proof models is generic to any LST with a delayed-withdrawal
+queue (Lido, Jito, Marinade, Sanctum, rsETH, Kelp …) — the fixture
+names the *shape*, not a specific protocol.
 
 ## What this proof is
 
-This is an **abstracted pressure replay** of an LST depeg +
-redemption-run geometry against the shipped `liquid-staking-fork`
-bundle. It is NOT:
+An **abstracted pressure replay** of an LST depeg + redemption-run
+geometry against the shipped `liquid-staking-fork` bundle. It is NOT:
 
 - a byte-level replay of any specific on-chain incident,
 - a cross-protocol contagion claim (LST collateral in Aave / Morpho /
   Euler / etc. — that is explicitly **out of scope** for this bundle),
-- an audit or a safety claim about any real LST program (Kelp,
-  Marinade, Jito, Sanctum, etc.).
+- an audit or a safety claim about any real LST program.
 
 It IS a discrete, rerunnable, machine-checkable pressure replay of a
 **single-program** depeg + queue-formation geometry that can be shown
@@ -26,18 +29,18 @@ evidence* — distinct from audit signoff.
 
 ## Load-bearing claim
 
-Two declared adapter invariants fire at named ticks because the pool's
-observable state materially changed:
+Two declared adapter invariants fire at named ticks because the
+pool's observable state materially changed:
 
-| Invariant                       | Field                           | First firing tick | Why                                                                        |
-| --------------------------------| --------------------------------| ----------------- | -------------------------------------------------------------------------- |
-| `no_slash_during_healthy_run`   | `pool.cumulative_slashed == 0`  | **tick 3**        | `apply_slash(2500 bps)` shrinks delegated stake; `cumulative_slashed=2000` |
+| Invariant                       | Field                             | First firing tick | Why                                                                        |
+| ------------------------------- | --------------------------------- | ----------------- | -------------------------------------------------------------------------- |
+| `no_slash_during_healthy_run`   | `pool.cumulative_slashed == 0`    | **tick 3**        | `apply_slash(2500 bps)` shrinks delegated stake; `cumulative_slashed=2000` |
 | `no_queue_formation`            | `pool.pending_unstake_count == 0` | **tick 4**        | Redemption demand at tick 4 exceeds `reserve_buffer`; 4 accounts queued    |
 
-Counterfactually, a pre-slash tick 0–2 baseline passes both invariants
-cleanly — the firings are not a bootstrap artifact, they are the
-materially-changed outcome of the scheduled slash + redemption-run
-trajectory.
+Counterfactually, a pre-slash tick 0–2 baseline passes both
+invariants cleanly — the firings are not a bootstrap artifact, they
+are the materially-changed outcome of the scheduled slash +
+redemption-run trajectory.
 
 ## Discrete economic trajectory
 
@@ -60,33 +63,34 @@ trajectory.
   1–4 each exceed the remaining 800-unit reserve and land on the
   queue (`pending_unstake_count = 4, pending_unstake_assets = 4800`).
   `no_queue_formation` fires for the first time. Oracle → 0.80.
-- **Tick 5 — partial claim.** Staker-0 calls `claim_unstake` and flushes
-  the 1_200-unit claimable balance. Stakers 1–4 remain queued because
-  `reserve_buffer (800) < per-account pending (1200)` — the queue does
-  not settle. Oracle → 0.75.
-- **Tick 6 — terminal snapshot.** Queue still has 4 accounts totalling
-  4_800 units pending. `cumulative_slashed = 2000`. Oracle → 0.70. Both
-  invariants persist.
+- **Tick 5 — partial claim.** Staker-0 calls `claim_unstake` and
+  flushes the 1_200-unit claimable balance. Stakers 1–4 remain queued
+  because `reserve_buffer (800) < per-account pending (1200)` — the
+  queue does not settle. Oracle → 0.75.
+- **Tick 6 — terminal snapshot.** Queue still has 4 accounts
+  totalling 4_800 units pending. `cumulative_slashed = 2000`. Oracle
+  → 0.70. Both invariants persist.
 
 ## Rerun command
 
 ```
 cd /path/to/riptide     # monorepo root (contains fixtures/, programs/)
-riptide replay fixtures/replays/liquid-staking-kelp-depeg-2026/config.json \
+riptide replay fixtures/replays/liquid-staking-depeg-redemption-run/config.json \
   --allow-invariant-violations
 ```
 
 `--allow-invariant-violations` is load-bearing: the proof *wants*
-invariants to fire — that's the evidence signal. Without the flag the
-CLI exits 1 on the first firing, which is the right shape for a CI
-gate on a healthy-path run but the wrong shape for an evidence replay.
+invariants to fire — that's the evidence signal. Without the flag
+the CLI exits 1 on the first firing, which is the right shape for a
+CI gate on a healthy-path run but the wrong shape for an evidence
+replay.
 
 A byte-stable gate that asserts the exact firing ticks + canonical
 SHA-256 runs as an engine integration test:
 
 ```
 cargo test -p riptide-engine --release --features litesvm-backend \
-  --test replay_liquid_staking_kelp_depeg_2026
+  --test replay_liquid_staking_depeg_redemption_run
 ```
 
 ## Artifacts
@@ -102,7 +106,7 @@ cargo test -p riptide-engine --release --features litesvm-backend \
 - `config.json` — the replay-config JSON the CLI consumes.
 - `expected-summary.json` — canonical SHA-256 + invariant firing
   baseline the engine test asserts against.
-- `riptide-output/replays/liquid-staking-kelp-depeg-2026/` —
+- `riptide-output/replays/liquid-staking-depeg-redemption-run/` —
   rerun-generated artifacts:
   - `simulation-result.json` — full canonical result.
   - `report.md` — CLI-generated human-readable summary.
@@ -111,20 +115,28 @@ cargo test -p riptide-engine --release --features litesvm-backend \
 
 - **Nothing about mainnet risk of any specific LST program.** This is
   a simulation against a minimal fork that captures the failure
-  geometry. It cannot tell you whether Kelp, Marinade, Jito, Sanctum,
-  or any other production pool will or will not depeg.
+  geometry. It cannot tell you whether any production pool (Kelp,
+  Marinade, Jito, Sanctum, Lido, …) will or will not depeg.
 - **No cross-protocol contagion.** The proof does not model LST
-  collateral in a downstream lending market (Aave / Morpho / Euler),
-  rehypothecation into leverage protocols, or AMM-pool depth for the
-  LST–native pair. Those are separate bundles.
+  collateral in a downstream lending market, rehypothecation into
+  leverage protocols, or AMM-pool depth for the LST–native pair.
+  Those are separate bundles.
 - **No oracle staleness dynamics.** The bound oracle receives real
   admin-mock bytes per the declared trajectory; the engine's generic
   path does not currently expose a per-tick oracle-lag knob, so the
   proof does not stress the redemption-vs-stale-price gap.
-- **No real Kelp / rsETH / Marinade / Jito codebase.** The
-  `liquid-staking-fork` program is a minimal surface chosen for
-  determinism and clarity of the failure shape, not production
-  fidelity.
+- **Not a fork of any real LST codebase.** The `liquid-staking-fork`
+  program is a minimal surface chosen for determinism and clarity of
+  the failure shape, not production fidelity.
+
+## Related fixture
+
+A sibling fixture,
+[`liquid-staking-slash-with-open-queue/`](../liquid-staking-slash-with-open-queue/),
+reorders the trajectory so the withdrawal queue opens *before* the
+slash. That ordering exercises the specific rate-formula regime where
+`pending_unstake_assets > 0` at slash time — see that fixture's
+README for the full write-up.
 
 ## Honesty framing
 
@@ -136,9 +148,10 @@ security-minded engineer, not as a certification.
 
 ## Sources
 
-- Background on the 2024 Kelp / rsETH depeg dynamics (public
-  reporting): `https://www.theblock.co/post/302443/kelp-rseth-depeg-june-2024`
+- Background on the 2024 Kelp / rsETH depeg (public reporting):
+  `https://www.theblock.co/post/302443/kelp-rseth-depeg-june-2024`
 - Program surface + state machine: `programs/liquid-staking-fork/src/`
 - Shipping adapter + invariants: `fixtures/adapters/liquid-staking-fork.toml`
-- Bundle-level context (LST class, generic-oracle path, single-program
-  boundary): `.specs/features/sprint-10-liquid-staking-proof/spec.md`
+- Bundle-level context (LST class, generic-oracle path,
+  single-program boundary):
+  `.specs/features/sprint-10-liquid-staking-proof/spec.md`

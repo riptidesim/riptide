@@ -1,5 +1,5 @@
 {
-  "result_sha256": "1e827b3c1e09d49de69db23932188cd33a67a7ef0d7a76edc50072c79f881eb9",
+  "result_sha256": "6c59db5ebf916c8cc068c8fea8727d4edf26d244f288f6dadd7e9ae47d16c4a1",
   "event_count": 6,
   "terminal_bad_debt_tick": 4,
   "bad_debt_invariant_firings": 1,

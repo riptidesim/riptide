@@ -156,7 +156,7 @@ fn perps_fork_idl() -> PathBuf {
 /// Artifact presence check for the real-proof-path gate.
 ///
 /// Mirrors the repo's load-bearing-gate discipline
-/// (`replay_solend_june_2022::skip_if_missing`):
+/// (`replay_lending_whale_bad_debt::skip_if_missing`):
 ///
 /// - `CI=<non-empty>` → HARD FAIL with a named `cargo build-sbf`
 ///   diagnostic. CI must never report green on this proof without

@@ -1,10 +1,15 @@
-//! Solend June 2022 whale-risk replay gate.
+//! Lending whale-concentrated-borrow bad-debt replay gate.
+//!
+//! Historical inspiration: the June 2022 Solend whale-risk incident
+//! (SLND1/SLND2). This test pins the *failure shape* on the shipped
+//! Solana lending fork — whale borrow concentration + oracle drawdown
+//! → realized bad debt — not a byte-level on-chain reconstruction.
 //!
 //! This test locks four things:
 //!
 //! 1. The replay runs end-to-end on the replay-scoped adapter
-//! `fixtures/replays/solend-june-2022/adapter.toml` — a copy of the
-//! shipped `solend-fork.toml` with a `no_bad_debt` invariant added.
+//! `fixtures/replays/lending-whale-bad-debt/adapter.toml` — a copy of
+//! the shipped `solend-fork.toml` with a `no_bad_debt` invariant added.
 //! The shipped adapter stays clean so the hero-grid hash
 //! `89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11`
 //! (which also produces bad debt at `w25-s40`) stays byte-stable.
@@ -50,7 +55,7 @@ fn fixture_dir() -> PathBuf {
     monorepo_root()
         .join("fixtures")
         .join("replays")
-        .join("solend-june-2022")
+        .join("lending-whale-bad-debt")
 }
 
 fn skip_if_missing(path: &Path, label: &str) -> bool {
@@ -133,8 +138,73 @@ fn run_fixture() -> SimulationResult {
     )
 }
 
+fn first_firing_tick(result: &SimulationResult, invariant_name: &str) -> Option<u32> {
+    let needle = format!("invariant_violation:{invariant_name}");
+    result
+        .events
+        .iter()
+        .find(|event| event.action == needle)
+        .map(|event| event.tick)
+}
+
+/// One-shot helper to regenerate `expected-summary.json` after a
+/// deliberate fixture or program change. Gated on
+/// `RIPTIDE_DUMP_EXPECTED=1` so it never runs in CI and costs nothing
+/// when nobody asks. Run:
+///   `RIPTIDE_DUMP_EXPECTED=1 cargo test --features litesvm-backend \
+///     --test replay_lending_whale_bad_debt \
+///     dump_expected_summary -- --nocapture`
 #[test]
-fn solend_replay_matches_expected_summary_and_is_deterministic() {
+fn dump_expected_summary() {
+    if std::env::var("RIPTIDE_DUMP_EXPECTED").ok().as_deref() != Some("1") {
+        return;
+    }
+    let result = run_fixture();
+    let hash = canonical_hash(&result);
+    let invariant_rows = result
+        .summary
+        .get("invariants_fired")
+        .and_then(|v| v.as_array())
+        .expect("replay adapter declares invariants");
+    let firings: BTreeMap<String, usize> = invariant_rows
+        .iter()
+        .map(|row| {
+            let name = row["name"].as_str().unwrap().to_string();
+            let n = row["firings"].as_u64().unwrap() as usize;
+            (name, n)
+        })
+        .collect();
+    let first_ticks: BTreeMap<String, u32> = firings
+        .keys()
+        .map(|name| {
+            let tick = first_firing_tick(&result, name)
+                .unwrap_or_else(|| panic!("no firing for invariant `{name}`"));
+            (name.clone(), tick)
+        })
+        .collect();
+    let summary_subset: BTreeMap<String, Value> = result
+        .summary
+        .iter()
+        .filter(|(k, _)| k.as_str() != "invariants_fired")
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+
+    let dump = serde_json::json!({
+        "result_sha256": hash,
+        "total_ticks": result.total_ticks,
+        "event_count": result.events.len(),
+        "invariant_firings": firings,
+        "invariant_first_firing_tick": first_ticks,
+        "summary": summary_subset,
+    });
+    println!(
+        "===== BEGIN expected-summary.json =====\n{}\n===== END expected-summary.json =====",
+        serde_json::to_string_pretty(&dump).unwrap()
+    );
+}
+
+#[test]
+fn lending_whale_bad_debt_matches_expected_summary_and_is_deterministic() {
     let fixture = fixture_dir();
     let expected: ExpectedSummary = serde_json::from_str(
         &fs::read_to_string(fixture.join("expected-summary.json"))
@@ -147,14 +217,14 @@ fn solend_replay_matches_expected_summary_and_is_deterministic() {
 
     assert_eq!(
         first, second,
-        "Solend replay diverged across back-to-back runs",
+        "lending whale-bad-debt replay diverged across back-to-back runs",
     );
 
     let actual_hash = canonical_hash(&first);
     assert_eq!(
         actual_hash,
         expected.result_sha256,
-        "Solend replay hash drifted; update fixtures/replays/solend-june-2022/expected-summary.json if the new output is intentional",
+        "lending whale-bad-debt replay hash drifted; update fixtures/replays/lending-whale-bad-debt/expected-summary.json if the new output is intentional",
     );
 
     assert_eq!(first.total_ticks, 4);
@@ -183,7 +253,7 @@ fn solend_replay_matches_expected_summary_and_is_deterministic() {
     );
     assert_eq!(
         first.run_config.scenario,
-        "replay:solend-june-2022-whale-risk"
+        "replay:lending-whale-bad-debt"
     );
     let invariant_rows = first
         .summary

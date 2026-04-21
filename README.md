@@ -58,12 +58,12 @@ exit 0
 
 The full-path form `riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json` still works (backward-compat for scripts and CI); the short form above is the default once `.riptide/scenarios/` is populated — which it is inside this monorepo via a `fixtures/scenarios/` symlink, and in any user repo via `riptide init`.
 
-The hero grid sweeps the `whale-share × shock-magnitude` parameter region and records each cell's `cumulative_bad_debt` in its `simulation-result.json`; the grid's value is the *region map* — which cells end up inside the bad-debt neighborhood and which don't. Invariant-driven CI gating is a separate mode: declare `[[invariants]]` on your own adapter (like the shipping replay adapter does for `no_bad_debt` — `fixtures/replays/solend-june-2022/adapter.toml`) and the engine exits `1` the moment any invariant fires, so the same `riptide run` output pattern doubles as a CI gate.
+The hero grid sweeps the `whale-share × shock-magnitude` parameter region and records each cell's `cumulative_bad_debt` in its `simulation-result.json`; the grid's value is the *region map* — which cells end up inside the bad-debt neighborhood and which don't. Invariant-driven CI gating is a separate mode: declare `[[invariants]]` on your own adapter (like the shipping replay adapter does for `no_bad_debt` — `fixtures/replays/lending-whale-bad-debt/adapter.toml`) and the engine exits `1` the moment any invariant fires, so the same `riptide run` output pattern doubles as a CI gate.
 
 ## Use Cases
 
 - **Pre-launch stress testing** — map the parameter neighborhood where your protocol breaks before mainnet does; ship with a grid attached to the design doc.
-- **Trajectory replay** — declare a tx-sequence + oracle-trajectory against the same adapter your synthetic sweeps use, and Riptide replays it byte-stably tick-by-tick with invariants evaluated every tick (the Solend June 2022 whale-risk incident ships as a reference replay — a trajectory declared on disk, not a claim about mainnet state).
+- **Trajectory replay** — declare a tx-sequence + oracle-trajectory against the same adapter your synthetic sweeps use, and Riptide replays it byte-stably tick-by-tick with invariants evaluated every tick (a whale-concentrated-borrow bad-debt replay — historical inspiration: the Solend June 2022 whale-risk incident — ships as a reference replay, a trajectory declared on disk, not a claim about mainnet state).
 - **Launch parameter selection** — run safe-vs-risky side-by-side comparisons to pick launch parameters with deterministic evidence instead of gut feel.
 - **CI integration** — declare invariants inline in your adapter; the engine exits 1 the moment any invariant fires, so your pipeline blocks on economic regressions the same way it blocks on test regressions.
 - **Post-audit verification** — bound an auditor's theoretical concern with a Riptide grid to see whether it actually manifests under the parameter regimes you chose.
@@ -250,17 +250,18 @@ riptide run solend-fork/hero-grid/w25-s40 --serve
 For the historical replay path:
 
 ```bash
-riptide replay fixtures/replays/solend-june-2022/config.json --serve
+riptide replay fixtures/replays/lending-whale-bad-debt/config.json --serve
 ```
 
-For the liquid-staking depeg / withdrawal-run proof artifact (Kelp-style /
-rsETH-style single-program pressure, not a cross-protocol contagion claim —
-see the bundle-local [`fixtures/replays/liquid-staking-kelp-depeg-2026/README.md`](fixtures/replays/liquid-staking-kelp-depeg-2026/README.md)
+For the liquid-staking depeg / withdrawal-run proof artifact (single-program
+pressure, not a cross-protocol contagion claim; historical inspiration: the
+2024 Kelp / rsETH depeg — see the bundle-local
+[`fixtures/replays/liquid-staking-depeg-redemption-run/README.md`](fixtures/replays/liquid-staking-depeg-redemption-run/README.md)
 for the full write-up, rerun command, and what this proof does and does not
 prove):
 
 ```bash
-riptide replay fixtures/replays/liquid-staking-kelp-depeg-2026/config.json \
+riptide replay fixtures/replays/liquid-staking-depeg-redemption-run/config.json \
   --allow-invariant-violations
 ```
 

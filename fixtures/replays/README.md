@@ -36,7 +36,7 @@ fixtures/replays/<incident>/
 `adapter.toml` is optional. Ship it alongside the trajectory when
 the replay needs configuration or invariants that the shipped
 adapter under `fixtures/adapters/` does not carry — for example,
-the Solend whale-risk replay under `solend-june-2022/` ships a
+the whale-bad-debt replay under `lending-whale-bad-debt/` ships a
 replay-scoped `adapter.toml` with a `no_bad_debt` invariant so the
 credibility gate can assert the cascade fires on a
 machine-checkable invariant event, without mutating the shipped
@@ -52,8 +52,8 @@ Required. Declares the replay metadata plus the per-tick instruction stream.
 ```json
 {
   "metadata": {
-    "name": "solend-june-2022",
-    "description": "Historical incident reproduction",
+    "name": "lending-whale-bad-debt",
+    "description": "Failure-shape pressure replay",
     "source": "Public post-mortem + on-chain archaeology"
   },
   "ticks": [

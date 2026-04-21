@@ -1,6 +1,6 @@
-//! Liquid-staking Kelp-style depeg + **queue-open-during-slash** replay gate.
+//! Liquid-staking slash-with-open-queue replay gate.
 //!
-//! Sibling to `replay_liquid_staking_kelp_depeg_2026`. Where that
+//! Sibling to `replay_liquid_staking_depeg_redemption_run`. Where that
 //! fixture slashes before any redemption demand (the queue never opens
 //! until after the slash), this fixture reorders the trajectory so the
 //! withdrawal run at tick 3 lands four stakers on the queue *before*
@@ -56,7 +56,7 @@ fn fixture_dir() -> PathBuf {
     monorepo_root()
         .join("fixtures")
         .join("replays")
-        .join("liquid-staking-kelp-depeg-queue-open-2026")
+        .join("liquid-staking-slash-with-open-queue")
 }
 
 fn skip_if_missing(path: &Path, label: &str) -> bool {
@@ -142,7 +142,7 @@ fn first_firing_tick(result: &SimulationResult, invariant_name: &str) -> Option<
 /// `RIPTIDE_DUMP_EXPECTED=1` so it never runs in CI and costs nothing
 /// when nobody asks. Run:
 ///   `RIPTIDE_DUMP_EXPECTED=1 cargo test --features litesvm-backend \
-///     --test replay_liquid_staking_kelp_depeg_queue_open_2026 \
+///     --test replay_liquid_staking_slash_with_open_queue \
 ///     dump_expected_summary -- --nocapture`
 #[test]
 fn dump_expected_summary() {
@@ -198,7 +198,7 @@ fn dump_expected_summary() {
 }
 
 #[test]
-fn liquid_staking_kelp_depeg_queue_open_2026_matches_expected_and_is_deterministic() {
+fn liquid_staking_slash_with_open_queue_matches_expected_and_is_deterministic() {
     let repo = monorepo_root();
     let required_artifacts: &[(PathBuf, &str)] = &[
         (
@@ -232,15 +232,15 @@ fn liquid_staking_kelp_depeg_queue_open_2026_matches_expected_and_is_determinist
 
     assert_eq!(
         first, second,
-        "liquid-staking queue-open Kelp-depeg replay diverged across back-to-back runs",
+        "liquid-staking slash-with-open-queue replay diverged across back-to-back runs",
     );
 
     let actual_hash = canonical_hash(&first);
     assert_eq!(
         actual_hash,
         expected.result_sha256,
-        "liquid-staking queue-open Kelp-depeg replay hash drifted; update \
-         fixtures/replays/liquid-staking-kelp-depeg-queue-open-2026/expected-summary.json if \
+        "liquid-staking slash-with-open-queue replay hash drifted; update \
+         fixtures/replays/liquid-staking-slash-with-open-queue/expected-summary.json if \
          the new output is intentional",
     );
 
@@ -248,7 +248,7 @@ fn liquid_staking_kelp_depeg_queue_open_2026_matches_expected_and_is_determinist
     assert_eq!(first.events.len(), expected.event_count);
     assert_eq!(
         first.run_config.scenario,
-        "replay:liquid-staking-kelp-style-depeg-queue-open-2026"
+        "replay:liquid-staking-slash-with-open-queue"
     );
 
     let invariant_rows = first

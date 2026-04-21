@@ -765,7 +765,7 @@ mod generic_oracle_write_path {
     /// Under `CI=<non-empty>` a missing artifact is a HARD FAIL with a
     /// named `cargo build-sbf` diagnostic — CI must never report green
     /// on this gate without actually exercising the write path. Same
-    /// discipline as `replay_solend_june_2022::skip_if_missing` (the
+    /// discipline as `replay_lending_whale_bad_debt::skip_if_missing` (the
     /// pattern the repo already uses for load-bearing gates).
     ///
     /// Under local `cargo test` runs a missing artifact prints a
