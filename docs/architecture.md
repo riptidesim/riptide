@@ -29,14 +29,16 @@ flowchart TB
     R --> O["simulation-result.json<br>byte-deterministic"]
 ```
 
-1. **Adapter** — one TOML under `fixtures/adapters/` declaring your program, its actions, its observations, and its invariants. Examples: `solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `resource-grinder.toml`.
+1. **Adapter** — one TOML under `fixtures/adapters/` declaring your program, its actions, its observations, and its invariants. Examples: `solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `liquid-staking-fork.toml`, `resource-grinder.toml`.
 2. **Personas** — TOML under `fixtures/personas/` describing agent behavior with a trigger DSL (`player.gold < 100 → craft`). Each bundle ships a persona library the scenarios skill can compose from.
 3. **Scenarios** — engine shocks (oracle trajectories, scheduled actions) mounted from declarative presets. See `fixtures/scenarios/` and `engine/src/scenario/preset_spec.rs`.
 4. **Parameters** — run-config knobs that sweep over the dimensions that matter: whale share, shock magnitude, trade size, leverage, depositor concentration.
 5. **Failure-mode taxonomy** — categories like `whale_concentration`, `margin_cascade_from_oracle_shock`, `price_manipulation_via_swap`, `impermanent_loss_spike`. The `riptide-scenarios` skill matches your adapter's shape against this taxonomy.
 6. **Invariants** — machine-checkable properties (`no_bad_debt`, `reserve_a > 0`, `k == reserve_a * reserve_b` within tolerance) declared inline in the adapter. The engine exits non-zero when any invariant fires, so invariants double as CI gates.
 
-Three shipping bundles exercise every layer end-to-end: **lending** (Solend fork), **perps** (perps-lite), **AMM** (constant-product). A fourth generic bundle (`resource-grinder`) drives a non-DeFi SBF program end-to-end — if it runs, you can wire Riptide to your protocol.
+Four shipping protocol-class bundles exercise every layer end-to-end: **lending** (Solend fork), **perps** (perps-lite), **AMM** (constant-product), **liquid staking** (`liquid-staking-fork` — a minimal pooled-stake / withdrawal-queue surface, not a fork of any real LST codebase). A fifth generic bundle (`resource-grinder`) drives a non-DeFi SBF program end-to-end — if it runs, you can wire Riptide to your protocol.
+
+The liquid-staking bundle also ships one named rerunnable proof artifact at `fixtures/replays/liquid-staking-kelp-depeg-2026/` — a Kelp-style / rsETH-style depeg + withdrawal-run pressure replay against the minimal fork, framed explicitly as **simulation evidence**, not audit signoff and not a cross-protocol contagion claim. See the bundle-local README for the load-bearing invariant firings, rerun command, and what the proof does and does not prove.
 
 > **Skills are optional accelerators, not requirements.** The `riptide-adapt`, `riptide-scenarios`, and `riptide-narrative` Claude Code skills produce first-pass TOML / run-configs / reports by letting a session-native LLM do the typing. Every artifact the skills generate is plain TOML or markdown you can hand-author instead — see `fixtures/adapters/resource-grinder.toml` for a minimal from-scratch example.
 
@@ -83,7 +85,8 @@ What this surface does **not** yet cover:
 
 - **Multi-oracle generic adapters.** Declaring 2+ `[[oracles]]` entries on a generic adapter fails fast with a single-oracle-for-now diagnostic — the current scenario/replay surfaces emit one oracle-update stream.
 - **Pairwise generic liquidation.** `GenericHarness::execute_action` still ignores `target_idx`, so `liquidate_position`'s victim plumbing is a follow-up.
-- **Liquid-staking bundle.** The oracle path is the substrate; the bundle itself is not yet shipped.
+- **Cross-protocol contagion.** Every shipping bundle is single-program. The liquid-staking proof artifact captures LST depeg + redemption-run pressure against the `liquid-staking-fork` program alone; it does not model LST collateral in a downstream lending market, rehypothecation into leverage protocols, or AMM-pool depth for the LST–native pair.
+- **Production LST / DeFi codebase coverage.** The `liquid-staking-fork` program is a minimal fork chosen for determinism and clarity of the failure shape. No real Kelp / rsETH / Marinade / Jito / Sanctum program is wired as an adapter today.
 - **Watch mode / parallel scenario execution / `--serve` multi-scenario aggregation** remain follow-ups.
 
 ## Further reading

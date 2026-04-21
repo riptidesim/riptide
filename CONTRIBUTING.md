@@ -2,7 +2,7 @@
 
 Thanks for contributing to Riptide! This guide covers everything you need: setting up your dev environment, understanding the architecture, deciding what to build, and getting your PR merged.
 
-Riptide is a protocol-agnostic economic simulator for Solana programs. Every shipping bundle — lending, perps, AMM today; whatever ships next — layers the same **six-layer stack** on top of the program under test:
+Riptide is a protocol-agnostic economic simulator for Solana programs. Every shipping bundle — lending, perps, AMM, and liquid staking today; whatever ships next — layers the same **six-layer stack** on top of the program under test:
 
 1. **Adapter** — one TOML declaring the program, its actions, observations, and invariants.
 2. **Personas** — TOML files describing agent behavior with a trigger DSL.
@@ -37,7 +37,7 @@ This is the most common question for new contributors. Most contributions are *n
 ### Make it an **Adapter** when
 
 - You want Riptide to run against a specific Solana program (yours, a fork, a public one).
-- The existing adapter patterns (`solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `resource-grinder.toml`) come close — you copy one, swap the IDL + accounts + actions + observations + invariants.
+- The existing adapter patterns (`solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `liquid-staking-fork.toml`, `resource-grinder.toml`) come close — you copy one, swap the IDL + accounts + actions + observations + invariants.
 - See [Adding an Adapter](#adding-an-adapter).
 
 ### Make it a **Persona** when
@@ -139,11 +139,12 @@ riptide/
 │   ├── lending_pool/             # Forked Solend SPL-Token-Lending pool
 │   ├── perps-fork/               # Minimal perps-lite program
 │   ├── amm-fork/                 # Constant-product x*y=k pool
+│   ├── liquid-staking-fork/      # Minimal pooled-stake / withdrawal-queue LST surface
 │   ├── resource_grinder/         # Non-DeFi toy program proving the generic path
-│   └── admin_mock_oracle/        # Shared-oracle helper for perps
+│   └── admin_mock_oracle/        # Shared-oracle helper for perps + liquid staking
 │
 ├── fixtures/
-│   ├── adapters/                 # Adapter TOMLs (solend-fork, perps-fork, amm-fork, resource-grinder)
+│   ├── adapters/                 # Adapter TOMLs (solend-fork, perps-fork, amm-fork, liquid-staking-fork, resource-grinder)
 │   ├── personas/                 # Persona TOMLs (whale, leveraged-long, arbitrageur, …)
 │   ├── scenarios/                # Run-config bundles per-adapter per-experiment
 │   ├── replays/                  # Historical replay fixtures (solend-june-2022)
@@ -199,7 +200,7 @@ An adapter wires a specific Solana program into the engine.
 1. **Compile your program to `.so`** and get its Anchor IDL (or a hand-written IDL JSON).
 2. **Generate or hand-write the adapter TOML:**
    - *Skill path:* install the `riptide-adapt` Claude Code skill (`skills/riptide-adapt/SKILL.md`). Invoke it in-session pointing at your program source or IDL. The skill reads the program, classifies it against the primitive library (lending / perps / AMM / generic), writes the adapter TOML, and runs `riptide adapt` as a smoke test. No API keys or endpoint config.
-   - *Hand-written path:* copy the closest shipping adapter from `fixtures/adapters/` (`solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, or `resource-grinder.toml`) and edit `program_so`, `[[accounts]]`, `[[actions]]`, `[[observations]]`, and `[[invariants]]`.
+   - *Hand-written path:* copy the closest shipping adapter from `fixtures/adapters/` (`solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `liquid-staking-fork.toml`, or `resource-grinder.toml`) and edit `program_so`, `[[accounts]]`, `[[actions]]`, `[[observations]]`, and `[[invariants]]`.
 3. **Wire an oracle if the program needs one.** A generic adapter can declare a single `[[oracles]]` block bound to a `kind = "shared"` account. The harness bootstraps that account at tick 0 with real admin-mock or Pyth bytes and mutates it on every scenario/replay oracle update. The bound account can optionally declare `owner = { program_so = "<path>.so" }` (owner resolved from the companion `target/deploy/<name>-keypair.json`) for sibling-owned oracles such as `admin_mock_oracle`, or `owner = { pubkey = "<base58>" }` for real external programs such as Pyth. Omit `owner` and the simulated program owns the account. See [`docs/architecture.md#oracle-binding-for-generic-adapters`](docs/architecture.md#oracle-binding-for-generic-adapters) and the end-to-end proof at `engine/tests/perps_sibling_oracle_proof.rs`. Two or more `[[oracles]]` entries on a generic adapter is currently a loader error — multi-oracle generic semantics remain a follow-up.
 4. **Smoke-test it:** `riptide adapt --adapter fixtures/adapters/<your-adapter>.toml` — confirms the engine boots it and observes a state delta.
 5. **Commit** the adapter under `fixtures/adapters/` and the IDL under `fixtures/idls/`.

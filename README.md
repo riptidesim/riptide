@@ -188,7 +188,7 @@ base_price = 100.0
 exponent   = 0
 ```
 
-That's it for the adapter — the rest of the six-layer stack (personas, scenarios, parameters, taxonomy) lives in separate files or skill prompts that reference these declarations. See [`docs/architecture.md`](docs/architecture.md) for the full mental model, and [`fixtures/adapters/`](fixtures/adapters/) in the repo for shipping examples against real programs (lending, perps, AMM, and a non-DeFi toy).
+That's it for the adapter — the rest of the six-layer stack (personas, scenarios, parameters, taxonomy) lives in separate files or skill prompts that reference these declarations. See [`docs/architecture.md`](docs/architecture.md) for the full mental model, and [`fixtures/adapters/`](fixtures/adapters/) in the repo for shipping examples against real programs (lending, perps, AMM, liquid staking, and a non-DeFi toy).
 
 </details>
 
@@ -252,6 +252,27 @@ For the historical replay path:
 ```bash
 riptide replay fixtures/replays/solend-june-2022/config.json --serve
 ```
+
+For the liquid-staking depeg / withdrawal-run proof artifact (Kelp-style /
+rsETH-style single-program pressure, not a cross-protocol contagion claim —
+see the bundle-local [`fixtures/replays/liquid-staking-kelp-depeg-2026/README.md`](fixtures/replays/liquid-staking-kelp-depeg-2026/README.md)
+for the full write-up, rerun command, and what this proof does and does not
+prove):
+
+```bash
+riptide replay fixtures/replays/liquid-staking-kelp-depeg-2026/config.json \
+  --allow-invariant-violations
+```
+
+> **Simulation evidence ≠ audit signoff.** The replays above are rerunnable
+> simulation artifacts against minimal forks chosen for determinism and
+> clarity of the failure shape. They are not audits, safety claims, or
+> mainnet post-mortems for any real lending / perps / AMM / LST program.
+> Scope cuts we are explicit about: no cross-protocol contagion (every
+> bundle is single-program today), no multi-oracle generic semantics (one
+> `[[oracles]]` binding per generic adapter), and no production Jito /
+> Marinade / Kelp / Sanctum adapter coverage (the liquid-staking bundle is
+> a minimal fork, not a fork of any real LST codebase).
 
 📖 **[Full documentation →](docs/README.md)**
 
