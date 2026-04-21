@@ -1276,6 +1276,30 @@ impl crate::primitive::Primitive for GenericHarness {
         }
 
         for (account_name, pubkey) in &self.shared_accounts {
+            // Bound oracle accounts (declared under `[[oracles]]` and
+            // pointed at via `account = "<name>"`) are driven through
+            // the `oracle_layout_for(kind)` dispatcher, not the
+            // simulated program's IDL — their byte layout is
+            // deliberately NOT described in the program's account
+            // types, so `observe_account_state` cannot decode them.
+            // Skip only those exact account names; every other shared
+            // account (including externally-owned ones whose bytes
+            // the IDL *does* describe) still flows through the normal
+            // observation path. Without this narrow guard, any
+            // liquid-staking-style adapter that binds a sibling-owned
+            // oracle red-lines the tick loop with "generic IDL missing
+            // account type `oracle`" even though bootstrap succeeded;
+            // a broader skip (on `owner.is_some()`) would silently
+            // hide observations for future adapters that map into
+            // IDL-described externally-owned accounts.
+            let is_bound_oracle = self
+                .adapter
+                .oracles
+                .iter()
+                .any(|oracle| oracle.account.as_deref() == Some(account_name.as_str()));
+            if is_bound_oracle {
+                continue;
+            }
             let bytes = self.account_bytes(pubkey, account_name)?;
             let values = observe_account_state(&self.idl, &self.adapter, account_name, &bytes)
                 .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
