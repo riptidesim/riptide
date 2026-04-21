@@ -542,6 +542,127 @@ of: `price_manipulation_via_swap`, `impermanent_loss_spike`,
 `jit_liquidity`, `reserve_depletion`. These are the AMM-specific
 category names from `classify.md`.
 
+## Liquid-staking-specific proposal rules
+
+Four rules apply when classification flags one or more of the
+liquid-staking-specific categories (`withdrawal_queue_run`,
+`depeg_after_slash`, `reserve_buffer_exhaustion`,
+`stale_oracle_redemption_gap`). These rules are additive — they do
+not replace or modify Rules 1–7, perps Rules 8–10, or AMM Rules
+11–14 above. The liquid-staking adapter exposes `stake` /
+`request_unstake` / `claim_unstake` as runtime-dispatchable
+actions; `apply_slash` is an admin-gated scheduled / replay
+instruction, not a persona-fired action.
+
+### Rule 15 — Slash-magnitude sweep (liquid-staking adapters)
+
+When classification flagged **`depeg_after_slash`**, emit a
+`slash-magnitude-sweep` proposal — a 1D sweep varying the slash
+magnitude scheduled against the pool, under a fixed mixed
+population that contains at least one panic-reactive persona.
+
+Axis: slash magnitude in bps `{1000, 2000, 3000}` (10% / 20% /
+30%). Slashes are NOT runtime-dispatchable — they are either
+scheduled via `[[scheduled_actions]]` in a runtime adapter copy or
+dispatched as a raw IDL instruction through a replay trajectory.
+For this 1D sweep, emit only the midpoint (2000 bps = 20%) as the
+representative `run-config.json` + `policies.json` + `manifest.json`
+triple and note the full sweep range in the rationale.
+
+Fixed population (20 agents): a mix that includes at least one
+panic-reactive persona (e.g. 5 steady-staker + 5 yield-maxi +
+7 panic-exiter + 3 arb-redeemer) so the rate-drop trigger has
+a population to fire on. `policies.json` stays `[]` because
+the liquid-staking adapter is `protocol = "generic"` and the
+engine resolves personas from the adapter TOML's `[personas.*]`.
+
+`failure_mode: "depeg_after_slash"` in the manifest. The rationale
+must note: the proposal is a staging run — shipping `riptide run`
+does not fire `apply_slash` by itself; the full depeg proof lives
+in a replay fixture under `fixtures/replays/`, and this sweep is
+the scenario-level companion that exercises the persona-mix side
+of the failure.
+
+### Rule 16 — Withdrawal-queue-run sweep (liquid-staking adapters)
+
+When classification flagged **`withdrawal_queue_run`**, emit a
+`withdrawal-queue-run-sweep` proposal — a 1D sweep varying the
+share of redemption-heavy agents (panic-exiter + arb-redeemer)
+under fixed total population, to stress the reserve-vs-queue
+ratio organically without a scheduled slash.
+
+Axis: redemption-share `{0.25, 0.50, 0.75}` — the proportion of
+agents assigned to redemption-heavy personas. With 20 agents:
+0.25 = 5 redemption-heavy, 0.50 = 10, 0.75 = 15. Write only the
+midpoint (0.50) as the representative triple and note the full
+sweep range in the rationale.
+
+Scenario: `"baseline"` — the queue forms from persona pressure
+alone, not from a price-shock oracle move.
+
+`policies.json` stays `[]` because the liquid-staking adapter is
+`protocol = "generic"` and the engine resolves personas from the
+adapter TOML's `[personas.*]`. `run-config.personas` lists each
+agent's persona id drawn from the adapter-declared set.
+
+`failure_mode: "withdrawal_queue_run"` in the manifest. The
+rationale must cite the `pool.pending_unstake_count` +
+`pool.reserve_buffer` observations as the axes the experiment
+measures against.
+
+### Rule 17 — Reserve-exhaustion staging (liquid-staking adapters)
+
+When classification flagged **`reserve_buffer_exhaustion`** AND
+the `withdrawal_queue_run` rule already emitted a sweep, do NOT
+emit a second 1D sweep on the same axis — the queue-run sweep
+already stresses reserve depth as a downstream consequence.
+Instead, cite `reserve_buffer_exhaustion` as a secondary failure
+mode in the queue-run sweep's rationale and drop this category
+from the top-3-to-5 count.
+
+If `reserve_buffer_exhaustion` was flagged in isolation (without
+`withdrawal_queue_run`), emit a `reserve-exhaustion-baseline`
+proposal at persona-mix 0.50 redemption-share, same as Rule 16.
+`failure_mode: "reserve_buffer_exhaustion"` in the manifest.
+
+### Rule 18 — Stale-oracle staging (liquid-staking adapters)
+
+When classification flagged **`stale_oracle_redemption_gap`**,
+emit a `stale-oracle-staging` proposal — a baseline run that
+holds oracle updates static while redemption pressure builds.
+This is a *staging* proposal: today's engine does not expose a
+per-tick oracle-lag knob on the generic path, so the rationale
+must explicitly say so, mirroring the `oracle_lag` staging
+convention on lending adapters.
+
+Midpoint-only: fixed 20-agent population with a balanced
+redemption mix, `scenario: "baseline"`, no oracle trajectory
+overrides. Rationale cites the future engine knob that would
+enable the real variant.
+
+`failure_mode: "stale_oracle_redemption_gap"` in the manifest.
+
+### Liquid-staking manifest failure_mode values
+
+For liquid-staking proposals, `failure_mode` in `manifest.json`
+must be one of: `withdrawal_queue_run`, `depeg_after_slash`,
+`reserve_buffer_exhaustion`, `stale_oracle_redemption_gap`.
+These are the liquid-staking-specific category names from
+`classify.md`.
+
+### Liquid-staking policies.json shape
+
+Liquid-staking adapters are `protocol = "generic"`, so the
+engine IGNORES the external `policies.json` and resolves the
+persona catalog from the adapter TOML's `[personas.*]`.
+`policies.json` MUST be `[]` for liquid-staking scenarios — any
+non-empty array will surface an "ignoring N external policies"
+warning at run time but is not treated as an error.
+
+Action names in persona `action_weights` (on the adapter side)
+must match the shipped adapter's `[actions]` keys: `stake`,
+`request_unstake`, `claim_unstake`.
+
 ### AMM policies.json action names
 
 For AMM experiments, action names in `action_weights` must match

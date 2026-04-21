@@ -72,7 +72,11 @@ const ManifestSchema = z.object({
     "price_manipulation_via_swap",
     "impermanent_loss_spike",
     "jit_liquidity",
-    "reserve_depletion"
+    "reserve_depletion",
+    "withdrawal_queue_run",
+    "depeg_after_slash",
+    "reserve_buffer_exhaustion",
+    "stale_oracle_redemption_gap"
   ]),
   rationale: z.string().min(1)
 });

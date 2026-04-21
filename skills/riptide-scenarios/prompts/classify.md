@@ -22,6 +22,10 @@ The goal is to produce a short working-memory note of the form:
       impermanent_loss_spike: flagged | not-applicable # with reason
       jit_liquidity: flagged | not-applicable # with reason
       reserve_depletion: flagged | not-applicable # with reason
+      withdrawal_queue_run: flagged | not-applicable # with reason
+      depeg_after_slash: flagged | not-applicable # with reason
+      reserve_buffer_exhaustion: flagged | not-applicable # with reason
+      stale_oracle_redemption_gap: flagged | not-applicable # with reason
 
 Every `flagged` line must carry a one-sentence justification that
 points at a concrete feature of the adapter or IDL. Every
@@ -439,6 +443,140 @@ Hooks that rule it out:
   separate legs. Depletion of one side is not measurable.
 - `protocol = "lending"` — lending's analogous failure is utilization
   stress, not reserve depletion.
+
+## Liquid-staking-specific categories
+
+Four categories apply to liquid-staking-shaped programs (pooled
+stake with an LST supply, a withdrawal queue, a liquid reserve
+buffer, and an authority-gated slash / exchange-rate mutation).
+Their hooks read the **adapter's `[state_mapping]` / `[observations]`
+together with the IDL instruction list** (at `idl_path`).
+
+**How to read the IDL for liquid-staking classification:** load
+`idl_path`, inspect `instructions[].name`. Key signals: `stake` /
+`request_unstake` / `claim_unstake` as the redemption triple, plus
+an admin-gated `apply_slash` (or equivalent `sync_exchange_rate`)
+and account fields for `reserve_buffer` / `pending_unstake_*` /
+`exchange_rate_bps` / `cumulative_slashed`.
+
+### withdrawal_queue_run
+
+> "What happens if redemption demand outruns the liquid reserve and
+> a non-trivial fraction of claims land on the pending queue instead
+> of settling immediately?"
+
+Adapter-side + IDL hooks that justify flagging:
+
+- The IDL declares both `request_unstake` AND `claim_unstake`
+  instructions — confirming redemption routes through a two-phase
+  path rather than instant-liquid exit.
+- The adapter's `[observations]` expose `pool.reserve_buffer` AND
+  `pool.pending_unstake_assets` AND `pool.pending_unstake_count` —
+  queue pressure is directly observable.
+- The adapter declares at least one persona whose `action_weights`
+  put significant weight on `request_unstake` — the population
+  actually drives queue formation.
+
+All three sub-hooks must be present.
+
+Hooks that rule it out:
+
+- The IDL lacks a dedicated `request_unstake` / `claim_unstake`
+  pair (single-step redemption). The failure shape is different —
+  closer to `reserve_depletion` on an AMM.
+- No queue observations. Queue pressure is not measurable from
+  the adapter surface.
+- Every adapter persona weights `stake` heavily and `request_unstake`
+  near zero. The population is not shaped to form a queue.
+
+### depeg_after_slash
+
+> "What happens if an authority-gated slash (or equivalent
+> exchange-rate mutation) shrinks delegated assets while LST supply
+> stays constant — does the redemption rate fall, and does the
+> population react in a way the pool cannot absorb?"
+
+Adapter-side + IDL hooks that justify flagging:
+
+- The IDL declares a `apply_slash`-shaped instruction whose accounts
+  include an admin signer AND the pool account as writable, and
+  whose args include a slash-magnitude parameter (e.g. `slash_bps`).
+- The adapter's `[observations]` expose `pool.exchange_rate_bps`
+  AND `pool.cumulative_slashed` — both the slash event and the
+  resulting rate drop are observable.
+- The adapter declares at least one persona whose `triggers`
+  reference `exchange_rate_bps` (or equivalent) — the population
+  reacts to the rate move.
+
+All three sub-hooks must be present. A slash that is observable
+but whose effect no persona reacts to is not a classifiable failure
+mode — no downstream behavior to stress.
+
+Hooks that rule it out:
+
+- No slash / rate-mutation instruction in the IDL. There is no
+  mechanism to induce a depeg.
+- `exchange_rate_bps` or equivalent is not observed. The depeg
+  itself is not measurable.
+
+### reserve_buffer_exhaustion
+
+> "What happens when the reserve refill rate from incoming stake
+> cannot keep up with sustained redemption pressure, so the buffer
+> drains toward zero and newly-requested claims queue indefinitely?"
+
+Adapter-side + IDL hooks that justify flagging:
+
+- The adapter's `[observations]` expose `pool.reserve_buffer` as
+  its own axis (not just aggregated into `total_assets`).
+- The IDL's `stake` instruction grows reserve incrementally
+  (`RESERVE_FRACTION_BPS`-shaped split or equivalent), AND
+  `request_unstake` / `claim_unstake` draw from it — the adapter's
+  state semantics actually couple buffer to redemption flow.
+- The adapter declares at least one persona weighting `stake` AND
+  one weighting `request_unstake` so the refill-vs-drain race is
+  expressible with the shipped population.
+
+All three sub-hooks must be present.
+
+Hooks that rule it out:
+
+- No separate reserve observation, or the reserve is implicit
+  (derived from `total_assets - lst_supply` at query time). Not
+  directly observable.
+- Single-sided population (e.g. only staker personas, no
+  request_unstake persona). Exhaustion cannot develop.
+
+### stale_oracle_redemption_gap
+
+> "What happens if the bound oracle reports a stale or drifted
+> value across a redemption window — do users redeem at a rate
+> that does not reflect current economic reality?"
+
+Adapter-side hooks that justify flagging:
+
+- The adapter declares one or more `[[oracles]]` entries AND the
+  oracle `account` is declared under `[accounts]` with an external
+  owner (honest generic-oracle path, not a bundle-local shortcut).
+- The adapter's `[observations]` include `pool.exchange_rate_bps`
+  OR any field whose value can be compared against the
+  oracle-reported price — so a drift between oracle and on-pool
+  state is observable downstream.
+- The bundle is a liquid-staking program (the
+  `withdrawal_queue_run` flag is also plausible from the same
+  surface).
+
+Hooks that rule it out:
+
+- The adapter has no `[[oracles]]` block. There is no oracle to
+  stale.
+- No rate / price observation. Drift cannot be measured.
+
+Note: today's generic engine does not ship a specific oracle-lag
+scenario knob for the liquid-staking class. Flagging this category
+produces a staging proposal whose rationale says "oracle-lag
+variant pending a future engine knob" — same posture as the
+generic `oracle_lag` flag on lending adapters.
 
 ## Output
 
