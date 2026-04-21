@@ -1,0 +1,31 @@
+{
+  "metadata": {
+    "name": "liquid-staking-kelp-style-depeg-2026",
+    "description": "Kelp-style / rsETH-style single-program depeg + withdrawal-run pressure replay against the liquid-staking-fork bundle. Scheduled slash at tick 3 drops the exchange rate; redemption demand at tick 4 exceeds reserve buffer and lands four accounts on the withdrawal queue; tick 5 partial claim settles only the reserve-covered position. Honest boundary: single-program pressure replay, not a cross-protocol contagion claim, not a real Kelp / rsETH codebase fork.",
+    "source": "https://www.theblock.co/post/302443/kelp-rseth-depeg-june-2024"
+  },
+  "ticks": [
+    {
+      "tick": 3,
+      "instructions": [
+        { "name": "apply_slash", "agent": "admin-actor", "args": { "slash_bps": 2500 } }
+      ]
+    },
+    {
+      "tick": 4,
+      "instructions": [
+        { "name": "request_unstake", "agent": "staker-0", "args": { "lst_amount": 1500 } },
+        { "name": "request_unstake", "agent": "staker-1", "args": { "lst_amount": 1500 } },
+        { "name": "request_unstake", "agent": "staker-2", "args": { "lst_amount": 1500 } },
+        { "name": "request_unstake", "agent": "staker-3", "args": { "lst_amount": 1500 } },
+        { "name": "request_unstake", "agent": "staker-4", "args": { "lst_amount": 1500 } }
+      ]
+    },
+    {
+      "tick": 5,
+      "instructions": [
+        { "name": "claim_unstake", "agent": "staker-0", "args": {} }
+      ]
+    }
+  ]
+}
