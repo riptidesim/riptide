@@ -10,54 +10,50 @@
 #   `Protocol::LiquidStaking` would be a cosmetic ripple. The scenarios
 #   skill's classification hooks read instruction/observation names, so
 #   the liquid-staking-specific category hooks (withdrawal_queue_run,
-#   depeg_after_slash, reserve_buffer_exhaustion) land in T03 via name
-#   matching, not a new protocol variant.
+#   depeg_after_slash, reserve_buffer_exhaustion) work via name matching
+#   without a new protocol variant.
 # - Runtime-dispatchable actions: `stake` (single u64), `request_unstake`
 #   (single u64), `claim_unstake` (zero-arg). `initialize_pool` is
 #   IDL-only — the processor's lazy-init path seeds defaults on first
 #   touch (1:1 exchange rate, empty reserve/pool). Mapping it as a
 #   runtime action would race every agent to re-init and fail with
 #   `PoolAlreadyInitialized` (same precedent as amm-fork's pool init).
-# - `apply_slash` lands as a `[[scheduled_actions]]` entry rather than
-#   a persona-fired action. It is the single stress mutation that
-#   drives depeg / redemption-run scenarios — scenarios schedule it
-#   at a fixed tick rather than letting personas fire it stochastically.
-#   The shipping smoke scenario leaves `[[scheduled_actions]]` empty;
-#   T04's proof path appends a `slash_at_tick_N` entry to a runtime
-#   copy of this TOML the way perps-scratch and amm-scratch already do.
+# - `apply_slash` is admin-gated and not runtime-dispatchable from
+#   persona draws. It is the single stress mutation that drives depeg /
+#   redemption-run scenarios — named proof paths under
+#   `fixtures/replays/` dispatch it directly via the replay trajectory;
+#   the shipping smoke scenario leaves `[[scheduled_actions]]` empty.
 # - `[[oracles]]` binds **one** externally-owned admin-mock oracle
-#   account through Sprint 9's generic oracle path. This is R1.4:
-#   the liquid-staking bundle boots against the real
-#   externally-owned shared-oracle surface, not a bundle-local
-#   shortcut. The program does not currently read the oracle (it
-#   depegs through on-account state only, not a Pyth-style feed),
-#   but the adapter binding is still honest — the account is created
-#   with sibling-program ownership at tick 0, not `program_id`, and
-#   the `push_oracle_price` path from the scenario harness still
-#   lands real admin-mock bytes on it. Declaring it here exercises the
-#   full Sprint 9 binding surface for the bundle even though the
-#   current processor doesn't consume the reads. A later bundle can
-#   add an oracle-sanity hook (`sync_exchange_rate` against a Pyth
-#   feed, for example) without reshaping this file.
-# - **Sprint 10 scope call: admin-mock over Pyth.** `kind = "admin-mock"`
-#   keeps the oracle bootstrap minimal for the fourth bundle under a
-#   three-day cadence. Sprint 9 proved the Pyth layout path works for
-#   generic adapters (`perps_sibling_oracle_proof::generic_push_through_pyth_kind_mutates_real_pyth_bytes`)
-#   and the liquid-staking adapter can switch to `kind = "pyth"` without
-#   any program-level change. Spec R1.4 "prefer real Pyth if contained,
-#   fall back to admin-mock explicitly" — this adapter exercises the
-#   fallback and documents it here.
+#   account through the generic adapter's owner-aware oracle path: the
+#   liquid-staking bundle boots against the real externally-owned
+#   shared-oracle surface, not a bundle-local shortcut. The program
+#   does not currently read the oracle (it depegs through on-account
+#   state only, not a Pyth-style feed), but the adapter binding is
+#   still honest — the account is created with sibling-program
+#   ownership at tick 0, not `program_id`, and the `push_oracle_price`
+#   path from the scenario harness still lands real admin-mock bytes
+#   on it. Declaring it here exercises the full owner-aware binding
+#   surface for the bundle even though the current processor doesn't
+#   consume the reads. A later bundle can add an oracle-sanity hook
+#   (`sync_exchange_rate` against a Pyth feed, for example) without
+#   reshaping this file.
+# - **Scope call: admin-mock over Pyth.** `kind = "admin-mock"` keeps
+#   the oracle bootstrap minimal for this bundle. The Pyth layout path
+#   is proven working for generic adapters
+#   (`perps_sibling_oracle_proof::generic_push_through_pyth_kind_mutates_real_pyth_bytes`)
+#   and this adapter can switch to `kind = "pyth"` without any
+#   program-level change.
 # - `pool` is a shared account, `stake_account` is per-agent — same
 #   account kinds perps-fork uses (`market` shared, `position` agent)
 #   and amm-fork uses (`pool` shared, `lp_position` agent).
 #
-# Layer 2 personas — the persona library
-# (`steady-staker`, `yield-maxi`, `panic-exiter`, `arb-redeemer`) — lands
-# in T03 under `fixtures/personas/liquid-staking/`. A future
-# `scripts/liquid-staking-scratch.sh` sidecar script will truncate this
-# file at the `# === SIDECAR-CUT ===` marker and append the real
-# persona library before invoking the engine, matching the sidecar-runner
-# pattern the other bundles established.
+# Layer 2 personas — the differentiated liquid-staking library
+# (`steady-staker`, `yield-maxi`, `panic-exiter`, `arb-redeemer`) —
+# lands as standalone fragments under `fixtures/personas/liquid-staking/`.
+# A future `scripts/liquid-staking-scratch.sh` sidecar script will
+# truncate this file at the `# === SIDECAR-CUT ===` marker and append
+# the real persona library before invoking the engine, matching the
+# sidecar-runner pattern the other bundles established.
 
 protocol = "generic"
 program_so = "../../programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so"
@@ -74,9 +70,9 @@ space = 97
 # Externally-owned oracle account. The generic harness bootstraps this
 # at tick 0 with real admin-mock bytes (base_price = 1.0, exponent = 0)
 # under the sibling-program's ownership — NOT under liquid_staking_fork's
-# program_id. This is the honest Sprint 9 generic oracle path; the
-# admin-mock owner is resolved from the companion keypair that ships
-# next to `admin_mock_oracle.so`.
+# program_id. This is the honest owner-aware oracle path; the admin-mock
+# owner is resolved from the companion keypair that ships next to
+# `admin_mock_oracle.so`.
 [accounts.oracle]
 kind = "shared"
 space = 50
@@ -130,22 +126,23 @@ takes = []
 
 # Shipping invariants.
 #
-# `no_slash_during_healthy_run` — the scratch smoke run never schedules
-# `apply_slash`, so `cumulative_slashed` must stay at zero through
-# tick loop. Depeg scenarios append a scheduled slash to a runtime
-# copy of this adapter; that is where the invariant is *meant* to fire
-# as the proof signal.
+# `no_slash_during_healthy_run` — the scratch smoke run never fires
+# `apply_slash`, so `cumulative_slashed` must stay at zero through the
+# tick loop. Named depeg proofs dispatch the slash directly through a
+# replay trajectory; that is where the invariant is *meant* to fire as
+# the proof signal.
 #
-# `exchange_rate_non_negative_drift` — the stored `exchange_rate_bps`
-# must stay below a sanity ceiling. Declared at 10x the nominal
-# 10_000-bps 1:1 rate to catch accidental rate-runaway math (the
-# lazy-init pool reports 10_000; explicit init can request a higher
-# declared rate but a proposal sweep over `initial_exchange_rate_bps`
-# should stay under this ceiling).
+# `exchange_rate_bounded` — the stored `exchange_rate_bps` must stay
+# below a sanity ceiling. Declared at 10x the nominal 10_000-bps 1:1
+# rate to catch accidental rate-runaway math (the lazy-init pool
+# reports 10_000; explicit init can request a higher declared rate but
+# a proposal sweep over `initial_exchange_rate_bps` should stay under
+# this ceiling).
 #
 # The queue-pressure / reserve-exhaustion checks are taxonomy-level
-# concerns that land in T03 as proposal templates, not as inline
-# invariants — a scratch-smoke gate does not drive them to fire.
+# concerns expressed as proposal templates in the scenarios skill, not
+# as inline invariants — a scratch-smoke gate does not drive them to
+# fire.
 
 [[invariants]]
 name = "no_slash_during_healthy_run"
