@@ -254,8 +254,8 @@ riptide replay fixtures/replays/lending-whale-bad-debt/config.json --serve
 ```
 
 For the liquid-staking depeg / withdrawal-run proof artifact (single-program
-pressure, not a cross-protocol contagion claim; historical inspiration: the
-2024 Kelp / rsETH depeg — see the bundle-local
+pressure; historical inspiration: the 2024 Kelp / rsETH depeg — see the
+bundle-local
 [`fixtures/replays/liquid-staking-depeg-redemption-run/README.md`](fixtures/replays/liquid-staking-depeg-redemption-run/README.md)
 for the full write-up, rerun command, and what this proof does and does not
 prove):
@@ -265,15 +265,34 @@ riptide replay fixtures/replays/liquid-staking-depeg-redemption-run/config.json 
   --allow-invariant-violations
 ```
 
+For the first cross-protocol contagion proof — an upstream LST slash drops
+the pool exchange rate, a single declared bridge maps that observation
+into the downstream lending collateral oracle, and the terminal
+liquidation cascade realizes bad debt that would not have landed under the
+pre-shock oracle — see the bundle-local
+[`fixtures/replays/lst-lending-contagion-proof/README.md`](fixtures/replays/lst-lending-contagion-proof/README.md)
+for the bridge description, per-tick trace, executive summary, and honest
+scope notes:
+
+```bash
+riptide replay fixtures/replays/lst-lending-contagion-proof/config.json \
+  --allow-invariant-violations
+```
+
 > **Simulation evidence ≠ audit signoff.** The replays above are rerunnable
 > simulation artifacts against minimal forks chosen for determinism and
 > clarity of the failure shape. They are not audits, safety claims, or
 > mainnet post-mortems for any real lending / perps / AMM / LST program.
-> Scope cuts we are explicit about: no cross-protocol contagion (every
-> bundle is single-program today), no multi-oracle generic semantics (one
-> `[[oracles]]` binding per generic adapter), and no production Jito /
-> Marinade / Kelp / Sanctum adapter coverage (the liquid-staking bundle is
-> a minimal fork, not a fork of any real LST codebase).
+> The LST → lending contagion proof is **one named replay-scoped
+> multi-program composition** of two shipping bundles plus a declared
+> scalar-observation → scalar-oracle-write bridge — not a generalized
+> N-protocol scenario engine. Scope cuts we are explicit about: no
+> generalized multi-program persona sweeps, no stablecoin / governance
+> contagion, no cascade-graph dashboard, no Cloud / alerting, no
+> multi-oracle generic semantics (one `[[oracles]]` binding per generic
+> adapter), and no production Jito / Marinade / Kelp / Sanctum / Kamino /
+> Marginfi adapter coverage (the shipping bundles are minimal forks, not
+> forks of any real LST or lending codebase).
 
 📖 **[Full documentation →](docs/README.md)**
 
