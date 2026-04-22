@@ -34,7 +34,8 @@
     "scripts/install-binary.js",
     "README.md",
     "LICENSE-MIT",
-    "LICENSE-APACHE"
+    "LICENSE-APACHE",
+    "npm-shrinkwrap.json"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && node ./scripts/copy-personas.mjs",

@@ -1,0 +1,175 @@
+name: contagion-proof-ci
+
+# Cold-start reproducibility gate for the Riptide repository.
+#
+# This workflow is the "pick it up and rerun it cold" surface the
+# reviewer-ready evidence pack assumes. On every push and PR it:
+#
+#   1. Checks out the repo on a clean runner (no warm cache).
+#   2. Downloads the pinned Solana release tarball from anza-xyz/agave,
+#      verifies its SHA256 against the checksum committed under
+#      `scripts/ci/solana-release.sha256`, and only then extracts +
+#      prepends to PATH. No `curl | sh` — a swapped installer fails
+#      the checksum step and the workflow exits loudly.
+#   3. Builds the three programs the Sprint 11 contagion proof needs:
+#      liquid_staking_fork, admin_mock_oracle, lending_pool.
+#   4. Builds the Rust engine and the Node CLI.
+#   5. Runs the deterministic engine gate that asserts the canonical
+#      SimulationResult SHA256 for the shipping proof fixture.
+#   6. Runs the same fixture through the CLI so every run emits a pack
+#      and the pack's `manifest.json.canonical_hash` is asserted via
+#      a POSIX sh script that prints a loud diagnostic on mismatch.
+#
+# Supply-chain posture:
+#   - Every `uses:` reference is pinned to an immutable commit SHA
+#     (not a floating tag) with the released version recorded inline.
+#     A compromised or moved tag cannot change what this workflow
+#     executes; a SHA flip produces a diff reviewers can inspect.
+#   - The Solana toolchain is downloaded + checksum-verified against
+#     a committed `.sha256` file. Bumping the toolchain version bumps
+#     both the pin AND the checksum in the same PR.
+#   - No external RPC, no live IDL fetch, no LLM call.
+#   - No secrets beyond the default `GITHUB_TOKEN`.
+#   - No publishing, no release creation.
+#
+# If this job is green on a fresh runner, a third party can fork the
+# repo, hit "Run workflow", and see byte-identical output. That is the
+# reviewer-ready handoff promise.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contagion-proof-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Sprint 11 canonical hash — the single source of truth for the
+  # proof's byte-stability. Change this only in lock-step with
+  # `fixtures/replays/lst-lending-contagion-proof/expected-summary.json`
+  # AND the engine test pin.
+  EXPECTED_CANONICAL_HASH: d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb
+  # Pinned Solana CLI version — matches TOOLCHAIN.md. Bumping here
+  # MUST land in the same commit as an updated
+  # `scripts/ci/solana-release.sha256` checksum, or the verify step
+  # exits loudly.
+  SOLANA_VERSION: v3.0.13
+
+jobs:
+  contagion-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # `CI=1` flips the engine's integration tests from "soft-skip on
+    # missing .so" to "panic on missing .so". A green run here is
+    # therefore a real cold-start assertion, not an accidental skip.
+    env:
+      CI: "1"
+
+    steps:
+      - name: Checkout (fresh)
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install Rust toolchain (stable)
+        # dtolnay/rust-toolchain @stable branch as of 2026-04-22
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+        with:
+          toolchain: stable
+
+      - name: Install Solana CLI (pinned + checksum-verified)
+        run: |
+          set -euo pipefail
+          tarball="solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          url="https://github.com/anza-xyz/agave/releases/download/${SOLANA_VERSION}/${tarball}"
+          workdir="$(mktemp -d)"
+          curl -fsSL --retry 3 --retry-all-errors -o "${workdir}/${tarball}" "${url}"
+          # Verify against the checksum committed to the repo BEFORE
+          # extracting. If the upstream release was altered (or the
+          # CDN served something else), `sha256sum -c` exits non-zero
+          # and the workflow bails before any code runs.
+          (
+            cd "${workdir}" && \
+            sha256sum -c "${GITHUB_WORKSPACE}/scripts/ci/solana-release.sha256"
+          )
+          mkdir -p "${HOME}/.local/share/solana/install/active_release"
+          tar -xjf "${workdir}/${tarball}" \
+            -C "${HOME}/.local/share/solana/install/active_release" \
+            --strip-components=1
+          echo "${HOME}/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Sanity-check toolchain
+        run: |
+          set -euo pipefail
+          solana --version
+          cargo --version
+          rustc --version
+          cargo-build-sbf --version || true
+
+      - name: Build on-chain programs (cargo build-sbf)
+        run: |
+          set -euo pipefail
+          cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
+          cargo build-sbf --manifest-path programs/admin_mock_oracle/Cargo.toml
+          cargo build-sbf --manifest-path programs/liquid-staking-fork/Cargo.toml
+
+      - name: Confirm program artifacts on disk
+        run: |
+          set -euo pipefail
+          ls -l programs/lending_pool/target/deploy/lending_pool.so
+          ls -l programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so
+          ls -l programs/admin_mock_oracle/target/deploy/admin_mock_oracle-keypair.json
+          ls -l programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so
+
+      - name: Run deterministic contagion-proof engine gate
+        run: |
+          set -euo pipefail
+          cargo test -p riptide-engine --release --features litesvm-backend \
+            --test replay_lst_lending_contagion_proof \
+            contagion_proof_matches_expected_summary_and_is_deterministic \
+            -- --nocapture
+
+      - name: Set up Node.js
+        # actions/setup-node v4.1.0
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version: "24"
+
+      - name: Install + build CLI
+        working-directory: cli
+        run: |
+          set -euo pipefail
+          # `npm ci` respects package-lock.json byte-for-byte; the
+          # integrity hashes in the lockfile are the supply-chain
+          # check for every installed npm dependency.
+          npm ci --ignore-scripts
+          npm run build
+
+      - name: Run CLI replay to emit pack
+        run: |
+          set -euo pipefail
+          RIPTIDE_ENGINE_BIN="$(pwd)/target/release/riptide-engine" \
+            node cli/dist/src/index.js replay \
+              fixtures/replays/lst-lending-contagion-proof/config.json \
+              --allow-invariant-violations
+
+      - name: Assert pack canonical_hash
+        run: |
+          set -euo pipefail
+          manifest=.riptide/pack/replay-multi-lst-lending-contagion-proof-upstream/manifest.json
+          ./scripts/ci/assert-canonical-hash.sh "$manifest" "$EXPECTED_CANONICAL_HASH"
+
+      - name: Upload emitted pack as workflow artifact
+        if: always()
+        # actions/upload-artifact v4.4.3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882
+        with:
+          name: contagion-proof-pack
+          path: .riptide/pack/replay-multi-lst-lending-contagion-proof-upstream/
+          if-no-files-found: warn

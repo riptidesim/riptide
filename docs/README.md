@@ -10,6 +10,7 @@
 - [`architecture.md`](architecture.md) — the six-layer stack and the LiteSVM determinism model.
 - [`install.md`](install.md) — install, build, and upgrade paths; links to `TOOLCHAIN.md` at the repo root.
 - [`pack.md`](pack.md) — reviewer-ready evidence pack shape emitted on every `riptide run` and `riptide replay`.
+- [`ci-handoff.md`](ci-handoff.md) — cold-start GitHub Actions recipe for rerunning a committed proof and asserting its canonical hash; downstream-adoption template.
 - [`case-studies/solend-fork.md`](case-studies/solend-fork.md) — the 3×3 whale × shock hero grid on a Solend fork; the shipping outcome demo.
 - [`assets/`](assets/) — screenshots and images referenced from the README and docs.
 
