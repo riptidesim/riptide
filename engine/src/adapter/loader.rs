@@ -287,10 +287,46 @@ fn validate(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
     // adapter forge CLI lines. The allow-list matches the names
     // already used by the shipped fixtures.
     validate_identifiers(adapter, path)?;
+    validate_lineage(adapter, path)?;
     match adapter.protocol {
         Protocol::Lending => validate_lending(adapter, path),
         Protocol::Generic => validate_generic(adapter, path),
     }
+}
+
+/// Validate the optional `[lineage]` block. Lineage is inspection-only
+/// metadata — the loader does not validate `idl_source` against the
+/// adapter's instruction / state mappings and does not fetch remote
+/// IDLs. What it does check is the same anti-ANSI-injection guardrail
+/// every other adapter-supplied string passes through: every list entry
+/// and string field rejects control characters so adapter-supplied
+/// lineage prose cannot smuggle escape sequences into
+/// `riptide lineage`'s reviewer-facing output.
+fn validate_lineage(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
+    let Some(lineage) = adapter.lineage.as_ref() else {
+        return Ok(());
+    };
+    if let Some(src) = lineage.idl_source.as_deref() {
+        check_lineage_text(path, "[lineage].idl_source", src)?;
+    }
+    if let Some(gen) = lineage.generator.as_deref() {
+        check_lineage_text(path, "[lineage].generator", gen)?;
+    }
+    for (idx, entry) in lineage.inferred_assumptions.iter().enumerate() {
+        check_lineage_text(
+            path,
+            &format!("[lineage].inferred_assumptions[{idx}]"),
+            entry,
+        )?;
+    }
+    for (idx, entry) in lineage.unsupported_fields.iter().enumerate() {
+        check_lineage_text(
+            path,
+            &format!("[lineage].unsupported_fields[{idx}]"),
+            entry,
+        )?;
+    }
+    Ok(())
 }
 
 /// Allow-list character set for adapter-supplied identifiers that can
@@ -353,6 +389,40 @@ fn check_label(path: &str, key: &str, value: &str) -> Result<(), AdapterError> {
                 "adapter label must be non-empty and free of control characters \
                  (got `{}`) so adapter-supplied text cannot inject ANSI escape \
                  sequences into operator-visible CLI output",
+                value.escape_debug()
+            ),
+        })
+    }
+}
+
+/// Lineage prose is reviewer-facing documentation — inferred
+/// assumptions and unsupported-field explanations. The label limit
+/// (256 bytes) is too tight for honest multi-clause assumptions;
+/// identifiers would be even tighter. Allow up to 1024 bytes so authors
+/// can name a concrete IDL field AND explain why it is unsupported in
+/// one entry, while still rejecting C0/C1 controls + DEL for ANSI-
+/// injection defense.
+const ADAPTER_LINEAGE_TEXT_MAX_LEN: usize = 1024;
+
+fn is_safe_lineage_text(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= ADAPTER_LINEAGE_TEXT_MAX_LEN
+        && !value
+            .chars()
+            .any(|c| (c as u32) < 0x20 || (c as u32) == 0x7f || ((c as u32) >= 0x80 && (c as u32) < 0xa0))
+}
+
+fn check_lineage_text(path: &str, key: &str, value: &str) -> Result<(), AdapterError> {
+    if is_safe_lineage_text(value) {
+        Ok(())
+    } else {
+        Err(AdapterError::Validation {
+            path: path.to_string(),
+            key: key.to_string(),
+            reason: format!(
+                "lineage text must be non-empty, at most {ADAPTER_LINEAGE_TEXT_MAX_LEN} bytes, \
+                 and free of C0/C1 control characters (got `{}`) so adapter-supplied text \
+                 cannot inject ANSI escape sequences into operator-visible CLI output",
                 value.escape_debug()
             ),
         })
@@ -1741,6 +1811,109 @@ kind = "admin-mock"
         assert!(
             adapter.state_mapping.values().any(|v| v == "tvl"),
             "fixture missing tvl observation"
+        );
+    }
+
+    #[test]
+    fn lineage_with_control_chars_rejected() {
+        // Adapter-supplied lineage strings flow into the
+        // `riptide lineage` reviewer-facing output, so the loader
+        // applies the same ANSI-injection guard every other
+        // adapter-supplied label passes through.
+        let toml = "\
+protocol = \"lending\"
+
+[instructions]
+deposit = { action = \"deposit\", amount = \"amount\" }
+
+[state_mapping]
+\"pool.total_deposits\" = \"tvl\"
+
+[lineage]
+inferred_assumptions = [\"malicious\\u001bprose\"]
+";
+        let err = parse_adapter_str(toml, "lineage-ansi.toml")
+            .expect_err("control chars in lineage must be rejected");
+        let message = err.to_string();
+        assert!(
+            message.contains("[lineage].inferred_assumptions"),
+            "error must name the offending key: {message}",
+        );
+    }
+
+    #[test]
+    fn lineage_idl_source_with_repo_path_accepted() {
+        let toml = r#"
+protocol = "lending"
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+
+[lineage]
+idl_source = "programs/lending_pool/src/state.rs"
+generator = "hand-authored"
+"#;
+        let adapter = parse_adapter_str(toml, "lineage-ok.toml")
+            .expect("well-formed lineage must parse");
+        let lineage = adapter.lineage.expect("lineage block present");
+        assert_eq!(
+            lineage.idl_source.as_deref(),
+            Some("programs/lending_pool/src/state.rs"),
+        );
+        assert_eq!(lineage.generator.as_deref(), Some("hand-authored"));
+    }
+
+    #[test]
+    fn lineage_text_byte_cap_is_utf8_bytes_not_char_count() {
+        // Pin the engine side of the CLI+engine byte-length parity. An
+        // entry of 512 'é' is exactly 1024 UTF-8 bytes (at the cap) and
+        // must be accepted; 513 of them is 1026 bytes (over) and must
+        // be rejected. The CLI has a mirrored test — both validators
+        // must agree on the same boundary for every adapter author.
+        let accepted_entry = "é".repeat(512);
+        assert_eq!(accepted_entry.len(), 1024);
+        let accepted_toml = format!(
+            "\
+protocol = \"lending\"
+
+[instructions]
+deposit = {{ action = \"deposit\", amount = \"amount\" }}
+
+[state_mapping]
+\"pool.total_deposits\" = \"tvl\"
+
+[lineage]
+inferred_assumptions = [\"{accepted_entry}\"]
+"
+        );
+        parse_adapter_str(&accepted_toml, "lineage-utf8-at-cap.toml")
+            .expect("entry of exactly 1024 UTF-8 bytes must be accepted");
+
+        let rejected_entry = "é".repeat(513);
+        assert_eq!(rejected_entry.len(), 1026);
+        let rejected_toml = format!(
+            "\
+protocol = \"lending\"
+
+[instructions]
+deposit = {{ action = \"deposit\", amount = \"amount\" }}
+
+[state_mapping]
+\"pool.total_deposits\" = \"tvl\"
+
+[lineage]
+inferred_assumptions = [\"{rejected_entry}\"]
+"
+        );
+        let err = parse_adapter_str(&rejected_toml, "lineage-utf8-over-cap.toml")
+            .expect_err("entry of 1026 UTF-8 bytes must be rejected");
+        let message = err.to_string();
+        assert!(
+            message.contains("[lineage].inferred_assumptions"),
+            "error must name the offending key: {message}",
         );
     }
 }

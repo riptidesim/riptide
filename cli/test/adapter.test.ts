@@ -74,6 +74,7 @@ test("AdapterSchema produces the same shape the serde side expects", async () =>
       "actions",
       "instructions",
       "invariants",
+      "lineage",
       "observations",
       "oracles",
       "personas",
@@ -338,4 +339,66 @@ test("validateAdapter accepts the safe minimal adapter", () => {
   const raw = minimalGenericAdapter();
   const adapter = validateAdapter(raw, "safe.toml");
   assert.equal(adapter.protocol, "generic");
+});
+
+test("validateLineage rejects typoed keys instead of silently dropping them", () => {
+  // A typo like `unsupported_field` (singular, not plural) must fail
+  // validation, not silently render as "(none recorded)" in
+  // `riptide lineage`. `.strict()` on the lineage schema — mirroring
+  // `#[serde(deny_unknown_fields)]` on the Rust side — enforces this.
+  const raw = {
+    protocol: "lending",
+    instructions: {
+      deposit: { action: "deposit", amount: "amount" },
+    },
+    state_mapping: { "pool.total_deposits": "tvl" },
+    lineage: {
+      unsupported_field: ["typoed singular, not plural"],
+    },
+  };
+  assert.throws(
+    () => validateAdapter(raw, "lineage-typo.toml"),
+    /unsupported_field/,
+    "CLI must reject typoed lineage keys, same as the engine"
+  );
+});
+
+test("validateLineage caps lineage text at UTF-8 byte length (not JS char length)", () => {
+  // Engine uses Rust `str.len()` (UTF-8 bytes). CLI previously used
+  // `String.length` (UTF-16 code units) which diverges for non-ASCII.
+  // 'é' = 2 UTF-8 bytes but JS length 1; 513 of them = 1026 UTF-8
+  // bytes (over the 1024 cap) but JS length 513 (under). An entry
+  // that passes JS-length would then fail when the engine loaded
+  // the same TOML — breaks the parity promise. This test pins the
+  // byte-length comparison so that regression can't come back.
+  const raw = {
+    protocol: "lending",
+    instructions: {
+      deposit: { action: "deposit", amount: "amount" },
+    },
+    state_mapping: { "pool.total_deposits": "tvl" },
+    lineage: {
+      inferred_assumptions: ["é".repeat(513)], // 1026 UTF-8 bytes
+    },
+  };
+  assert.throws(
+    () => validateAdapter(raw, "utf8-parity.toml"),
+    /\[lineage\]\.inferred_assumptions\[0\].*lineage text must be non-empty, at most 1024 bytes/,
+    "CLI must reject lineage text over 1024 UTF-8 bytes, same as the engine"
+  );
+
+  // Byte-length parity also accepts what the engine accepts:
+  // 512 'é' = 1024 UTF-8 bytes (at the cap, not over).
+  const accepted = {
+    protocol: "lending",
+    instructions: {
+      deposit: { action: "deposit", amount: "amount" },
+    },
+    state_mapping: { "pool.total_deposits": "tvl" },
+    lineage: {
+      inferred_assumptions: ["é".repeat(512)],
+    },
+  };
+  const adapter = validateAdapter(accepted, "utf8-parity-accept.toml");
+  assert.equal(adapter.lineage?.inferred_assumptions.length, 1);
 });

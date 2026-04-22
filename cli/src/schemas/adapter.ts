@@ -131,6 +131,27 @@ export const ScheduledActionSchema = z.object({
 });
 export type ScheduledAction = z.infer<typeof ScheduledActionSchema>;
 
+// Optional `[lineage]` block. Inspection-only reviewer-facing metadata:
+// which IDL the adapter was authored against, the generator, any
+// inferred assumptions the author baked in, and IDL fields the adapter
+// deliberately does not model. Every field is optional on parse so
+// pre-Sprint-12 adapters continue to validate byte-for-byte. Mirrors
+// `engine/src/adapter/schema.rs::AdapterLineage`, including
+// `#[serde(deny_unknown_fields)]`.
+//
+// `.strict()` is load-bearing here: a typoed key like
+// `unsupported_field = [...]` (singular) must fail adapter
+// validation, not silently render as "(none recorded)". Lineage is
+// reviewer documentation, and a silently-dropped typo hides exactly
+// the kind of omission the surface is supposed to catch.
+export const AdapterLineageSchema = z.object({
+  idl_source: z.string().min(1).optional(),
+  generator: z.string().min(1).optional(),
+  inferred_assumptions: z.array(z.string().min(1)).default([]),
+  unsupported_fields: z.array(z.string().min(1)).default([]),
+}).strict();
+export type AdapterLineage = z.infer<typeof AdapterLineageSchema>;
+
 export const AdapterSchema = z.object({
   protocol: ProtocolSchema,
   instructions: z.record(z.string(), InstructionMappingSchema),
@@ -144,6 +165,7 @@ export const AdapterSchema = z.object({
   invariants: z.array(InvariantSchema).default([]),
   oracles: z.array(OracleDefinitionSchema).default([]),
   scheduled_actions: z.array(ScheduledActionSchema).default([]),
+  lineage: AdapterLineageSchema.optional(),
 });
 export type Adapter = z.infer<typeof AdapterSchema>;
 
@@ -164,6 +186,13 @@ export interface AdapterValidationError {
 const ADAPTER_IDENT_RE = /^[A-Za-z0-9_.-]+$/;
 const ADAPTER_IDENT_MAX_LEN = 128;
 const ADAPTER_LABEL_MAX_LEN = 256;
+// Lineage prose is reviewer documentation — inferred assumptions and
+// unsupported-field explanations run longer than short labels. Mirror
+// the engine's `ADAPTER_LINEAGE_TEXT_MAX_LEN` byte cap so CLI and
+// engine reject/accept the same strings. 1024 bytes lets an author
+// name a concrete IDL field AND explain why it is unsupported in one
+// entry.
+const ADAPTER_LINEAGE_TEXT_MAX_LEN = 1024;
 
 function isSafeAdapterIdentifier(value: string): boolean {
   return (
@@ -182,6 +211,34 @@ function isSafeAdapterLabel(value: string): boolean {
     if (code >= 0x80 && code < 0xa0) return false;
   }
   return true;
+}
+
+function isSafeLineageText(value: string): boolean {
+  // The engine measures lineage text with Rust `str.len()`, which is
+  // UTF-8 byte length. JS `String.length` is UTF-16 code-unit count,
+  // which diverges for any non-ASCII character. Using
+  // `Buffer.byteLength(..., "utf8")` keeps the CLI + engine byte caps
+  // byte-identical — an adapter that passes CLI validation lands on
+  // the engine the same way.
+  if (value.length === 0) return false;
+  if (Buffer.byteLength(value, "utf8") > ADAPTER_LINEAGE_TEXT_MAX_LEN) return false;
+  for (const char of value) {
+    const code = char.codePointAt(0)!;
+    if (code < 0x20) return false;
+    if (code === 0x7f) return false;
+    if (code >= 0x80 && code < 0xa0) return false;
+  }
+  return true;
+}
+
+function rejectLineageText(path: string, key: string, value: string): never {
+  throw new Error(
+    `${path}: \`${key}\`: lineage text must be non-empty, at most ${ADAPTER_LINEAGE_TEXT_MAX_LEN} bytes, and free of C0/C1 control characters (got ${JSON.stringify(value)}) so adapter-supplied text cannot inject ANSI escape sequences into operator-visible CLI output`
+  );
+}
+
+function checkLineageText(path: string, key: string, value: string): void {
+  if (!isSafeLineageText(value)) rejectLineageText(path, key, value);
 }
 
 function rejectIdentifier(path: string, key: string, value: string): never {
@@ -272,6 +329,7 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
   const adapter = parsed.data;
 
   validateAdapterIdentifiers(adapter, path);
+  validateLineage(adapter, path);
 
   if (adapter.protocol === "lending") {
     validateLending(adapter, path);
@@ -283,6 +341,23 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
   validateScheduledActions(adapter, path);
 
   return adapter;
+}
+
+function validateLineage(adapter: Adapter, path: string): void {
+  const lineage = adapter.lineage;
+  if (lineage === undefined) return;
+  if (lineage.idl_source !== undefined) {
+    checkLineageText(path, "[lineage].idl_source", lineage.idl_source);
+  }
+  if (lineage.generator !== undefined) {
+    checkLineageText(path, "[lineage].generator", lineage.generator);
+  }
+  lineage.inferred_assumptions.forEach((entry, idx) => {
+    checkLineageText(path, `[lineage].inferred_assumptions[${idx}]`, entry);
+  });
+  lineage.unsupported_fields.forEach((entry, idx) => {
+    checkLineageText(path, `[lineage].unsupported_fields[${idx}]`, entry);
+  });
 }
 
 function validateOracles(adapter: Adapter, path: string): void {

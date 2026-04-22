@@ -164,3 +164,28 @@ label = "Perps low-rate (smoke)"
 action_rate_multiplier = 0.5
 action_weights = { deposit = 0.5, withdraw = 0.5 }
 triggers = []
+
+# Reviewer-facing lineage metadata (inspection-only — see
+# `riptide lineage perps-fork`). Every assumption and unsupported-field
+# entry is reviewable against `fixtures/idls/perps-fork.json` and the
+# program source under `programs/perps-fork/`.
+[lineage]
+idl_source = "fixtures/idls/perps-fork.json"
+generator = "hand-authored"
+inferred_assumptions = [
+  "`protocol = \"generic\"` instead of a dedicated `Protocol::Perps` variant — the classification surface reads instruction and observation names, not the protocol enum, so a perps-specific variant would only be cosmetic at this sprint.",
+  "Only single-arg instructions (`deposit_collateral`, `withdraw_collateral`) are mapped as runtime-dispatchable actions; `open_position` / `close_position` / `liquidate_position` stay IDL-only for classification but are dispatched in the `perps_sibling_oracle_proof` integration test, not via persona draws.",
+  "`initialize_market` is not mapped as a runtime action; the generic harness handles market state via its bootstrap path rather than racing persona draws through admin setup.",
+  "The `market_config_initialized` (`market.max_leverage_bps > 0`) invariant is intentionally omitted because it fires once at tick 0 before lazy market init — this adapter leaves it to a future harness-level eager-init or a tick-0-skip invariant operator.",
+  "No `[[oracles]]` block on this shipping adapter because none of the two runtime-dispatched actions (`deposit` / `withdraw`) reads the oracle account; the oracle path is exercised for perps via `engine/tests/perps_sibling_oracle_proof.rs`, not via this adapter's smoke surface.",
+  "No `[[scheduled_actions]]` block: perps funding-rate updates and insurance-fund rebalances are deliberately out of scope.",
+]
+unsupported_fields = [
+  "instruction `initialize_market` — admin setup, handled by bootstrap not persona dispatch",
+  "instruction `open_position(side, leverage_bps, notional)` — full multi-arg trade flow not dispatched from personas; covered by perps_sibling_oracle_proof",
+  "instruction `close_position` — terminal position flow, same reason as `open_position`",
+  "instruction `liquidate_position` — pairwise `target_idx` plumbing in `GenericHarness::execute_action` is still a follow-up",
+  "account `market.admin` / `market.oracle` — pubkey metadata, not part of the logical persona-observable surface",
+  "account `position.owner` / `position.market` / `position.is_initialized` — pubkey/bool bootstrap metadata, not persona-observable",
+  "funding rate and insurance fund — deliberately out of scope for this fork (documented in the IDL description)",
+]

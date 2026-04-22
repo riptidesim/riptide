@@ -226,6 +226,31 @@ action_rate_multiplier = 0.5
 action_weights = { stake = 0.7, request_unstake = 0.2, claim_unstake = 0.1 }
 triggers = []
 
+# Reviewer-facing lineage metadata (inspection-only — see
+# `riptide lineage liquid-staking-fork`). Every assumption and
+# unsupported-field entry is reviewable against
+# `fixtures/idls/liquid-staking-fork.json` and the program source
+# under `programs/liquid-staking-fork/`.
+[lineage]
+idl_source = "fixtures/idls/liquid-staking-fork.json"
+generator = "hand-authored"
+inferred_assumptions = [
+  "`protocol = \"generic\"` instead of `Protocol::LiquidStaking` — classification reads instruction/observation names, so the dedicated variant would be cosmetic. LST-specific taxonomy hooks (withdrawal_queue_run / depeg_after_slash / reserve_buffer_exhaustion) work via name matching.",
+  "`initialize_pool` is not mapped as a runtime action; the processor lazy-inits the pool on first touch at a 1:1 exchange rate, so runtime dispatch would race every agent into `PoolAlreadyInitialized` errors (same precedent as amm-fork).",
+  "`apply_slash` is admin-gated and not mapped for persona dispatch. Named depeg / redemption-run proofs call it directly through a replay trajectory; the shipping smoke scenario leaves `[[scheduled_actions]]` empty.",
+  "`claim_unstake` is zero-arg: `[instructions].claim_unstake` omits the `amount` binding and the corresponding action has an empty `takes`, exercising the generic primitive's zero-arg dispatch path.",
+  "The `[[oracles]]` entry binds an externally-owned admin-mock price account for forward compat — the shipping liquid_staking_fork processor does NOT currently read it (depeg is driven by on-account `exchange_rate_bps` state). The binding still honestly exercises the owner-aware oracle path at tick 0.",
+  "`kind = \"admin-mock\"` over `\"pyth\"` — minimal oracle bootstrap. The Pyth layout path is proven working for generic adapters (see `perps_sibling_oracle_proof::generic_push_through_pyth_kind_mutates_real_pyth_bytes`) and the adapter can switch without program-level changes.",
+  "`exchange_rate_bounded` invariant's 100_000-bps ceiling is 10x the nominal 10_000-bps 1:1 rate; any proposal sweep over `initial_exchange_rate_bps` must stay under this ceiling or the smoke gate turns red.",
+]
+unsupported_fields = [
+  "instruction `initialize_pool(initial_exchange_rate_bps)` — admin setup, handled by lazy init",
+  "instruction `apply_slash(slash_bps)` — admin-gated stress mutation, dispatched via replay trajectory, not persona draws",
+  "account `pool.admin` / `pool.oracle` / `pool.is_initialized` — pubkey/bool metadata, not persona-observable",
+  "account `stake_account.owner` / `stake_account.pool` / `stake_account.is_initialized` — pubkey/bool metadata, not persona-observable",
+  "oracle-sanity hooks (e.g. `sync_exchange_rate` against a Pyth feed) — the program does not currently compare on-account rate against the bound oracle; the oracle binding is forward-compat plumbing",
+]
+
 [[oracles]]
 name = "stake_price_feed"
 kind = "admin-mock"

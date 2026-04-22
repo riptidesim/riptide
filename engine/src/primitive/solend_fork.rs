@@ -1181,6 +1181,7 @@ mod tests {
             invariants: Vec::new(),
             oracles: Vec::new(),
             scheduled_actions: Vec::new(),
+            lineage: None,
         }
     }
 

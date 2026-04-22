@@ -182,3 +182,27 @@ action_rate_multiplier = 0.5
 action_weights = { add_liquidity = 0.6, swap = 0.4 }
 triggers = []
 persona_args = { amount_b = 1500, direction = 0 }
+
+# Reviewer-facing lineage metadata (inspection-only — see
+# `riptide lineage amm-fork`). Every assumption and unsupported-field
+# entry is reviewable against `fixtures/idls/amm-fork.json` and the
+# program source under `programs/amm-fork/`.
+[lineage]
+idl_source = "fixtures/idls/amm-fork.json"
+generator = "hand-authored"
+inferred_assumptions = [
+  "`protocol = \"generic\"` instead of `Protocol::Amm` — classification reads instruction and observation names, so the dedicated variant would be cosmetic.",
+  "`initialize_pool` is not mapped as a runtime action; the processor's lazy-init path seeds a 1,000,000 / 1,000,000 pool at 30 bps on first touch, so mapping init would race every agent into `PoolAlreadyInitialized` errors.",
+  "`swap.min_amount_out = 1` is a permissive literal — pathological-behavior detection lives in invariants and taxonomy hooks rather than at the instruction level.",
+  "`swap.direction` is bound from `@persona.direction` so arb-long / arb-short / sandwich personas each pick a side without splitting the `swap` action into two adapter entries.",
+  "No `[[oracles]]` block: this AMM derives price from pool reserves, not from an external oracle. Load-bearing for the pitch (three protocol classes, only two need a mocked oracle).",
+  "No `[[scheduled_actions]]` block: AMM has no time-dependent state.",
+  "Invariants are upper-bound structural bounds (`fee_bps`, `lp_shares`, `total_lp_supply`) rather than floor invariants like `reserve_a >= 1`; floor invariants would false-positive at tick 0 on the zero-byte bootstrap account before the lazy-init processor fires.",
+  "Constant-product equality (`k_last == reserve_a * reserve_b`) is not expressed as an invariant because the current invariant DSL is observation-to-literal only — comparing two observations or using a tolerance operator requires DSL extension.",
+]
+unsupported_fields = [
+  "instruction `initialize_pool(initial_a, initial_b, fee_bps)` — admin setup, handled by lazy init",
+  "account `pool.admin` / `pool.token_a_mint` / `pool.token_b_mint` / `pool.is_initialized` — pubkey/bool metadata, not persona-observable",
+  "account `lp_position.owner` / `lp_position.pool` / `lp_position.is_initialized` — pubkey/bool metadata, not persona-observable",
+  "real SPL token mints — this fork uses virtual u64 reserves (documented in the IDL description) and does not integrate with the SPL token program",
+]

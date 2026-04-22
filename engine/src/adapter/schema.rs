@@ -292,6 +292,58 @@ pub struct Adapter {
     /// existing adapter continues to parse unchanged.
     #[serde(default)]
     pub scheduled_actions: Vec<ScheduledAction>,
+
+    /// Optional declarative lineage block. Reviewer-facing metadata
+    /// describing the IDL the adapter was authored against, the
+    /// generator (hand-authored vs. `riptide-adapt@<sha>`), any
+    /// inferred assumptions the author baked in that are not literally
+    /// in the IDL, and IDL fields the adapter deliberately does not
+    /// model. Inspection-only in Sprint 12 — no IDL fetch, no
+    /// validation. Absent by default so every pre-Sprint-12 adapter
+    /// continues to parse byte-for-byte.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lineage: Option<AdapterLineage>,
+}
+
+/// Declarative lineage block for the optional `[lineage]` section of an
+/// adapter TOML. Every field is optional on parse (absent fields serialize
+/// omitted so round-trip through `toml::to_string` stays minimal).
+/// Accuracy is load-bearing — a lying `inferred_assumptions` list is
+/// worse than silence.
+///
+/// `#[serde(deny_unknown_fields)]` is load-bearing: a typoed key like
+/// `unsupported_field = [...]` must fail the adapter load, not silently
+/// render as "(none recorded)". Lineage is reviewer documentation, and
+/// a silently-dropped typo hides exactly the kind of omission the
+/// reviewer surface is supposed to catch.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AdapterLineage {
+    /// Repo-relative path (or URL) to the IDL the adapter was authored
+    /// against. Reviewers follow this pointer to compare adapter
+    /// coverage against the on-chain program surface themselves.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idl_source: Option<String>,
+    /// Generator identifier. Typically `hand-authored` or
+    /// `riptide-adapt@<git-sha>`; free-form so downstream adopters can
+    /// name their own tooling.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generator: Option<String>,
+    /// Short human-readable strings naming each non-trivial assumption
+    /// the adapter author (or generator) made that is not literally in
+    /// the IDL. Examples: "lazy-init pool on first touch — no
+    /// initialize_pool mapped", "oracle account bound but not read by
+    /// the program". Empty by convention if the adapter is a
+    /// straight IDL → TOML translation with no inferences.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inferred_assumptions: Vec<String>,
+    /// IDL instruction / account / field names the adapter deliberately
+    /// does not model. Empty by convention if every IDL surface is
+    /// mapped. Used by Sprint 13's linter as the authoritative list of
+    /// known gaps so the linter can distinguish "author chose to skip
+    /// this" from "author forgot this".
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unsupported_fields: Vec<String>,
 }
 
 /// Supported comparison operators for declarative invariants.
@@ -670,5 +722,106 @@ value = 42.5
             assert_eq!(op, back);
             assert_eq!(s.trim_matches('"'), op.as_str());
         }
+    }
+
+    #[test]
+    fn adapter_without_lineage_block_parses_as_none() {
+        let adapter = parse(
+            r#"
+protocol = "lending"
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+"#,
+        );
+        assert!(adapter.lineage.is_none());
+    }
+
+    #[test]
+    fn adapter_with_lineage_block_parses_all_fields() {
+        let adapter = parse(
+            r#"
+protocol = "lending"
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+
+[lineage]
+idl_source = "programs/lending_pool/src/state.rs"
+generator = "hand-authored"
+inferred_assumptions = [
+    "Lending primitive supplies the dispatch table — no [actions] block needed",
+    "Lazy-init pool on first touch",
+]
+unsupported_fields = [
+    "InitializeOracle",
+    "SetOraclePrice",
+]
+"#,
+        );
+        let lineage = adapter.lineage.expect("lineage present");
+        assert_eq!(
+            lineage.idl_source.as_deref(),
+            Some("programs/lending_pool/src/state.rs"),
+        );
+        assert_eq!(lineage.generator.as_deref(), Some("hand-authored"));
+        assert_eq!(lineage.inferred_assumptions.len(), 2);
+        assert_eq!(lineage.unsupported_fields, vec!["InitializeOracle", "SetOraclePrice"]);
+    }
+
+    #[test]
+    fn adapter_with_empty_lineage_block_keeps_field_defaults() {
+        let adapter = parse(
+            r#"
+protocol = "lending"
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+
+[lineage]
+"#,
+        );
+        let lineage = adapter.lineage.expect("lineage present even when empty");
+        assert!(lineage.idl_source.is_none());
+        assert!(lineage.generator.is_none());
+        assert!(lineage.inferred_assumptions.is_empty());
+        assert!(lineage.unsupported_fields.is_empty());
+    }
+
+    #[test]
+    fn adapter_with_typoed_lineage_key_fails_to_parse() {
+        // A typo like `unsupported_field` (singular — not
+        // `unsupported_fields`) must fail the adapter load, not
+        // silently render as "(none recorded)" in `riptide lineage`.
+        // `#[serde(deny_unknown_fields)]` on AdapterLineage enforces
+        // this.
+        let err: Result<Adapter, _> = toml::from_str(
+            r#"
+protocol = "lending"
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+
+[lineage]
+unsupported_field = ["typoed singular, not plural"]
+"#,
+        );
+        let msg = err.expect_err("typoed lineage key must reject").to_string();
+        assert!(
+            msg.contains("unsupported_field"),
+            "error must name the offending typoed key: {msg}",
+        );
     }
 }
