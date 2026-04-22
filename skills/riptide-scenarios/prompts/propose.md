@@ -663,6 +663,151 @@ Action names in persona `action_weights` (on the adapter side)
 must match the shipped adapter's `[actions]` keys: `stake`,
 `request_unstake`, `claim_unstake`.
 
+## Stablecoin-specific proposal rules
+
+Three rules apply when classification flags one or more of the
+stablecoin-specific categories (`collateral_ratio_spiral`,
+`redemption_run`, `hedge_gap_depeg`). These rules are additive —
+they do not replace or modify Rules 1–7, perps Rules 8–10, AMM
+Rules 11–14, or liquid-staking Rules 15–18 above. The stablecoin
+adapter exposes `deposit_collateral` / `mint_stable` /
+`request_redeem` / `claim_redeem` as runtime-dispatchable actions;
+`apply_hedge_loss` is an admin-gated scheduled / replay
+instruction, not a persona-fired action. The shared-with-LST
+`reserve_buffer_exhaustion` category reuses Rule 17.
+
+### Rule 19 — Hedge-loss-magnitude sweep (stablecoin adapters)
+
+When classification flagged **`hedge_gap_depeg`**, emit a
+`hedge-loss-magnitude-sweep` proposal — a 1D sweep varying the
+hedge-loss magnitude against the pool, under a deposit-heavy
+population that the scheduled haircut has to push into panic.
+
+Axis: hedge-loss magnitude in bps `{1000, 2500, 4000}` (10% /
+25% / 40% of delegated collateral). Hedge-losses are NOT
+runtime-dispatchable through a persona-fired action. For the
+stablecoin `protocol = "generic"` adapter, hedge-losses are ALSO
+not currently dispatchable via `[[scheduled_actions]]` — the
+generic primitive's `on_scheduled_action` hook is a no-op, so a
+scheduled-actions entry emits only a record-keeping event and
+does NOT fire `apply_hedge_loss` on-chain. The shipping stablecoin
+adapter's sweep therefore runs as a **staging cell**: the
+run-config + persona mix are frozen as the pre-haircut population
+the companion replay attacks, and the true failure axis
+(haircut → backing drop → panic redemptions → queue formation) is
+exercised by the named replay fixture under `fixtures/replays/`
+via raw IDL dispatch on the replay trajectory.
+
+For this 1D sweep, emit only the midpoint (2500 bps = 25%) as
+the representative `run-config.json` + `policies.json` +
+`manifest.json` triple and note the full sweep range in the
+rationale.
+
+Fixed population (20 agents) — **distinct from the
+redemption-run-sweep population on purpose**: deposit-heavy with
+only a minority of redemption-reactive agents. Example shape:
+7 cautious-minter + 7 leverage-looper + 4 panic-redeemer +
+2 arb-redeemer (30% redemption-heavy). Rationale for the split:
+`hedge_gap_depeg` pressure comes primarily from the scheduled
+haircut, not from organic redemption demand, so the population
+models a pool the haircut must push into panic. Using the same
+50/50 mix as the redemption-run-sweep would make the two cells
+operationally identical at the scenario level, which is the
+exact anti-pattern this rule is preventing. `policies.json`
+stays `[]` because the stablecoin adapter is `protocol =
+"generic"` and the engine resolves personas from the adapter
+TOML's `[personas.*]`.
+
+`failure_mode: "hedge_gap_depeg"` in the manifest. The rationale
+must explicitly:
+
+1. Cite the distinct deposit-heavy population and why it differs
+   from the redemption-run-sweep's 50/50 mix.
+2. Flag the staging scope: the generic `on_scheduled_action` hook
+   is a no-op, so this cell exercises only the pre-haircut
+   persona mix.
+3. Point at the companion replay's anchored regression hash as
+   the place where the true haircut axis is machine-checked.
+
+### Rule 20 — Redemption-run sweep (stablecoin adapters)
+
+When classification flagged **`redemption_run`**, emit a
+`redemption-run-sweep` proposal — a 1D sweep varying the share of
+redemption-heavy agents (panic-redeemer + arb-redeemer) under
+fixed total population, to stress the reserve-vs-queue ratio
+organically without a scheduled hedge-loss.
+
+Axis: redemption-share `{0.25, 0.50, 0.75}` — the proportion of
+agents assigned to redemption-heavy personas. With 20 agents:
+0.25 = 5 redemption-heavy, 0.50 = 10, 0.75 = 15. Write only the
+midpoint (0.50) as the representative triple and note the full
+sweep range in the rationale.
+
+Scenario: `"baseline"` — the queue forms from persona pressure
+alone, not from an oracle shock or scheduled hedge-loss. A
+sufficiently redemption-heavy population exhausts the 20%-reserve-
+fraction buffer refill from deposit flow on its own.
+
+`policies.json` stays `[]` because the stablecoin adapter is
+`protocol = "generic"` and the engine resolves personas from the
+adapter TOML's `[personas.*]`. `run-config.personas` lists each
+agent's persona id drawn from the adapter-declared set.
+
+`failure_mode: "redemption_run"` in the manifest. The rationale
+must cite the `pool.pending_redemption_count` +
+`pool.reserve_buffer_assets` observations as the axes the
+experiment measures against.
+
+### Rule 21 — Collateral-ratio-spiral staging (stablecoin adapters)
+
+When classification flagged **`collateral_ratio_spiral`** AND the
+`hedge_gap_depeg` rule already emitted a sweep, do NOT emit a
+second 1D sweep on the same axis — the hedge-loss-magnitude sweep
+already stresses the first leg of the spiral as a downstream
+consequence, and the named UXD-style collateral-cascade proof
+under `fixtures/replays/` captures the second leg (panic cohort
+queueing collateral out of the numerator). Cite
+`collateral_ratio_spiral` as a secondary failure mode in the
+hedge-loss-magnitude sweep's rationale and drop this category
+from the top-3-to-5 count.
+
+If `collateral_ratio_spiral` was flagged in isolation (without
+`hedge_gap_depeg` — rare, requires a non-hedge-loss backing-drop
+path the current stablecoin-fork does not ship), emit a
+`collateral-ratio-spiral-staging` proposal at persona-mix 0.50
+redemption-share, same shape as Rule 20.
+`failure_mode: "collateral_ratio_spiral"` in the manifest. The
+rationale must note that the current stablecoin-fork only exposes
+`apply_hedge_loss` as a backing-drop path, so this staging run is
+a persona-mix companion for whatever out-of-band mutation drives
+the first leg.
+
+### Stablecoin manifest failure_mode values
+
+For stablecoin proposals, `failure_mode` in `manifest.json` must be
+one of: `collateral_ratio_spiral`, `redemption_run`,
+`hedge_gap_depeg`, `reserve_buffer_exhaustion`. The first three are
+stablecoin-specific category names from `classify.md`;
+`reserve_buffer_exhaustion` is shared with liquid-staking and reuses
+Rule 17's cross-link discipline (if the redemption-run sweep
+already covers the drain, cite reserve-buffer-exhaustion as
+secondary rather than emitting a duplicate sweep).
+
+### Stablecoin policies.json shape
+
+Stablecoin adapters are `protocol = "generic"`, so the engine
+IGNORES the external `policies.json` and resolves the persona
+catalog from the adapter TOML's `[personas.*]`. `policies.json`
+MUST be `[]` for stablecoin scenarios — any non-empty array will
+surface an "ignoring N external policies" warning at run time but
+is not treated as an error.
+
+Action names in persona `action_weights` (on the adapter side)
+must match the shipped adapter's `[actions]` keys:
+`deposit_collateral`, `mint_stable`, `request_redeem`,
+`claim_redeem`. `apply_hedge_loss` is not persona-dispatchable and
+must not appear in any persona's `action_weights`.
+
 ### AMM policies.json action names
 
 For AMM experiments, action names in `action_weights` must match

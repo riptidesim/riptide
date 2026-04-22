@@ -168,19 +168,65 @@ field = "pool.effective_collateral_ratio_bps"
 op = "<="
 value = 100000
 
-# Smoke-test persona set used by `riptide adapt --adapter …` with
-# names that match `cli/src/adapt/smoke.ts`'s generic run-config
-# (`grinder` / `botter` / `casual`), so the shipping adapter clears
-# the smoke gate without CLI changes.
+# Differentiated stablecoin persona library. The four bundle personas
+# below are inline mirrors of the per-file fragments at
+# `fixtures/personas/stablecoin/{cautious-minter,leverage-looper,
+# panic-redeemer,arb-redeemer}.toml`. Keeping them inline lets
+# scenarios / replays under `fixtures/scenarios/stablecoin-fork/` and
+# `fixtures/replays/stablecoin-uxd-style-collateral-cascade/`
+# reference them by name without a scratch-harness rebuild; the
+# per-file fragments remain the canonical reviewer-inspection source
+# and serve as the persona catalog for a future bare-adapter scratch
+# harness that composes an adapter from scratch rather than mutating
+# this one.
+
+[personas.cautious-minter]
+label = "Cautious minter"
+action_rate_multiplier = 0.5
+action_weights = { deposit_collateral = 0.8, mint_stable = 0.15, request_redeem = 0.03, claim_redeem = 0.02 }
+triggers = []
+
+[personas.leverage-looper]
+label = "Leverage looper"
+action_rate_multiplier = 1.5
+action_weights = { deposit_collateral = 0.45, mint_stable = 0.45, request_redeem = 0.05, claim_redeem = 0.05 }
+triggers = [
+  { if = "pool.pending_redemption_count > 0", then = "claim_redeem", weight_boost = 1.5 },
+]
+
+[personas.panic-redeemer]
+label = "Panic redeemer"
+action_rate_multiplier = 1.0
+action_weights = { deposit_collateral = 0.05, mint_stable = 0.05, request_redeem = 0.75, claim_redeem = 0.15 }
+triggers = [
+  { if = "pool.effective_collateral_ratio_bps < 10000", then = "request_redeem", weight_boost = 5.0 },
+]
+
+[personas.arb-redeemer]
+label = "Arb redeemer"
+action_rate_multiplier = 1.2
+action_weights = { deposit_collateral = 0.1, mint_stable = 0.1, request_redeem = 0.5, claim_redeem = 0.3 }
+triggers = [
+  { if = "pool.pending_redemption_count > 0", then = "claim_redeem", weight_boost = 2.5 },
+]
+
+# === SIDECAR-CUT ===
+# Everything below this marker is the smoke-test persona block used by
+# `riptide adapt --adapter …` with names that match
+# `cli/src/adapt/smoke.ts`'s generic run-config (`grinder` / `botter` /
+# `casual`), so the shipping adapter clears the smoke gate without
+# CLI changes. A scratch harness that wants only the bundle personas
+# can truncate this file at the marker above — the resulting adapter
+# is self-contained because the bundle personas already live inline
+# above it. (Do NOT also append the per-file fragments from
+# `fixtures/personas/stablecoin/`; they are mirrors of the same
+# personas and re-appending would produce duplicate `[personas.*]`
+# tables.)
 #
 # Smoke personas only exercise the four user flows. Weights favour
 # `deposit_collateral` first so the position initializes before mint
 # / request / claim attempts fire — same discipline the liquid-
 # staking-fork smoke personas use (`stake` first, then request/claim).
-# A future `scripts/stablecoin-scratch.sh` sidecar can replace this
-# block with a differentiated stablecoin persona library authored in
-# `fixtures/personas/stablecoin/` (cautious-minter, leverage-looper,
-# panic-redeemer, arb-redeemer).
 
 [personas.grinder]
 label = "Stablecoin baseline (smoke)"

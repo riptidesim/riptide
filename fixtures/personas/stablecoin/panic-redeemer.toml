@@ -1,0 +1,35 @@
+# Stablecoin persona — panic redeemer.
+#
+# Standalone TOML fragment. Canonical reviewer-inspection source for
+# the persona mirrored inline into `fixtures/adapters/stablecoin-fork.toml`
+# above that file's `# === SIDECAR-CUT ===` marker. A future
+# bare-adapter scratch harness that wants to compose an adapter from
+# scratch (not from the shipping adapter) can concatenate this file
+# alongside its siblings; it must NOT be appended to the shipping
+# adapter, which already carries the same persona inline and would
+# fail to load with a duplicate-key error.
+#
+# Redemption-dominant baseline that reacts violently to under-backing.
+# The adapter's observation `pool.effective_collateral_ratio_bps`
+# drops below 10_000 only after `apply_hedge_loss` shrinks delegated
+# collateral — the trigger fires every panic-redeemer hard at
+# `request_redeem`, which is what makes backing-stress pressure
+# materially visible in the event stream. `weight_boost = 5.0` is
+# intentionally aggressive: this is the UXD-style panic shape where
+# backing falls below par and the cohort rushes the redemption window
+# before the reserve runs dry — not a polite unwind.
+#
+# Mirrors liquid-staking-fork's panic-exiter in cadence
+# (`action_rate_multiplier = 1.0`, 0.8 weight on the redeem verb,
+# boost = 5.0 on the failure-signal trigger). The hook flipped from
+# `pool.exchange_rate_bps` to `pool.effective_collateral_ratio_bps`
+# because stablecoin redemption is 1:1 against stable_supply — the
+# depeg signal in this bundle is *backing coverage*, not a floating
+# redemption rate.
+[personas.panic-redeemer]
+label = "Panic redeemer"
+action_rate_multiplier = 1.0
+action_weights = { deposit_collateral = 0.05, mint_stable = 0.05, request_redeem = 0.75, claim_redeem = 0.15 }
+triggers = [
+  { if = "pool.effective_collateral_ratio_bps < 10000", then = "request_redeem", weight_boost = 5.0 },
+]

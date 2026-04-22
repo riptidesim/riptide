@@ -26,6 +26,9 @@ The goal is to produce a short working-memory note of the form:
       depeg_after_slash: flagged | not-applicable # with reason
       reserve_buffer_exhaustion: flagged | not-applicable # with reason
       stale_oracle_redemption_gap: flagged | not-applicable # with reason
+      collateral_ratio_spiral: flagged | not-applicable # with reason
+      redemption_run: flagged | not-applicable # with reason
+      hedge_gap_depeg: flagged | not-applicable # with reason
 
 Every `flagged` line must carry a one-sentence justification that
 points at a concrete feature of the adapter or IDL. Every
@@ -577,6 +580,145 @@ scenario knob for the liquid-staking class. Flagging this category
 produces a staging proposal whose rationale says "oracle-lag
 variant pending a future engine knob" — same posture as the
 generic `oracle_lag` flag on lending adapters.
+
+## Stablecoin-specific categories
+
+Three categories apply to stablecoin-shaped programs (collateral
+backing + stable supply + redemption queue + reserve buffer + one
+authority-gated hedge-gap / NAV-haircut mutation that shrinks
+backing). Their hooks read the **adapter's `[state_mapping]` /
+`[observations]` together with the IDL instruction list** (at
+`idl_path`).
+
+**How to read the IDL for stablecoin classification:** load
+`idl_path`, inspect `instructions[].name`. Key signals:
+`deposit_collateral` / `mint_stable` / `request_redeem` /
+`claim_redeem` as the user-facing quartet, plus an admin-gated
+`apply_hedge_loss` (or equivalent NAV-haircut / apply_nav_haircut
+instruction) and account fields for `reserve_buffer_assets` /
+`pending_redemption_*` / `effective_collateral_ratio_bps` /
+`cumulative_hedge_loss_bps`.
+
+`reserve_buffer_exhaustion` is **shared with the liquid-staking
+class** and reuses the same hook shape — flag it on a stablecoin
+adapter when `pool.reserve_buffer_assets` is observed, the IDL
+`deposit_collateral` grows reserve incrementally
+(`RESERVE_FRACTION_BPS`-style split or equivalent), and
+`request_redeem` / `claim_redeem` draw from it. See the
+liquid-staking section above for the canonical hook rubric.
+
+### collateral_ratio_spiral
+
+> "What happens if `effective_collateral_ratio_bps` falls below the
+> 10_000-bps full-backing floor — does the population react in a way
+> that accelerates the fall, and does the reported ratio spiral
+> rather than stabilize?"
+
+Adapter-side + IDL hooks that justify flagging:
+
+- The adapter's `[observations]` expose
+  `pool.effective_collateral_ratio_bps` AND
+  `pool.cumulative_hedge_loss_bps` — both the ratio itself and the
+  cumulative pressure knob that drives it are directly observable.
+- The IDL declares an `apply_hedge_loss`-shaped instruction whose
+  accounts include an admin signer AND the pool account as writable,
+  and whose args include a loss-magnitude parameter (e.g.
+  `loss_bps`). The ratio cannot be driven down without this
+  instruction.
+- The adapter declares at least one persona whose `triggers`
+  reference `effective_collateral_ratio_bps` (or equivalent) — the
+  population reacts to the backing drop. A ratio that drops but no
+  persona reacts to is not a classifiable spiral — there is no
+  behavioral amplification.
+
+All three sub-hooks must be present. The interesting axis is not
+the absolute ratio — it is whether the redemption cohort's
+reaction *shrinks remaining backing further* when the ratio drops:
+queued redemptions earmark collateral out of the numerator of the
+ratio formula `(collateral_assets - pending_redemption_assets) *
+BPS / stable_supply`, so panic-redeemer pressure post-haircut can
+drive the ratio down a second leg even without a second
+`apply_hedge_loss`.
+
+Hooks that rule it out:
+
+- No `effective_collateral_ratio_bps` observation. The spiral
+  signal is not measurable.
+- No `apply_hedge_loss`-shaped instruction in the IDL. There is no
+  mechanism to induce the first leg of the spiral.
+- No persona reacts to the ratio. The spiral is observable but not
+  amplified — closer to a static depeg than a spiral.
+
+### redemption_run
+
+> "What happens if panic redemption demand outruns the immediately-
+> claimable reserve buffer and a non-trivial fraction of requests
+> land on the pending redemption queue instead of settling?"
+
+Adapter-side + IDL hooks that justify flagging:
+
+- The IDL declares both `request_redeem` AND `claim_redeem`
+  instructions — confirming redemption routes through a two-phase
+  path (request / queue / claim) rather than an instant-liquid
+  burn-for-collateral exit.
+- The adapter's `[observations]` expose `pool.reserve_buffer_assets`
+  AND `pool.pending_redemption_assets` AND
+  `pool.pending_redemption_count` — queue pressure is directly
+  observable at both the asset-amount and account-count level.
+- The adapter declares at least one persona whose `action_weights`
+  put significant weight on `request_redeem` — the population
+  actually drives queue formation.
+
+All three sub-hooks must be present.
+
+Hooks that rule it out:
+
+- The IDL lacks a dedicated `request_redeem` / `claim_redeem` pair
+  (instant single-step redemption). The failure shape is different
+  — closer to `reserve_depletion` on an AMM.
+- No queue observations. Queue pressure is not measurable from
+  the adapter surface.
+- Every adapter persona weights `deposit_collateral` / `mint_stable`
+  heavily and `request_redeem` near zero. The population is not
+  shaped to form a queue.
+
+### hedge_gap_depeg
+
+> "What happens if an authority-gated hedge-loss / NAV-haircut
+> shrinks delegated collateral while stable_supply stays constant —
+> does the reported backing drop below par, and does the population
+> react in a way the reserve cannot absorb?"
+
+Adapter-side + IDL hooks that justify flagging:
+
+- The IDL declares an `apply_hedge_loss`-shaped instruction (or
+  equivalent `apply_nav_haircut`) whose accounts include an admin
+  signer AND the pool account as writable, and whose args include
+  a haircut-magnitude parameter (`loss_bps` / `haircut_bps`).
+- The adapter's `[observations]` expose
+  `pool.cumulative_hedge_loss_bps` AND
+  `pool.effective_collateral_ratio_bps` — both the hedge-loss
+  event and the resulting backing drop are observable.
+- The adapter declares at least one persona whose `triggers`
+  reference `effective_collateral_ratio_bps` or
+  `cumulative_hedge_loss_bps` (or equivalent) — the population
+  reacts to the haircut.
+
+All three sub-hooks must be present. An `apply_hedge_loss` whose
+effect no persona reacts to is not a classifiable failure mode —
+no downstream behavior to stress. This is the stablecoin analogue
+of `depeg_after_slash` on liquid-staking adapters: same shape
+(admin-gated mutation → observable backing metric → persona
+reaction), different instruction + observation names.
+
+Hooks that rule it out:
+
+- No hedge-loss / haircut instruction in the IDL. There is no
+  mechanism to induce a depeg.
+- `cumulative_hedge_loss_bps` or equivalent is not observed. The
+  haircut itself is not measurable.
+- `protocol = "lending"` — lending's analogous price-move failure
+  is `shock_cascades`; do not double-flag.
 
 ## Output
 

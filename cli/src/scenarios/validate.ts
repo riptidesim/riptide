@@ -76,7 +76,10 @@ const ManifestSchema = z.object({
     "withdrawal_queue_run",
     "depeg_after_slash",
     "reserve_buffer_exhaustion",
-    "stale_oracle_redemption_gap"
+    "stale_oracle_redemption_gap",
+    "collateral_ratio_spiral",
+    "redemption_run",
+    "hedge_gap_depeg"
   ]),
   rationale: z.string().min(1)
 });
