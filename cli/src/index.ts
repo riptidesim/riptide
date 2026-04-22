@@ -5,6 +5,7 @@ import { Command } from "commander";
 import { createAdaptCommand } from "./commands/adapt.js";
 import { createInitCommand } from "./commands/init.js";
 import { createLineageCommand } from "./commands/lineage.js";
+import { createLintCommand } from "./commands/lint.js";
 import { createListCommand } from "./commands/list.js";
 import { createReplayCommand } from "./commands/replay.js";
 import { createRunCommand } from "./commands/run.js";
@@ -25,6 +26,7 @@ program.addCommand(createScenariosCommand());
 program.addCommand(createAdaptCommand());
 program.addCommand(createInitCommand());
 program.addCommand(createLineageCommand());
+program.addCommand(createLintCommand());
 program.addCommand(createListCommand());
 
 program.parseAsync(process.argv).catch((error: unknown) => {

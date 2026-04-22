@@ -37,12 +37,22 @@ import TOML from "toml";
 import { validateAdapter, type Adapter } from "../schemas/adapter.js";
 import { resolveEngineBinary, monorepoRootFromModule } from "../orchestrator/index.js";
 import { runSmokeTest, type SmokeTestResult } from "../adapt/smoke.js";
+import {
+  classifyLineageSourceKind,
+  lintAdapter,
+  type LintReport,
+} from "../lint/index.js";
+import { deriveRepoRoot } from "./lint.js";
 
 export interface AdaptCommandDeps {
   // Injectable so tests can stub out the engine spawn.
   runSmokeTestImpl?: typeof runSmokeTest;
   fixturesRoot?: string;
   engineBinary?: string;
+  /** Repo root for resolving the adapter's `[lineage].idl_source`. Defaults to the fixtures-root parent. */
+  repoRoot?: string;
+  /** Test seam for the lint preflight — defaults to the real analyzer. */
+  runLintImpl?: typeof lintAdapter;
 }
 
 export function createAdaptCommand(deps: AdaptCommandDeps = {}): Command {
@@ -102,6 +112,66 @@ export async function runAdapt(
     return 2;
   }
   if (loadSpinner) loadSpinner.succeed("Adapter loaded and validated");
+
+  // --- 2b. Lint preflight ---
+  //
+  // When the adapter's `[lineage].idl_source` is a JSON IDL the adapter
+  // is machine-checkable — run the static validator BEFORE spawning
+  // the engine. Concrete lint failures abort here (exit 2) so a bogus
+  // mapping never gets to waste engine time. Missing lineage and
+  // non-JSON lineage sources skip / warn through cleanly.
+  const lintKind = classifyLineageSourceKind(adapter.lineage);
+  // repoRoot resolution priority: explicit dep > path-derived from the
+  // adapter location (so external adapters outside the Riptide monorepo
+  // resolve their own `[lineage].idl_source` correctly, not against the
+  // installed CLI's checkout).
+  const repoRoot = deps.repoRoot ?? deriveRepoRoot(adapterPath, deps.fixturesRoot);
+  const lintFn = deps.runLintImpl ?? lintAdapter;
+  const adapterBaseName = deriveAdapterName(adapterPath);
+
+  if (lintKind === "json-idl") {
+    const lintSpinner = isTTY ? ora({ text: "Linting adapter against JSON IDL...", stream: process.stderr }).start() : null;
+    let lintReport: LintReport;
+    try {
+      lintReport = await lintFn({
+        adapter,
+        adapterPath,
+        adapterName: adapterBaseName,
+        repoRoot,
+      });
+    } catch (err) {
+      if (lintSpinner) lintSpinner.fail("Lint preflight crashed");
+      process.stderr.write(chalk.red(`riptide adapt: lint preflight crashed: ${errMessage(err)}\n`));
+      return 2;
+    }
+    const hasFail = lintReport.findings.some((f) => f.level === "fail");
+    if (hasFail) {
+      if (lintSpinner) lintSpinner.fail(chalk.red("Lint FAIL — aborting before engine spawn"));
+      for (const f of lintReport.findings) {
+        if (f.level !== "fail") continue;
+        process.stderr.write(chalk.red(`  [${f.code}] ${f.subject}: ${f.message}\n`));
+        if (f.hint) process.stderr.write(chalk.yellow(`      hint: ${f.hint}\n`));
+      }
+      process.stderr.write(chalk.yellow(`  adapter file: ${adapterPath}\n`));
+      return 2;
+    }
+    const warnCount = lintReport.findings.filter((f) => f.level === "warn").length;
+    if (warnCount > 0) {
+      if (lintSpinner) lintSpinner.warn(chalk.yellow(`Lint PASS with ${warnCount} warning(s) — continuing to smoke`));
+    } else if (lintSpinner) {
+      lintSpinner.succeed("Lint PASS");
+    }
+  } else if (lintKind === "non-json") {
+    process.stderr.write(
+      chalk.gray(
+        `  lint: SKIP — non-JSON lineage source (${adapter.lineage?.idl_source ?? ""}) is inspection-only; continuing to smoke\n`
+      )
+    );
+  } else {
+    process.stderr.write(
+      chalk.gray(`  lint: SKIP — adapter has no [lineage] block to machine-check; continuing to smoke\n`)
+    );
+  }
 
   // --- 3. Resolve engine binary ---
   const engineSpinner = isTTY ? ora({ text: "Resolving engine binary...", stream: process.stderr }).start() : null;
@@ -190,4 +260,9 @@ function defaultFixturesRoot(): string {
 
 function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function deriveAdapterName(absPath: string): string {
+  const base = path.basename(absPath);
+  return base.endsWith(".toml") ? base.slice(0, -".toml".length) : base;
 }

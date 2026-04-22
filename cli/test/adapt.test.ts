@@ -164,6 +164,102 @@ test("adapt: valid adapter but smoke test fails → exit 1", async () => {
   assert.equal(exit, 1);
 });
 
+// --- lint preflight ---
+
+test("adapt: lint preflight aborts before smoke when JSON-IDL lineage fails", async () => {
+  // Adapter declares an instruction that is NOT in the JSON IDL.
+  // Lint must fail, engine must never spawn. Stub smoke throws to
+  // prove we never reached it.
+  const { mkdir } = await import("node:fs/promises");
+  const repoRoot = await (await import("node:fs/promises")).mkdtemp(path.join(os.tmpdir(), "riptide-adapt-lint-"));
+  const adaptersDir = path.join(repoRoot, "fixtures", "adapters");
+  const idlsDir = path.join(repoRoot, "fixtures", "idls");
+  await mkdir(adaptersDir, { recursive: true });
+  await mkdir(idlsDir, { recursive: true });
+  await writeFile(
+    path.join(idlsDir, "mini.json"),
+    JSON.stringify({
+      instructions: [
+        {
+          name: "real_ix",
+          accounts: [{ name: "pool" }],
+          args: [{ name: "amount", type: "u64" }],
+        },
+      ],
+      accounts: [{ name: "pool", fields: [{ name: "x", type: "u64" }] }],
+    }),
+    "utf8"
+  );
+  const adapterPath = path.join(adaptersDir, "adapter.toml");
+  await writeFile(
+    adapterPath,
+    `protocol = "generic"
+program_so = "./mini.so"
+idl_path = "fixtures/idls/mini.json"
+
+[accounts.pool]
+kind = "shared"
+space = 64
+
+[instructions]
+ghost = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.x" = "pool.x"
+
+[actions.deposit]
+label = "Deposit"
+takes = ["amount"]
+
+[observations]
+"pool.x" = "uint"
+
+[personas.grinder]
+label = "Grinder"
+action_rate_multiplier = 1.0
+action_weights = { deposit = 1.0 }
+triggers = []
+
+[lineage]
+idl_source = "fixtures/idls/mini.json"
+`,
+    "utf8"
+  );
+
+  let smokeInvoked = false;
+  const exit = await runAdapt(
+    { adapter: adapterPath },
+    {
+      engineBinary: "/tmp/fake-engine",
+      repoRoot,
+      runSmokeTestImpl: async () => {
+        smokeInvoked = true;
+        return STUB_PASS;
+      },
+    }
+  );
+
+  assert.equal(exit, 2, "lint failure must propagate as exit 2");
+  assert.equal(smokeInvoked, false, "smoke test must NOT be spawned after lint FAIL");
+});
+
+test("adapt: lint preflight SKIP on adapters without lineage → continues to smoke", async () => {
+  const adapterPath = await writeTempAdapter(LENDING_TOML);
+  let smokeInvoked = false;
+  const exit = await runAdapt(
+    { adapter: adapterPath },
+    {
+      engineBinary: "/tmp/fake-engine",
+      runSmokeTestImpl: async () => {
+        smokeInvoked = true;
+        return STUB_PASS;
+      },
+    }
+  );
+  assert.equal(exit, 0);
+  assert.equal(smokeInvoked, true, "lint SKIP path must still spawn smoke");
+});
+
 // --- findObservationDelta unit tests (primitive-agnostic) ---
 
 test("findObservationDelta: rejects a baseline-only summary with empty events + empty timeseries", () => {

@@ -49,9 +49,23 @@ export const InstructionMappingSchema = z.object({
 export type InstructionMapping = z.infer<typeof InstructionMappingSchema>;
 
 export const AccountKindSchema = z.enum(["agent", "shared"]);
+
+// Optional external-owner metadata for `kind = "shared"` accounts.
+// Mirrors `engine/src/adapter/schema.rs::AccountOwner`. Exactly one of
+// `program_so` or `pubkey` is expected at the engine side; the CLI
+// keeps this as a passthrough so tools like `riptide lint` can tell
+// that an account is sibling-owned and therefore legitimately outside
+// the adapter's primary JSON IDL.
+export const AccountOwnerSchema = z.object({
+  program_so: z.string().min(1).optional(),
+  pubkey: z.string().min(1).optional(),
+});
+export type AccountOwner = z.infer<typeof AccountOwnerSchema>;
+
 export const AccountDefinitionSchema = z.object({
   kind: AccountKindSchema,
   space: z.number().int().positive(),
+  owner: AccountOwnerSchema.optional(),
 });
 
 export const ActionDefinitionSchema = z.object({
@@ -330,6 +344,7 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
 
   validateAdapterIdentifiers(adapter, path);
   validateLineage(adapter, path);
+  validateAccountOwners(adapter, path);
 
   if (adapter.protocol === "lending") {
     validateLending(adapter, path);
@@ -358,6 +373,110 @@ function validateLineage(adapter: Adapter, path: string): void {
   lineage.unsupported_fields.forEach((entry, idx) => {
     checkLineageText(path, `[lineage].unsupported_fields[${idx}]`, entry);
   });
+}
+
+// Mirrors `engine/src/adapter/loader.rs::validate_account_owners`:
+// `kind = "agent"` accounts cannot opt into external ownership,
+// exactly one of `owner.program_so` / `owner.pubkey` must be set,
+// and both must be non-empty after trimming. Keeping the CLI and
+// engine contracts aligned matters for downstream tools (lint, doctor)
+// that need to treat a present `owner` block as a trustworthy signal.
+function validateAccountOwners(adapter: Adapter, path: string): void {
+  for (const [name, account] of Object.entries(adapter.accounts)) {
+    const owner = account.owner;
+    if (owner === undefined) continue;
+
+    if (account.kind === "agent") {
+      throw new Error(
+        `${path}: \`[accounts].${name}.owner\`: account \`${name}\` declares external \`owner\` but \`kind = "agent"\`. External ownership is only valid for \`kind = "shared"\` accounts; agent-scoped accounts stay program-owned. Either remove the \`owner\` block or change the account's \`kind\` to \`shared\`.`
+      );
+    }
+
+    const programSo = owner.program_so?.trim() ?? "";
+    const pubkey = owner.pubkey?.trim() ?? "";
+    const hasProgramSo = owner.program_so !== undefined && programSo.length > 0;
+    const hasPubkey = owner.pubkey !== undefined && pubkey.length > 0;
+
+    if (owner.program_so !== undefined && owner.pubkey !== undefined) {
+      throw new Error(
+        `${path}: \`[accounts].${name}.owner\`: account \`${name}\` declares both \`owner.program_so\` and \`owner.pubkey\`; exactly one owner source is accepted. Pick the local sibling-program path OR the literal base58 pubkey and remove the other.`
+      );
+    }
+    if (!hasProgramSo && !hasPubkey) {
+      throw new Error(
+        `${path}: \`[accounts].${name}.owner\`: account \`${name}\` declares an empty \`owner\` block. Set either \`owner.program_so = "<path to .so>"\` for a local sibling program, or \`owner.pubkey = "<base58>"\` for a literal external program (e.g. Pyth).`
+      );
+    }
+    if (owner.program_so !== undefined && !hasProgramSo) {
+      throw new Error(
+        `${path}: \`[accounts].${name}.owner.program_so\`: account \`${name}\`: \`owner.program_so\` must be a non-empty path to the sibling program's compiled \`.so\` artifact.`
+      );
+    }
+    if (owner.pubkey !== undefined && !hasPubkey) {
+      throw new Error(
+        `${path}: \`[accounts].${name}.owner.pubkey\`: account \`${name}\`: \`owner.pubkey\` must be a non-empty base58-encoded 32-byte pubkey.`
+      );
+    }
+    if (hasPubkey) {
+      const reason = base58PubkeyError(pubkey);
+      if (reason !== null) {
+        throw new Error(
+          `${path}: \`[accounts].${name}.owner.pubkey\`: account \`${name}\`: \`owner.pubkey\` \`${pubkey}\` is not a valid base58-encoded 32-byte pubkey: ${reason}`
+        );
+      }
+    }
+  }
+}
+
+// Base58 alphabet (Bitcoin / Solana flavor — no "0", "O", "I", "l").
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const BASE58_MAP: Record<string, number> = Object.fromEntries(
+  Array.from(BASE58_ALPHABET, (ch, i) => [ch, i])
+);
+
+/**
+ * Mirrors the engine-side `Pubkey::from_str` contract: a valid Solana
+ * pubkey is base58-decodable to exactly 32 bytes. Returns `null` on
+ * success or a short reason string on failure — suitable for direct
+ * inclusion in a diagnostic message.
+ *
+ * Implemented inline to avoid adding a runtime dependency for one call
+ * site. The naive O(n²) decode is fine for ≤44-char inputs.
+ */
+function base58PubkeyError(s: string): string | null {
+  if (s.length === 0) return "empty string";
+  // Reject whitespace inside — Solana pubkeys never have internal
+  // whitespace, and `Pubkey::from_str` rejects it too.
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s.charAt(i);
+    if (BASE58_MAP[ch] === undefined) {
+      return `invalid base58 character \`${ch}\` at position ${i}`;
+    }
+  }
+  // Count leading-'1' characters, each of which decodes to a zero byte.
+  let leadingZeros = 0;
+  while (leadingZeros < s.length && s.charAt(leadingZeros) === "1") {
+    leadingZeros += 1;
+  }
+  // Big-integer decode over an expanding little-endian byte buffer.
+  const bytes: number[] = [];
+  for (let i = leadingZeros; i < s.length; i += 1) {
+    let carry = BASE58_MAP[s.charAt(i)]!;
+    for (let j = 0; j < bytes.length; j += 1) {
+      carry += bytes[j]! * 58;
+      bytes[j] = carry & 0xff;
+      carry >>>= 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>>= 8;
+    }
+  }
+  const totalLen = leadingZeros + bytes.length;
+  if (totalLen !== 32) {
+    return `decoded to ${totalLen} bytes (expected 32)`;
+  }
+  return null;
 }
 
 function validateOracles(adapter: Adapter, path: string): void {
