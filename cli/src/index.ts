@@ -3,6 +3,7 @@
 import { Command } from "commander";
 
 import { createAdaptCommand } from "./commands/adapt.js";
+import { createDoctorCommand } from "./commands/doctor.js";
 import { createInitCommand } from "./commands/init.js";
 import { createLineageCommand } from "./commands/lineage.js";
 import { createLintCommand } from "./commands/lint.js";
@@ -28,6 +29,7 @@ program.addCommand(createAdaptCommand());
 program.addCommand(createInitCommand());
 program.addCommand(createLineageCommand());
 program.addCommand(createLintCommand());
+program.addCommand(createDoctorCommand());
 program.addCommand(createListCommand());
 
 program.parseAsync(process.argv).catch((error: unknown) => {
