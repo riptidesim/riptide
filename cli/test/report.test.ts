@@ -403,6 +403,73 @@ test("renderColoredTable renders generic metrics without lending labels", () => 
   assert.doesNotMatch(clean, /Final TVL/);
 });
 
+// T04 — `summary.invariants_fired` must render as a structured per-row
+// block, never as `[object Object]`. The engine emits this key as an
+// array of `{ name, field, op, value, firings }` objects on any run
+// that declared invariants; the legacy renderer collapsed it via
+// `String([...])` and produced `[object Object],[object Object]`.
+test("renderSummary renders structured invariants_fired (no [object Object])", () => {
+  const result = baseResult({
+    agents_active: 3,
+    agents_liquidated: 0,
+    agents_depleted: 0,
+    final_tvl: 100.0,
+    total_bad_debt: 50.0
+  });
+  (result as { summary: Record<string, unknown> }).summary.invariants_fired = [
+    { name: "no_bad_debt", field: "bad_debt", op: "==", value: 0, firings: 4 },
+    { name: "tvl_floor", field: "tvl", op: ">=", value: 1000, firings: 0 }
+  ];
+  const rendered = renderSummary(result);
+  assert.doesNotMatch(rendered, /\[object Object\]/);
+  // Block header + per-row breakdown
+  assert.match(rendered, /Invariants:/);
+  assert.match(rendered, /no_bad_debt/);
+  assert.match(rendered, /bad_debt == 0/);
+  assert.match(rendered, /4×/);
+  assert.match(rendered, /tvl_floor/);
+  assert.match(rendered, /tvl >= 1000/);
+  assert.match(rendered, /0×/);
+});
+
+test("renderSummary excludes invariants_fired from the fallback metrics table", () => {
+  const result = baseResult({
+    agents_active: 3,
+    agents_liquidated: 0,
+    agents_depleted: 0,
+    "player.gold_avg": 1.23
+  });
+  (result as { summary: Record<string, unknown> }).summary.invariants_fired = [
+    { name: "x", field: "f", op: "==", value: 0, firings: 1 }
+  ];
+  const rendered = renderSummary(result);
+  // Generic fallback table should NOT carry an `invariants_fired:` row
+  assert.doesNotMatch(rendered, /^\s*invariants_fired:/m);
+  // …but the structured block still renders
+  assert.match(rendered, /Invariants:/);
+});
+
+test("renderColoredTable renders structured invariants_fired rows (no [object Object])", () => {
+  const result = baseResult({
+    agents_active: 3,
+    agents_liquidated: 0,
+    agents_depleted: 0,
+    final_tvl: 100.0,
+    total_bad_debt: 50.0
+  });
+  (result as { summary: Record<string, unknown> }).summary.invariants_fired = [
+    { name: "no_bad_debt", field: "bad_debt", op: "==", value: 0, firings: 4 },
+    { name: "tvl_floor", field: "tvl", op: ">=", value: 1000.5, firings: 0 }
+  ];
+  const rendered = renderColoredTable(result);
+  const clean = stripAnsi(rendered);
+  assert.doesNotMatch(clean, /\[object Object\]/);
+  assert.match(clean, /Invariant no_bad_debt/);
+  assert.match(clean, /bad_debt == 0 \(4×\)/);
+  assert.match(clean, /Invariant tvl_floor/);
+  assert.match(clean, /tvl >= 1000\.5000 \(0×\)/);
+});
+
 test("renderColoredTable highlights invariant violations", () => {
   const result = baseResult({
     agents_active: 3,

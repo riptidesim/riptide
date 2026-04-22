@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import Table from "cli-table3";
 
-import type { SimulationResult } from "../compiler/schema.js";
+import type { InvariantFiredRow, SimulationResult } from "../compiler/schema.js";
 
 // Both `summary` and `timeseries[i]` are primitive-agnostic key/value
 // maps. Lending runs still emit their historical keys; generic runs
@@ -9,8 +9,34 @@ import type { SimulationResult } from "../compiler/schema.js";
 // at all. The renderer displays known lending keys with their current
 // labels and falls back to a generic `key: value` table for anything
 // else.
+//
+// `summary.invariants_fired` is a *structured* row — an array of
+// `{ name, field, op, value, firings }` objects emitted by the engine's
+// `build_invariants_summary`. It is rendered intentionally rather than
+// being collapsed via `String(value)` (which would produce
+// `[object Object],[object Object],...`).
 
-type SummaryCell = number | boolean | string | null;
+type SummaryCell = number | boolean | string | null | InvariantFiredRow[];
+
+const INVARIANTS_FIRED_KEY = "invariants_fired";
+
+function isInvariantFiredArray(value: unknown): value is InvariantFiredRow[] {
+  if (!Array.isArray(value)) return false;
+  return value.every(
+    (row) =>
+      row !== null &&
+      typeof row === "object" &&
+      typeof (row as { name?: unknown }).name === "string" &&
+      typeof (row as { field?: unknown }).field === "string" &&
+      typeof (row as { op?: unknown }).op === "string" &&
+      typeof (row as { firings?: unknown }).firings === "number"
+  );
+}
+
+function formatInvariantValue(value: number | null): string {
+  if (value === null) return "null";
+  return Number.isInteger(value) ? value.toString() : value.toFixed(4);
+}
 
 // Defense-in-depth against ANSI injection via adapter-supplied
 // identifiers. The engine-side loader
@@ -81,7 +107,61 @@ function formatCell(value: SummaryCell): string {
   if (typeof value === "string") {
     return sanitizeStringCell(value);
   }
-  return String(value);
+  if (typeof value === "boolean") {
+    return String(value);
+  }
+  if (isInvariantFiredArray(value)) {
+    // Compact one-line summary used inside table cells. The full
+    // structured surface lives in renderInvariantsFiredBlock(), used
+    // by both renderSummary() and renderColoredTable() so the operator
+    // sees per-invariant rows instead of the legacy `[object Object]`
+    // collapse from `String([{...}, {...}])`.
+    if (value.length === 0) return "(none)";
+    const totalFirings = value.reduce((sum, row) => sum + row.firings, 0);
+    const firedNames = value.filter((row) => row.firings > 0).map((row) => row.name);
+    if (firedNames.length === 0) {
+      return `${value.length} declared, 0 firings`;
+    }
+    return `${totalFirings} firing(s) across [${firedNames.join(", ")}]`;
+  }
+  // Defensive fallback — should be unreachable now that every concrete
+  // SummaryCell variant is named above. Avoid `String(value)` so an
+  // unknown shape never collapses to `[object Object]`.
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return Object.prototype.toString.call(value);
+  }
+}
+
+/**
+ * Render the structured `summary.invariants_fired` rollup as a per-row
+ * block. Every row is `name op value (firings)` with the row count as
+ * a header; declared-but-not-fired invariants render with a `0×` count
+ * so the operator sees the full inventory, not just the violators.
+ */
+export function renderInvariantsFiredBlock(rows: InvariantFiredRow[], colorize: boolean): string {
+  if (rows.length === 0) {
+    return "Invariants: (no declared invariants)";
+  }
+  const lines: string[] = [];
+  const header = colorize ? chalk.bold("Invariants:") : "Invariants:";
+  lines.push(header);
+  for (const row of rows) {
+    const safeName = sanitizeStringCell(row.name);
+    const safeField = sanitizeStringCell(row.field);
+    const safeOp = sanitizeStringCell(row.op);
+    const valueStr = formatInvariantValue(row.value);
+    const tag = `${safeName}: ${safeField} ${safeOp} ${valueStr}`;
+    const fireSuffix = `${row.firings}×`;
+    if (!colorize) {
+      lines.push(`  - ${tag} (${fireSuffix})`);
+      continue;
+    }
+    const colored = row.firings > 0 ? chalk.red(fireSuffix) : chalk.green(fireSuffix);
+    lines.push(`  - ${tag} (${colored})`);
+  }
+  return lines.join("\n");
 }
 
 export function renderSummary(result: SimulationResult): string {
@@ -136,9 +216,14 @@ export function renderSummary(result: SimulationResult): string {
   // aggregates for generic runs, or lending keys we didn't special-case)
   // fall back to a sorted `key: value` table. Sorted so the output is
   // byte-stable regardless of enumeration order.
+  //
+  // `invariants_fired` is structured (array of objects) and gets its
+  // own per-row block rendered below — exclude it from the fallback
+  // metrics table so it never collapses through `String([...])`.
   const handled = new Set<string>([
     ...LENDING_KEY_LABELS.map(([key]) => key),
-    ...LIFECYCLE_KEYS
+    ...LIFECYCLE_KEYS,
+    INVARIANTS_FIRED_KEY,
   ]);
   const extraKeys = Object.keys(summary)
     .filter((key) => !handled.has(key))
@@ -149,6 +234,14 @@ export function renderSummary(result: SimulationResult): string {
       const cell = (summary as Record<string, SummaryCell>)[key];
       lines.push(`  ${sanitizeKey(key)}: ${formatCell(cell)}`);
     }
+  }
+
+  // Structured invariants_fired surface. Rendered as a per-row block
+  // so an operator can see exactly which invariants fired and how
+  // many times — never `[object Object],[object Object]`.
+  const invariantsCell = (summary as Record<string, unknown>)[INVARIANTS_FIRED_KEY];
+  if (isInvariantFiredArray(invariantsCell)) {
+    lines.push(renderInvariantsFiredBlock(invariantsCell, true));
   }
 
   lines.push("Simulation Boundaries:");
@@ -224,10 +317,13 @@ export function renderColoredTable(result: SimulationResult): string {
     }
   }
 
-  // Generic / extra keys
+  // Generic / extra keys. `invariants_fired` is structured and
+  // rendered separately below so it never collapses to
+  // `[object Object],[object Object]` inside a generic cell.
   const handled = new Set<string>([
     ...LENDING_KEY_LABELS.map(([key]) => key),
-    ...LIFECYCLE_KEYS
+    ...LIFECYCLE_KEYS,
+    INVARIANTS_FIRED_KEY,
   ]);
   const extraKeys = Object.keys(summaryRecord)
     .filter((key) => !handled.has(key))
@@ -235,6 +331,24 @@ export function renderColoredTable(result: SimulationResult): string {
   for (const key of extraKeys) {
     const cell = summaryRecord[key];
     table.push([sanitizeKey(key), formatCell(cell)]);
+  }
+
+  // Structured invariants_fired rollup → one row per declared
+  // invariant. Color cue follows firings: red when > 0, green when 0.
+  const invariantsCell = (summaryRecord as Record<string, unknown>)[INVARIANTS_FIRED_KEY];
+  if (isInvariantFiredArray(invariantsCell)) {
+    for (const row of invariantsCell) {
+      const safeName = sanitizeStringCell(row.name);
+      const safeField = sanitizeStringCell(row.field);
+      const safeOp = sanitizeStringCell(row.op);
+      const valueStr = formatInvariantValue(row.value);
+      const valueCell = `${safeField} ${safeOp} ${valueStr} (${row.firings}×)`;
+      const fired = row.firings > 0;
+      table.push([
+        fired ? chalk.red(`Invariant ${safeName}`) : chalk.green(`Invariant ${safeName}`),
+        fired ? chalk.red(valueCell) : chalk.green(valueCell),
+      ]);
+    }
   }
 
   // Invariant violations in events

@@ -11,6 +11,7 @@ import { createReplayCommand } from "./commands/replay.js";
 import { createRunCommand } from "./commands/run.js";
 import { createScenariosCommand } from "./commands/scenarios.js";
 import { createSimulateCommand } from "./commands/simulate.js";
+import { renderCliError } from "./errors/render.js";
 
 const program = new Command();
 
@@ -30,6 +31,15 @@ program.addCommand(createLintCommand());
 program.addCommand(createListCommand());
 
 program.parseAsync(process.argv).catch((error: unknown) => {
-  console.error(error);
+  // Default: message-first, action-oriented stderr line. The throwing
+  // sites already structure their messages with file + field + expected
+  // + actual + next-step hints; the renderer just keeps stack-trace
+  // dumps off the default surface. RIPTIDE_DEBUG=1 restores the stack.
+  process.stderr.write(
+    renderCliError(error, {
+      env: process.env,
+      isTTY: Boolean(process.stderr.isTTY),
+    })
+  );
   process.exitCode = 1;
 });
