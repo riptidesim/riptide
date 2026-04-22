@@ -194,10 +194,14 @@ Riptide just scaffolded a \`.riptide/\` directory in your repo. Here's what's in
 
 ## Next steps
 
-1. Build your program so \`target/deploy/*.so\` and \`target/idl/*.json\` exist.
-2. Open \`.riptide/adapters/${programName}.toml\` and fill in the TODO blocks: accounts, instructions, state_mapping, actions, observations, personas.
-3. Smoke-test the adapter: \`riptide adapt --adapter .riptide/adapters/${programName}.toml\`.
-4. Run the baseline scenario:
+The install-first path is **doctor → edit adapter → lint → adapt → run**.
+
+1. \`riptide doctor\` — static health check (no build, no network, no simulation). Confirms your toolchain (\`node\`, \`npm\`, \`rustc\`, \`cargo\`, \`solana\`, \`cargo-build-sbf\`), the \`riptide-engine\` binary, and any adapters it can discover. Exit \`0\` all-pass, \`1\` warnings only, \`2\` at least one failure — jest-style semantics so CI can gate on it.
+2. Build your program so \`target/deploy/*.so\` and \`target/idl/*.json\` exist.
+3. Open \`.riptide/adapters/${programName}.toml\` and fill in the TODO blocks: accounts, instructions, state_mapping, actions, observations, personas. If you add a \`[lineage]\` block pointing at your JSON IDL, the next step can machine-validate the wiring.
+4. \`riptide lint ${programName}\` — static validation. When \`[lineage].idl_source\` is a JSON IDL, this cross-checks every mapped instruction, arg, account, and \`account.field\` reference against the IDL (positive mismatches exit 2 with a next-step hint). Non-JSON lineage sources WARN; missing \`[lineage]\` SKIPS — no false PASS.
+5. \`riptide adapt --adapter .riptide/adapters/${programName}.toml\` — end-to-end smoke-test against the local engine. Runs the same linter as a preflight when machine-checkable lineage is present, then spawns the engine to assert the adapter round-trips with an observed state delta.
+6. Run the baseline scenario:
 
    \`\`\`
    riptide run .riptide/scenarios/baseline/run-config.json --adapter .riptide/adapters/${programName}.toml

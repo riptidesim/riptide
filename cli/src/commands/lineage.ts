@@ -72,7 +72,7 @@ export async function runLineage(
   const resolved = resolveAdapterPath(adapterArg, deps.fixturesRoot);
   if (resolved === null) {
     stderr(
-      `riptide lineage: adapter not found for \`${adapterArg}\`. Pass an explicit path, or check that fixtures/adapters/${adapterArg}.toml exists.\n`
+      `riptide lineage: adapter not found for \`${adapterArg}\`. Pass an explicit path, or check that .riptide/adapters/${adapterArg}.toml exists in the current repo, or that fixtures/adapters/${adapterArg}.toml exists in the Riptide monorepo.\n`
     );
     return 2;
   }
@@ -191,11 +191,25 @@ function resolveAdapterPath(
     return null;
   }
 
-  // Branch 2: short adapter name — resolve against fixtures/adapters/.
+  // Branch 2: short adapter name — layered resolution mirroring the
+  // shared `resolveAdapterArg` + the doctor's adapter discovery order:
+  //   1. `<cwd>/.riptide/adapters/<name>.toml`  (downstream user repo)
+  //   2. `<cwd>/fixtures/adapters/<name>.toml`  (in-tree monorepo checkout)
+  //   3. `<fixturesRoot>/adapters/<name>.toml`  (explicit override / module-derived fallback)
   const fixturesRoot = fixturesRootOverride ?? defaultFixturesRoot();
-  const candidate = path.join(fixturesRoot, "adapters", `${adapterArg}.toml`);
-  if (existsSync(candidate)) {
-    return { path: candidate, displayName: adapterArg };
+  const cwd = process.cwd();
+  const candidates = [
+    path.resolve(cwd, ".riptide", "adapters", `${adapterArg}.toml`),
+    path.resolve(cwd, "fixtures", "adapters", `${adapterArg}.toml`),
+    path.join(fixturesRoot, "adapters", `${adapterArg}.toml`),
+  ];
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    if (seen.has(candidate)) continue;
+    seen.add(candidate);
+    if (existsSync(candidate)) {
+      return { path: candidate, displayName: adapterArg };
+    }
   }
   return null;
 }

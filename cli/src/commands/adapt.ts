@@ -82,8 +82,15 @@ export async function runAdapt(
 ): Promise<number> {
   const adapterPath = path.resolve(options.adapter);
   const isTTY = process.stderr.isTTY;
+  const adapterBaseName = deriveAdapterName(adapterPath);
 
-  process.stderr.write(chalk.bold(`riptide adapt: smoke-testing ${adapterPath}\n`));
+  // Banner mirrors the `Lint — <name>` / `Doctor — Riptide health check`
+  // headers on the sibling DX commands so the three surfaces read like
+  // one CLI. chalk's own TTY/NO_COLOR/FORCE_COLOR detection governs
+  // color emission — we deliberately do not second-guess it here.
+  process.stderr.write(`${chalk.bold(`Adapt — ${adapterBaseName}`)}\n`);
+  process.stderr.write(chalk.dim(`adapter: ${adapterPath}`) + "\n");
+  process.stderr.write("\n");
 
   // --- 1. Load ---
   const loadSpinner = isTTY ? ora({ text: "Loading adapter TOML...", stream: process.stderr }).start() : null;
@@ -127,7 +134,6 @@ export async function runAdapt(
   // installed CLI's checkout).
   const repoRoot = deps.repoRoot ?? deriveRepoRoot(adapterPath, deps.fixturesRoot);
   const lintFn = deps.runLintImpl ?? lintAdapter;
-  const adapterBaseName = deriveAdapterName(adapterPath);
 
   if (lintKind === "json-idl") {
     const lintSpinner = isTTY ? ora({ text: "Linting adapter against JSON IDL...", stream: process.stderr }).start() : null;
@@ -208,20 +214,38 @@ export async function runAdapt(
 
   if (result.passed) {
     if (smokeSpinner) smokeSpinner.succeed(chalk.green(`PASS (${result.reason})`));
-    else process.stderr.write(chalk.green(`riptide adapt: PASS (${result.reason})\n`));
-    process.stderr.write(chalk.gray(`  adapter: ${adapterPath}\n`));
+    else process.stderr.write(chalk.green(`Smoke: PASS (${result.reason})\n`));
     process.stderr.write(chalk.gray(`  engine output: ${result.outputPath}\n`));
+    writeAdaptVerdict(0);
     return 0;
   }
 
   if (smokeSpinner) smokeSpinner.fail(chalk.red(`FAIL — ${result.reason}`));
-  else process.stderr.write(chalk.red(`riptide adapt: FAIL — ${result.reason}\n`));
+  else process.stderr.write(chalk.red(`Smoke: FAIL — ${result.reason}\n`));
   process.stderr.write(chalk.yellow(`  adapter file: ${adapterPath}\n`));
   if (result.engineStderr.trim().length > 0) {
     const tail = result.engineStderr.trim().split("\n").slice(-8).join("\n");
     process.stderr.write(chalk.gray(`  engine stderr (tail):\n${tail}\n`));
   }
+  writeAdaptVerdict(1);
   return 1;
+}
+
+function writeAdaptVerdict(exitCode: number): void {
+  // Mirror the final `Verdict: <outcome> (exit N)` line the sibling
+  // `riptide lint` and `riptide doctor` commands already print so the
+  // three commands share a common closing beat.
+  const verdictLabel =
+    exitCode === 0 ? chalk.green("PASS") : chalk.red("FAIL");
+  process.stderr.write("\n");
+  process.stderr.write(chalk.bold("Summary") + "\n");
+  process.stderr.write(`  Verdict: ${verdictLabel} (exit ${exitCode})\n`);
+  process.stderr.write("\n");
+  process.stderr.write(
+    chalk.dim(
+      "Adapter smoke test only — runs one scenario against the local engine. Use `riptide lint <adapter>` for static validation; `riptide doctor` for toolchain + multi-adapter health.\n"
+    )
+  );
 }
 
 function defaultFixturesRoot(): string {

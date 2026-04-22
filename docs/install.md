@@ -50,7 +50,13 @@ GHCR, crates.io, and npm registries are wired up in release tooling and dry-run-
 
 ## Next steps after install
 
-Once `riptide` is on your `$PATH`, the canonical first run is a drop-in against your own Anchor program — no monorepo clone, no path typing.
+Once `riptide` is on your `$PATH`, the canonical first run is **install → doctor → init → adapt/run**.
+
+```bash
+riptide doctor
+```
+
+`riptide doctor` is a static diagnostic — no build, no network, no simulation. It probes the documented toolchain surface (`node`, `npm`, `rustc`, `cargo`, `solana`, `cargo-build-sbf`), resolves the `riptide-engine` binary via `RIPTIDE_ENGINE_BIN` or the repo's `target/release/` tree, walks any adapters under `.riptide/adapters/` or the monorepo's `fixtures/adapters/`, and prints a compact pass / warn / fail table with a one-line next-step hint on any non-pass row. Exit codes are `0` all-pass, `1` warnings only, `2` at least one failure — jest-style semantics so CI wrappers can gate on it without extra shell logic. It is deliberately fast and it will never secretly build, lint-fix, or run a scenario for you.
 
 ```bash
 cd ~/path/to/your-anchor-program
@@ -59,11 +65,15 @@ riptide init
 
 `riptide init` scaffolds a `.riptide/` working directory in the current repo: an adapter stub at `.riptide/adapters/<program-name>.toml` (with TODO comments pointing at `target/deploy/*.so` + `target/idl/*.json`), three starter personas under `.riptide/personas/`, a minimum-viable `.riptide/scenarios/baseline/run-config.json`, and an inline `GETTING-STARTED.md` one-screen guide. Check the tree into git alongside your program source — the `.riptide/` convention is the shipping contract.
 
-Fill in the adapter stub — the TODO comments name every block that needs editing — then run:
+Fill in the adapter stub — the TODO comments name every block that needs editing — then static-check it against its IDL and run:
 
 ```bash
+riptide lint <program-name>              # Static validation against the JSON IDL named in [lineage].idl_source
+riptide adapt --adapter .riptide/adapters/<program-name>.toml   # End-to-end smoke (lint preflight runs first when JSON IDL lineage is present)
 riptide run --serve
 ```
+
+`riptide lint` machine-validates an adapter against its IDL only when `[lineage].idl_source` points at a JSON IDL — mapped instructions, args, accounts, and `account.field` references must all resolve in the IDL, and positive mismatches fail loudly (exit 2). When the lineage source is a non-JSON file (for example `programs/<name>/src/state.rs`) or the adapter has no `[lineage]` block at all, lint prints an explicit `WARN` / `SKIP` and exits `1`/`0` — it does **not** silently claim PASS. See [`adapter-lineage.md`](adapter-lineage.md) for the honest boundary between inspection and machine validation. `riptide adapt` reuses the same linter as a preflight: when machine-checkable lineage is present, adapt runs lint first and aborts before engine spawn on any concrete fail.
 
 With no positional argument, `riptide run` discovers every `.riptide/scenarios/**/run-config.json` and executes them sequentially, printing a jest-style pass/fail summary. `--serve` starts the dashboard at `localhost:4173` on the last scenario's artifacts. Pass a glob pattern (`riptide run '*shock*'`) to filter the discovered list, or an explicit `.json` path to run a single file — the backward-compat path scripts + CI already rely on.
 

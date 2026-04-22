@@ -80,7 +80,7 @@ export async function runLint(
     switch (loaded.error.kind) {
       case "not-found":
         stderr(
-          `riptide lint: adapter not found for \`${loaded.error.arg}\`. Pass an explicit path, or check that fixtures/adapters/${loaded.error.arg}.toml exists.\n`
+          `riptide lint: adapter not found for \`${loaded.error.arg}\`. Pass an explicit path, or check that .riptide/adapters/${loaded.error.arg}.toml exists in the current repo, or that fixtures/adapters/${loaded.error.arg}.toml exists in the Riptide monorepo.\n`
         );
         return 2;
       case "read-failed":

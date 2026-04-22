@@ -202,12 +202,15 @@ cd riptide
 
 Linux is the supported path (macOS / Windows are out of scope — see [`docs/install.md`](docs/install.md)). Requires Rust, Node, and `cargo-build-sbf` on your `$PATH` — the installer checks and prints install hints if anything is missing.
 
-Once `riptide` is on your `$PATH`, the canonical first run is a drop-in: `riptide init` scaffolds a `.riptide/` working directory inside any Anchor repo, you fill in one stub adapter, and `riptide run` discovers every scenario you author and prints a jest-style pass/fail summary.
+Once `riptide` is on your `$PATH`, the canonical first run is `install → doctor → init → lint → adapt → run`. `riptide doctor` confirms your toolchain + engine binary + any discovered adapters are sane before anything else runs; `riptide init` scaffolds a `.riptide/` working directory inside any Anchor repo, you fill in one stub adapter, `riptide lint` static-checks it against the JSON IDL named in `[lineage].idl_source`, `riptide adapt` smoke-tests it end-to-end against the local engine, and `riptide run` discovers every scenario you author and prints a jest-style pass/fail summary.
 
 ```bash
+riptide doctor                                                        # Health check (no build, no network, no sim)
 cd ~/path/to/your-anchor-program
 riptide init
 # edit .riptide/adapters/<program-name>.toml to match your program
+riptide lint <program-name>                                           # Static validation — JSON-IDL-backed adapters only; non-JSON sources warn (see docs/adapter-lineage.md)
+riptide adapt --adapter .riptide/adapters/<program-name>.toml         # End-to-end smoke against the local engine (lint preflight runs first when JSON IDL lineage is present)
 riptide run --serve
 ```
 
@@ -227,6 +230,7 @@ docker run --rm riptide run solend-fork/hero-grid/w25-s40
 ## Getting Started
 
 ```bash
+riptide doctor                           # Static health check — toolchain, engine binary, discovered adapters (no build, no network, no sim)
 riptide init                             # Scaffold .riptide/ in the current repo (adapter stub + personas + baseline scenario)
 riptide list                             # List every discovered scenario under .riptide/scenarios/
 riptide run                              # Discover + run every scenario in .riptide/scenarios/ (jest-style summary)
@@ -235,7 +239,8 @@ riptide run <run-config.json>            # Run a single run-config file directly
 riptide run --only-failing               # Rerun only scenarios that failed or aborted last time
 riptide run --serve                      # After the sweep, start the dashboard on localhost:4173
 riptide replay <replay-config>           # Replay a historical on-chain trajectory
-riptide adapt --adapter <toml>           # Smoke-test an adapter TOML end-to-end
+riptide adapt --adapter <toml>           # Smoke-test an adapter TOML end-to-end (runs lint preflight when JSON IDL lineage is present)
+riptide lint <adapter>                   # Static adapter validation against a JSON IDL (non-JSON sources warn — see docs/adapter-lineage.md)
 riptide lineage <adapter>                # Print an adapter's `[lineage]` block (IDL source, inferred assumptions, unsupported fields)
 riptide simulate <config>                # Legacy explicit-flag path — see docs/architecture.md
 ```
@@ -291,12 +296,13 @@ riptide replay fixtures/replays/lst-lending-contagion-proof/config.json \
 > generalized multi-program persona sweeps, no stablecoin / governance
 > contagion, no cascade-graph dashboard, no Cloud / alerting, no
 > multi-oracle generic semantics (one `[[oracles]]` binding per generic
-> adapter), no IDL-vs-adapter validation / adapter linter / `riptide
-> doctor` / run-time adapter-error polish (the next DX pass), no live
-> mainnet IDL fetch, no auto-adapter-from-program-id generator, no LSP
-> or adapter-diff CLI, and no production Jito / Marinade / Kelp /
-> Sanctum / Kamino / Marginfi adapter coverage (the shipping bundles
-> are minimal forks, not forks of any real LST or lending codebase).
+> adapter), no machine validation of non-JSON lineage sources (the
+> `riptide lint` surface machine-checks JSON IDLs only; Rust-source
+> lineage stays inspection-only and warns honestly), no live mainnet
+> IDL fetch, no auto-adapter-from-program-id generator, no LSP or
+> adapter-diff CLI, and no production Jito / Marinade / Kelp / Sanctum
+> / Kamino / Marginfi adapter coverage (the shipping bundles are
+> minimal forks, not forks of any real LST or lending codebase).
 
 ## Reviewer handoff
 
@@ -346,7 +352,7 @@ All documentation lives under [`docs/`](docs/):
 | [Install](docs/install.md) | `install.sh` one-command path, Docker, from-source recipe, upgrade path, toolchain pins |
 | [Evidence pack](docs/pack.md) | Reviewer-ready `.riptide/pack/<run-id>/` shape emitted on every run and replay — `manifest.json` reference, byte-stability contract |
 | [CI handoff](docs/ci-handoff.md) | Cold-start GitHub Actions recipe that reruns a committed proof and asserts its canonical hash; downstream-adoption template |
-| [Adapter lineage](docs/adapter-lineage.md) | Optional `[lineage]` block on adapter TOMLs + `riptide lineage` inspection command |
+| [Adapter lineage](docs/adapter-lineage.md) | Optional `[lineage]` block on adapter TOMLs + `riptide lineage` inspection command, and what `riptide lint` machine-checks today (JSON IDL only) |
 | [Case study: Solend-fork](docs/case-studies/solend-fork.md) | The 3×3 whale × shock hero grid — the shipping outcome demo and the load-bearing claim |
 | [Benchmark: Agent scaling](docs/benchmarks/agent-scaling.md) | 1000 agents for 30 ticks in under 5 seconds on a standard laptop, ~55 MB RAM, byte-deterministic |
 | [Toolchain pins](TOOLCHAIN.md) | Exact Rust, Solana CLI, `cargo-build-sbf`, platform-tools, and Node versions the engine and programs build against |

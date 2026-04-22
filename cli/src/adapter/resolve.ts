@@ -21,10 +21,22 @@ export interface ResolvedAdapter {
   displayName: string;
 }
 
+export interface ResolveAdapterArgOptions {
+  /** Override the fixtures root used for the monorepo / shipping-fixture layer. */
+  fixturesRoot?: string;
+  /** Override cwd used for the downstream `.riptide/adapters/` layer (test seam). */
+  cwd?: string;
+}
+
 export function resolveAdapterArg(
   adapterArg: string,
-  fixturesRootOverride?: string
+  fixturesRootOrOptions?: string | ResolveAdapterArgOptions
 ): ResolvedAdapter | null {
+  const opts: ResolveAdapterArgOptions =
+    typeof fixturesRootOrOptions === "string"
+      ? { fixturesRoot: fixturesRootOrOptions }
+      : (fixturesRootOrOptions ?? {});
+
   const looksLikePath =
     adapterArg.includes("/") ||
     adapterArg.includes(path.sep) ||
@@ -37,10 +49,30 @@ export function resolveAdapterArg(
     return null;
   }
 
-  const fixturesRoot = fixturesRootOverride ?? defaultFixturesRoot();
-  const candidate = path.join(fixturesRoot, "adapters", `${adapterArg}.toml`);
-  if (existsSync(candidate)) {
-    return { path: candidate, displayName: adapterArg };
+  // Bare-name layering, mirroring `discoverAdapters` in
+  // `cli/src/doctor/index.ts`:
+  //   1. `<cwd>/.riptide/adapters/<name>.toml`  (downstream user repo)
+  //   2. `<cwd>/fixtures/adapters/<name>.toml`  (in-tree monorepo checkout)
+  //   3. `<fixturesRoot>/adapters/<name>.toml`  (explicit override / module-derived fallback)
+  //
+  // The downstream user-repo layer wins first so a fresh `riptide init`
+  // scaffold is lintable by bare name, matching the install-first path
+  // documented in `README.md` and `docs/install.md`.
+  const cwd = opts.cwd ?? process.cwd();
+  const bareCandidates: string[] = [
+    path.resolve(cwd, ".riptide", "adapters", `${adapterArg}.toml`),
+    path.resolve(cwd, "fixtures", "adapters", `${adapterArg}.toml`),
+  ];
+  const fixturesRoot = opts.fixturesRoot ?? defaultFixturesRoot();
+  bareCandidates.push(path.join(fixturesRoot, "adapters", `${adapterArg}.toml`));
+
+  const seen = new Set<string>();
+  for (const candidate of bareCandidates) {
+    if (seen.has(candidate)) continue;
+    seen.add(candidate);
+    if (existsSync(candidate)) {
+      return { path: candidate, displayName: adapterArg };
+    }
   }
   return null;
 }
@@ -64,9 +96,9 @@ export type AdapterLoadError =
  */
 export async function loadAdapter(
   adapterArg: string,
-  fixturesRootOverride?: string
+  fixturesRootOrOptions?: string | ResolveAdapterArgOptions
 ): Promise<{ ok: true; value: LoadedAdapter } | { ok: false; error: AdapterLoadError }> {
-  const resolved = resolveAdapterArg(adapterArg, fixturesRootOverride);
+  const resolved = resolveAdapterArg(adapterArg, fixturesRootOrOptions);
   if (resolved === null) {
     return { ok: false, error: { kind: "not-found", arg: adapterArg } };
   }

@@ -53,12 +53,25 @@ export async function runInit(
     for (const rel of result.created) {
       process.stderr.write(chalk.gray(`  created ${rel}\n`));
     }
-    const runCmd = `riptide run .riptide/scenarios/baseline/run-config.json --adapter .riptide/adapters/${result.programName}.toml`;
+    // Echo the same install-first sequence the README + docs/install.md
+    // describe: install → doctor → init (just ran) → lint → adapt → run.
+    // Keeps the CLI-owned guidance aligned with the documented first-run
+    // path instead of jumping straight to `riptide run --adapter ...`.
+    const adapterRel = `.riptide/adapters/${result.programName}.toml`;
     process.stderr.write(
-      `\nNext: edit ${chalk.cyan(`.riptide/adapters/${result.programName}.toml`)} to match your program, then run:\n  ${chalk.cyan(runCmd)}\n`
+      `\nNext: edit ${chalk.cyan(adapterRel)} to match your program (TODO comments name every block), then:\n`
     );
     process.stderr.write(
-      chalk.gray(`See .riptide/GETTING-STARTED.md for the full walkthrough.\n`)
+      `  1. ${chalk.cyan(`riptide lint ${result.programName}`)}  ${chalk.gray("# static validation against the JSON IDL named in [lineage].idl_source")}\n`
+    );
+    process.stderr.write(
+      `  2. ${chalk.cyan(`riptide adapt --adapter ${adapterRel}`)}  ${chalk.gray("# end-to-end smoke against the local engine")}\n`
+    );
+    process.stderr.write(
+      `  3. ${chalk.cyan(`riptide run .riptide/scenarios/baseline/run-config.json --adapter ${adapterRel}`)}\n`
+    );
+    process.stderr.write(
+      chalk.gray(`Run ${chalk.cyan("riptide doctor")} any time to recheck toolchain + adapter health. See .riptide/GETTING-STARTED.md for the full walkthrough.\n`)
     );
     return 0;
   } catch (err) {

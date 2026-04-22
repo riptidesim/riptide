@@ -22,6 +22,7 @@ import {
   type LintReport,
 } from "../src/lint/index.js";
 import { runLint } from "../src/commands/lint.js";
+import { resolveAdapterArg } from "../src/adapter/resolve.js";
 
 // Minimal but realistic JSON-IDL-backed adapter + IDL pair used for the
 // isolated-unit tests. Mirrors the shape of `fixtures/idls/amm-fork.json`
@@ -979,4 +980,82 @@ test("lintAdapter: coverage report includes uncovered-instruction warnings for a
   assert.match(out, /initialize_pool/);
   // Coverage report must expose the uncovered count ≥ 1.
   assert.match(out, /Uncovered instructions\s+:\s+[1-9]/);
+});
+
+// ---- resolveAdapterArg: downstream `.riptide/adapters/` bare-name resolution ----
+//
+// The install-first docs tell a user to run `riptide lint <program-name>`
+// immediately after `riptide init` scaffolds `.riptide/adapters/<program-name>.toml`
+// in a downstream repo. These tests pin that resolution path so the guidance
+// does not drift back to "only shipping fixture adapters lint by bare name".
+
+test("resolveAdapterArg: bare name resolves against <cwd>/.riptide/adapters/ first (downstream repo)", async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-resolve-downstream-"));
+  const riptideAdaptersDir = path.join(repoRoot, ".riptide", "adapters");
+  await mkdir(riptideAdaptersDir, { recursive: true });
+  const adapterPath = path.join(riptideAdaptersDir, "my-program.toml");
+  await writeFile(adapterPath, "protocol = \"lending\"\n", "utf8");
+
+  const resolved = resolveAdapterArg("my-program", { cwd: repoRoot });
+  assert.ok(resolved, "bare name must resolve against <cwd>/.riptide/adapters/");
+  assert.equal(resolved!.path, adapterPath);
+  assert.equal(resolved!.displayName, "my-program");
+});
+
+test("resolveAdapterArg: <cwd>/.riptide/adapters/ wins over the shipping fixtures layer", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-resolve-priority-"));
+  const downstreamDir = path.join(cwd, ".riptide", "adapters");
+  await mkdir(downstreamDir, { recursive: true });
+  const downstreamAdapter = path.join(downstreamDir, "my-program.toml");
+  await writeFile(downstreamAdapter, "# downstream\n", "utf8");
+
+  const fixturesRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-resolve-fixtures-"));
+  const shippingDir = path.join(fixturesRoot, "adapters");
+  await mkdir(shippingDir, { recursive: true });
+  const shippingAdapter = path.join(shippingDir, "my-program.toml");
+  await writeFile(shippingAdapter, "# shipping\n", "utf8");
+
+  const resolved = resolveAdapterArg("my-program", { cwd, fixturesRoot });
+  assert.ok(resolved);
+  assert.equal(
+    resolved!.path,
+    downstreamAdapter,
+    "downstream `.riptide/adapters/` layer must win over the fixtures layer"
+  );
+});
+
+test("resolveAdapterArg: falls through to fixturesRoot when no downstream adapter exists", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-resolve-fallthrough-"));
+  const fixturesRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-resolve-fixtures-ft-"));
+  const shippingDir = path.join(fixturesRoot, "adapters");
+  await mkdir(shippingDir, { recursive: true });
+  const shippingAdapter = path.join(shippingDir, "shipping-only.toml");
+  await writeFile(shippingAdapter, "# shipping only\n", "utf8");
+
+  const resolved = resolveAdapterArg("shipping-only", { cwd, fixturesRoot });
+  assert.ok(resolved, "bare name must still resolve against fixturesRoot when no downstream adapter exists");
+  assert.equal(resolved!.path, shippingAdapter);
+});
+
+test("resolveAdapterArg: returns null when neither layer has the adapter", () => {
+  const resolved = resolveAdapterArg("definitely-not-there-xyz", {
+    cwd: "/tmp",
+    fixturesRoot: "/tmp/does-not-exist",
+  });
+  assert.equal(resolved, null);
+});
+
+test("resolveAdapterArg: legacy string-only fixturesRoot argument still works", async () => {
+  // Backward-compat: the original signature was
+  //   resolveAdapterArg(arg, fixturesRoot?: string)
+  // and callers still pass a bare string. New options object is additive.
+  const fixturesRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-resolve-legacy-"));
+  const shippingDir = path.join(fixturesRoot, "adapters");
+  await mkdir(shippingDir, { recursive: true });
+  const shippingAdapter = path.join(shippingDir, "legacy.toml");
+  await writeFile(shippingAdapter, "# legacy\n", "utf8");
+
+  const resolved = resolveAdapterArg("legacy", fixturesRoot);
+  assert.ok(resolved);
+  assert.equal(resolved!.path, shippingAdapter);
 });

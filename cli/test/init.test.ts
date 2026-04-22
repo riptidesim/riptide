@@ -202,7 +202,7 @@ test("init: 3–5 personas copied with real non-empty TOML bodies", async () => 
   }
 });
 
-test("init: GETTING-STARTED.md names `riptide run` as the next action", async () => {
+test("init: GETTING-STARTED.md walks the install-first doctor → lint → adapt → run path", async () => {
   const cwd = await mkTempRepo();
   const exit = await runInit(
     { force: false, dir: cwd },
@@ -214,11 +214,24 @@ test("init: GETTING-STARTED.md names `riptide run` as the next action", async ()
     path.join(cwd, ".riptide", "GETTING-STARTED.md"),
     "utf8"
   );
+  // The scaffolded guide must walk the full install-first sequence
+  // documented in README.md + docs/install.md. Dropping any step puts
+  // the CLI-owned onboarding out of sync with the external docs.
+  assert.ok(body.includes("riptide doctor"), "GETTING-STARTED.md must reference `riptide doctor`");
+  assert.ok(
+    body.includes("riptide lint my-program"),
+    "GETTING-STARTED.md must reference bare-name `riptide lint my-program` (the scaffolded adapter name)"
+  );
+  assert.ok(
+    body.includes("riptide adapt --adapter .riptide/adapters/my-program.toml"),
+    "GETTING-STARTED.md must reference the `riptide adapt --adapter ...` smoke-test"
+  );
   assert.ok(body.includes("riptide run"), "GETTING-STARTED.md must reference `riptide run`");
-  // Pin the fully-resolved invocation so the doc stays in sync with the
-  // CLI that actually ships today — bare `riptide run` becomes valid
-  // once scenario discovery + adapter auto-resolution land downstream,
-  // and at that point this test should be relaxed intentionally.
+  // Pin the fully-resolved run invocation so the doc stays in sync with
+  // the CLI that actually ships today — bare `riptide run` becomes
+  // valid once scenario discovery + adapter auto-resolution land
+  // downstream, and at that point this test should be relaxed
+  // intentionally.
   assert.ok(
     body.includes(".riptide/scenarios/baseline/run-config.json"),
     "GETTING-STARTED.md must point at the scaffolded run-config path"

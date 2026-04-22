@@ -5,12 +5,17 @@ IDL the adapter was authored against, the generator that produced it
 (or `hand-authored`), the inferred assumptions the author made that
 are not literally in the IDL, and the IDL fields the adapter
 intentionally does not model. The top-level `riptide lineage
-<adapter>` command prints the block in a reviewer-readable format.
+<adapter>` command prints the block in a reviewer-readable format;
+the top-level `riptide lint <adapter>` command machine-validates the
+adapter against the IDL **when the source is a JSON IDL** (see
+[Machine validation — `riptide lint`](#machine-validation--riptide-lint)
+below).
 
 **Simulation evidence, not audit signoff.** Lineage is an authored
 declaration — a reviewer reads it to understand what the adapter
-*claims* to model. It is not an automated check of the adapter against
-the IDL.
+*claims* to model. `riptide lint` raises the bar to a machine check
+for JSON-IDL sources — but it does not fetch IDLs, does not generate
+lineage, and does not promise full semantic coverage.
 
 ## Block shape
 
@@ -91,24 +96,73 @@ Four protocol-class adapters carry hand-reviewed `[lineage]` blocks:
 The generic `resource-grinder` adapter ships without a block on
 purpose — it exercises the `no lineage recorded` path end-to-end.
 
+## Machine validation — `riptide lint`
+
+```sh
+riptide lint <adapter>
+```
+
+`riptide lint` reads the adapter TOML, classifies `[lineage].idl_source`,
+and — when the source is a **JSON IDL** — cross-checks every
+adapter-mapped instruction, arg, account, and dotted `account.field`
+reference against the IDL's declared surface.
+
+- **JSON IDL** (`fixtures/idls/<name>.json`): machine-checked. Every
+  `[instructions].*`, `[[scheduled_actions]].*.instruction`,
+  `[accounts].*`, `[state_mapping]."account.field"`,
+  `[observations]."account.field"`, and `[[invariants]].*.field` that
+  dereferences a dotted `account.field` is resolved against the IDL.
+  Positive mismatches fail with `exit 2`, naming the adapter file,
+  the missing symbol, and the list of valid candidates. Uncovered
+  source surfaces (IDL instructions or `account.field` entries the
+  adapter neither maps nor names in `[lineage].unsupported_fields`)
+  surface as warnings (`exit 1`) with a next-step hint; an adapter
+  can silence a warning either by mapping the surface or by naming
+  it explicitly in `[lineage].unsupported_fields`.
+- **Non-JSON source** (for example a Rust source-of-record path like
+  `programs/lending_pool/src/state.rs`): explicit `WARN` with `exit
+  1` and no false PASS. The linter does **not** ship a Rust parser
+  today. `solend-fork` is the canonical warn-only case.
+- **Missing `[lineage]` block**: explicit `SKIP` with `exit 0`. There
+  is nothing to machine-check; `riptide doctor` additionally lands
+  this on its WARN surface at the report level so a
+  downstream-installed CLI flags the gap without failing.
+
+`riptide adapt` runs the same analyzer as a preflight: when the
+adapter's lineage source is machine-checkable (JSON IDL), adapt
+lint-checks before spawning the engine and aborts on any concrete
+fail; lineage-warn and lineage-skip cases continue through to the
+smoke test so non-machine-checkable adapters still smoke end-to-end.
+
+`riptide doctor` aggregates per-adapter lint status into a single
+summary table across every discovered adapter. It never rebuilds
+programs, never fetches IDLs, and never runs a simulation — it is a
+static diagnostic only.
+
 ## Honest scope
 
-- **Inspection only.** `riptide lineage` does not fetch IDLs, does not
-  validate the adapter against the IDL, and does not generate lineage
-  automatically. The block is an authored declaration a reviewer
-  reads, not a machine-derived proof of coverage.
+- **Inspection and positive machine validation, nothing beyond.**
+  `riptide lineage` prints the authored block reviewer-readably.
+  `riptide lint` machine-validates JSON-IDL-backed adapters; it does
+  not fetch IDLs, does not generate lineage, does not auto-fix
+  adapters, and does not promise full semantic coverage. Non-JSON
+  lineage sources warn honestly; missing blocks skip.
 - **No run-time dependency.** Lineage metadata is serialized in the
-  adapter TOML and read only by the `riptide lineage` command (and,
-  in a future release, by an adapter linter). The engine does not
-  consume it on a run — adapters without lineage blocks load and run
-  exactly as they did before the surface existed.
+  adapter TOML and read only by `riptide lineage`, `riptide lint`,
+  and `riptide doctor`. The engine does not consume it on a run —
+  adapters without lineage blocks load and run exactly as they did
+  before the surface existed.
 - **Accuracy is load-bearing.** An `inferred_assumptions` list that
   lies is worse than silence. Each entry must be reviewable against
   the actual adapter and the committed IDL; when an assumption stops
   being true, the block must be updated (or removed) in the same PR
-  that changes the adapter.
-- **Not yet covered.** IDL-vs-adapter coverage validation is deferred
-  (an adapter linter that reads the IDL + the lineage block and flags
-  drift is the next surface in this area). Auto-generation of lineage
-  from a program-id or a remote IDL fetch is not in scope. Lineage
-  blocks are hand-authored today.
+  that changes the adapter. The linter catches the "field no longer
+  in the IDL" class of drift automatically for JSON-IDL-backed
+  adapters; the rest (assumptions, intentional unsupported-field
+  prose) still relies on honest human review.
+- **Not yet covered.** Machine validation of non-JSON lineage sources
+  (Rust source of record for adapters like `solend-fork`) is not in
+  scope — those stay inspection-only and warn. Auto-generation of
+  lineage from a program-id, remote IDL fetch, LSP / editor tooling,
+  and adapter-diff CLI are all out of scope. Lineage blocks are
+  hand-authored today.
