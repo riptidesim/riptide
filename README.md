@@ -236,6 +236,7 @@ riptide run --only-failing               # Rerun only scenarios that failed or a
 riptide run --serve                      # After the sweep, start the dashboard on localhost:4173
 riptide replay <replay-config>           # Replay a historical on-chain trajectory
 riptide adapt --adapter <toml>           # Smoke-test an adapter TOML end-to-end
+riptide lineage <adapter>                # Print an adapter's `[lineage]` block (IDL source, inferred assumptions, unsupported fields)
 riptide simulate <config>                # Legacy explicit-flag path — see docs/architecture.md
 ```
 
@@ -290,9 +291,47 @@ riptide replay fixtures/replays/lst-lending-contagion-proof/config.json \
 > generalized multi-program persona sweeps, no stablecoin / governance
 > contagion, no cascade-graph dashboard, no Cloud / alerting, no
 > multi-oracle generic semantics (one `[[oracles]]` binding per generic
-> adapter), and no production Jito / Marinade / Kelp / Sanctum / Kamino /
-> Marginfi adapter coverage (the shipping bundles are minimal forks, not
-> forks of any real LST or lending codebase).
+> adapter), no IDL-vs-adapter validation / adapter linter / `riptide
+> doctor` / run-time adapter-error polish (the next DX pass), no live
+> mainnet IDL fetch, no auto-adapter-from-program-id generator, no LSP
+> or adapter-diff CLI, and no production Jito / Marinade / Kelp /
+> Sanctum / Kamino / Marginfi adapter coverage (the shipping bundles
+> are minimal forks, not forks of any real LST or lending codebase).
+
+## Reviewer handoff
+
+Riptide is designed to survive handoff to an auditor, security
+engineer, or risk-committee reviewer — without session context. Three
+surfaces carry the guarantee:
+
+- **Every `riptide run` and `riptide replay` emits a reviewer-ready
+  evidence pack** at `.riptide/pack/<run-id>/` — a directory with
+  `manifest.json` (canonical hash, adapter, scenario, invariant
+  firings, exit code, repo-relative input / output paths), a 3–7 line
+  `summary.md`, a reviewer-grade `trace.md` (per-tick events of
+  interest — invariant firings, bridge firings, scheduled actions,
+  oracle writes), a POSIX-sh `rerun.sh`, and `inputs/` + `outputs/`
+  path indices. All paths are repo-relative; the pack embeds no
+  absolute host paths, hostnames, usernames, or tmp locations. Pack
+  shape is byte-stable for byte-stable input. See
+  [`docs/pack.md`](docs/pack.md).
+- **One named proof reruns cold in GitHub Actions.** The shipping
+  workflow [`.github/workflows/contagion-proof-ci.yml`](.github/workflows/contagion-proof-ci.yml)
+  reruns the LST → lending contagion proof from a cold checkout and
+  asserts the committed canonical hash against the emitted pack. A
+  downstream-adoption template
+  ([`.github/workflows/riptide-handoff-template.yml.example`](.github/workflows/riptide-handoff-template.yml.example))
+  lets an adopter pin **their own** replay to **their own** hash. No
+  secrets beyond `GITHUB_TOKEN`; no live IDL fetch; every input
+  committed. See [`docs/ci-handoff.md`](docs/ci-handoff.md).
+- **Shipping adapters declare their lineage.** The four shipping
+  protocol-class adapters (`solend-fork`, `perps-fork`, `amm-fork`,
+  `liquid-staking-fork`) carry hand-reviewed `[lineage]` blocks
+  naming the IDL source, inferred assumptions, and unsupported
+  fields. The top-level `riptide lineage <adapter>` command prints
+  the block reviewer-readably. Lineage is inspection-only — no IDL
+  fetch, no automated IDL-vs-adapter validation. See
+  [`docs/adapter-lineage.md`](docs/adapter-lineage.md).
 
 📖 **[Full documentation →](docs/README.md)**
 
@@ -305,6 +344,9 @@ All documentation lives under [`docs/`](docs/):
 | [Vision](docs/vision.md) | Why Riptide exists, the lab-not-oracle stance, what's explicitly *not* in scope, adversarial-review posture |
 | [Architecture](docs/architecture.md) | The six-layer stack, LiteSVM runtime + validator-parity diagnostic path, determinism model, adapter pipeline from TOML to engine |
 | [Install](docs/install.md) | `install.sh` one-command path, Docker, from-source recipe, upgrade path, toolchain pins |
+| [Evidence pack](docs/pack.md) | Reviewer-ready `.riptide/pack/<run-id>/` shape emitted on every run and replay — `manifest.json` reference, byte-stability contract |
+| [CI handoff](docs/ci-handoff.md) | Cold-start GitHub Actions recipe that reruns a committed proof and asserts its canonical hash; downstream-adoption template |
+| [Adapter lineage](docs/adapter-lineage.md) | Optional `[lineage]` block on adapter TOMLs + `riptide lineage` inspection command |
 | [Case study: Solend-fork](docs/case-studies/solend-fork.md) | The 3×3 whale × shock hero grid — the shipping outcome demo and the load-bearing claim |
 | [Benchmark: Agent scaling](docs/benchmarks/agent-scaling.md) | 1000 agents for 30 ticks in under 5 seconds on a standard laptop, ~55 MB RAM, byte-deterministic |
 | [Toolchain pins](TOOLCHAIN.md) | Exact Rust, Solana CLI, `cargo-build-sbf`, platform-tools, and Node versions the engine and programs build against |

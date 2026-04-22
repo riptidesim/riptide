@@ -255,9 +255,18 @@ adopter pins their own hash to their own replay fixture.
 - **No auto-regeneration on hash drift.** The workflow asserts, it
   does not heal. If the hash moves, a human investigates the drift
   before updating the pinned value.
-- **No adapter-vs-IDL linting.** That's Sprint 13 work. This
-  workflow takes the adapter on trust; lineage metadata is
-  reviewer-inspectable via `riptide lineage <adapter>`.
+- **No adapter-vs-IDL linting.** The workflow takes the adapter on
+  trust; lineage metadata is reviewer-inspectable via `riptide
+  lineage <adapter>` (see
+  [`adapter-lineage.md`](adapter-lineage.md)). A machine check of
+  the lineage block against the IDL is the next surface in this area
+  and is not in today's workflow.
+- **No `riptide doctor`, no adapter linter, no run-time
+  adapter-error polish, no CLI colors / spinners / watch mode.** The
+  DX hardening pass is the next sprint; today's handoff surface is
+  evidence-focused.
+- **No stablecoin or governance contagion bundles, no Cloud /
+  alerting, no partner workflow integrations.**
 
 ---
 

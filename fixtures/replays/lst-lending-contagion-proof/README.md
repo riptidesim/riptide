@@ -23,7 +23,9 @@ The command writes the full artifact bundle
 (`simulation-result.json` + `report.md`) into
 `riptide-output/replays/lst-lending-contagion-proof/` (resolved
 relative to the config file's directory, so the default output lands
-inside this fixture dir). The
+inside this fixture dir) **and** emits a reviewer-ready evidence pack
+at `.riptide/pack/replay-multi-lst-lending-contagion-proof-upstream/`
+(relative to the current working directory). The
 `--allow-invariant-violations` flag keeps the exit code at 0 even
 though the contagion proof is *designed* to fire machine-checkable
 invariants — the firings are the proof signal. Omit the flag to have
@@ -37,6 +39,30 @@ cargo test -p riptide-engine --release --features litesvm-backend \
   --test replay_lst_lending_contagion_proof \
   contagion_proof_matches_expected_summary_and_is_deterministic
 ```
+
+## Forwardable evidence pack
+
+The pack at
+`.riptide/pack/replay-multi-lst-lending-contagion-proof-upstream/` is
+the canonical surface a reviewer forwards to an auditor, risk-committee
+engineer, or security-minded engineer. It is the single directory that
+stands alone without this README: `manifest.json` (machine-readable
+index — adapter, scenario, canonical hash, invariant firings, exit
+code, repo-relative input / output paths), `summary.md` (3–7 line
+executive summary), `trace.md` (per-tick events of interest with
+qualified component keys intact), `rerun.sh` (POSIX-sh rerun recipe),
+and `inputs/paths.json` + `outputs/paths.json` (repo-relative
+references, no duplication). All paths are repo-relative; the pack
+carries no absolute paths, hostnames, usernames, or tmp locations.
+
+See [`../../docs/pack.md`](../../docs/pack.md) for the full pack
+shape reference. Riptide's shipping GitHub Actions workflow
+[`.github/workflows/contagion-proof-ci.yml`](../../.github/workflows/contagion-proof-ci.yml)
+reruns this exact fixture on every push from a cold checkout and
+asserts the canonical hash below against the emitted pack's
+`manifest.json.canonical_hash`; see
+[`../../docs/ci-handoff.md`](../../docs/ci-handoff.md) for the CI
+handoff surface and the downstream-adoption template.
 
 ## Bridge description
 

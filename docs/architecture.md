@@ -90,9 +90,47 @@ What this surface does **not** yet cover:
 - **Generalized multi-program scenario sweeps.** The cross-protocol proof at `fixtures/replays/lst-lending-contagion-proof/` is replay-only composition: two shipping bundles plus one declared scalar-observation → scalar-oracle-write bridge in one deterministic replay run. Synthetic multi-program persona sweeps, arbitrary cross-program transaction graphs, stablecoin / governance contagion bundles, and cascade-graph dashboards are not in today's claim surface.
 - **Production LST / DeFi codebase coverage.** The `liquid-staking-fork` and `lending_pool` programs the bundles ship against are minimal forks chosen for determinism and clarity of the failure shape. No real Kelp / rsETH / Marinade / Jito / Sanctum / Kamino / Marginfi program is wired as an adapter today.
 - **Watch mode / parallel scenario execution / `--serve` multi-scenario aggregation** remain follow-ups.
+- **IDL-vs-adapter coverage validation, adapter linter, `riptide doctor`, and run-time adapter-error polish.** Adapters carry an authored `[lineage]` block today (see [`adapter-lineage.md`](adapter-lineage.md)); a machine check of that declaration against the IDL is the next surface and is not in today's claim.
+- **Auto-adapter-from-program-id, live mainnet IDL fetch, LSP / editor tooling, adapter-diff CLI.** Every artifact Riptide reads is committed on disk; no run-time network dependency, no IDE integration.
+
+## Reviewer handoff surfaces
+
+Riptide's reviewer-forwardable substrate lives in three files every
+`riptide run` and `riptide replay` touches:
+
+- **Every run emits a pack.** `.riptide/pack/<run-id>/` carries
+  `manifest.json`, `summary.md`, `trace.md`, `rerun.sh`, and
+  `inputs/` + `outputs/` path indices with repo-relative paths only.
+  The pack is byte-stable for byte-stable input — see
+  [`pack.md`](pack.md) for the shape reference and the pinned
+  per-file hashes.
+- **One named proof reruns cold in GitHub Actions.** The shipping
+  `.github/workflows/contagion-proof-ci.yml` workflow reruns the
+  cross-protocol contagion proof from a cold checkout on every push /
+  PR / `workflow_dispatch`, emits the pack, and asserts the canonical
+  hash against the committed pin via
+  `scripts/ci/assert-canonical-hash.sh`. A copy-friendly template
+  ships at `.github/workflows/riptide-handoff-template.yml.example`
+  for downstream adopters pinning their own replay to their own hash
+  — see [`ci-handoff.md`](ci-handoff.md).
+- **Shipping adapters declare their lineage.** The four shipping
+  protocol-class adapters (`solend-fork`, `perps-fork`, `amm-fork`,
+  `liquid-staking-fork`) carry `[lineage]` blocks naming the IDL
+  source, inferred assumptions, and unsupported fields. The top-level
+  `riptide lineage <adapter>` command prints the block reviewer-readably.
+  Lineage is inspection-only — no IDL fetch, no automated IDL-vs-adapter
+  check. See [`adapter-lineage.md`](adapter-lineage.md).
+
+These surfaces are **simulation evidence**, not audit signoff. A
+green CI run is a reproducibility guarantee, not a security
+attestation; a lineage block is an authored declaration, not a
+machine-verified coverage claim.
 
 ## Further reading
 
 - [`vision.md`](vision.md) — why this shape, what's in scope, what isn't.
 - [`install.md`](install.md) — the install, Docker, and from-source paths.
+- [`pack.md`](pack.md) — the reviewer-ready evidence pack shape.
+- [`ci-handoff.md`](ci-handoff.md) — the cold-start CI handoff recipe and downstream template.
+- [`adapter-lineage.md`](adapter-lineage.md) — the optional `[lineage]` block and the `riptide lineage` inspection command.
 - [`../TOOLCHAIN.md`](../TOOLCHAIN.md) — the Rust / Solana CLI / SBF / Node pins the engine and programs build against.

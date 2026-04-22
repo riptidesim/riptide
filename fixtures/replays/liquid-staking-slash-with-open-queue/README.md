@@ -80,6 +80,13 @@ riptide replay fixtures/replays/liquid-staking-slash-with-open-queue/config.json
 `--allow-invariant-violations` is load-bearing: the proof *wants*
 invariants to fire — that's the evidence signal.
 
+The command writes the full artifact bundle
+(`simulation-result.json` + `report.md`) into
+`riptide-output/replays/liquid-staking-slash-with-open-queue/`
+**and** emits a reviewer-ready evidence pack at
+`.riptide/pack/replay-liquid-staking-slash-with-open-queue/`
+(relative to the current working directory).
+
 A byte-stable gate that asserts the exact firing ticks + canonical
 SHA-256 runs as an engine integration test:
 
@@ -87,6 +94,20 @@ SHA-256 runs as an engine integration test:
 cargo test -p riptide-engine --release --features litesvm-backend \
   --test replay_liquid_staking_slash_with_open_queue
 ```
+
+## Forwardable evidence pack
+
+The pack at
+`.riptide/pack/replay-liquid-staking-slash-with-open-queue/` is the
+canonical forwardable surface — same shape every Riptide run emits:
+`manifest.json` (canonical hash, declared-vs-firing invariants, exit
+code, repo-relative paths), `summary.md`, `trace.md` (per-tick events
+of interest — the `request_unstake` cohort at tick 3, the
+`apply_slash` at tick 4 against the open queue, and the
+`no_catastrophic_depeg` firing are all surfaced), `rerun.sh`, and
+`inputs/` + `outputs/` path indices. Paths are repo-relative. See
+[`../../docs/pack.md`](../../docs/pack.md) for the full pack shape
+reference.
 
 ## Regenerating `expected-summary.json`
 

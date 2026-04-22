@@ -85,6 +85,13 @@ the CLI exits 1 on the first firing, which is the right shape for a
 CI gate on a healthy-path run but the wrong shape for an evidence
 replay.
 
+The command writes the full artifact bundle
+(`simulation-result.json` + `report.md`) into
+`riptide-output/replays/liquid-staking-depeg-redemption-run/`
+**and** emits a reviewer-ready evidence pack at
+`.riptide/pack/replay-liquid-staking-depeg-redemption-run/`
+(relative to the current working directory).
+
 A byte-stable gate that asserts the exact firing ticks + canonical
 SHA-256 runs as an engine integration test:
 
@@ -92,6 +99,21 @@ SHA-256 runs as an engine integration test:
 cargo test -p riptide-engine --release --features litesvm-backend \
   --test replay_liquid_staking_depeg_redemption_run
 ```
+
+## Forwardable evidence pack
+
+The pack at
+`.riptide/pack/replay-liquid-staking-depeg-redemption-run/` is the
+canonical surface a reviewer forwards. It carries the same shape every
+Riptide run emits: `manifest.json` (machine-readable index with
+canonical hash, declared-vs-firing invariant rollup, exit code, and
+repo-relative input / output paths), `summary.md` (executive summary),
+`trace.md` (per-tick events of interest — the `apply_slash` at tick 3
+and the redemption-run at tick 4 surface in the trace table),
+`rerun.sh` (POSIX-sh rerun recipe), and `inputs/` + `outputs/` path
+indices. Paths are repo-relative; the pack embeds no absolute host
+paths. See [`../../docs/pack.md`](../../docs/pack.md) for the full
+pack shape reference.
 
 ## Artifacts
 
