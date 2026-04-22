@@ -133,7 +133,7 @@ RUN npm ci --no-audit --no-fund --ignore-scripts \
  && npm run build \
  && test -f /src/cli/dist/src/index.js
 
-# --- Build all five on-chain programs ----------------------------------------
+# --- Build all six shipped on-chain programs --------------------------------
 # Order by heaviest-first so a failure surfaces early in the most
 # diagnostic spot. Each `cargo build-sbf` lands its .so at
 # `<manifest>/target/deploy/<name>.so`. Adapter TOMLs use relative
@@ -149,6 +149,8 @@ RUN cargo build-sbf --manifest-path programs/perps-fork/Cargo.toml \
  && test -f /src/programs/perps-fork/target/deploy/perps_fork.so
 RUN cargo build-sbf --manifest-path programs/amm-fork/Cargo.toml \
  && test -f /src/programs/amm-fork/target/deploy/amm_fork.so
+RUN cargo build-sbf --manifest-path programs/stablecoin-fork/Cargo.toml \
+ && test -f /src/programs/stablecoin-fork/target/deploy/stablecoin_fork.so
 
 # ---------------------------------------------------------------------------
 # Runtime stage — minimal, ships only what `riptide` needs at runtime.
@@ -227,6 +229,8 @@ COPY --from=build /src/programs/perps-fork/target/deploy/perps_fork.so \
                   /src/programs/perps-fork/target/deploy/perps_fork.so
 COPY --from=build /src/programs/amm-fork/target/deploy/amm_fork.so \
                   /src/programs/amm-fork/target/deploy/amm_fork.so
+COPY --from=build /src/programs/stablecoin-fork/target/deploy/stablecoin_fork.so \
+                  /src/programs/stablecoin-fork/target/deploy/stablecoin_fork.so
 
 # --- Fixtures + examples + scripts -------------------------------------------
 # Fixtures are read from disk by every engine invocation; examples/configs

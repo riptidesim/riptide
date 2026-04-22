@@ -12,9 +12,10 @@
 # What it does:
 # 1. Detects required toolchains and prints actionable hints on the
 # ones it cannot find.
-# 2. Builds the Rust engine (release), both shipped on-chain programs
-# (lending_pool.so + resource_grinder.so via cargo-build-sbf), and
-# the TypeScript CLI.
+# 2. Builds the Rust engine (release), the on-chain programs the
+# post-install smoke tests need (lending_pool, resource_grinder,
+# admin_mock_oracle, stablecoin_fork) via cargo-build-sbf, and the
+# TypeScript CLI.
 # 3. Installs a `riptide` launcher into $HOME/.local/bin.
 # 4. Verifies the CLI responds to --help, runs
 # `riptide run examples/configs/safe.json` as the lending smoke test,
@@ -178,10 +179,16 @@ build_program_so() {
 build_program_so lending_pool       lending_pool.so
 build_program_so resource_grinder   resource_grinder.so
 build_program_so admin_mock_oracle  admin_mock_oracle.so
+# Stablecoin-fork is a shipping adapter (fixtures/adapters/stablecoin-fork.toml);
+# its .so must be built here or a fresh `riptide adapt --adapter
+# fixtures/adapters/stablecoin-fork.toml` will fail with a missing-program-so
+# error instead of the expected smoke pass.
+build_program_so stablecoin-fork    stablecoin_fork.so
 
 LENDING_SO_PATH="$REPO_ROOT/programs/lending_pool/target/deploy/lending_pool.so"
 GENERIC_SO_PATH="$REPO_ROOT/programs/resource_grinder/target/deploy/resource_grinder.so"
 ADMIN_MOCK_ORACLE_SO_PATH="$REPO_ROOT/programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so"
+STABLECOIN_FORK_SO_PATH="$REPO_ROOT/programs/stablecoin-fork/target/deploy/stablecoin_fork.so"
 
 # ---------- Step 4: npm install ----------
 banner "installing CLI dependencies (npm install)"
