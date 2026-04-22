@@ -1,6 +1,7 @@
 pub mod adapter;
 pub mod agent;
 pub mod harness;
+pub mod pack;
 pub mod primitive;
 pub mod replay;
 pub mod safety;

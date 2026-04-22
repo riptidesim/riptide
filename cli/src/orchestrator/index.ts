@@ -12,6 +12,63 @@ import {
   type SimulationResult
 } from "../compiler/schema.js";
 
+/**
+ * Symbol-keyed slot on parsed `SimulationResult` objects that carries
+ * the engine-emitted JSON bytes byte-for-byte. `writeArtifacts` reads
+ * this slot when present and writes the raw bytes verbatim — that
+ * preserves Rust's float-vs-integer encoding (`500.0` vs `500`) that
+ * `JSON.stringify` would otherwise collapse. The byte preservation
+ * is load-bearing for the Sprint 12 pack's canonical-hash surface:
+ * the pack subcommand re-parses `simulation-result.json`, and any
+ * serde_json round-trip loss here bubbles up as a hash drift between
+ * the in-engine test fixtures and the CLI-emitted pack.
+ */
+export const RAW_JSON_SLOT = Symbol.for("riptide.orchestrator.rawJson");
+
+function attachRawJson(result: SimulationResult, rawJson: string): SimulationResult {
+  Object.defineProperty(result, RAW_JSON_SLOT, {
+    value: rawJson,
+    enumerable: false,
+    writable: false,
+    configurable: true
+  });
+  return result;
+}
+
+/** Read the raw JSON bytes stashed on a SimulationResult by the orchestrator, if any. */
+export function readRawJsonSlot(result: SimulationResult): string | undefined {
+  const value = (result as unknown as Record<symbol, unknown>)[RAW_JSON_SLOT];
+  return typeof value === "string" ? value : undefined;
+}
+
+/**
+ * Swap the `run_config.output_path` string literal inside a
+ * Rust-emitted JSON blob without going through JSON.parse →
+ * JSON.stringify. That round-trip loses f64-vs-integer fidelity
+ * (`500.0` collapses to `500`) and silently drifts the canonical
+ * hash. Targeted substring replacement preserves every other byte.
+ */
+function swapOutputPath(rawJson: string, fromPath: string, toPath: string): string {
+  const needle = `"output_path": ${JSON.stringify(fromPath)}`;
+  const replacement = `"output_path": ${JSON.stringify(toPath)}`;
+  const idx = rawJson.indexOf(needle);
+  if (idx < 0) {
+    // Fallback: engine's pretty-print may use a single space after
+    // the colon but we also tolerate no-space (serde_json compact
+    // modes). Try the compact form before giving up.
+    const compact = `"output_path":${JSON.stringify(fromPath)}`;
+    const compactReplacement = `"output_path":${JSON.stringify(toPath)}`;
+    const compactIdx = rawJson.indexOf(compact);
+    if (compactIdx < 0) return rawJson;
+    return (
+      rawJson.slice(0, compactIdx) +
+      compactReplacement +
+      rawJson.slice(compactIdx + compact.length)
+    );
+  }
+  return rawJson.slice(0, idx) + replacement + rawJson.slice(idx + needle.length);
+}
+
 export interface SpawnResult {
   code: number;
   stderrTail: string;
@@ -254,6 +311,13 @@ export async function runOrchestrator(
     }
 
     const raw = await readFile(outputPath, "utf8");
+    // Simulate path does NOT attach the raw JSON — Sprint 4 /
+    // Sprint 5 / Sprint 6 hero-grid byte-stable fixtures pin the
+    // historical JSON.stringify output shape, and that shape is
+    // what CONTRIBUTING.md's byte-stable-fixture gates
+    // `89ca84…`, `1518bcfd…`, and `5de060cd…` are derived from.
+    // Replays carry their own in-memory canonical hash (Sprint 10
+    // / Sprint 11), so they opt-in to raw-byte preservation below.
     return SimulationResultSchema.parse(JSON.parse(raw));
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
@@ -308,8 +372,10 @@ export async function runReplayOrchestrator(
       if (code === 1) {
         try {
           const raw = await readFile(outputPath, "utf8");
-          const parsed = SimulationResultSchema.parse(JSON.parse(raw));
+          const rewritten = swapOutputPath(raw, outputPath, replay.outputPath);
+          const parsed = SimulationResultSchema.parse(JSON.parse(rewritten));
           parsed.run_config.output_path = replay.outputPath;
+          attachRawJson(parsed, rewritten);
           const error = new Error(
             `riptide-engine replay exited with code 1 — invariant violation(s) recorded.${suffix}`
           ) as Error & { simulationResult?: SimulationResult; exitCode?: number };
@@ -326,9 +392,10 @@ export async function runReplayOrchestrator(
     }
 
     const raw = await readFile(outputPath, "utf8");
-    const parsed = SimulationResultSchema.parse(JSON.parse(raw));
+    const rewritten = swapOutputPath(raw, outputPath, replay.outputPath);
+    const parsed = SimulationResultSchema.parse(JSON.parse(rewritten));
     parsed.run_config.output_path = replay.outputPath;
-    return parsed;
+    return attachRawJson(parsed, rewritten);
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }

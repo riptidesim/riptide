@@ -19,6 +19,7 @@ import {
   type DiscoveryResult
 } from "../discovery/index.js";
 import { runOrchestrator } from "../orchestrator/index.js";
+import { emitPack } from "../pack/index.js";
 import { writeArtifacts } from "../report/artifacts.js";
 import type { SimulationResult } from "../compiler/schema.js";
 
@@ -665,10 +666,65 @@ async function defaultRunOne(ctx: RunOneContext): Promise<RunOneResult> {
   });
   const artifactsDir = path.dirname(artifactPath);
 
+  // reviewer-ready evidence pack. The pack is additive on
+  // top of simulation-result.json + report.md; failures during
+  // emission are logged but never block the run loop, since the
+  // SimulationResult itself is the load-bearing artifact and the
+  // pack is auxiliary.
+  try {
+    const packCommand = buildPackRerunHint(ctx, build.simulateOptions.adapter_path);
+    await emitPack({
+      simulationResultPath: artifactPath,
+      cwd: ctx.cwd,
+      configPath: ctx.scenario.runConfigPath,
+      adapterPath: build.simulateOptions.adapter_path,
+      policiesPath,
+      commandHint: packCommand,
+      silent: silent
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!silent) {
+      process.stderr.write(`warn: pack emission failed: ${msg}\n`);
+    }
+  }
+
   if (fires.length > 0) {
     return { kind: "fail", wallClockS: elapsedS, artifactsDir, result, fires };
   }
   return { kind: "pass", wallClockS: elapsedS, artifactsDir, result };
+}
+
+/**
+ * Build a POSIX-shell-safe rerun command reviewers can paste back
+ * into a terminal to reproduce the run. Prefers the high-level
+ * `riptide run` verb over the lower-level engine invocation.
+ */
+function buildPackRerunHint(ctx: RunOneContext, adapterPath: string | undefined): string {
+  const rel = path.relative(ctx.cwd, ctx.scenario.runConfigPath) || ctx.scenario.runConfigPath;
+  const adapterRel = adapterPath
+    ? path.relative(ctx.cwd, adapterPath) || adapterPath
+    : undefined;
+  const parts = ["exec", "riptide", "run", posixQuote(rel)];
+  if (adapterRel && !adapterRel.startsWith("..")) {
+    parts.push("--adapter", posixQuote(adapterRel));
+  }
+  return parts.join(" ");
+}
+
+/**
+ * POSIX-safe single-quote wrap for a shell argument.
+ *
+ * Double-quoting still runs `$(...)`, backticks, and `$VAR`
+ * expansion against the reviewer's environment — a forwarded pack
+ * with a filename like `fixtures/$(id).toml` would execute `id` on
+ * the reviewer's machine. Single-quote wrapping with the classic
+ * `'\''` close/escape/reopen dance turns every byte literal.
+ * See F-2026-04-21-S12P1-001.
+ */
+function posixQuote(value: string): string {
+  if (/^[-_./A-Za-z0-9]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 /**

@@ -28,6 +28,7 @@ use riptide_engine::{
         lending::LendingPoolConfig,
         setup::default_program_so_path,
     },
+    pack::{emit_pack, PackEmitOptions, PackInputs, PackOutputs},
     primitive::{
         build_generic_policies, generic_runtime_actions, GenericBootstrapConfig, GenericHarness,
     },
@@ -180,8 +181,156 @@ fn main() -> ExitCode {
         );
         return finish_main(cli.allow_invariant_violations, run_replay_command(cli));
     }
+    if matches!(args.get(1).and_then(|arg| arg.to_str()), Some("pack")) {
+        let cli = PackCli::parse_from(
+            std::iter::once(args[0].clone()).chain(args.iter().skip(2).cloned()),
+        );
+        return match run_pack_command(cli) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(err) => {
+                eprintln!("error: {err:#}");
+                ExitCode::from(2)
+            }
+        };
+    }
     let cli = SimulateCli::parse_from(args);
     finish_main(cli.allow_invariant_violations, run_simulation_command(cli))
+}
+
+/// Emit a reviewer-ready evidence pack from a previously-written
+/// `SimulationResult` JSON file. Invoked by the CLI after `riptide
+/// run` / `riptide replay` returns, giving the CLI the canonical
+/// on-disk paths (not the tmp paths the engine saw during the run)
+/// so the pack's manifest + rerun.sh + paths.json surfaces are
+/// repo-relative and forwardable.
+#[derive(Debug, Parser)]
+#[command(
+    name = "riptide-engine pack",
+    version,
+    about = "Emit a reviewer-ready evidence pack from a SimulationResult"
+)]
+struct PackCli {
+    /// Path to the `simulation-result.json` produced by a prior
+    /// `riptide-engine` invocation.
+    #[arg(long, value_name = "FILE")]
+    result: PathBuf,
+    /// Directory the pack writes into. Typically
+    /// `<repo>/.riptide/pack/<run-id>/`.
+    #[arg(long, value_name = "DIR")]
+    pack_dir: PathBuf,
+    /// Repo-root anchor for relative-path normalization. Defaults to
+    /// the current working directory.
+    #[arg(long, value_name = "DIR")]
+    repo_root: Option<PathBuf>,
+    /// Canonical adapter TOML path (single-component runs).
+    #[arg(long, value_name = "FILE")]
+    adapter: Option<PathBuf>,
+    /// Canonical run-config / replay-config path.
+    #[arg(long, value_name = "FILE")]
+    config: Option<PathBuf>,
+    /// Canonical policies.json path (when the run used a
+    /// pre-compiled policies bundle).
+    #[arg(long, value_name = "FILE")]
+    policies: Option<PathBuf>,
+    /// Repeatable `<name>=<path>` entries naming per-component
+    /// adapter TOML paths for multi-component replays.
+    #[arg(long = "component-adapter", value_name = "NAME=PATH")]
+    component_adapter: Vec<String>,
+    /// Repeatable `<name>=<path>` entries naming per-component
+    /// trajectory dirs.
+    #[arg(long = "trajectory-dir", value_name = "NAME=PATH")]
+    trajectory_dir: Vec<String>,
+    /// Canonical on-disk location of the result file emitted by the
+    /// run. Typically the same value as `--result`, but can differ
+    /// when the result JSON was copied or moved before packing.
+    #[arg(long, value_name = "FILE")]
+    simulation_result: Option<PathBuf>,
+    /// Optional `.riptide/last-run.json` path for run-sweep packs.
+    #[arg(long, value_name = "FILE")]
+    last_run: Option<PathBuf>,
+    /// Reviewer-facing rerun command (replaces the default auto-
+    /// generated engine-level invocation). POSIX sh only.
+    #[arg(long, value_name = "STRING")]
+    command_hint: Option<String>,
+    /// Optional adapter display label to surface in the manifest /
+    /// summary. Defaults to the normalized adapter path.
+    #[arg(long, value_name = "STRING")]
+    adapter_display: Option<String>,
+}
+
+fn run_pack_command(cli: PackCli) -> anyhow::Result<()> {
+    let raw = fs::read_to_string(&cli.result).map_err(|e| {
+        anyhow::anyhow!(
+            "read simulation-result JSON at {}: {e}",
+            cli.result.display()
+        )
+    })?;
+    let result: SimulationResult = serde_json::from_str(&raw).map_err(|e| {
+        anyhow::anyhow!(
+            "parse simulation-result JSON at {}: {e}",
+            cli.result.display()
+        )
+    })?;
+
+    let repo_root = cli
+        .repo_root
+        .unwrap_or_else(|| std::env::current_dir().expect("engine needs a valid cwd"));
+
+    let mut inputs = PackInputs::default();
+    inputs.adapter = cli.adapter;
+    inputs.config = cli.config;
+    inputs.policies = cli.policies;
+    for entry in cli.component_adapter {
+        if let Some((name, path)) = parse_named_path(&entry) {
+            inputs.component_adapters.push((name, PathBuf::from(path)));
+        } else {
+            eprintln!(
+                "warn: --component-adapter {} missing `name=path` separator; ignoring",
+                entry
+            );
+        }
+    }
+    for entry in cli.trajectory_dir {
+        if let Some((name, path)) = parse_named_path(&entry) {
+            inputs.trajectory_dirs.push((name, PathBuf::from(path)));
+        } else {
+            eprintln!(
+                "warn: --trajectory-dir {} missing `name=path` separator; ignoring",
+                entry
+            );
+        }
+    }
+
+    let outputs = PackOutputs {
+        simulation_result: cli.simulation_result.or_else(|| Some(cli.result.clone())),
+        last_run: cli.last_run,
+    };
+
+    let options = PackEmitOptions {
+        repo_root,
+        pack_dir: cli.pack_dir.clone(),
+        command_hint: cli.command_hint,
+        adapter_display: cli.adapter_display,
+    };
+
+    let emission = emit_pack(&result, &inputs, &outputs, &options)?;
+    eprintln!(
+        "wrote pack: {} (run-id={}, canonical-hash={})",
+        emission.pack_dir.display(),
+        emission.run_id,
+        emission.canonical_hash
+    );
+    Ok(())
+}
+
+fn parse_named_path(entry: &str) -> Option<(String, String)> {
+    let mut parts = entry.splitn(2, '=');
+    let name = parts.next()?.trim();
+    let path = parts.next()?.trim();
+    if name.is_empty() || path.is_empty() {
+        return None;
+    }
+    Some((name.to_string(), path.to_string()))
 }
 
 fn finish_main(

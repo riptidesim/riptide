@@ -6,6 +6,7 @@ import ora from "ora";
 import { Command } from "commander";
 
 import { runReplayOrchestrator } from "../orchestrator/index.js";
+import { emitPack } from "../pack/index.js";
 import { writeArtifacts } from "../report/artifacts.js";
 import { renderSummary, renderColoredTable } from "../report/summary.js";
 import { renderTimeline } from "../report/timeline.js";
@@ -242,14 +243,56 @@ export function createReplayCommand(): Command {
         process.stderr.write(chalk.green(`Wrote artifact: ${artifactPath}\n`));
         const reportNote = path.join(path.dirname(artifactPath), "report.md");
         process.stderr.write(chalk.green(`Wrote report:   ${reportNote}\n`));
-        if (invariantFiring) {
-          process.stderr.write(
-            chalk.yellow(
-              "Note: one or more declared invariants fired. Exit code 1. " +
-                "Pass --allow-invariant-violations to restore exit 0.\n"
-            )
-          );
+      }
+
+      // Evidence pack — additive emission. Reviewer runs see the
+      // pack path immediately after the result artifact line, which
+      // is the path they forward to auditors.
+      try {
+        const componentAdapters: Record<string, string> = {};
+        const trajectoryDirs: Record<string, string> = {};
+        if (isMulti) {
+          const components = parsed.components as MultiComponentEntry[];
+          for (const component of components) {
+            if (
+              typeof component.name === "string" &&
+              typeof component.adapter === "string" &&
+              typeof component.trajectory_dir === "string"
+            ) {
+              componentAdapters[component.name] = path.resolve(configDir, component.adapter);
+              trajectoryDirs[component.name] = path.resolve(configDir, component.trajectory_dir);
+            }
+          }
         }
+        const cwd = process.cwd();
+        const relConfig = path.relative(cwd, absConfig) || absConfig;
+        const emission = await emitPack({
+          simulationResultPath: artifactPath,
+          cwd,
+          configPath: absConfig,
+          adapterPath: isMulti ? undefined : adapterPath,
+          componentAdapters: isMulti ? componentAdapters : undefined,
+          trajectoryDirs: isMulti && Object.keys(trajectoryDirs).length > 0 ? trajectoryDirs : undefined,
+          commandHint: `exec riptide replay ${posixQuote(relConfig)}`,
+          adapterDisplay: isMulti
+            ? `multi-component replay (${Object.keys(componentAdapters).join(" × ")})`
+            : undefined
+        });
+        if (!formatJson) {
+          process.stderr.write(chalk.green(`Wrote pack:     ${emission.packDir}\n`));
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        process.stderr.write(chalk.yellow(`warn: pack emission failed: ${msg}\n`));
+      }
+
+      if (!formatJson && invariantFiring) {
+        process.stderr.write(
+          chalk.yellow(
+            "Note: one or more declared invariants fired. Exit code 1. " +
+              "Pass --allow-invariant-violations to restore exit 0.\n"
+          )
+        );
       }
 
       if (invariantFiring) {
@@ -263,4 +306,19 @@ export function createReplayCommand(): Command {
         await blockUntilSignal(handle);
       }
     });
+}
+
+/**
+ * POSIX-safe single-quote wrap for a shell argument.
+ *
+ * Double-quoting still runs `$(...)`, backticks, and `$VAR`
+ * expansion against the reviewer's environment — a forwarded pack
+ * with a filename like `fixtures/$(id).toml` would execute `id` on
+ * the reviewer's machine. Single-quote wrapping with the classic
+ * `'\''` close/escape/reopen dance turns every byte literal.
+ * See F-2026-04-21-S12P1-001.
+ */
+function posixQuote(value: string): string {
+  if (/^[-_./A-Za-z0-9]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
