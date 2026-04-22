@@ -2,7 +2,7 @@
 
 Thanks for contributing to Riptide! This guide covers everything you need: setting up your dev environment, understanding the architecture, deciding what to build, and getting your PR merged.
 
-Riptide is a protocol-agnostic economic simulator for Solana programs. Every shipping bundle — lending, perps, AMM, and liquid staking today; whatever ships next — layers the same **six-layer stack** on top of the program under test:
+Riptide is a protocol-agnostic economic simulator for Solana programs. Every shipping bundle — lending, perps, AMM, liquid staking, and stablecoin today; whatever ships next — layers the same **six-layer stack** on top of the program under test:
 
 1. **Adapter** — one TOML declaring the program, its actions, observations, and invariants.
 2. **Personas** — TOML files describing agent behavior with a trigger DSL.
@@ -37,7 +37,7 @@ This is the most common question for new contributors. Most contributions are *n
 ### Make it an **Adapter** when
 
 - You want Riptide to run against a specific Solana program (yours, a fork, a public one).
-- The existing adapter patterns (`solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `liquid-staking-fork.toml`, `resource-grinder.toml`) come close — you copy one, swap the IDL + accounts + actions + observations + invariants.
+- The existing adapter patterns (`solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `liquid-staking-fork.toml`, `stablecoin-fork.toml`, `resource-grinder.toml`) come close — you copy one, swap the IDL + accounts + actions + observations + invariants.
 - See [Adding an Adapter](#adding-an-adapter).
 
 ### Make it a **Persona** when
@@ -140,14 +140,15 @@ riptide/
 │   ├── perps-fork/               # Minimal perps-lite program
 │   ├── amm-fork/                 # Constant-product x*y=k pool
 │   ├── liquid-staking-fork/      # Minimal pooled-stake / withdrawal-queue LST surface
+│   ├── stablecoin-fork/          # Minimal collateral / stable-supply / redemption-queue surface + apply_hedge_loss stress mutation
 │   ├── resource_grinder/         # Non-DeFi toy program proving the generic path
-│   └── admin_mock_oracle/        # Shared-oracle helper for perps + liquid staking
+│   └── admin_mock_oracle/        # Shared-oracle helper for perps + liquid staking + stablecoin
 │
 ├── fixtures/
-│   ├── adapters/                 # Adapter TOMLs (solend-fork, perps-fork, amm-fork, liquid-staking-fork, resource-grinder)
-│   ├── personas/                 # Persona TOMLs (whale, leveraged-long, arbitrageur, …)
+│   ├── adapters/                 # Adapter TOMLs (solend-fork, perps-fork, amm-fork, liquid-staking-fork, stablecoin-fork, resource-grinder)
+│   ├── personas/                 # Persona TOMLs (whale, leveraged-long, arbitrageur, stablecoin/*, …)
 │   ├── scenarios/                # Run-config bundles per-adapter per-experiment
-│   ├── replays/                  # Failure-shape replay fixtures (lending-whale-bad-debt, liquid-staking-*)
+│   ├── replays/                  # Failure-shape replay fixtures (lending-whale-bad-debt, liquid-staking-*, stablecoin-uxd-style-collateral-cascade)
 │   ├── idls/                     # Anchor IDL JSONs for each shipped program
 │   └── oracle_state_golden.bin   # Byte-layout SSOT for oracle state
 │
@@ -200,7 +201,7 @@ An adapter wires a specific Solana program into the engine.
 1. **Compile your program to `.so`** and get its Anchor IDL (or a hand-written IDL JSON).
 2. **Generate or hand-write the adapter TOML:**
    - *Skill path:* install the `riptide-adapt` Claude Code skill (`skills/riptide-adapt/SKILL.md`). Invoke it in-session pointing at your program source or IDL. The skill reads the program, classifies it against the primitive library (lending / perps / AMM / generic), writes the adapter TOML, and runs `riptide adapt` as a smoke test. No API keys or endpoint config.
-   - *Hand-written path:* copy the closest shipping adapter from `fixtures/adapters/` (`solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `liquid-staking-fork.toml`, or `resource-grinder.toml`) and edit `program_so`, `[[accounts]]`, `[[actions]]`, `[[observations]]`, and `[[invariants]]`.
+   - *Hand-written path:* copy the closest shipping adapter from `fixtures/adapters/` (`solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `liquid-staking-fork.toml`, `stablecoin-fork.toml`, or `resource-grinder.toml`) and edit `program_so`, `[[accounts]]`, `[[actions]]`, `[[observations]]`, and `[[invariants]]`.
 3. **Wire an oracle if the program needs one.** A generic adapter can declare a single `[[oracles]]` block bound to a `kind = "shared"` account. The harness bootstraps that account at tick 0 with real admin-mock or Pyth bytes and mutates it on every scenario/replay oracle update. The bound account can optionally declare `owner = { program_so = "<path>.so" }` (owner resolved from the companion `target/deploy/<name>-keypair.json`) for sibling-owned oracles such as `admin_mock_oracle`, or `owner = { pubkey = "<base58>" }` for real external programs such as Pyth. Omit `owner` and the simulated program owns the account. See [`docs/architecture.md#oracle-binding-for-generic-adapters`](docs/architecture.md#oracle-binding-for-generic-adapters) and the end-to-end proof at `engine/tests/perps_sibling_oracle_proof.rs`. Two or more `[[oracles]]` entries on a generic adapter is currently a loader error — multi-oracle generic semantics remain a follow-up.
 4. **Smoke-test it:** `riptide adapt --adapter fixtures/adapters/<your-adapter>.toml` — confirms the engine boots it and observes a state delta.
 5. **Commit** the adapter under `fixtures/adapters/` and the IDL under `fixtures/idls/`.
@@ -304,10 +305,12 @@ cargo test -p riptide-engine --test e2e_determinism
 cargo test -p riptide-engine --test perps_fork_roundtrip
 cargo test -p riptide-engine --test amm_fork_roundtrip
 cargo test -p riptide-engine --test liquid_staking_fork_roundtrip
+cargo test -p riptide-engine --test stablecoin_fork_roundtrip
 cargo test -p riptide-engine --test replay_framework
 cargo test -p riptide-engine --test replay_lending_whale_bad_debt
 cargo test -p riptide-engine --test replay_liquid_staking_depeg_redemption_run
 cargo test -p riptide-engine --test replay_liquid_staking_slash_with_open_queue
+cargo test -p riptide-engine --test replay_stablecoin_uxd_style_collateral_cascade
 
 # CLI suite
 (cd cli && npm test)
@@ -322,6 +325,7 @@ cargo test -p riptide-engine --test replay_liquid_staking_slash_with_open_queue
 | AMM-fork scratch | `5de060cdcacfbacaa598a387a9f249e7633fedac449f137d62c0ede9cf10624f` |
 | Liquid-staking depeg + redemption-run replay (canonical `result_sha256`) | see `fixtures/replays/liquid-staking-depeg-redemption-run/expected-summary.json` |
 | Liquid-staking slash-with-open-queue replay (canonical `result_sha256`) | see `fixtures/replays/liquid-staking-slash-with-open-queue/expected-summary.json` |
+| Stablecoin UXD-style collateral-cascade replay (canonical `result_sha256`) | `2f61c0a7cfd592b0e625060ddc076cccb62093a1f0d5b5779fc8f548f7c2f2bf` (pinned in `fixtures/replays/stablecoin-uxd-style-collateral-cascade/expected-summary.json`) |
 
 If your PR flips any of these, include the conscious-retune justification in the PR description — why the new bytes are correct, what changed in the adapter / scenario / engine that causes the shift, and why the old hash is no longer load-bearing.
 

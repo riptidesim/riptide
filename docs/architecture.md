@@ -29,16 +29,18 @@ flowchart TB
     R --> O["simulation-result.json<br>byte-deterministic"]
 ```
 
-1. **Adapter** — one TOML under `fixtures/adapters/` declaring your program, its actions, its observations, and its invariants. Examples: `solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `liquid-staking-fork.toml`, `resource-grinder.toml`.
+1. **Adapter** — one TOML under `fixtures/adapters/` declaring your program, its actions, its observations, and its invariants. Examples: `solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `liquid-staking-fork.toml`, `stablecoin-fork.toml`, `resource-grinder.toml`.
 2. **Personas** — TOML under `fixtures/personas/` describing agent behavior with a trigger DSL (`player.gold < 100 → craft`). Each bundle ships a persona library the scenarios skill can compose from.
 3. **Scenarios** — engine shocks (oracle trajectories, scheduled actions) mounted from declarative presets. See `fixtures/scenarios/` and `engine/src/scenario/preset_spec.rs`.
 4. **Parameters** — run-config knobs that sweep over the dimensions that matter: whale share, shock magnitude, trade size, leverage, depositor concentration.
 5. **Failure-mode taxonomy** — categories like `whale_concentration`, `margin_cascade_from_oracle_shock`, `price_manipulation_via_swap`, `impermanent_loss_spike`. The `riptide-scenarios` skill matches your adapter's shape against this taxonomy.
 6. **Invariants** — machine-checkable properties (`no_bad_debt`, `reserve_a > 0`, `k == reserve_a * reserve_b` within tolerance) declared inline in the adapter. The engine exits non-zero when any invariant fires, so invariants double as CI gates.
 
-Four shipping protocol-class bundles exercise every layer end-to-end: **lending** (Solend fork), **perps** (perps-lite), **AMM** (constant-product), **liquid staking** (`liquid-staking-fork` — a minimal pooled-stake / withdrawal-queue surface, not a fork of any real LST codebase). A fifth generic bundle (`resource-grinder`) drives a non-DeFi SBF program end-to-end — if it runs, you can wire Riptide to your protocol.
+Five shipping protocol-class bundles exercise every layer end-to-end: **lending** (Solend fork), **perps** (perps-lite), **AMM** (constant-product), **liquid staking** (`liquid-staking-fork` — a minimal pooled-stake / withdrawal-queue surface, not a fork of any real LST codebase), and **stablecoin** (`stablecoin-fork` — a minimal collateral / stable-supply / reserve-buffer / redemption-queue surface with one admin-gated `apply_hedge_loss` stress mutation, not a fork of any real stablecoin codebase). A sixth generic bundle (`resource-grinder`) drives a non-DeFi SBF program end-to-end — if it runs, you can wire Riptide to your protocol.
 
 The liquid-staking bundle ships two named rerunnable single-program proof artifacts at `fixtures/replays/liquid-staking-depeg-redemption-run/` and `fixtures/replays/liquid-staking-slash-with-open-queue/` — depeg + withdrawal-run pressure replays against the minimal fork, historical inspiration: the 2024 Kelp / rsETH depeg. Framed explicitly as **simulation evidence**, not audit signoff. See the bundle-local READMEs for the load-bearing invariant firings, rerun commands, and what the proofs do and do not prove.
+
+The stablecoin bundle ships one named rerunnable single-program proof artifact at `fixtures/replays/stablecoin-uxd-style-collateral-cascade/` — a UXD-style collateral-cascade + redemption-run pressure replay against the minimal `stablecoin-fork`, historical inspiration: the November 2022 UXD delta-neutral backing gap after the Mango exploit wiped the hedge leg. The proof is explicitly framed as **UXD-style pressure geometry** rather than a literal UXD replay: the hedge-gap is internalized as an admin-gated program-local `apply_hedge_loss` mutation, not a cross-program stablecoin ↔ perps-venue composition. Three declared adapter invariants fire at named ticks (`no_hedge_loss_during_healthy_run` @ T3, `full_backing` @ T3, `no_redemption_queue_formation` @ T4). The proof's regression hash is pinned by `engine/tests/replay_stablecoin_uxd_style_collateral_cascade.rs`.
 
 One **cross-protocol contagion proof** also ships at `fixtures/replays/lst-lending-contagion-proof/` — upstream liquid-staking slash propagates through one declared scalar-observation → scalar-oracle-write bridge into a downstream lending oracle inside a single deterministic replay, realizing a machine-checkable bad-debt firing that attributes to the upstream shock. This is a **replay-scoped multi-program proof** of contagion, not a generalized N-protocol scenario engine or an audit artifact — see the bundle-local README for the bridge description, per-tick trace, and honest scope notes. The proof's regression hash is pinned by `engine/tests/replay_lst_lending_contagion_proof.rs`.
 
@@ -87,8 +89,9 @@ What this surface does **not** yet cover:
 
 - **Multi-oracle generic adapters.** Declaring 2+ `[[oracles]]` entries on a generic adapter fails fast with a single-oracle-for-now diagnostic — the current scenario/replay surfaces emit one oracle-update stream.
 - **Pairwise generic liquidation.** `GenericHarness::execute_action` still ignores `target_idx`, so `liquidate_position`'s victim plumbing is a follow-up.
-- **Generalized multi-program scenario sweeps.** The cross-protocol proof at `fixtures/replays/lst-lending-contagion-proof/` is replay-only composition: two shipping bundles plus one declared scalar-observation → scalar-oracle-write bridge in one deterministic replay run. Synthetic multi-program persona sweeps, arbitrary cross-program transaction graphs, stablecoin / governance contagion bundles, and cascade-graph dashboards are not in today's claim surface.
-- **Production LST / DeFi codebase coverage.** The `liquid-staking-fork` and `lending_pool` programs the bundles ship against are minimal forks chosen for determinism and clarity of the failure shape. No real Kelp / rsETH / Marinade / Jito / Sanctum / Kamino / Marginfi program is wired as an adapter today.
+- **Generalized multi-program scenario sweeps.** The cross-protocol proof at `fixtures/replays/lst-lending-contagion-proof/` is replay-only composition: two shipping bundles plus one declared scalar-observation → scalar-oracle-write bridge in one deterministic replay run. Synthetic multi-program persona sweeps, arbitrary cross-program transaction graphs, a multi-program LST → stablecoin → lending chain, governance-contagion bundles, and cascade-graph dashboards are not in today's claim surface.
+- **Production LST / stablecoin / DeFi codebase coverage.** The `liquid-staking-fork`, `stablecoin-fork`, and `lending_pool` programs the bundles ship against are minimal forks chosen for determinism and clarity of the failure shape. No real Kelp / rsETH / Marinade / Jito / Sanctum / Kamino / Marginfi / UXD / Perena / Parrot / Ethena program is wired as an adapter today.
+- **Literal UXD / live hedge-venue integration / generalized peg-defense.** The `stablecoin-fork` bundle captures UXD-style *pressure geometry* via a program-local `apply_hedge_loss(loss_bps)` stress mutation, not a stablecoin ↔ perps-venue composition. There is no live hedge-venue plumbing, no dynamic peg-defense policy engine, and no oracle-gated mint/redeem pricing in the shipping bundle — the stablecoin proof's backing stress is driven by on-account state only. A later bundle can add those layers without reshaping the current adapter.
 - **Watch mode / parallel scenario execution / `--serve` multi-scenario aggregation** remain follow-ups.
 - **Machine validation of non-JSON lineage sources.** `riptide lint` (added in the DX-hardening pass) machine-checks adapters whose `[lineage].idl_source` is a JSON IDL — mapped instructions, args, accounts, and `account.field` references must all resolve in the IDL. Rust-source-of-record adapters like `solend-fork` stay inspection-only and warn honestly; there is no Rust parser in the linter today.
 - **Auto-adapter-from-program-id, live mainnet IDL fetch, LSP / editor tooling, adapter-diff CLI.** Every artifact Riptide reads is committed on disk; no run-time network dependency, no IDE integration.
@@ -123,13 +126,20 @@ Riptide's reviewer-forwardable substrate lives in three files every
   ships at `.github/workflows/riptide-handoff-template.yml.example`
   for downstream adopters pinning their own replay to their own hash
   — see [`ci-handoff.md`](ci-handoff.md).
-- **Shipping adapters declare their lineage.** The four shipping
+- **Shipping adapters declare their lineage, and JSON-IDL-backed
+  adapters get positive machine validation.** The five shipping
   protocol-class adapters (`solend-fork`, `perps-fork`, `amm-fork`,
-  `liquid-staking-fork`) carry `[lineage]` blocks naming the IDL
-  source, inferred assumptions, and unsupported fields. The top-level
-  `riptide lineage <adapter>` command prints the block reviewer-readably.
-  Lineage is inspection-only — no IDL fetch, no automated IDL-vs-adapter
-  check. See [`adapter-lineage.md`](adapter-lineage.md).
+  `liquid-staking-fork`, `stablecoin-fork`) carry `[lineage]` blocks
+  naming the IDL source, inferred assumptions, and unsupported
+  fields. `riptide lineage <adapter>` prints the block
+  reviewer-readably (inspection-only — no IDL fetch). `riptide lint
+  <adapter>` then cross-checks every mapped instruction, arg,
+  account, and dotted `account.field` reference against the JSON IDL
+  when `[lineage].idl_source` is a JSON IDL, and `riptide adapt`
+  runs the same analyzer in-process as a preflight. Non-JSON lineage
+  sources (e.g. `solend-fork`'s Rust source of record) stay
+  inspection-only WARN with no false PASS; no live mainnet IDL
+  fetch in either command. See [`adapter-lineage.md`](adapter-lineage.md).
 
 These surfaces are **simulation evidence**, not audit signoff. A
 green CI run is a reproducibility guarantee, not a security

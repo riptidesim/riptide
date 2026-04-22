@@ -36,6 +36,22 @@ It IS a discrete, rerunnable, machine-checkable pressure replay of a
 can be shown to auditors, engineers, and launch-stage founders as
 *simulation evidence* — distinct from audit signoff.
 
+## Executive summary
+
+A scheduled `apply_hedge_loss(4_000 bps)` shrinks the stablecoin
+pool's delegated collateral at tick 3, dropping the
+effective collateral ratio from 133 % to 91 % and breaching the
+`full_backing` floor; a panic-redemption cohort at tick 4 then
+overruns the reserve buffer (`reserve_buffer_assets = 2_000 → 500`)
+and queues three accounts for 4_500 units, breaching the
+`no_redemption_queue_formation` floor. Three declared invariants
+fire at named ticks across a six-tick trajectory, with a
+byte-stable `simulation-result.json` sha256 pinned for regression.
+This is the load-bearing signal: a single-program, rerunnable
+collateral-cascade + redemption-run pressure shape, framed as
+simulation evidence — not a UXD replay, not an audit, not a live
+hedge-venue integration claim.
+
 ## Load-bearing claim
 
 Three declared adapter invariants fire at named ticks because the
@@ -52,7 +68,7 @@ invariants cleanly — the firings are not a bootstrap artifact, they
 are the materially-changed outcome of the scheduled hedge-loss +
 redemption-run trajectory.
 
-## Discrete economic trajectory
+## Technical notes — discrete economic trajectory
 
 - **Pre-tick 0 (initial state):** admin calls `initialize_pool`, then
   five stakers each deposit 2_000 units of collateral and mint 1_500
@@ -102,24 +118,30 @@ CI gate on a healthy-path run but the wrong shape for an evidence
 replay.
 
 The command writes the full artifact bundle
-(`simulation-result.json` + `report.md`) into
-`fixtures/replays/stablecoin-uxd-style-collateral-cascade/riptide-output/replays/stablecoin-uxd-style-collateral-cascade/`
-(the `output_path` in `config.json` resolves relative to the
-config file's directory, not the current working directory) **and**
-emits a reviewer-ready evidence pack at
+(`simulation-result.json` + `report.md`) into the proof's own
+`riptide-output/replays/stablecoin-uxd-style-collateral-cascade/`
+sub-tree — the `output_path` in `config.json` resolves relative to
+the config file's directory, not the current working directory —
+**and** emits a reviewer-ready evidence pack at
 `.riptide/pack/replay-stablecoin-uxd-style-collateral-cascade/`
 (relative to the current working directory).
 
 A byte-stable gate that asserts the exact firing ticks + canonical
-SHA-256 runs as an engine integration test:
+`simulation-result.json` SHA-256 runs as an engine integration test:
 
 ```
 cargo test -p riptide-engine --release --features litesvm-backend \
   --test replay_stablecoin_uxd_style_collateral_cascade
 ```
 
-Canonical regression hash:
-`2f61c0a7cfd592b0e625060ddc076cccb62093a1f0d5b5779fc8f548f7c2f2bf`
+Canonical regression hash (over the committed
+`simulation-result.json` bytes, pinned in `expected-summary.json`):
+`2f61c0a7cfd592b0e625060ddc076cccb62093a1f0d5b5779fc8f548f7c2f2bf`.
+The pack surface carries its own `canonical_hash` in
+`manifest.json` (derived over the canonicalized pack contents, not
+over `simulation-result.json`) — the two are deliberately distinct
+substrates; the regression hash above is the one the engine gate
+asserts against.
 
 ## Forwardable evidence pack
 

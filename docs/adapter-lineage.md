@@ -86,12 +86,13 @@ file, malformed content) exits 2 with a diagnostic.
 
 ## Shipping lineage blocks
 
-Four protocol-class adapters carry hand-reviewed `[lineage]` blocks:
+Five protocol-class adapters carry hand-reviewed `[lineage]` blocks:
 
 - [`fixtures/adapters/solend-fork.toml`](../fixtures/adapters/solend-fork.toml)
 - [`fixtures/adapters/perps-fork.toml`](../fixtures/adapters/perps-fork.toml)
 - [`fixtures/adapters/amm-fork.toml`](../fixtures/adapters/amm-fork.toml)
 - [`fixtures/adapters/liquid-staking-fork.toml`](../fixtures/adapters/liquid-staking-fork.toml)
+- [`fixtures/adapters/stablecoin-fork.toml`](../fixtures/adapters/stablecoin-fork.toml)
 
 The generic `resource-grinder` adapter ships without a block on
 purpose — it exercises the `no lineage recorded` path end-to-end.

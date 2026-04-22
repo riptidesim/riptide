@@ -188,7 +188,7 @@ base_price = 100.0
 exponent   = 0
 ```
 
-That's it for the adapter — the rest of the six-layer stack (personas, scenarios, parameters, taxonomy) lives in separate files or skill prompts that reference these declarations. See [`docs/architecture.md`](docs/architecture.md) for the full mental model, and [`fixtures/adapters/`](fixtures/adapters/) in the repo for shipping examples against real programs (lending, perps, AMM, liquid staking, and a non-DeFi toy).
+That's it for the adapter — the rest of the six-layer stack (personas, scenarios, parameters, taxonomy) lives in separate files or skill prompts that reference these declarations. See [`docs/architecture.md`](docs/architecture.md) for the full mental model, and [`fixtures/adapters/`](fixtures/adapters/) in the repo for shipping examples against real programs (lending, perps, AMM, liquid staking, stablecoin, and a non-DeFi toy).
 
 </details>
 
@@ -285,24 +285,45 @@ riptide replay fixtures/replays/lst-lending-contagion-proof/config.json \
   --allow-invariant-violations
 ```
 
+For the UXD-style stablecoin collateral-cascade / redemption-run proof
+artifact (single-program pressure geometry; historical inspiration: the
+November 2022 UXD delta-neutral backing gap after the Mango exploit wiped
+the hedge leg — see the bundle-local
+[`fixtures/replays/stablecoin-uxd-style-collateral-cascade/README.md`](fixtures/replays/stablecoin-uxd-style-collateral-cascade/README.md)
+for the executive summary, per-tick technical trace, rerun command, and
+the explicit list of what this proof does **not** prove):
+
+```bash
+riptide replay fixtures/replays/stablecoin-uxd-style-collateral-cascade/config.json \
+  --allow-invariant-violations
+```
+
 > **Simulation evidence ≠ audit signoff.** The replays above are rerunnable
 > simulation artifacts against minimal forks chosen for determinism and
 > clarity of the failure shape. They are not audits, safety claims, or
-> mainnet post-mortems for any real lending / perps / AMM / LST program.
-> The LST → lending contagion proof is **one named replay-scoped
+> mainnet post-mortems for any real lending / perps / AMM / LST / stablecoin
+> program. The LST → lending contagion proof is **one named replay-scoped
 > multi-program composition** of two shipping bundles plus a declared
 > scalar-observation → scalar-oracle-write bridge — not a generalized
-> N-protocol scenario engine. Scope cuts we are explicit about: no
-> generalized multi-program persona sweeps, no stablecoin / governance
-> contagion, no cascade-graph dashboard, no Cloud / alerting, no
-> multi-oracle generic semantics (one `[[oracles]]` binding per generic
-> adapter), no machine validation of non-JSON lineage sources (the
-> `riptide lint` surface machine-checks JSON IDLs only; Rust-source
-> lineage stays inspection-only and warns honestly), no live mainnet
-> IDL fetch, no auto-adapter-from-program-id generator, no LSP or
-> adapter-diff CLI, and no production Jito / Marinade / Kelp / Sanctum
-> / Kamino / Marginfi adapter coverage (the shipping bundles are
-> minimal forks, not forks of any real LST or lending codebase).
+> N-protocol scenario engine. The UXD-style collateral-cascade proof is
+> **one named single-program pressure replay** against a minimal
+> `stablecoin-fork` that internalizes the hedge-gap as an admin-gated
+> `apply_hedge_loss` mutation — not a literal UXD / Perena / Parrot codebase
+> replay, not a live hedge-venue integration, and not a generalized peg-defense
+> or stablecoin → lending multi-program chain. Scope cuts we are explicit
+> about: no literal UXD / Perena / Parrot protocol adapter coverage, no
+> live hedge-venue integration, no generalized stablecoin peg-defense
+> framework, no multi-program LST → stable → lending chain, no governance
+> bundle, no generalized multi-program persona sweeps, no cascade-graph
+> dashboard, no Cloud / alerting, no multi-oracle generic semantics
+> (one `[[oracles]]` binding per generic adapter), no machine validation
+> of non-JSON lineage sources (the `riptide lint` surface machine-checks
+> JSON IDLs only; Rust-source lineage stays inspection-only and warns
+> honestly), no live mainnet IDL fetch, no auto-adapter-from-program-id
+> generator, no LSP or adapter-diff CLI, and no production Jito /
+> Marinade / Kelp / Sanctum / Kamino / Marginfi / UXD / Perena / Parrot
+> adapter coverage (the shipping bundles are minimal forks, not forks of
+> any real LST, lending, or stablecoin codebase).
 
 ## Reviewer handoff
 
@@ -330,13 +351,21 @@ surfaces carry the guarantee:
   lets an adopter pin **their own** replay to **their own** hash. No
   secrets beyond `GITHUB_TOKEN`; no live IDL fetch; every input
   committed. See [`docs/ci-handoff.md`](docs/ci-handoff.md).
-- **Shipping adapters declare their lineage.** The four shipping
+- **Shipping adapters declare their lineage, and JSON-IDL-backed
+  adapters get positive machine validation.** The five shipping
   protocol-class adapters (`solend-fork`, `perps-fork`, `amm-fork`,
-  `liquid-staking-fork`) carry hand-reviewed `[lineage]` blocks
-  naming the IDL source, inferred assumptions, and unsupported
-  fields. The top-level `riptide lineage <adapter>` command prints
-  the block reviewer-readably. Lineage is inspection-only — no IDL
-  fetch, no automated IDL-vs-adapter validation. See
+  `liquid-staking-fork`, `stablecoin-fork`) carry hand-reviewed
+  `[lineage]` blocks naming the IDL source, inferred assumptions,
+  and unsupported fields. The top-level `riptide lineage <adapter>`
+  command prints the block reviewer-readably (inspection-only — no
+  IDL fetch). `riptide lint <adapter>` then goes further for adapters
+  whose `[lineage].idl_source` is a JSON IDL: every mapped
+  instruction, arg, account, and dotted `account.field` reference is
+  cross-checked against the IDL, positive mismatches fail with exit
+  2, and `riptide adapt` runs the same analyzer in-process as a
+  preflight. Non-JSON lineage sources (e.g. `solend-fork`'s Rust
+  source of record) stay inspection-only WARN with no false PASS,
+  and no live mainnet IDL fetch happens in either command. See
   [`docs/adapter-lineage.md`](docs/adapter-lineage.md).
 
 📖 **[Full documentation →](docs/README.md)**
