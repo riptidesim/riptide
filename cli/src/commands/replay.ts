@@ -32,6 +32,15 @@ interface MultiReplayConfigFile {
 
 type ReplayConfigFile = LegacyReplayConfigFile & MultiReplayConfigFile;
 
+// Mirrors `engine/src/replay/multi.rs::is_safe_multi_identifier`.
+// Restrict multi-component component names to ASCII alphanumerics, `_`,
+// and `-` — no `.`, no `/` / `\`, no whitespace, no control characters.
+// Keeps the CLI and engine contracts byte-identical on this surface
+// so an author cannot slip a name past one validator and have the
+// other process it.
+const MULTI_IDENT_RE = /^[A-Za-z0-9_-]+$/;
+const MULTI_IDENT_MAX_LEN = 128;
+
 export function createReplayCommand(): Command {
   return new Command("replay")
     .description("Run a historical replay from a JSON config file")
@@ -117,6 +126,25 @@ export function createReplayCommand(): Command {
               `riptide replay: multi-component config at ${absConfig} has an ` +
                 `invalid entry at components[${idx}] — each entry needs ` +
                 `{ name, adapter, trajectory_dir }.`
+            );
+          }
+          // Fail-closed identifier check — mirror the engine-side
+          // `is_safe_multi_identifier` contract. Component names flow
+          // into qualified metric keys, event ids, pack trace rows,
+          // and the default output directory below; an unconstrained
+          // name could smuggle ANSI escape sequences into operator
+          // output, create ambiguous `<component>.<field>` keys, or
+          // escape the default `riptide-output/replays/...` subtree
+          // via `..` / `/`.
+          if (!MULTI_IDENT_RE.test(component.name) || component.name.length > MULTI_IDENT_MAX_LEN) {
+            throw new Error(
+              `riptide replay: multi-component config at ${absConfig}: ` +
+                `components[${idx}].name ${JSON.stringify(component.name)} must match ` +
+                `\`[A-Za-z0-9_-]+\` (1..=${MULTI_IDENT_MAX_LEN} chars). The name flows into ` +
+                `qualified snapshot keys, event ids, and the default output directory — \`.\`, ` +
+                `whitespace, path separators, and control characters are rejected so a config ` +
+                `author cannot create ambiguous qualified keys, inject ANSI sequences into ` +
+                `operator output, or escape the default artifact subtree.`
             );
           }
           componentNames.push(component.name);

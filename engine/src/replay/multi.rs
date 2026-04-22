@@ -216,6 +216,42 @@ impl BridgeTransform {
 // Loader
 // ---------------------------------------------------------------------------
 
+/// Maximum byte length for replay-config identifiers (component
+/// names, bridge names, bridge target_oracle, bridge source_field).
+/// Matches the adapter-identifier cap so reviewer-forwardable
+/// diagnostics stay consistent in length across the CLI + pack
+/// surfaces.
+const MULTI_IDENT_MAX_LEN: usize = 128;
+
+/// Restrict replay-config component / bridge / target_oracle names to
+/// a safe identifier set: ASCII alphanumerics, `_`, and `-`. **No `.`**
+/// (would create ambiguous `<component>.<field>` qualified keys, e.g.
+/// component = "a.b" + field "c" colliding with component = "a" +
+/// field "b.c"). No whitespace, no path separators, no control
+/// characters. Non-ASCII is rejected entirely so a reviewer's terminal
+/// cannot be handed hostile bytes through these names.
+fn is_safe_multi_identifier(name: &str) -> bool {
+    if name.is_empty() || name.len() > MULTI_IDENT_MAX_LEN {
+        return false;
+    }
+    name.chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+/// Slightly looser validator for `bridges[*].source_field`. It points
+/// into an existing qualified snapshot key, so `.` is legitimate
+/// (`pool.exchange_rate_bps`). Still rejects whitespace / control
+/// characters / path separators so nothing hostile lands in pack
+/// trace rows.
+fn is_safe_qualified_field(field: &str) -> bool {
+    if field.is_empty() || field.len() > MULTI_IDENT_MAX_LEN {
+        return false;
+    }
+    field
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+}
+
 /// Load any replay config file. Distinguishes legacy
 /// (`{ adapter, trajectory_dir, output_path }`) and multi-component
 /// (`{ components: [...], ... }`) shapes by presence of the `components`
@@ -259,6 +295,18 @@ pub fn parse_replay_config(raw: &str) -> Result<ReplayConfigShape> {
             if component.name.trim().is_empty() {
                 bail!("multi-component replay config has a component with an empty name");
             }
+            if !is_safe_multi_identifier(&component.name) {
+                bail!(
+                    "multi-component replay config: `components[{idx}].name = {:?}` must match \
+                     `[A-Za-z0-9_-]+` (1..={MULTI_IDENT_MAX_LEN} chars). The name flows into \
+                     qualified snapshot keys like `<component>.<field>`, namespaced event ids, \
+                     pack traces, and the CLI's default output directory — `.`, whitespace, \
+                     path separators, and control characters are rejected so an author cannot \
+                     create ambiguous qualified keys, inject ANSI sequences into operator \
+                     output, or escape the default artifact subtree.",
+                    component.name,
+                );
+            }
             if !seen.insert(component.name.clone()) {
                 bail!(
                     "multi-component replay config declares duplicate component name `{}`",
@@ -267,34 +315,91 @@ pub fn parse_replay_config(raw: &str) -> Result<ReplayConfigShape> {
             }
             order.insert(component.name.clone(), idx);
         }
-        for bridge in &cfg.bridges {
+        for (idx, bridge) in cfg.bridges.iter().enumerate() {
             if bridge.name.trim().is_empty() {
                 bail!("multi-component replay config has a bridge with an empty name");
             }
+            if !is_safe_multi_identifier(&bridge.name) {
+                bail!(
+                    "multi-component replay config: `bridges[{idx}].name = {:?}` must match \
+                     `[A-Za-z0-9_-]+` (1..={MULTI_IDENT_MAX_LEN} chars). Bridge names flow \
+                     into event action ids like `bridge:<name>` and pack trace rows — \
+                     control characters, whitespace, and path separators are rejected.",
+                    bridge.name,
+                );
+            }
+            if !is_safe_multi_identifier(&bridge.target_oracle) {
+                bail!(
+                    "multi-component replay config: `bridges[{idx}].target_oracle = {:?}` \
+                     must match `[A-Za-z0-9_-]+` (1..={MULTI_IDENT_MAX_LEN} chars). The \
+                     value flows into pack trace rows and event params verbatim — control \
+                     characters, whitespace, and path separators are rejected.",
+                    bridge.target_oracle,
+                );
+            }
+            if !is_safe_qualified_field(&bridge.source_field) {
+                bail!(
+                    "multi-component replay config: `bridges[{idx}].source_field = {:?}` \
+                     must match `[A-Za-z0-9_.-]+` (1..={MULTI_IDENT_MAX_LEN} chars) — it is \
+                     a qualified `<account>.<field>` reference into the upstream snapshot, \
+                     but control characters, whitespace, and path separators are rejected.",
+                    bridge.source_field,
+                );
+            }
+            // Cross-reference identifiers must pass the same
+            // fail-closed contract as the declarations they point at.
+            // Otherwise a hostile bridge with source_component =
+            // "ghost\nline" that happens to not match any declared
+            // component would inject newlines / ANSI escapes into
+            // the unknown-component diagnostic below.
+            if !is_safe_multi_identifier(&bridge.source_component) {
+                bail!(
+                    "multi-component replay config: `bridges[{idx}].source_component = {:?}` \
+                     must match `[A-Za-z0-9_-]+` (1..={MULTI_IDENT_MAX_LEN} chars). The value \
+                     must identify a declared component by name; control characters, \
+                     whitespace, and path separators are rejected so a bad reference cannot \
+                     inject hostile bytes into operator-visible parser diagnostics.",
+                    bridge.source_component,
+                );
+            }
+            if !is_safe_multi_identifier(&bridge.target_component) {
+                bail!(
+                    "multi-component replay config: `bridges[{idx}].target_component = {:?}` \
+                     must match `[A-Za-z0-9_-]+` (1..={MULTI_IDENT_MAX_LEN} chars). The value \
+                     must identify a declared component by name; control characters, \
+                     whitespace, and path separators are rejected so a bad reference cannot \
+                     inject hostile bytes into operator-visible parser diagnostics.",
+                    bridge.target_component,
+                );
+            }
+            // Defense in depth: even after the contract check above,
+            // render the echoed names with `{:?}` so any future path
+            // that reaches this arm still escapes control bytes in
+            // the operator-visible message.
             let source_idx = *order.get(&bridge.source_component).ok_or_else(|| {
                 anyhow!(
-                    "bridge `{}` references unknown source component `{}`",
+                    "bridge {:?} references unknown source component {:?}",
                     bridge.name,
                     bridge.source_component
                 )
             })?;
             let target_idx = *order.get(&bridge.target_component).ok_or_else(|| {
                 anyhow!(
-                    "bridge `{}` references unknown target component `{}`",
+                    "bridge {:?} references unknown target component {:?}",
                     bridge.name,
                     bridge.target_component
                 )
             })?;
             if bridge.source_component == bridge.target_component {
                 bail!(
-                    "bridge `{}`: source and target components must differ; \
+                    "bridge {:?}: source and target components must differ; \
                      cross-component propagation is the point",
                     bridge.name
                 );
             }
             if source_idx >= target_idx {
                 bail!(
-                    "bridge `{}` declares source `{}` (index {}) after target `{}` (index {}); \
+                    "bridge {:?} declares source {:?} (index {}) after target {:?} (index {}); \
                      the ordering contract is upstream-first, so the source component must \
                      appear BEFORE the target in `components`. Reorder `components` so that \
                      upstream declaration precedes downstream, or the same-tick propagation \

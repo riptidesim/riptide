@@ -349,3 +349,94 @@ test(
     }
   }
 );
+
+// --- multi-component identifier hardening ---
+//
+// These tests pin the CLI-side fail-closed rejection that mirrors
+// `engine/src/replay/multi.rs::is_safe_multi_identifier`. They do NOT
+// spawn the engine — the CLI must refuse the config before handing it
+// off so neither the engine nor the synthesized output directory ever
+// sees a hostile component name.
+
+async function writeReplayConfig(
+  workDir: string,
+  filename: string,
+  body: unknown
+): Promise<string> {
+  const configPath = path.join(workDir, filename);
+  await writeFile(configPath, JSON.stringify(body, null, 2) + "\n");
+  return configPath;
+}
+
+test(
+  "`riptide replay` rejects multi-component config with path-traversal component name",
+  async () => {
+    const workDir = await mkdtemp(path.join(os.tmpdir(), "replay-ident-traversal-"));
+    try {
+      const configPath = await writeReplayConfig(workDir, "config.json", {
+        components: [
+          { name: "../../etc", adapter: "/tmp/a.toml", trajectory_dir: "/tmp/a" },
+          { name: "lending", adapter: "/tmp/b.toml", trajectory_dir: "/tmp/b" },
+        ],
+        output_path: "riptide-output/replays/x",
+      });
+      const run = await runReplayCommand(["replay", configPath]);
+      assert.notEqual(
+        run.code,
+        0,
+        `CLI must reject path-traversal component name. code=${run.code} stderr=${run.stderr.slice(-500)}`
+      );
+      assert.match(
+        run.stderr,
+        /components\[0\]\.name/,
+        `expected CLI-side identifier diagnostic, got stderr:\n${run.stderr}`
+      );
+      assert.match(run.stderr, /\[A-Za-z0-9_-\]\+/);
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
+  }
+);
+
+test(
+  "`riptide replay` rejects multi-component config with dotted component name (qualified-key collision risk)",
+  async () => {
+    const workDir = await mkdtemp(path.join(os.tmpdir(), "replay-ident-dot-"));
+    try {
+      const configPath = await writeReplayConfig(workDir, "config.json", {
+        components: [
+          { name: "liquid.staking", adapter: "/tmp/a.toml", trajectory_dir: "/tmp/a" },
+          { name: "lending", adapter: "/tmp/b.toml", trajectory_dir: "/tmp/b" },
+        ],
+        output_path: "riptide-output/replays/x",
+      });
+      const run = await runReplayCommand(["replay", configPath]);
+      assert.notEqual(run.code, 0);
+      assert.match(run.stderr, /components\[0\]\.name/);
+      assert.match(run.stderr, /\[A-Za-z0-9_-\]\+/);
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
+  }
+);
+
+test(
+  "`riptide replay` rejects multi-component config with control-character component name",
+  async () => {
+    const workDir = await mkdtemp(path.join(os.tmpdir(), "replay-ident-ctl-"));
+    try {
+      const configPath = await writeReplayConfig(workDir, "config.json", {
+        components: [
+          { name: "foo\nbar", adapter: "/tmp/a.toml", trajectory_dir: "/tmp/a" },
+          { name: "lending", adapter: "/tmp/b.toml", trajectory_dir: "/tmp/b" },
+        ],
+        output_path: "riptide-output/replays/x",
+      });
+      const run = await runReplayCommand(["replay", configPath]);
+      assert.notEqual(run.code, 0);
+      assert.match(run.stderr, /components\[0\]\.name/);
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
+  }
+);
