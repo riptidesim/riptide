@@ -4,48 +4,95 @@
   <meta charset="utf-8" />
   <title>Riptide Dashboard</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
   <style>
     :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --surface-alt: #1c2430;
-      --border: #30363d;
-      --text: #e6edf3;
-      --text-dim: #8b949e;
-      --accent: #58a6ff;
-      --accent-soft: rgba(88, 166, 255, 0.15);
-      --danger: #f85149;
-      --danger-soft: rgba(248, 81, 73, 0.15);
-      --success: #3fb950;
-      --warn: #d29922;
-      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      --rt-ink:          #070B11;
+      --rt-deep-ocean:   #0B141C;
+      --rt-slate-panel:  #121A24;
+      --rt-slate-2:      #17212E;
+      --rt-slate-line:   #1E2A38;
+      --rt-slate-strong: #2A3B4E;
+
+      --rt-signal-cyan:  #22F0E6;
+      --rt-teal:         #14B8B6;
+      --rt-teal-deep:    #0E8A88;
+      --rt-teal-ink:     #082A2E;
+
+      --rt-off-white:    #E6EEF2;
+      --rt-fog:          #AEBDCB;
+      --rt-fog-dim:      #7A8A99;
+      --rt-fog-faint:    #4A5866;
+
+      --rt-pass:         #22C55E;
+      --rt-pass-ink:     #0B2416;
+      --rt-fail:         #EF4444;
+      --rt-fail-ink:     #2A0B0B;
+      --rt-warn:         #F5B041;
+      --rt-info:         #22F0E6;
+
+      --rt-bg:           var(--rt-ink);
+      --rt-bg-section:   var(--rt-deep-ocean);
+      --rt-bg-panel:     var(--rt-slate-panel);
+      --rt-bg-panel-2:   var(--rt-slate-2);
+
+      --rt-fg-1:         var(--rt-off-white);
+      --rt-fg-2:         var(--rt-fog);
+      --rt-fg-3:         var(--rt-fog-dim);
+      --rt-fg-4:         var(--rt-fog-faint);
+      --rt-fg-accent:    var(--rt-signal-cyan);
+
+      --rt-border:       var(--rt-slate-line);
+      --rt-border-strong:var(--rt-slate-strong);
+      --rt-border-accent:var(--rt-teal);
+
+      --rt-font-sans:    'Inter', system-ui, sans-serif;
+      --rt-font-mono:    'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+      --rt-font-display: 'Inter', system-ui, sans-serif;
+
+      --rt-text-h1:      600 40px/1.08 var(--rt-font-display);
+      --rt-text-h2:      600 28px/1.15 var(--rt-font-display);
+      --rt-text-body:    400 15px/1.55 var(--rt-font-sans);
+      --rt-text-meta:    400 12px/1.4  var(--rt-font-sans);
+      --rt-text-mono:    400 13px/1.55 var(--rt-font-mono);
+      --rt-text-mono-sm: 400 12px/1.45 var(--rt-font-mono);
+      --rt-text-label:   500 11px/1.2  var(--rt-font-mono);
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.5; }
-    a { color: var(--accent); text-decoration: none; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--rt-bg);
+      color: var(--rt-fg-1);
+      font: var(--rt-text-body);
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--rt-signal-cyan); text-decoration: none; }
     a:hover { text-decoration: underline; }
     header.masthead {
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
+      border-bottom: 1px solid var(--rt-border);
+      background: var(--rt-bg-panel);
       padding: 18px 28px;
       display: flex;
       align-items: baseline;
       gap: 16px;
     }
     header.masthead h1 {
-      font-size: 18px;
+      font: var(--rt-text-h1);
       margin: 0;
-      font-weight: 600;
-      letter-spacing: -0.01em;
+      letter-spacing: 0;
     }
     header.masthead .brand {
-      color: var(--accent);
-      font-family: var(--mono);
+      color: var(--rt-signal-cyan);
+      font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
     }
     header.masthead .tagline {
-      color: var(--text-dim);
-      font-size: 12px;
+      color: var(--rt-fg-3);
+      font: var(--rt-text-meta);
       margin-left: auto;
     }
     main {
@@ -57,65 +104,60 @@
       margin-bottom: 32px;
     }
     section > h2 {
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-dim);
+      color: var(--rt-fg-1);
+      font: var(--rt-text-h2);
+      letter-spacing: 0;
       margin: 0 0 6px;
     }
     section > .section-subtitle {
-      color: var(--text-dim);
-      font-size: 12px;
-      line-height: 1.45;
+      color: var(--rt-fg-2);
+      font: var(--rt-text-body);
       margin: 0 0 14px;
       max-width: 72ch;
       opacity: 0.82;
     }
     .run-stats {
-      color: var(--text-dim);
-      font-size: 12px;
-      font-family: var(--mono);
-      background: var(--surface);
-      border: 1px solid var(--border);
+      color: var(--rt-fg-3);
+      font: var(--rt-text-mono);
+      background: var(--rt-bg-panel);
+      border: 1px solid var(--rt-border);
       border-radius: 6px;
       padding: 10px 14px;
       margin-bottom: 12px;
     }
     .run-stats strong {
-      color: var(--text);
+      color: var(--rt-fg-1);
       font-weight: 500;
     }
     .meta-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 1px;
-      background: var(--border);
-      border: 1px solid var(--border);
+      background: var(--rt-border);
+      border: 1px solid var(--rt-border);
       border-radius: 6px;
       overflow: hidden;
     }
     .meta-cell {
-      background: var(--surface);
+      background: var(--rt-bg-panel);
       padding: 12px 16px;
     }
     .meta-cell .k {
-      color: var(--text-dim);
-      font-size: 11px;
+      color: var(--rt-fg-3);
+      font: var(--rt-text-label);
       text-transform: uppercase;
       letter-spacing: 0.06em;
       margin-bottom: 4px;
     }
     .meta-cell .v {
-      font-family: var(--mono);
-      font-size: 14px;
+      font: var(--rt-text-mono);
       word-break: break-all;
     }
     table.kv {
       width: 100%;
       border-collapse: collapse;
-      background: var(--surface);
-      border: 1px solid var(--border);
+      background: var(--rt-bg-panel);
+      border: 1px solid var(--rt-border);
       border-radius: 6px;
       overflow: hidden;
     }
@@ -123,46 +165,45 @@
     table.kv td {
       text-align: left;
       padding: 9px 14px;
-      border-bottom: 1px solid var(--border);
-      font-size: 13px;
+      border-bottom: 1px solid var(--rt-border);
+      font: var(--rt-text-mono);
     }
     table.kv tr:last-child th,
     table.kv tr:last-child td { border-bottom: 0; }
     table.kv th {
-      background: var(--surface-alt);
-      color: var(--text-dim);
+      background: var(--rt-bg-panel-2);
+      color: var(--rt-fg-3);
       font-weight: 500;
       width: 38%;
-      font-family: var(--mono);
-    }
-    table.kv td {
-      font-family: var(--mono);
     }
     table.kv tr.fire {
-      background: var(--danger-soft);
+      background: rgba(239, 68, 68, 0.12);
+    }
+    table.kv tr.fire th:first-child {
+      border-left: 3px solid var(--rt-fail);
     }
     table.kv tr.fire th,
     table.kv tr.fire td {
-      color: var(--danger);
+      color: var(--rt-fail);
     }
     #agents table.kv th {
       width: auto;
       text-transform: uppercase;
-      font-size: 11px;
+      font: var(--rt-text-label);
       letter-spacing: 0.06em;
     }
     #agents table.kv td {
-      color: var(--text);
+      color: var(--rt-fg-1);
     }
     #agents table.kv td.persona {
-      color: var(--accent);
+      color: var(--rt-signal-cyan);
     }
     #agents table.kv td.num {
-      color: var(--text-dim);
+      color: var(--rt-fg-3);
     }
     .chart-shell {
-      background: var(--surface);
-      border: 1px solid var(--border);
+      background: var(--rt-bg-panel);
+      border: 1px solid var(--rt-border);
       border-radius: 6px;
       padding: 16px;
       height: 360px;
@@ -172,7 +213,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--text-dim);
+      color: var(--rt-fg-3);
       font-style: italic;
       height: 120px;
     }
@@ -184,35 +225,33 @@
       flex-wrap: wrap;
     }
     .controls label {
-      color: var(--text-dim);
-      font-size: 12px;
+      color: var(--rt-fg-3);
+      font: var(--rt-text-meta);
       text-transform: uppercase;
       letter-spacing: 0.06em;
     }
     .controls select,
     .controls input {
-      background: var(--surface);
-      color: var(--text);
-      border: 1px solid var(--border);
+      background: var(--rt-bg-panel);
+      color: var(--rt-fg-1);
+      border: 1px solid var(--rt-border);
       border-radius: 4px;
       padding: 6px 10px;
-      font-family: var(--mono);
-      font-size: 12px;
+      font: var(--rt-text-mono-sm);
     }
     .controls .count {
       margin-left: auto;
-      color: var(--text-dim);
-      font-size: 12px;
-      font-family: var(--mono);
+      color: var(--rt-fg-3);
+      font: var(--rt-text-mono-sm);
     }
     .events {
-      background: var(--surface);
-      border: 1px solid var(--border);
+      background: var(--rt-bg-panel);
+      border: 1px solid var(--rt-border);
       border-radius: 6px;
       max-height: 480px;
       overflow-y: auto;
-      font-family: var(--mono);
-      font-size: 12px;
+      font: var(--rt-text-mono-sm);
+      font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
     }
     .events table {
       width: 100%;
@@ -221,59 +260,62 @@
     .events thead th {
       position: sticky;
       top: 0;
-      background: var(--surface-alt);
-      color: var(--text-dim);
+      background: var(--rt-bg-panel-2);
+      color: var(--rt-fg-3);
       text-align: left;
       padding: 8px 12px;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--rt-border);
       font-weight: 500;
       text-transform: uppercase;
-      font-size: 11px;
+      font: var(--rt-text-label);
       letter-spacing: 0.06em;
     }
     .events tbody td {
       padding: 6px 12px;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--rt-border);
       vertical-align: top;
     }
     .events tbody tr:last-child td { border-bottom: 0; }
-    .events .tick { color: var(--text-dim); width: 48px; }
-    .events .agent { color: var(--accent); width: 120px; }
-    .events .action { color: var(--text); font-weight: 500; width: 120px; }
-    .events .outcome-success { color: var(--success); }
-    .events .outcome-failed { color: var(--danger); }
-    .events .outcome-skipped { color: var(--warn); }
-    .events .params { color: var(--text-dim); }
+    .events .tick { color: var(--rt-fg-3); width: 48px; }
+    .events .agent { color: var(--rt-signal-cyan); width: 120px; }
+    .events .action { color: var(--rt-fg-1); font-weight: 500; width: 120px; }
+    .events .outcome-success { color: var(--rt-pass); }
+    .events .outcome-failed { color: var(--rt-fail); }
+    .events .outcome-skipped { color: var(--rt-warn); }
+    .events .params { color: var(--rt-fg-3); }
     .badge {
       display: inline-block;
-      background: var(--accent-soft);
-      color: var(--accent);
+      background: rgba(34, 240, 230, 0.14);
+      color: var(--rt-signal-cyan);
       border-radius: 10px;
       font-size: 11px;
       padding: 2px 8px;
       margin-left: 8px;
     }
     .badge.danger {
-      background: var(--danger-soft);
-      color: var(--danger);
+      background: rgba(239, 68, 68, 0.14);
+      color: var(--rt-fail);
     }
     .empty-note {
-      color: var(--text-dim);
+      color: var(--rt-fg-3);
       font-style: italic;
       padding: 16px;
-      border: 1px dashed var(--border);
+      border: 1px dashed var(--rt-border);
       border-radius: 6px;
       text-align: center;
     }
     .footer {
-      color: var(--text-dim);
-      font-size: 11px;
+      color: var(--rt-fg-3);
+      font: var(--rt-text-meta);
       text-align: center;
       margin-top: 48px;
       padding-top: 16px;
-      border-top: 1px solid var(--border);
+      border-top: 1px solid var(--rt-border);
     }
-    .footer code { font-family: var(--mono); color: var(--text); }
+    .footer code {
+      color: var(--rt-fg-1);
+      font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+    }
   </style>
 </head>
 <body>
@@ -739,8 +781,8 @@
               {
                 label: key,
                 data,
-                borderColor: "#58a6ff",
-                backgroundColor: "rgba(88,166,255,0.12)",
+                borderColor: "#14B8B6",
+                backgroundColor: "rgba(20,184,182,0.12)",
                 borderWidth: 2,
                 pointRadius: 2,
                 tension: 0.15,
@@ -753,17 +795,17 @@
             maintainAspectRatio: false,
             animation: false,
             plugins: {
-              legend: { labels: { color: "#e6edf3" } }
+              legend: { labels: { color: "#E6EEF2" } }
             },
             scales: {
               x: {
-                ticks: { color: "#8b949e" },
-                grid: { color: "rgba(139,148,158,0.15)" },
-                title: { display: true, text: "tick", color: "#8b949e" }
+                ticks: { color: "#7A8A99" },
+                grid: { color: "rgba(122,138,153,0.15)" },
+                title: { display: true, text: "tick", color: "#7A8A99" }
               },
               y: {
-                ticks: { color: "#8b949e" },
-                grid: { color: "rgba(139,148,158,0.15)" }
+                ticks: { color: "#7A8A99" },
+                grid: { color: "rgba(122,138,153,0.15)" }
               }
             }
           }
@@ -852,7 +894,7 @@
         renderEvents(result);
       } catch (err) {
         document.querySelector("main").innerHTML =
-          `<div class="empty-note" style="color:var(--danger);border-color:var(--danger)">Failed to load /api/result: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
+          `<div class="empty-note" style="color:var(--rt-fail);border-color:var(--rt-fail)">Failed to load /api/result: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
       }
     }
 
