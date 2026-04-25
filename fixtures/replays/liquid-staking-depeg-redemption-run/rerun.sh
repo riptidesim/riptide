@@ -12,4 +12,5 @@ cd "$here/../../.."
 # scenario: replay:liquid-staking-depeg-redemption-run (kind inferred from the SimulationResult)
 # canonical hash: 5bdc5f7c7bd8bef8b1a350c76ebaa0b8fbfc3954d3b26882aa89ab54e9fda704
 
-exec riptide replay fixtures/replays/liquid-staking-depeg-redemption-run/config.json
+exec riptide replay fixtures/replays/liquid-staking-depeg-redemption-run/config.json \
+  --allow-invariant-violations

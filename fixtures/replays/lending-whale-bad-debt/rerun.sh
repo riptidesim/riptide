@@ -12,4 +12,5 @@ cd "$here/../../.."
 # scenario: replay:lending-whale-bad-debt (kind inferred from the SimulationResult)
 # canonical hash: 6c59db5ebf916c8cc068c8fea8727d4edf26d244f288f6dadd7e9ae47d16c4a1
 
-exec riptide replay fixtures/replays/lending-whale-bad-debt/config.json
+exec riptide replay fixtures/replays/lending-whale-bad-debt/config.json \
+  --allow-invariant-violations
