@@ -90,7 +90,7 @@ pub fn oracle_layout_for(kind: OracleKind) -> Box<dyn OracleLayout> {
 /// `OracleSnapshot` so adapters that declare
 /// `kind = "admin-mock"` point at the same on-chain bytes 's
 /// Solend-fork grid already writes. This is the shipping oracle kind
-/// for (perps-fork) reads from it.
+/// for (perpetuals) reads from it.
 pub struct AdminMockOracleLayout;
 
 impl OracleLayout for AdminMockOracleLayout {

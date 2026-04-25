@@ -10,7 +10,7 @@ The repo-root [`VISION.md`](../VISION.md) carries the short, visible-at-landing 
 
 Riptide runs an experiment the dev picked. It does not tell the dev what is wrong with their program.
 
-Operationally this means three things. First, every run is reproducible from the adapter TOML and the persona TOML alone — same seed in, same bytes out — so two readers looking at the same grid are looking at the same artifact, not two plausible runs. Second, a cell that comes back with bad debt is a point in parameter space where the program's math lost headroom; it is not a bug report. The dev is the one who decides whether that point matters. Third, the claim Riptide defends is a *mapping* claim ("the danger region looks like this"), not a *verdict* claim ("this program is unsafe"). The case study at [`case-studies/solend-fork.md`](case-studies/solend-fork.md) is the shipping example of that discipline: it maps a 3×3 whale × shock region and stops there. The reader draws the conclusion.
+Operationally this means three things. First, every run is reproducible from the adapter TOML and the persona TOML alone — same seed in, same bytes out — so two readers looking at the same grid are looking at the same artifact, not two plausible runs. Second, a cell that comes back with bad debt is a point in parameter space where the program's math lost headroom; it is not a bug report. The dev is the one who decides whether that point matters. Third, the claim Riptide defends is a *mapping* claim ("the danger region looks like this"), not a *verdict* claim ("this program is unsafe"). The case study at [`case-studies/lending.md`](case-studies/lending.md) is the shipping example of that discipline: it maps a 3×3 whale × shock region and stops there. The reader draws the conclusion.
 
 ## Two paths in
 
@@ -36,4 +36,4 @@ When Riptide shows a grid, a reviewer can re-derive it. That is the whole postur
 
 - [`architecture.md`](architecture.md) — how the six-layer stack is assembled and what LiteSVM actually models.
 - [`install.md`](install.md) — how to run it locally end-to-end.
-- [`case-studies/solend-fork.md`](case-studies/solend-fork.md) — the load-bearing example: a parameter-region mapping on a real lending program.
+- [`case-studies/lending.md`](case-studies/lending.md) — the load-bearing example: a parameter-region mapping on a real lending program.

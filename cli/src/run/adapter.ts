@@ -12,7 +12,7 @@
 //   3. Monorepo bundle fallback — derive from the first path segment
 //      of the scenario name. `resource-grinder/...` maps to
 //      `<monorepo>/fixtures/adapters/resource-grinder.toml`,
-//      `solend-fork/...` to `solend-fork.toml`, etc. This is the
+//      `lending/...` to `lending.toml`, etc. This is the
 //      mechanism that makes `riptide run` work from the monorepo root
 //      across mixed bundles.
 //   4. Scaffolded user-repo path — single `.toml` under

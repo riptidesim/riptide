@@ -19,7 +19,7 @@
 //    that file is loaded directly.
 // 2. Otherwise the argument is treated as an adapter NAME and resolved
 //    against `<monorepo>/fixtures/adapters/<name>.toml` (override via
-//    $RIPTIDE_FIXTURES_ROOT). This is the `riptide lineage solend-fork`
+//    $RIPTIDE_FIXTURES_ROOT). This is the `riptide lineage lending`
 //    shorthand the reviewer-readable flow assumes.
 
 import { Command } from "commander";
@@ -52,7 +52,7 @@ export function createLineageCommand(deps: LineageCommandDeps = {}): Command {
     )
     .argument(
       "<adapter>",
-      "Adapter name (e.g. solend-fork) resolved under fixtures/adapters/, or an explicit path to an adapter TOML"
+      "Adapter name (e.g. lending) resolved under fixtures/adapters/, or an explicit path to an adapter TOML"
     );
 
   return command.action(async (adapter: string, options: LineageOptions) => {

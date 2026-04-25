@@ -4,11 +4,11 @@
 // - classification of lineage source kinds (missing / non-JSON / JSON)
 // - clean lint on a JSON-IDL-backed adapter (exit 0)
 // - positive mismatch failures: instruction / arg / account / field
-// - warn-only path for non-JSON lineage source (e.g. solend-fork)
+// - warn-only path for non-JSON lineage source (e.g. lending)
 // - explicit SKIP when there is no [lineage] block
-// - shipping JSON-IDL adapters (`amm-fork`, `perps-fork`,
-//   `liquid-staking-fork`) lint cleanly as shipped (no FAILs)
-// - `solend-fork` lands as explicit warn-only (non-JSON source)
+// - shipping JSON-IDL adapters (`amm`, `perpetuals`,
+//   `liquid-staking`) lint cleanly as shipped (no FAILs)
+// - `lending` lands as explicit warn-only (non-JSON source)
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -25,7 +25,7 @@ import { runLint } from "../src/commands/lint.js";
 import { resolveAdapterArg } from "../src/adapter/resolve.js";
 
 // Minimal but realistic JSON-IDL-backed adapter + IDL pair used for the
-// isolated-unit tests. Mirrors the shape of `fixtures/idls/amm-fork.json`
+// isolated-unit tests. Mirrors the shape of `fixtures/idls/amm.json`
 // but trimmed to one instruction and one account.
 const SIMPLE_IDL = JSON.stringify({
   version: "0.1.0",
@@ -476,13 +476,13 @@ test("runLint: unknown adapter name → exit 2 with named error", async () => {
 
 // ---- integration: shipping JSON-IDL adapters lint cleanly ----
 
-test("runLint: shipping amm-fork lints cleanly (no FAILs)", async () => {
+test("runLint: shipping amm lints cleanly (no FAILs)", async () => {
   const fixturesRoot = path.resolve(process.cwd(), "..", "fixtures");
   const repoRoot = path.resolve(process.cwd(), "..");
   let out = "";
   let err = "";
   const exit = await runLint(
-    "amm-fork",
+    "amm",
     {},
     {
       fixturesRoot,
@@ -492,17 +492,17 @@ test("runLint: shipping amm-fork lints cleanly (no FAILs)", async () => {
       color: false,
     }
   );
-  assert.ok(exit === 0 || exit === 1, `amm-fork lint should be PASS or WARN, not FAIL. exit=${exit}. stderr:\n${err}`);
+  assert.ok(exit === 0 || exit === 1, `amm lint should be PASS or WARN, not FAIL. exit=${exit}. stderr:\n${err}`);
   assert.doesNotMatch(out, / FAIL {2}\[/);
   assert.match(out, /JSON IDL/);
 });
 
-test("runLint: shipping perps-fork lints cleanly (no FAILs)", async () => {
+test("runLint: shipping perpetuals lints cleanly (no FAILs)", async () => {
   const fixturesRoot = path.resolve(process.cwd(), "..", "fixtures");
   const repoRoot = path.resolve(process.cwd(), "..");
   let out = "";
   const exit = await runLint(
-    "perps-fork",
+    "perpetuals",
     {},
     {
       fixturesRoot,
@@ -512,16 +512,16 @@ test("runLint: shipping perps-fork lints cleanly (no FAILs)", async () => {
       color: false,
     }
   );
-  assert.ok(exit === 0 || exit === 1, `perps-fork lint should be PASS or WARN, got exit=${exit}`);
+  assert.ok(exit === 0 || exit === 1, `perpetuals lint should be PASS or WARN, got exit=${exit}`);
   assert.doesNotMatch(out, / FAIL {2}\[/);
 });
 
-test("runLint: shipping liquid-staking-fork lints cleanly (no FAILs)", async () => {
+test("runLint: shipping liquid-staking lints cleanly (no FAILs)", async () => {
   const fixturesRoot = path.resolve(process.cwd(), "..", "fixtures");
   const repoRoot = path.resolve(process.cwd(), "..");
   let out = "";
   const exit = await runLint(
-    "liquid-staking-fork",
+    "liquid-staking",
     {},
     {
       fixturesRoot,
@@ -531,16 +531,16 @@ test("runLint: shipping liquid-staking-fork lints cleanly (no FAILs)", async () 
       color: false,
     }
   );
-  assert.ok(exit === 0 || exit === 1, `liquid-staking-fork lint should be PASS or WARN, got exit=${exit}`);
+  assert.ok(exit === 0 || exit === 1, `liquid-staking lint should be PASS or WARN, got exit=${exit}`);
   assert.doesNotMatch(out, / FAIL {2}\[/);
 });
 
-test("runLint: shipping solend-fork is warn-only (non-JSON lineage) → exit 1", async () => {
+test("runLint: shipping lending is warn-only (non-JSON lineage) → exit 1", async () => {
   const fixturesRoot = path.resolve(process.cwd(), "..", "fixtures");
   const repoRoot = path.resolve(process.cwd(), "..");
   let out = "";
   const exit = await runLint(
-    "solend-fork",
+    "lending",
     {},
     {
       fixturesRoot,
@@ -550,7 +550,7 @@ test("runLint: shipping solend-fork is warn-only (non-JSON lineage) → exit 1",
       color: false,
     }
   );
-  assert.equal(exit, 1, `solend-fork must land as WARN/1 (non-JSON lineage). stdout:\n${out}`);
+  assert.equal(exit, 1, `lending must land as WARN/1 (non-JSON lineage). stdout:\n${out}`);
   assert.match(out, /non-JSON/);
   assert.match(out, /programs\/lending_pool\/src\/state\.rs/);
   assert.doesNotMatch(out, /Verdict: PASS/);

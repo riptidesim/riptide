@@ -521,7 +521,7 @@ function hasAtLeastOneTick(output: unknown): boolean {
 // a `fixtures/scenarios/` ancestry. A scenario at
 // `/tmp/cold/fixtures/scenarios/lending_pool/whale-shock-grid`
 // yields `/tmp/cold`; a monorepo scenario at
-// `/home/.../riptide/fixtures/scenarios/solend-fork/whale-share-sweep`
+// `/home/.../riptide/fixtures/scenarios/lending/whale-share-sweep`
 // yields `/home/.../riptide`. Returns null if the scenario
 // directory has no `fixtures/scenarios/` ancestry — the caller
 // then falls back to `options.monorepoRoot`, which keeps raw-tmp

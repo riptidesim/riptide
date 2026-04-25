@@ -2,7 +2,7 @@
 //!
 //! shipped as the first concrete target for
 //! [`OracleKind::AdminMock`](../../../engine/src/adapter/schema.rs) so
-//! non-lending adapters (perps-fork, AMM, …) can depend on a
+//! non-lending adapters (perpetuals, AMM, …) can depend on a
 //! standalone oracle program instead of reusing the lending pool's
 //! bundled oracle account.
 //!

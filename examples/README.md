@@ -16,7 +16,7 @@ This demo directory exercises **both** paths. They are additive — Path B does 
 
 The safe-vs-risky walkthrough below is the canonical Path A demo: two hand-authored `RunConfig` files (`configs/safe.json`, `configs/risky.json`), the shipped persona policies, and one shell script (`run-demo.sh`) that drives them. You already know what you're testing for — "does persona mix alone flip the outcome at a 50 % shock?" — so you write the experiment directly.
 
-The Solend-fork case study at [`../docs/case-studies/solend-fork.md`](../docs/case-studies/solend-fork.md) is the same Path A posture at a larger scale: a 3×3 whale × shock parameter-boundary discovery run, hand-authored against the Solend fork, with the load-bearing claim *Riptide maps the danger region; Solend's actual parameters sit inside it.*
+The Solend-fork case study at [`../docs/case-studies/lending.md`](../docs/case-studies/lending.md) is the same Path A posture at a larger scale: a 3×3 whale × shock parameter-boundary discovery run, hand-authored against the Solend fork, with the load-bearing claim *Riptide maps the danger region; Solend's actual parameters sit inside it.*
 
 ### Path B — let the `riptide-scenarios` skill propose a starter catalog
 
@@ -25,10 +25,10 @@ Install the skill at [`../skills/riptide-scenarios/SKILL.md`](../skills/riptide-
 One-command invocation inside a Claude Code session on the Solend-fork adapter:
 
 ```
-/riptide-scenarios fixtures/adapters/solend-fork.toml
+/riptide-scenarios fixtures/adapters/lending.toml
 ```
 
-The Solend run independently proposes a whale-share sweep from classification — the same shape as the hero grid's whale axis — which is the R2.8 credibility gate for the pitch claim. See `fixtures/scenarios/solend-fork/whale-share-sweep/` for the generated starter.
+The Solend run independently proposes a whale-share sweep from classification — the same shape as the hero grid's whale axis — which is the R2.8 credibility gate for the pitch claim. See `fixtures/scenarios/lending/whale-share-sweep/` for the generated starter.
 
 ## Caveat — lab, not oracle
 
@@ -49,7 +49,7 @@ The Solend run independently proposes a whale-share sweep from classification �
 Two `RunConfig` files (`configs/safe.json`, `configs/risky.json`) plus
 `run-demo.sh`, which drives the Node CLI wrapper
 (`node cli/dist/src/index.js simulate --adapter
-fixtures/adapters/solend-fork.toml`) against each and prints a
+fixtures/adapters/lending.toml`) against each and prints a
 side-by-side comparison of headline metrics. The engine itself boots
 from `--config / --policies / --output / --adapter` flags; the Node
 wrapper composes the persona/policy artifacts and invokes it under the
@@ -61,7 +61,7 @@ Both configs use:
 - identical pool protocol parameters (LTV 7000, liquidation threshold
   8000, liquidation bonus 500)
 - identical tick count (`10`) and agent count (`5`)
-- the same adapter TOML (`fixtures/adapters/solend-fork.toml`) — the
+- the same adapter TOML (`fixtures/adapters/lending.toml`) — the
   demo drives the Solend-fork `LendingPrimitive` via the adapter, not
   via hardcoded harness wiring
 

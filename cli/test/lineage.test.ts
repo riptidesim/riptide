@@ -65,7 +65,7 @@ async function writeTempAdapter(name: string, contents: string): Promise<string>
 }
 
 test("renderLineage formats a block with headings, bullets, and IDL source", () => {
-  const output = renderLineage("solend-fork", {
+  const output = renderLineage("lending", {
     idl_source: "programs/lending_pool/src/state.rs",
     generator: "hand-authored",
     inferred_assumptions: [
@@ -79,7 +79,7 @@ test("renderLineage formats a block with headings, bullets, and IDL source", () 
   });
 
   const expected = [
-    "Lineage — solend-fork",
+    "Lineage — lending",
     "",
     "IDL source:",
     "  programs/lending_pool/src/state.rs",
@@ -208,7 +208,7 @@ test("runLineage exits 2 when the adapter cannot be resolved", async () => {
   assert.match(stderrBuf, /adapter not found for `not-a-real-adapter`/);
 });
 
-test("runLineage renders the shipping solend-fork adapter end-to-end", async () => {
+test("runLineage renders the shipping lending adapter end-to-end", async () => {
   // Integration-style: resolve against the real repo fixtures and
   // assert key lines land. Pins lineage accuracy for the shipping
   // adapter. Exercised only when run from the monorepo where the
@@ -218,7 +218,7 @@ test("runLineage renders the shipping solend-fork adapter end-to-end", async () 
   let stderrBuf = "";
 
   const exit = await runLineage(
-    "solend-fork",
+    "lending",
     {},
     {
       fixturesRoot,
@@ -228,7 +228,7 @@ test("runLineage renders the shipping solend-fork adapter end-to-end", async () 
   );
 
   assert.equal(exit, 0, `expected 0, got ${exit}. stderr: ${stderrBuf}`);
-  assert.match(stdoutBuf, /^Lineage — solend-fork\n/);
+  assert.match(stdoutBuf, /^Lineage — lending\n/);
   assert.match(stdoutBuf, /Generator:\n {2}hand-authored/);
   assert.match(stdoutBuf, /programs\/lending_pool\/src\/state\.rs/);
   assert.match(stdoutBuf, /Inferred assumptions:/);

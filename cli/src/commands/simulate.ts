@@ -89,7 +89,7 @@ export function createSimulateCommand(): Command {
 
     const artifactPath = await writeArtifacts(result, runConfig.output_path, {
       narrativeConfig: {
-        adapterPath: config.adapter_path ?? "fixtures/adapters/solend-fork.toml",
+        adapterPath: config.adapter_path ?? "fixtures/adapters/lending.toml",
         reproCommand
       }
     });

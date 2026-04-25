@@ -41,7 +41,7 @@ runs on macOS stock shell, Linux `dash`, and Alpine containers.
   "kind": "replay-multi",
   "run_id": "replay-multi-lst-lending-contagion-proof-upstream",
   "scenario": "replay:multi:lst-lending-contagion-proof-upstream",
-  "adapter": "multi-component: liquid-staking-fork × lending_pool",
+  "adapter": "multi-component: liquid-staking × lending_pool",
   "component_adapters": {
     "lending": "fixtures/replays/lending-whale-bad-debt/adapter.toml",
     "liquid_staking": "fixtures/replays/liquid-staking-depeg-redemption-run/adapter.toml"

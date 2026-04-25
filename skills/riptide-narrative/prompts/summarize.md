@@ -6,7 +6,7 @@ You are running inside a Claude Code session invoked via the
 in working memory and synthesize a case-study-voice narrative
 markdown file at `<same-dir>/report-narrative.md`.
 
-The voice you are matching is **`docs/case-studies/solend-fork.md`**.
+The voice you are matching is **`docs/case-studies/lending.md`**.
 Re-skim that file before writing if you need a refresher on tone.
 Its distinguishing features:
 
@@ -80,8 +80,8 @@ line shape):
 Frame the run. Answer:
 
 - What program / protocol shape is being simulated? (Pull from
-  the adapter path — `solend-fork` = lending, `perps-fork` =
-  perps-lite, `amm-fork` = constant-product AMM, `generic` /
+  the adapter path — `lending` = lending, `perpetuals` =
+  perps-lite, `amm` = constant-product AMM, `generic` /
   `resource-grinder` = generic.)
 - What question is the run *asking*? (A hero-grid corner is
   asking "at this point in the danger region, how does the
@@ -121,7 +121,7 @@ Rules for this section:
   failed, and the quantitative gap that opened.
 - Name agents by persona label when plural ("the five whales")
   and by persona label + agent id when singular ("whale
-  agent-001"). Match how `docs/case-studies/solend-fork.md`
+  agent-001"). Match how `docs/case-studies/lending.md`
   phrases participant counts.
 - If a summary metric is zero, *say why it's zero* — that's often
   more informative than why a nonzero metric is nonzero.
@@ -212,7 +212,7 @@ Land the run. Close the narrative by restating:
    each = 3 600 total bad debt"). If you write a number you cannot
    cite, drop it.
 2. **No mainnet/historical claims unless they are in the run.** If
-   the adapter is `solend-fork`, the narrative may say *"the
+   the adapter is `lending`, the narrative may say *"the
    Solend June 2022 incident lived at roughly w25-s40 in this
    parameter plane"* — but only if the run being narrated *is*
    the w25-s40 cell. Do not reach for external context the run

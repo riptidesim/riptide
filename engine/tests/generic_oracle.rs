@@ -13,7 +13,7 @@
 //! matches what was written (covers the "target program reads the
 //! shocked value" intent without requiring a live SBF build inside
 //! the test runner).
-//! 4. Backwards compat — the shipped solend-fork.toml parses cleanly
+//! 4. Backwards compat — the shipped lending.toml parses cleanly
 //! with NO `[[oracles]]` block declared, and the admin-mock oracle
 //! layout produces byte-identical output to the
 //! `OracleSnapshot` shape the Solend hero grid already writes.
@@ -1007,7 +1007,7 @@ exponent = {exponent}
     #[test]
     fn push_is_noop_when_adapter_declares_no_oracle() {
         // Regression floor: generic adapters that pre-date Sprint 9 do
-        // NOT declare `[[oracles]]` (perps-fork, amm-fork). The tick loop
+        // NOT declare `[[oracles]]` (perpetuals, amm). The tick loop
         // still calls `push_oracle_price` on every tick via the shared
         // sim runner, so the no-declaration path must remain a silent
         // no-op — otherwise the perps-scratch and amm-scratch hashes
@@ -1067,15 +1067,15 @@ action_weights = {{ mine = 1.0 }}
 }
 
 #[test]
-fn solend_fork_adapter_parses_without_oracles_block() {
-    // Backwards compat: 's shipped solend-fork adapter must
+fn lending_adapter_parses_without_oracles_block() {
+    // Backwards compat: 's shipped lending adapter must
     // continue to parse cleanly with NO [[oracles]] block, and the
     // `oracles` field must default to empty.
-    let solend_toml = include_str!("../../fixtures/adapters/solend-fork.toml");
-    let adapter = parse_adapter_str(solend_toml, "solend-fork.toml").expect("parse solend");
+    let solend_toml = include_str!("../../fixtures/adapters/lending.toml");
+    let adapter = parse_adapter_str(solend_toml, "lending.toml").expect("parse solend");
     assert!(
         adapter.oracles.is_empty(),
-        "solend-fork.toml should default to zero declared oracles to preserve \
+        "lending.toml should default to zero declared oracles to preserve \
          hero-grid determinism; got {:?}",
         adapter.oracles
     );

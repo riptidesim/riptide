@@ -15,7 +15,7 @@ A one-line description of the bug.
 2....
 3. Observe...
 
-If the bug reproduces against a shipping fixture (`fixtures/adapters/solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `resource-grinder.toml`), mention that — it's the fastest path to a repro on our end.
+If the bug reproduces against a shipping fixture (`fixtures/adapters/lending.toml`, `perpetuals.toml`, `amm.toml`, `resource-grinder.toml`), mention that — it's the fastest path to a repro on our end.
 
 ## Expected behavior
 

@@ -2,7 +2,7 @@
 #
 # Standalone TOML fragment the future `scripts/liquid-staking-scratch.sh`
 # sidecar will concatenate onto a truncated copy of
-# `fixtures/adapters/liquid-staking-fork.toml` below the
+# `fixtures/adapters/liquid-staking.toml` below the
 # `# === SIDECAR-CUT ===` marker.
 #
 # Redemption-dominant baseline that reacts violently to rate drops.

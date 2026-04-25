@@ -14,7 +14,7 @@
 // startup cost. The real engine invocation path is covered by the
 // byte-stable regression-hash gates in scripts/perps-scratch.sh,
 // scripts/amm-scratch.sh, and the hero-grid artifact under
-// fixtures/scenarios/solend-fork/hero-grid/w25-s40/.
+// fixtures/scenarios/lending/hero-grid/w25-s40/.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -495,12 +495,12 @@ test("resolveAdapterForScenario: scenario's run-config 'adapter' field wins over
 test("resolveAdapterForScenario: monorepo bundle fallback derives from first path segment", async () => {
   // Mixed-bundle scenarios in the monorepo must pick the bundle adapter
   // that matches their name prefix. resource-grinder scenarios must NOT
-  // end up using solend-fork's adapter — that's the T09 bug.
+  // end up using lending's adapter — that's the T09 bug.
   const monorepo = await tmpRoot("adapter-bundle");
   const adaptersDir = path.join(monorepo, "fixtures", "adapters");
   await mkdir(adaptersDir, { recursive: true });
   const grinderAdapter = path.join(adaptersDir, "resource-grinder.toml");
-  const solendAdapter = path.join(adaptersDir, "solend-fork.toml");
+  const solendAdapter = path.join(adaptersDir, "lending.toml");
   await writeFile(grinderAdapter, "g\n");
   await writeFile(solendAdapter, "s\n");
 
@@ -514,7 +514,7 @@ test("resolveAdapterForScenario: monorepo bundle fallback derives from first pat
   );
   const resSolend = resolveAdapterForScenario(
     {
-      name: "solend-fork/hero-grid/w25-s40",
+      name: "lending/hero-grid/w25-s40",
       runConfigPath: "/nonexistent.json"
     },
     { cwd, monorepoRoot: monorepo }
@@ -579,9 +579,9 @@ test("resolveAdapterForScenario: monorepo fallback fires only when first-segment
   // missing too, errors out.
   const monorepo = await tmpRoot("adapter-bundle-missing");
   await mkdir(path.join(monorepo, "fixtures", "adapters"), { recursive: true });
-  // only solend-fork present
+  // only lending present
   await writeFile(
-    path.join(monorepo, "fixtures", "adapters", "solend-fork.toml"),
+    path.join(monorepo, "fixtures", "adapters", "lending.toml"),
     "y\n"
   );
 
@@ -740,10 +740,10 @@ test("resolveArtifactsDir: default produces a relative .riptide/runs/<scenario-n
   // home dir into every result file.
   const { resolveArtifactsDir } = await import("../src/run/loop.js");
   const p = resolveArtifactsDir({
-    scenario: { name: "solend-fork/hero-grid/w25-s40", runConfigPath: "/x.json" },
+    scenario: { name: "lending/hero-grid/w25-s40", runConfigPath: "/x.json" },
     cwd: "/x/repo"
   });
-  assert.equal(p, path.join(".riptide", "runs", "solend-fork", "hero-grid", "w25-s40"));
+  assert.equal(p, path.join(".riptide", "runs", "lending", "hero-grid", "w25-s40"));
   assert.equal(path.isAbsolute(p), false);
 });
 

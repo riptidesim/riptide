@@ -12,7 +12,7 @@
 - [`pack.md`](pack.md) — reviewer-ready evidence pack shape emitted on every `riptide run` and `riptide replay`.
 - [`ci-handoff.md`](ci-handoff.md) — cold-start GitHub Actions recipe for rerunning a committed proof and asserting its canonical hash; downstream-adoption template.
 - [`adapter-lineage.md`](adapter-lineage.md) — optional `[lineage]` block on adapter TOMLs + the `riptide lineage` inspection command; authored declaration of IDL source, inferred assumptions, and unsupported fields.
-- [`case-studies/solend-fork.md`](case-studies/solend-fork.md) — the 3×3 whale × shock hero grid on a Solend fork; the shipping outcome demo.
+- [`case-studies/lending.md`](case-studies/lending.md) — the 3×3 whale × shock hero grid on a Solend fork; the shipping outcome demo.
 - [`assets/`](assets/) — screenshots and images referenced from the README and docs.
 
 Top-level `VISION.md`, `CONTRIBUTING.md`, and `TOOLCHAIN.md` live at the repo root on purpose — they surface at the repo landing page, not inside this tree.

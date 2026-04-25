@@ -1,6 +1,6 @@
 # Stablecoin-fork adapter — replay variant.
 #
-# Copy of `fixtures/adapters/stablecoin-fork.toml` trimmed to just the
+# Copy of `fixtures/adapters/stablecoin.toml` trimmed to just the
 # replay-load-bearing surface (accounts, state mapping, oracle
 # binding, invariants). Personas are intentionally omitted because
 # replay mode bypasses persona compilation — every instruction is
@@ -17,7 +17,7 @@
 # during smoke. The replay operates against *explicitly-initialized*
 # pool state (`initialize_pool` + 5 × `deposit_collateral` +
 # 5 × `mint_stable` in `initial-state.json`), so the floor has honest
-# meaning here. Same discipline liquid-staking-fork uses: replay adds
+# meaning here. Same discipline liquid-staking uses: replay adds
 # `no_queue_formation` scoped locally.
 #
 # The `riptide replay` CLI's replay-config JSON (at
@@ -26,8 +26,8 @@
 # it via `load_adapter(fixture_dir().join("adapter.toml"))`.
 
 protocol = "generic"
-program_so = "../../../programs/stablecoin-fork/target/deploy/stablecoin_fork.so"
-idl_path = "../../../fixtures/idls/stablecoin-fork.json"
+program_so = "../../../programs/stablecoin/target/deploy/stablecoin.so"
+idl_path = "../../../fixtures/idls/stablecoin.json"
 
 [accounts.pool]
 kind = "shared"

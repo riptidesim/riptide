@@ -64,7 +64,7 @@ export function buildSimulateOptions(raw: Record<string, unknown>): { config: Si
         throw new Error(
           `adapter TOML not found at ${adapterPath}\n` +
             `Expected a path to a Riptide adapter file.\n` +
-            `Try one of the shipped examples: fixtures/adapters/solend-fork.toml ` +
+            `Try one of the shipped examples: fixtures/adapters/lending.toml ` +
             `or fixtures/adapters/resource-grinder.toml, or drop --adapter to use the default lending primitive.`
         );
       }

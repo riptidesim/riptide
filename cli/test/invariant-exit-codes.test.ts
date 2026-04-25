@@ -168,7 +168,7 @@ async function writeFixtures(
 
 /**
  * Minimal lending adapter that round-trips — same shape as the shipped
- * solend-fork.toml but inline so we can parametrize the [[invariants]]
+ * lending.toml but inline so we can parametrize the [[invariants]]
  * block per test case.
  */
 const CLEAN_ADAPTER = `protocol = "lending"

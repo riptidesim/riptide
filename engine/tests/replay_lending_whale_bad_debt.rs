@@ -9,7 +9,7 @@
 //!
 //! 1. The replay runs end-to-end on the replay-scoped adapter
 //! `fixtures/replays/lending-whale-bad-debt/adapter.toml` — a copy of
-//! the shipped `solend-fork.toml` with a `no_bad_debt` invariant added.
+//! the shipped `lending.toml` with a `no_bad_debt` invariant added.
 //! The shipped adapter stays clean so the hero-grid hash
 //! `89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11`
 //! (which also produces bad debt at `w25-s40`) stays byte-stable.
@@ -107,7 +107,7 @@ fn run_fixture() -> SimulationResult {
     }
 
     let adapter = load_adapter(&fixture.join("adapter.toml"))
-        .expect("load replay-scoped solend-fork adapter");
+        .expect("load replay-scoped lending adapter");
     let bundle = load_replay_bundle(&fixture, &adapter).expect("load replay bundle");
 
     let bootstrap_price = OracleUpdate {

@@ -45,7 +45,7 @@ impl fmt::Display for AdapterError {
                     write!(
                         f,
                         "adapter TOML not found at {path}\n\
-                         Expected a path to an adapter file (e.g. fixtures/adapters/solend-fork.toml).\n\
+                         Expected a path to an adapter file (e.g. fixtures/adapters/lending.toml).\n\
                          Check that --adapter points at a readable file, or drop the flag to use the default lending primitive."
                     )
                 } else {
@@ -1774,7 +1774,7 @@ kind = "admin-mock"
 
     #[test]
     fn existing_shipped_adapters_parse_without_owner_metadata() {
-        for name in ["solend-fork", "perps-fork", "amm-fork"] {
+        for name in ["lending", "perpetuals", "amm"] {
             let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("..")
                 .join("fixtures")
@@ -1792,12 +1792,12 @@ kind = "admin-mock"
     }
 
     #[test]
-    fn loads_shipped_solend_fork_fixture() {
+    fn loads_shipped_lending_fixture() {
         let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("fixtures")
             .join("adapters")
-            .join("solend-fork.toml");
+            .join("lending.toml");
         let adapter = load_adapter(&fixture)
             .unwrap_or_else(|e| panic!("fixture adapter should load: {e}"));
         assert!(matches!(adapter.protocol, Protocol::Lending));

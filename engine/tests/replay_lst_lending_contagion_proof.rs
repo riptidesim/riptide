@@ -10,7 +10,7 @@
 //! Three things are locked:
 //!
 //! 1. The composed replay runs end-to-end through the multi-component
-//!    coordinator against the shipping `liquid-staking-fork` and
+//!    coordinator against the shipping `liquid-staking` and
 //!    `lending_pool` programs loaded into one shared LiteSVM.
 //! 2. The canonical `SimulationResult` hash + summary subset stay
 //!    byte-pinned to the checked-in `expected-summary.json` baseline.
@@ -76,8 +76,8 @@ fn required_artifacts() -> Vec<(PathBuf, &'static str)> {
     let repo = monorepo_root();
     vec![
         (
-            repo.join("programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so"),
-            "liquid_staking_fork.so",
+            repo.join("programs/liquid-staking/target/deploy/liquid_staking.so"),
+            "liquid_staking.so",
         ),
         (
             repo.join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so"),

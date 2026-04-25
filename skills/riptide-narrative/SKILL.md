@@ -26,7 +26,7 @@ program is safe, broken, or even interesting outside the parameter
 point the run sampled. The narrative names mechanism and cites
 evidence; the reader draws the conclusion.
 
-Copy the voice of `docs/case-studies/solend-fork.md`. That file is
+Copy the voice of `docs/case-studies/lending.md`. That file is
 the canonical tone reference: causal, mechanical, modest about
 what the run proves, specific about what it observed. Do **not**
 restate the mechanical report's summary table in prose — the point

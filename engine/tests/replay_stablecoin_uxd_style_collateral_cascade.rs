@@ -5,7 +5,7 @@
 //!
 //! 1. The replay runs end-to-end through the generic-harness path
 //!    against a replay-scoped adapter that mirrors
-//!    `fixtures/adapters/stablecoin-fork.toml` plus two scoped
+//!    `fixtures/adapters/stablecoin.toml` plus two scoped
 //!    invariants: `full_backing` (effective_collateral_ratio_bps >=
 //!    10_000) and `no_redemption_queue_formation`
 //!    (pending_redemption_count == 0).
@@ -108,7 +108,7 @@ fn canonical_hash(result: &SimulationResult) -> String {
 fn run_fixture() -> SimulationResult {
     let fixture = fixture_dir();
     let adapter = load_adapter(&fixture.join("adapter.toml"))
-        .expect("load replay-scoped stablecoin-fork adapter");
+        .expect("load replay-scoped stablecoin adapter");
     let bundle = load_replay_bundle(&fixture, &adapter).expect("load replay bundle");
 
     let idl_path = PathBuf::from(
@@ -214,8 +214,8 @@ fn stablecoin_uxd_style_collateral_cascade_matches_expected_and_is_deterministic
     let repo = monorepo_root();
     let required_artifacts: &[(PathBuf, &str)] = &[
         (
-            repo.join("programs/stablecoin-fork/target/deploy/stablecoin_fork.so"),
-            "stablecoin_fork.so",
+            repo.join("programs/stablecoin/target/deploy/stablecoin.so"),
+            "stablecoin.so",
         ),
         (
             repo.join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so"),

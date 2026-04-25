@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AMM persona scratch runner.
 #
-# Mirrors the `scripts/perps-scratch.sh` sidecar pattern:
+# Mirrors the `scripts/perpetuals-scratch.sh` sidecar pattern:
 # read persona TOMLs from disk, merge them into a runtime copy of the
 # adapter, run one 20-agent, 30-tick simulation twice with a fixed
 # seed, sha256 the outputs, assert byte-identical across replays.
@@ -16,7 +16,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 ENGINE="${RIPTIDE_ENGINE_BIN:-$REPO_ROOT/target/release/riptide-engine}"
-BASE_ADAPTER="fixtures/adapters/amm-fork.toml"
+BASE_ADAPTER="fixtures/adapters/amm.toml"
 PERSONAS_DIR="fixtures/personas"
 PERSONA_IDS=(lp-provider arbitrageur sandwich-attacker swapper rug-puller)
 AGENTS=20
@@ -43,15 +43,15 @@ done
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-# --- Build the runtime adapter: truncate the shipping amm-fork.toml
+# --- Build the runtime adapter: truncate the shipping amm.toml
 # at the `# === SIDECAR-CUT ===` marker (everything above stays;
 # the smoke-test personas below it are dropped), then append each
 # persona file so the [personas.*] block is the AMM library.
 # Relative program_so / idl_path are rewritten to absolute repo
 # paths because the adapter file lives in $WORK_DIR/ at runtime.
-RUNTIME_ADAPTER="$WORK_DIR/amm-fork.runtime.toml"
-PROGRAM_SO_ABS="$REPO_ROOT/programs/amm-fork/target/deploy/amm_fork.so"
-IDL_PATH_ABS="$REPO_ROOT/fixtures/idls/amm-fork.json"
+RUNTIME_ADAPTER="$WORK_DIR/amm.runtime.toml"
+PROGRAM_SO_ABS="$REPO_ROOT/programs/amm/target/deploy/amm.so"
+IDL_PATH_ABS="$REPO_ROOT/fixtures/idls/amm.json"
 awk '/^# === SIDECAR-CUT ===$/ { exit } { print }' "$BASE_ADAPTER" \
   | sed -e "s|^program_so *=.*|program_so = \"$PROGRAM_SO_ABS\"|" \
         -e "s|^idl_path *=.*|idl_path = \"$IDL_PATH_ABS\"|" \

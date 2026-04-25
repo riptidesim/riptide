@@ -1,13 +1,13 @@
 # Liquid-staking-fork adapter — replay variant.
 #
-# Copy of `fixtures/adapters/liquid-staking-fork.toml` trimmed to just
+# Copy of `fixtures/adapters/liquid-staking.toml` trimmed to just
 # the replay-load-bearing surface (accounts, state mapping, oracle
 # binding, invariants). Personas are intentionally omitted because
 # replay mode bypasses persona compilation — every instruction is
 # dispatched directly from `trajectory.json`.
 #
 # **Why a replay-specific adapter.** Adding `no_queue_formation` to the
-# shipped `fixtures/adapters/liquid-staking-fork.toml` would change the
+# shipped `fixtures/adapters/liquid-staking.toml` would change the
 # output shape of every liquid-staking run (invariants_fired gains a
 # row), which can drift the smoke gate for the shipped adapter. Keeping
 # the invariant scoped to this replay fixture preserves the shipping
@@ -20,8 +20,8 @@
 # it via `load_adapter(fixture_dir().join("adapter.toml"))`.
 
 protocol = "generic"
-program_so = "../../../programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so"
-idl_path = "../../../fixtures/idls/liquid-staking-fork.json"
+program_so = "../../../programs/liquid-staking/target/deploy/liquid_staking.so"
+idl_path = "../../../fixtures/idls/liquid-staking.json"
 
 [accounts.pool]
 kind = "shared"

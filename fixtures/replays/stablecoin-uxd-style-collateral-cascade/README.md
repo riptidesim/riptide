@@ -1,6 +1,6 @@
 # UXD-Style Collateral-Cascade Proof
 
-Named stablecoin proof artifact for the Riptide `stablecoin-fork`
+Named stablecoin proof artifact for the Riptide `stablecoin`
 bundle. Replay-mode rendering of a **single-program failure shape**:
 an authority-gated `apply_hedge_loss` shrinks delegated collateral,
 the effective collateral ratio falls below par, and a subsequent
@@ -19,7 +19,7 @@ delegated to external yield venues, …) — the fixture names the
 ## What this proof is
 
 An **abstracted pressure replay** of a UXD-style collateral-cascade +
-redemption-run geometry against the shipped `stablecoin-fork`
+redemption-run geometry against the shipped `stablecoin`
 bundle. It is NOT:
 
 - a literal byte-level replay of the UXD / Mango 2022 incident,
@@ -161,7 +161,7 @@ reference.
 
 ## Artifacts
 
-- `adapter.toml` — replay-scoped stablecoin-fork adapter (mirrors
+- `adapter.toml` — replay-scoped stablecoin adapter (mirrors
   the shipping file, adds `full_backing` and
   `no_redemption_queue_formation` invariants that the shipping
   adapter deliberately omits to stay tick-0-safe on the generic
@@ -201,11 +201,11 @@ reference.
   stablecoin's native pair. Those are separate bundles.
 - **No oracle staleness or NAV-drift dynamics.** The bound oracle
   receives real admin-mock bytes per the declared trajectory, but
-  the shipping `stablecoin_fork` processor does not read the oracle
+  the shipping `stablecoin` processor does not read the oracle
   — backing is driven by on-account state only. A later bundle can
   add oracle-gated pricing without reshaping this fixture.
 - **Not a fork of any real stablecoin codebase.** The
-  `stablecoin-fork` program is a minimal surface chosen for
+  `stablecoin` program is a minimal surface chosen for
   determinism and clarity of the failure shape, not production
   fidelity.
 
@@ -235,9 +235,9 @@ security-minded engineer, not as a certification.
   incident disclosures describe the hedge leg's impairment on an
   off-program venue.
 - Program surface + state machine:
-  `programs/stablecoin-fork/src/`
+  `programs/stablecoin/src/`
 - Shipping adapter + invariants:
-  `fixtures/adapters/stablecoin-fork.toml`
+  `fixtures/adapters/stablecoin.toml`
 - Bundle-level context (stablecoin class, generic-oracle path,
   single-program boundary, hedge-gap internalization rationale):
   `.specs/features/sprint-14-stablecoin-bundle/spec.md`

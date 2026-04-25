@@ -163,7 +163,7 @@ pub trait Primitive {
     /// `[[scheduled_actions]][…].instruction` value and `name` is the
     /// action's display name. Default impl is a no-op so lending and
     /// generic primitives continue to work without any scheduled
-    /// actions declared. 's perps-fork primitive overrides this
+    /// actions declared. 's perpetuals primitive overrides this
     /// to dispatch the on-chain instruction directly.
     ///
     /// Implementations are observed by

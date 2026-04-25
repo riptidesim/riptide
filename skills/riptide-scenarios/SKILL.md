@@ -61,7 +61,7 @@ For each proposed experiment, write three files to
     "failure_mode": "…", "rationale": "…" }`.
 
 `<adapter-name>` is the adapter TOML's filename stem
-(`solend-fork.toml` → `solend-fork`). `<experiment-slug>` is a
+(`lending.toml` → `lending`). `<experiment-slug>` is a
 kebab-case identifier the skill picks that captures the failure mode
 under test (e.g. `whale-share-sweep`, `shock-magnitude-sweep`,
 `botter-mix-stress`).
@@ -70,7 +70,7 @@ under test (e.g. `whale-share-sweep`, `shock-magnitude-sweep`,
 that proposals boot; the developer runs the full experiment.
 
 **Do not** overwrite directories under
-`fixtures/scenarios/solend-fork/hero-grid/`. Those are sealed
+`fixtures/scenarios/lending/hero-grid/`. Those are sealed
 case-study artifacts. Write new sibling directories.
 
 ## Flow
@@ -201,7 +201,7 @@ oracle" framing — proposals that boot are not proposals that hold up.
 - Claim that a proposed experiment reveals a bug. The skill
   proposes *plausible* failure modes based on program shape; the
   experiment outcome is the developer's call.
-- Modify sealed artifacts under `fixtures/scenarios/solend-fork/
+- Modify sealed artifacts under `fixtures/scenarios/lending/
   hero-grid/`.
 - Duplicate the run-config or policy schemas. The authoritative
   schemas live in `engine/src/types.rs` (serde) and

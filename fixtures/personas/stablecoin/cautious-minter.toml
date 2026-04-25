@@ -1,7 +1,7 @@
 # Stablecoin persona — cautious minter.
 #
 # Standalone TOML fragment. Canonical reviewer-inspection source for
-# the persona mirrored inline into `fixtures/adapters/stablecoin-fork.toml`
+# the persona mirrored inline into `fixtures/adapters/stablecoin.toml`
 # above that file's `# === SIDECAR-CUT ===` marker. A future
 # bare-adapter scratch harness that wants to compose an adapter from
 # scratch (not from the shipping adapter) can concatenate this file
@@ -15,7 +15,7 @@
 # triggers: cautious-minter is the reference population against
 # which panic-redeemer and arb-redeemer pressure is measured.
 #
-# Action names match the shipped stablecoin-fork adapter's
+# Action names match the shipped stablecoin adapter's
 # `[instructions]` keys: `deposit_collateral`, `mint_stable`,
 # `request_redeem`, `claim_redeem`.
 [personas.cautious-minter]

@@ -1,7 +1,7 @@
 # LST Depeg + Withdrawal-Run Pressure Replay
 
 Named liquid-staking proof artifact for the Riptide
-`liquid-staking-fork` bundle. Replay-mode rendering of a
+`liquid-staking` bundle. Replay-mode rendering of a
 **single-program failure shape**: an authority-gated `apply_slash`
 shrinks delegated assets, the exchange rate falls, and a subsequent
 redemption cohort overruns the pool's liquid reserve and lands on
@@ -15,7 +15,7 @@ names the *shape*, not a specific protocol.
 ## What this proof is
 
 An **abstracted pressure replay** of an LST depeg + redemption-run
-geometry against the shipped `liquid-staking-fork` bundle. It is NOT:
+geometry against the shipped `liquid-staking` bundle. It is NOT:
 
 - a byte-level replay of any specific on-chain incident,
 - a cross-protocol contagion claim (LST collateral in Aave / Morpho /
@@ -117,7 +117,7 @@ pack shape reference.
 
 ## Artifacts
 
-- `adapter.toml` — replay-scoped liquid-staking-fork adapter (mirrors
+- `adapter.toml` — replay-scoped liquid-staking adapter (mirrors
   the shipping file, adds `no_queue_formation` invariant).
 - `initial-state.json` — pre-tick bootstrap (`initialize_pool` +
   5 × `stake(2000)`).
@@ -147,7 +147,7 @@ pack shape reference.
   admin-mock bytes per the declared trajectory; the engine's generic
   path does not currently expose a per-tick oracle-lag knob, so the
   proof does not stress the redemption-vs-stale-price gap.
-- **Not a fork of any real LST codebase.** The `liquid-staking-fork`
+- **Not a fork of any real LST codebase.** The `liquid-staking`
   program is a minimal surface chosen for determinism and clarity of
   the failure shape, not production fidelity.
 
@@ -172,8 +172,8 @@ security-minded engineer, not as a certification.
 
 - Background on the 2024 Kelp / rsETH depeg (public reporting):
   `https://www.theblock.co/post/302443/kelp-rseth-depeg-june-2024`
-- Program surface + state machine: `programs/liquid-staking-fork/src/`
-- Shipping adapter + invariants: `fixtures/adapters/liquid-staking-fork.toml`
+- Program surface + state machine: `programs/liquid-staking/src/`
+- Shipping adapter + invariants: `fixtures/adapters/liquid-staking.toml`
 - Bundle-level context (LST class, generic-oracle path,
   single-program boundary):
   `.specs/features/sprint-10-liquid-staking-proof/spec.md`

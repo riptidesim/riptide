@@ -183,8 +183,8 @@ test("discoverAdapters: user-repo layer — `.riptide/adapters` wins, does NOT l
   const names = found.map((a) => a.name).sort();
   // Review regression: previously `discoverAdapters` unconditionally
   // unioned the module-derived monorepo root, so a downstream user
-  // repo like this one pulled in amm-fork / liquid-staking-fork /
-  // perps-fork / resource-grinder / solend-fork. Every path beneath
+  // repo like this one pulled in amm / liquid-staking /
+  // perpetuals / resource-grinder / lending. Every path beneath
   // the test cwd is all we should ever see here.
   assert.deepEqual(names, ["my-program"], `unexpected monorepo leak: ${names.join(", ")}`);
   const myProgram = found.find((a) => a.name === "my-program");
@@ -434,7 +434,7 @@ triggers = []
 // `.riptide/adapters/my-program.toml` must not inherit shipping
 // adapters from the surrounding Riptide checkout. Previously the
 // module-derived monorepo root was unioned into discovery and
-// unrelated warns/fails (`perps-fork`, `solend-fork`) bubbled up into
+// unrelated warns/fails (`perpetuals`, `lending`) bubbled up into
 // the downstream operator's exit code.
 test("runDoctor: downstream user repo is isolated — does NOT inherit shipping monorepo adapters", async () => {
   const { cwd } = await setupRepo({ layout: "user-repo" });
@@ -460,7 +460,7 @@ test("runDoctor: downstream user repo is isolated — does NOT inherit shipping 
   // checkout cannot flip the verdict via a drifted fixture.
   assert.ok(exit === 0 || exit === 1, `expected 0/1 from user-repo only, got ${exit}. stdout:\n${out}`);
   assert.match(out, /my-program/);
-  for (const shipping of ["amm-fork", "perps-fork", "liquid-staking-fork", "solend-fork", "resource-grinder"]) {
+  for (const shipping of ["amm", "perpetuals", "liquid-staking", "lending", "resource-grinder"]) {
     assert.doesNotMatch(
       out,
       new RegExp(`\\b${shipping}\\b`),
@@ -662,7 +662,7 @@ test("runDoctor: empty repo (no adapters anywhere) → exit 1 with init hint", a
   assert.match(out, /Verdict: WARN/);
 });
 
-test("runDoctor: solend-fork in monorepo lands as warn-only (non-JSON lineage)", async () => {
+test("runDoctor: lending in monorepo lands as warn-only (non-JSON lineage)", async () => {
   // Use the real shipping monorepo fixtures by pointing cwd at it.
   const cwd = path.resolve(process.cwd(), "..");
   let out = "";
@@ -684,7 +684,7 @@ test("runDoctor: solend-fork in monorepo lands as warn-only (non-JSON lineage)",
   // Could be 0 or 1 depending on shipping adapter coverage warnings.
   // Either way, doctor must NOT FAIL on a clean monorepo.
   assert.ok(exit === 0 || exit === 1, `expected 0/1 on shipping monorepo, got ${exit}. stdout:\n${out}`);
-  assert.match(out, /solend-fork/);
+  assert.match(out, /lending/);
   assert.doesNotMatch(out, /load=fail/);
 });
 

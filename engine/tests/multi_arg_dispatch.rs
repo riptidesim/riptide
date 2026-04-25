@@ -280,7 +280,7 @@ triggers = []
 
 #[test]
 fn single_arg_adapter_stays_byte_identical() {
-    // Backwards compat gate: 's perps-fork / resource-grinder
+    // Backwards compat gate: 's perpetuals / resource-grinder
     // single-arg shape must continue to produce the exact same bytes
     // under the new multi-arg encoder. Builds a minimal single-arg
     // adapter and asserts the 16-byte payload: 8-byte discriminator +

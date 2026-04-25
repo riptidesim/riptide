@@ -3,7 +3,7 @@
 First cross-protocol evidence artifact Riptide ships. An upstream
 liquid-staking depeg propagates into downstream lending bad debt through
 one declared bridge inside a single deterministic replay run against the
-shipping `liquid-staking-fork` and `lending_pool` programs loaded into
+shipping `liquid-staking` and `lending_pool` programs loaded into
 one shared LiteSVM world.
 
 This is a **replay-scoped multi-program proof**, not a forensic
@@ -202,7 +202,7 @@ exact canonicalization.
 - Generalized multi-program persona sweeps (replay only; no
   population-driven scenario engine).
 - Real production protocol adapter coverage (this is
-  `liquid-staking-fork` + `lending_pool`, not Kamino / Marginfi /
+  `liquid-staking` + `lending_pool`, not Kamino / Marginfi /
   Marinade / Jito / Sanctum / Kelp).
 - Arbitrary cross-program transaction graphs (the bridge is scalar
   observation → scalar oracle write with an explicit transform).

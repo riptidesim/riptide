@@ -100,7 +100,7 @@ fn canonical_hash(result: &SimulationResult) -> String {
 fn run_fixture() -> SimulationResult {
     let fixture = fixture_dir();
     let adapter = load_adapter(&fixture.join("adapter.toml"))
-        .expect("load replay-scoped liquid-staking-fork adapter");
+        .expect("load replay-scoped liquid-staking adapter");
     let bundle = load_replay_bundle(&fixture, &adapter).expect("load replay bundle");
 
     let idl_path = PathBuf::from(
@@ -202,8 +202,8 @@ fn liquid_staking_slash_with_open_queue_matches_expected_and_is_deterministic() 
     let repo = monorepo_root();
     let required_artifacts: &[(PathBuf, &str)] = &[
         (
-            repo.join("programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so"),
-            "liquid_staking_fork.so",
+            repo.join("programs/liquid-staking/target/deploy/liquid_staking.so"),
+            "liquid_staking.so",
         ),
         (
             repo.join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so"),

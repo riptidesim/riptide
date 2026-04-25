@@ -11,13 +11,13 @@
 # silently go green on an economically wrong signal.
 #
 # Keeping this adapter scoped to the replay fixture (rather than
-# folding the extra invariant into `fixtures/adapters/liquid-staking-fork.toml`)
+# folding the extra invariant into `fixtures/adapters/liquid-staking.toml`)
 # preserves the shipping adapter's hash and keeps the smoke-gate
 # invariant row count stable.
 
 protocol = "generic"
-program_so = "../../../programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so"
-idl_path = "../../../fixtures/idls/liquid-staking-fork.json"
+program_so = "../../../programs/liquid-staking/target/deploy/liquid_staking.so"
+idl_path = "../../../fixtures/idls/liquid-staking.json"
 
 [accounts.pool]
 kind = "shared"

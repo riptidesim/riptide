@@ -52,8 +52,8 @@ fn required_artifacts() -> Vec<(PathBuf, &'static str)> {
     let repo = monorepo_root();
     vec![
         (
-            repo.join("programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so"),
-            "liquid_staking_fork.so",
+            repo.join("programs/liquid-staking/target/deploy/liquid_staking.so"),
+            "liquid_staking.so",
         ),
         (
             repo.join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so"),
@@ -145,7 +145,7 @@ fn emit_pack_for_fixture(dir: &Path) -> Vec<(String, Vec<u8>)> {
             "exec riptide-engine replay --config fixtures/replays/lst-lending-contagion-proof/config.json --output riptide-output/replays/lst-lending-contagion-proof/simulation-result.json"
                 .to_string(),
         ),
-        adapter_display: Some("multi-component: liquid-staking-fork × lending_pool".to_string()),
+        adapter_display: Some("multi-component: liquid-staking × lending_pool".to_string()),
     };
 
     emit_pack(&result, &inputs, &outputs, &options)
@@ -199,11 +199,11 @@ fn sha256_hex(bytes: &[u8]) -> String {
 /// constant and re-run the verifying test.
 const EXPECTED_PACK_HASHES: &[(&str, &str)] = &[
     ("inputs/paths.json", "a4fe09485bd0e73aabdca484299979ae60631872c43ac632de3a4ce411b0beb5"),
-    ("manifest.json", "28dfcb148b53b0c0cac88abd201cad674044b4db224e285e450b51c52943d07e"),
+    ("manifest.json", "8378f16042077b655ff180c76c592d9cf4fc01bedb7de920d7e094a794f0d78b"),
     ("outputs/paths.json", "b5238b2cdb67074ece3cb9c191167a71c3750dd7ef37015c9274afc1929f63b7"),
     ("rerun.sh", "9efc7a52991233f1c3a2cde0ff12882a7ea24dcded49a82825435734cdbfcfa7"),
-    ("summary.md", "d07776dab37868638e4571eab9e987d3d0d2cafdb8e7fc780f69fce5cd2c28b1"),
-    ("trace.md", "49879b9735979ff94146050b48fb86f46d0623008cd27d9fcf926dea5626345a"),
+    ("summary.md", "19b3f5ab39ba22f1b5edc2afbadfd02610247fcaedd8d7e866908929e5039e52"),
+    ("trace.md", "be1742d0a8720bfa7c2d8ed62dba2c78da4a1db39b055d474ecb11e1d9414068"),
 ];
 
 #[test]

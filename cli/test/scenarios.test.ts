@@ -53,7 +53,7 @@ const VALID_POLICIES = [
 ];
 
 const VALID_MANIFEST = {
-  adapter: "fixtures/adapters/solend-fork.toml",
+  adapter: "fixtures/adapters/lending.toml",
   slug: "test-slug",
   failure_mode: "whale_concentration",
   rationale:
@@ -95,10 +95,10 @@ async function writeScenario(
 
 function findMonorepoRoot(): string {
   // Tests run out of dist/test — walk up until we hit the monorepo
-  // (the directory containing `fixtures/adapters/solend-fork.toml`).
+  // (the directory containing `fixtures/adapters/lending.toml`).
   let here = path.dirname(fileURLToPath(import.meta.url));
   for (let i = 0; i < 10; i++) {
-    if (existsSync(path.resolve(here, "fixtures/adapters/solend-fork.toml"))) {
+    if (existsSync(path.resolve(here, "fixtures/adapters/lending.toml"))) {
       return here;
     }
     const parent = path.resolve(here, "..");
@@ -296,7 +296,7 @@ test("validateScenario: resolves relative adapter path from monorepo root", asyn
   const dir = await writeScenario({
     runConfig: VALID_RUN_CONFIG,
     policies: VALID_POLICIES,
-    manifest: { ...VALID_MANIFEST, adapter: "fixtures/adapters/solend-fork.toml" }
+    manifest: { ...VALID_MANIFEST, adapter: "fixtures/adapters/lending.toml" }
   });
   const result = await validateScenario(
     {

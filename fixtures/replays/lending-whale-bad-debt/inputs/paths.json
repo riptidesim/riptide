@@ -1,0 +1,4 @@
+{
+  "adapter": "fixtures/replays/lending-whale-bad-debt/adapter.toml",
+  "config": "fixtures/replays/lending-whale-bad-debt/config.json"
+}

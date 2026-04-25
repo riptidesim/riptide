@@ -21,7 +21,7 @@ lineage, and does not promise full semantic coverage.
 
 ```toml
 [lineage]
-idl_source = "fixtures/idls/liquid-staking-fork.json"
+idl_source = "fixtures/idls/liquid-staking.json"
 generator  = "hand-authored"
 inferred_assumptions = [
   "`protocol = \"generic\"` instead of `Protocol::LiquidStaking` — classification reads instruction/observation names, so the dedicated variant would be cosmetic.",
@@ -69,7 +69,7 @@ riptide lineage <adapter>
 ```
 
 The `<adapter>` argument resolves two ways: as a short name (e.g.
-`solend-fork`), the command loads
+`lending`), the command loads
 `fixtures/adapters/<adapter>.toml` relative to the monorepo root
 (override via `$RIPTIDE_FIXTURES_ROOT`); as a path containing `/`,
 the platform separator, or a `.toml` suffix, the command loads the
@@ -88,11 +88,11 @@ file, malformed content) exits 2 with a diagnostic.
 
 Five protocol-class adapters carry hand-reviewed `[lineage]` blocks:
 
-- [`fixtures/adapters/solend-fork.toml`](../fixtures/adapters/solend-fork.toml)
-- [`fixtures/adapters/perps-fork.toml`](../fixtures/adapters/perps-fork.toml)
-- [`fixtures/adapters/amm-fork.toml`](../fixtures/adapters/amm-fork.toml)
-- [`fixtures/adapters/liquid-staking-fork.toml`](../fixtures/adapters/liquid-staking-fork.toml)
-- [`fixtures/adapters/stablecoin-fork.toml`](../fixtures/adapters/stablecoin-fork.toml)
+- [`fixtures/adapters/lending.toml`](../fixtures/adapters/lending.toml)
+- [`fixtures/adapters/perpetuals.toml`](../fixtures/adapters/perpetuals.toml)
+- [`fixtures/adapters/amm.toml`](../fixtures/adapters/amm.toml)
+- [`fixtures/adapters/liquid-staking.toml`](../fixtures/adapters/liquid-staking.toml)
+- [`fixtures/adapters/stablecoin.toml`](../fixtures/adapters/stablecoin.toml)
 
 The generic `resource-grinder` adapter ships without a block on
 purpose — it exercises the `no lineage recorded` path end-to-end.
@@ -123,7 +123,7 @@ reference against the IDL's declared surface.
 - **Non-JSON source** (for example a Rust source-of-record path like
   `programs/lending_pool/src/state.rs`): explicit `WARN` with `exit
   1` and no false PASS. The linter does **not** ship a Rust parser
-  today. `solend-fork` is the canonical warn-only case.
+  today. `lending` is the canonical warn-only case.
 - **Missing `[lineage]` block**: explicit `SKIP` with `exit 0`. There
   is nothing to machine-check; `riptide doctor` additionally lands
   this on its WARN surface at the report level so a
@@ -162,7 +162,7 @@ static diagnostic only.
   adapters; the rest (assumptions, intentional unsupported-field
   prose) still relies on honest human review.
 - **Not yet covered.** Machine validation of non-JSON lineage sources
-  (Rust source of record for adapters like `solend-fork`) is not in
+  (Rust source of record for adapters like `lending`) is not in
   scope — those stay inspection-only and warn. Auto-generation of
   lineage from a program-id, remote IDL fetch, LSP / editor tooling,
   and adapter-diff CLI are all out of scope. Lineage blocks are

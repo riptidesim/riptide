@@ -303,7 +303,7 @@ export function lintAdapterAgainstJsonIdl(
   // Externally-owned accounts (`[accounts.<name>.owner]` with
   // `program_so` or `pubkey`) are legitimately outside the adapter's
   // primary JSON IDL — they belong to a sibling program (e.g. the
-  // admin-mock oracle bound by liquid-staking-fork). Skip the cross
+  // admin-mock oracle bound by liquid-staking). Skip the cross
   // check for those; a missing IDL account is only a failure for
   // accounts that the adapter claims the simulated program itself owns.
   const mappedAccounts: string[] = [];

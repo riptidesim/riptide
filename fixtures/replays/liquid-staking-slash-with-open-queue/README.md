@@ -168,7 +168,7 @@ withdrawal-queue semantics and their own slashing economics.
 - Background on the 2024 Kelp / rsETH depeg dynamics:
   `https://www.theblock.co/post/302443/kelp-rseth-depeg-june-2024`
 - Program surface + corrected formula:
-  `programs/liquid-staking-fork/src/state.rs`
+  `programs/liquid-staking/src/state.rs`
   (`recompute_exchange_rate`)
 - Sibling fixture:
   [`fixtures/replays/liquid-staking-depeg-redemption-run/`](../liquid-staking-depeg-redemption-run/)

@@ -5,7 +5,7 @@
 //!
 //! 1. The replay runs end-to-end through the generic-harness path
 //! (not the lending LiteSvmHarness) against a replay-scoped adapter
-//! that mirrors `fixtures/adapters/liquid-staking-fork.toml` plus a
+//! that mirrors `fixtures/adapters/liquid-staking.toml` plus a
 //! scoped `no_queue_formation` invariant.
 //! 2. The result is deterministic across same-fixture runs.
 //! 3. The canonical replay output hash + the `invariants_fired`
@@ -101,7 +101,7 @@ fn canonical_hash(result: &SimulationResult) -> String {
 fn run_fixture() -> SimulationResult {
     let fixture = fixture_dir();
     let adapter = load_adapter(&fixture.join("adapter.toml"))
-        .expect("load replay-scoped liquid-staking-fork adapter");
+        .expect("load replay-scoped liquid-staking adapter");
     let bundle = load_replay_bundle(&fixture, &adapter).expect("load replay bundle");
 
     let idl_path = PathBuf::from(
@@ -211,8 +211,8 @@ fn liquid_staking_depeg_redemption_run_matches_expected_and_is_deterministic() {
     let repo = monorepo_root();
     let required_artifacts: &[(PathBuf, &str)] = &[
         (
-            repo.join("programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so"),
-            "liquid_staking_fork.so",
+            repo.join("programs/liquid-staking/target/deploy/liquid_staking.so"),
+            "liquid_staking.so",
         ),
         (
             repo.join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so"),

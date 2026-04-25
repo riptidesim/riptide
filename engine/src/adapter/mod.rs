@@ -8,7 +8,7 @@
 //! ## Schema (v0)
 //!
 //! ```toml
-//! # fixtures/adapters/solend-fork.toml
+//! # fixtures/adapters/lending.toml
 //! protocol = "lending"
 //!
 //! [instructions]

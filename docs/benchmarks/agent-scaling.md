@@ -93,7 +93,7 @@ From a fresh clone with the engine + AMM-fork `.so` built:
 
 ```bash
 cargo build --release -p riptide-engine
-cargo build-sbf --manifest-path programs/amm-fork/Cargo.toml
+cargo build-sbf --manifest-path programs/amm/Cargo.toml
 bash scripts/agent-scaling-benchmark.sh
 ```
 
@@ -115,6 +115,6 @@ result and would show up as `status=timeout` or `status=engine_exit_<rc>`.
 
 No new dependencies. Uses `bash`, `python3`, `awk`, `sed`, `sha256sum`, and
 `/proc/<pid>/status` — deliberately avoids `gnu-time` because Arch ships
-without `/usr/bin/time`. The sidecar-adapter pattern (truncate `amm-fork.toml`
+without `/usr/bin/time`. The sidecar-adapter pattern (truncate `amm.toml`
 at `# === SIDECAR-CUT ===`, rewrite to absolute paths, append the five
 persona TOMLs) is inherited from `amm-scratch.sh`.

@@ -52,7 +52,7 @@ export function createLintCommand(deps: LintCommandDeps = {}): Command {
     )
     .argument(
       "<adapter>",
-      "Adapter name (e.g. amm-fork) resolved under fixtures/adapters/, or an explicit path to an adapter TOML"
+      "Adapter name (e.g. amm) resolved under fixtures/adapters/, or an explicit path to an adapter TOML"
     );
 
   return command.action(async (adapter: string, options: LintOptions) => {

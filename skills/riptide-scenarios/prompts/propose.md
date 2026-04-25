@@ -41,7 +41,7 @@ experiment, rank them, and write the top 3–5 to disk.
     (e.g. w25-s40, the Solend June 2022 coordinates), which they
     cannot do if only the middle cell has a `run-config.json`.
     The on-disk layout mirrors the shipping hero grid at
-    `fixtures/scenarios/solend-fork/hero-grid/` — read that
+    `fixtures/scenarios/lending/hero-grid/` — read that
     directory as the authoritative shape reference:
 
         fixtures/scenarios/<adapter-stem>/whale-shock-grid/
@@ -129,7 +129,7 @@ experiment, rank them, and write the top 3–5 to disk.
    `solend-collapse` is not (that's a prediction, not an
    experiment).
 7. Never overwrite anything under
-   `fixtures/scenarios/solend-fork/hero-grid/`. Those are sealed.
+   `fixtures/scenarios/lending/hero-grid/`. Those are sealed.
 
 ## File shapes
 
@@ -254,7 +254,7 @@ the perps-lite scope cut:
 
 - **`funding-rate-oscillation` — DROPPED.** The
   `funding_rate_manipulation` classification category was removed
-  because the perps-fork program shipped without
+  because the perpetuals program shipped without
   `update_funding_rate` ( scope cut). No funding rate
   instruction or observation exists, so no proposal can target it.
   This template will be added in a future sprint when funding rate
@@ -773,11 +773,11 @@ from the top-3-to-5 count.
 
 If `collateral_ratio_spiral` was flagged in isolation (without
 `hedge_gap_depeg` — rare, requires a non-hedge-loss backing-drop
-path the current stablecoin-fork does not ship), emit a
+path the current stablecoin does not ship), emit a
 `collateral-ratio-spiral-staging` proposal at persona-mix 0.50
 redemption-share, same shape as Rule 20.
 `failure_mode: "collateral_ratio_spiral"` in the manifest. The
-rationale must note that the current stablecoin-fork only exposes
+rationale must note that the current stablecoin only exposes
 `apply_hedge_loss` as a backing-drop path, so this staging run is
 a persona-mix companion for whatever out-of-band mutation drives
 the first leg.
@@ -811,7 +811,7 @@ must not appear in any persona's `action_weights`.
 ### AMM policies.json action names
 
 For AMM experiments, action names in `action_weights` must match
-the amm-fork adapter's `[actions]` keys: `swap`, `add_liquidity`,
+the amm adapter's `[actions]` keys: `swap`, `add_liquidity`,
 `remove_liquidity`. Persona-varying multi-arg fields (`direction`
 for `swap`, `amount_b` for `add_liquidity`) live on the persona's
 `persona_args` block in the same shape as the persona

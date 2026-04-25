@@ -93,7 +93,7 @@ use crate::{
             load_generic_program_bytes, observe_account_state, GenericIdl,
             GenericInstructionBuilder, RuntimeOracleBinding,
         },
-        solend_fork::{airdrop as lending_airdrop, send_tx as lending_send_tx},
+        lending_pool::{airdrop as lending_airdrop, send_tx as lending_send_tx},
         PrimitiveError,
     },
     replay::run::{load_replay_bundle, ReplayBundle},

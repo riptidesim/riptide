@@ -13,7 +13,7 @@ Two ways to use Riptide: write your own experiments if you already know what you
 - **Path A — write your own experiments.** If you already know what you're testing for, author a run-config + policies + adapter TOML directly. The safe-vs-risky lending demo (`examples/run-demo.sh`) and the non-DeFi resource-grinder demo are the canonical examples.
 - **Path B — let the skill propose a starter catalog.** Install the `riptide-scenarios` Claude Code skill ([`skills/riptide-scenarios/SKILL.md`](skills/riptide-scenarios/SKILL.md)), invoke it inside any Claude Code session on your adapter + IDL, and it classifies plausible failure modes for your program and proposes 3–5 ranked starter experiments (whale concentration, shock cascades, utilization stress, persona-mix instability, oracle lag, price manipulation, liquidation cascades, impermanent-loss spikes). The skill writes run-configs to `fixtures/scenarios/<adapter>/<experiment>/` and does **not** autorun — the dev picks what to run.
 
-The shipping example of Path A at scale is the Solend-fork case study: a 3×3 whale × shock parameter-boundary discovery run on the Solend fork. See [`docs/case-studies/solend-fork.md`](docs/case-studies/solend-fork.md) for the full report and the load-bearing claim: *Riptide maps the danger region; Solend's actual parameters sit inside it.*
+The shipping example of Path A at scale is the Solend-fork case study: a 3×3 whale × shock parameter-boundary discovery run on the Solend fork. See [`docs/case-studies/lending.md`](docs/case-studies/lending.md) for the full report and the load-bearing claim: *Riptide maps the danger region; Solend's actual parameters sit inside it.*
 
 ## The six-layer stack
 

@@ -12,7 +12,7 @@ name: contagion-proof-ci
 #      prepends to PATH. No `curl | sh` — a swapped installer fails
 #      the checksum step and the workflow exits loudly.
 #   3. Builds the three programs the Sprint 11 contagion proof needs:
-#      liquid_staking_fork, admin_mock_oracle, lending_pool.
+#      liquid_staking, admin_mock_oracle, lending_pool.
 #   4. Builds the Rust engine and the Node CLI.
 #   5. Runs the deterministic engine gate that asserts the canonical
 #      SimulationResult SHA256 for the shipping proof fixture.
@@ -117,7 +117,7 @@ jobs:
           set -euo pipefail
           cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
           cargo build-sbf --manifest-path programs/admin_mock_oracle/Cargo.toml
-          cargo build-sbf --manifest-path programs/liquid-staking-fork/Cargo.toml
+          cargo build-sbf --manifest-path programs/liquid-staking/Cargo.toml
 
       - name: Confirm program artifacts on disk
         run: |
@@ -125,7 +125,7 @@ jobs:
           ls -l programs/lending_pool/target/deploy/lending_pool.so
           ls -l programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so
           ls -l programs/admin_mock_oracle/target/deploy/admin_mock_oracle-keypair.json
-          ls -l programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so
+          ls -l programs/liquid-staking/target/deploy/liquid_staking.so
 
       - name: Run deterministic contagion-proof engine gate
         run: |

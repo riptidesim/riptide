@@ -1,0 +1,259 @@
+# Liquid-staking-fork generic adapter.
+#
+# Fourth protocol-class bundle after lending / perps / AMM. Drives
+# `programs/liquid-staking/` through the engine's generic primitive
+# path.
+#
+# **Scope calls for this shipping adapter:**
+#
+# - `protocol = "generic"`. Same rationale as perpetuals and amm:
+#   `Protocol::LiquidStaking` would be a cosmetic ripple. The scenarios
+#   skill's classification hooks read instruction/observation names, so
+#   the liquid-staking-specific category hooks (withdrawal_queue_run,
+#   depeg_after_slash, reserve_buffer_exhaustion) work via name matching
+#   without a new protocol variant.
+# - Runtime-dispatchable actions: `stake` (single u64), `request_unstake`
+#   (single u64), `claim_unstake` (zero-arg). `initialize_pool` is
+#   IDL-only — the processor's lazy-init path seeds defaults on first
+#   touch (1:1 exchange rate, empty reserve/pool). Mapping it as a
+#   runtime action would race every agent to re-init and fail with
+#   `PoolAlreadyInitialized` (same precedent as amm's pool init).
+# - `apply_slash` is admin-gated and not runtime-dispatchable from
+#   persona draws. It is the single stress mutation that drives depeg /
+#   redemption-run scenarios — named proof paths under
+#   `fixtures/replays/` dispatch it directly via the replay trajectory;
+#   the shipping smoke scenario leaves `[[scheduled_actions]]` empty.
+# - `[[oracles]]` binds **one** externally-owned admin-mock oracle
+#   account through the generic adapter's owner-aware oracle path: the
+#   liquid-staking bundle boots against the real externally-owned
+#   shared-oracle surface, not a bundle-local shortcut. The program
+#   does not currently read the oracle (it depegs through on-account
+#   state only, not a Pyth-style feed), but the adapter binding is
+#   still honest — the account is created with sibling-program
+#   ownership at tick 0, not `program_id`, and the `push_oracle_price`
+#   path from the scenario harness still lands real admin-mock bytes
+#   on it. Declaring it here exercises the full owner-aware binding
+#   surface for the bundle even though the current processor doesn't
+#   consume the reads. A later bundle can add an oracle-sanity hook
+#   (`sync_exchange_rate` against a Pyth feed, for example) without
+#   reshaping this file.
+# - **Scope call: admin-mock over Pyth.** `kind = "admin-mock"` keeps
+#   the oracle bootstrap minimal for this bundle. The Pyth layout path
+#   is proven working for generic adapters
+#   (`perps_sibling_oracle_proof::generic_push_through_pyth_kind_mutates_real_pyth_bytes`)
+#   and this adapter can switch to `kind = "pyth"` without any
+#   program-level change.
+# - `pool` is a shared account, `stake_account` is per-agent — same
+#   account kinds perpetuals uses (`market` shared, `position` agent)
+#   and amm uses (`pool` shared, `lp_position` agent).
+#
+# Layer 2 personas — the differentiated liquid-staking library
+# (`steady-staker`, `yield-maxi`, `panic-exiter`, `arb-redeemer`) — ship
+# both as standalone fragments under `fixtures/personas/liquid-staking/`
+# and inlined above the `# === SIDECAR-CUT ===` marker below. A future
+# `scripts/liquid-staking-scratch.sh` sidecar script can truncate this
+# file at the marker and re-append the per-file fragments, matching the
+# sidecar-runner pattern the other bundles established.
+
+protocol = "generic"
+program_so = "../../programs/liquid-staking/target/deploy/liquid_staking.so"
+idl_path = "../idls/liquid-staking.json"
+
+[accounts.pool]
+kind = "shared"
+space = 121
+
+[accounts.stake_account]
+kind = "agent"
+space = 97
+
+# Externally-owned oracle account. The generic harness bootstraps this
+# at tick 0 with real admin-mock bytes (base_price = 1.0, exponent = 0)
+# under the sibling-program's ownership — NOT under liquid_staking's
+# program_id. This is the honest owner-aware oracle path; the admin-mock
+# owner is resolved from the companion keypair that ships next to
+# `admin_mock_oracle.so`.
+[accounts.oracle]
+kind = "shared"
+space = 50
+owner = { program_so = "../../programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so" }
+
+# Runtime-dispatchable actions. All three are single-arg u64 (or
+# zero-arg) — no multi-arg builder needed for the liquid-staking
+# surface.
+[instructions]
+stake           = { action = "stake",           amount = "amount" }
+request_unstake = { action = "request_unstake", amount = "lst_amount" }
+claim_unstake   = { action = "claim_unstake" }
+
+[state_mapping]
+"pool.total_assets"           = "pool.total_assets"
+"pool.lst_supply"             = "pool.lst_supply"
+"pool.reserve_buffer"         = "pool.reserve_buffer"
+"pool.pending_unstake_assets" = "pool.pending_unstake_assets"
+"pool.pending_unstake_count"  = "pool.pending_unstake_count"
+"pool.exchange_rate_bps"      = "pool.exchange_rate_bps"
+"pool.cumulative_slashed"     = "pool.cumulative_slashed"
+"stake_account.lst_balance"              = "stake_account.lst_balance"
+"stake_account.pending_unstake_assets"   = "stake_account.pending_unstake_assets"
+"stake_account.claimable_assets"         = "stake_account.claimable_assets"
+"stake_account.cumulative_claimed"       = "stake_account.cumulative_claimed"
+
+[actions.stake]
+label = "Stake underlying into the pool, mint LST"
+takes = ["amount"]
+
+[actions.request_unstake]
+label = "Burn LST, post a redemption claim (covered from reserve or queued)"
+takes = ["lst_amount"]
+
+[actions.claim_unstake]
+label = "Flush claimable and settle queued entries if reserve covers them"
+takes = []
+
+[observations]
+"pool.total_assets"           = "uint"
+"pool.lst_supply"             = "uint"
+"pool.reserve_buffer"         = "uint"
+"pool.pending_unstake_assets" = "uint"
+"pool.pending_unstake_count"  = "uint"
+"pool.exchange_rate_bps"      = "uint"
+"pool.cumulative_slashed"     = "uint"
+"stake_account.lst_balance"            = "uint"
+"stake_account.pending_unstake_assets" = "uint"
+"stake_account.claimable_assets"       = "uint"
+"stake_account.cumulative_claimed"     = "uint"
+
+# Shipping invariants.
+#
+# `no_slash_during_healthy_run` — the scratch smoke run never fires
+# `apply_slash`, so `cumulative_slashed` must stay at zero through the
+# tick loop. Named depeg proofs dispatch the slash directly through a
+# replay trajectory; that is where the invariant is *meant* to fire as
+# the proof signal.
+#
+# `exchange_rate_bounded` — the stored `exchange_rate_bps` must stay
+# below a sanity ceiling. Declared at 10x the nominal 10_000-bps 1:1
+# rate to catch accidental rate-runaway math (the lazy-init pool
+# reports 10_000; explicit init can request a higher declared rate but
+# a proposal sweep over `initial_exchange_rate_bps` should stay under
+# this ceiling).
+#
+# The queue-pressure / reserve-exhaustion checks are taxonomy-level
+# concerns expressed as proposal templates in the scenarios skill, not
+# as inline invariants — a scratch-smoke gate does not drive them to
+# fire.
+
+[[invariants]]
+name = "no_slash_during_healthy_run"
+field = "pool.cumulative_slashed"
+op = "=="
+value = 0
+
+[[invariants]]
+name = "exchange_rate_bounded"
+field = "pool.exchange_rate_bps"
+op = "<="
+value = 100000
+
+# Differentiated liquid-staking persona library. Mirrored verbatim from
+# `fixtures/personas/liquid-staking/*.toml` so the shipping adapter can
+# bootstrap named-persona scenarios under
+# `fixtures/scenarios/liquid-staking/` without a sidecar pass. The
+# per-file fragments remain the canonical sources for a future
+# `scripts/liquid-staking-scratch.sh` that truncates at the
+# `# === SIDECAR-CUT ===` marker below and re-appends them.
+
+[personas.steady-staker]
+label = "Steady staker"
+action_rate_multiplier = 0.5
+action_weights = { stake = 0.9, request_unstake = 0.05, claim_unstake = 0.05 }
+triggers = []
+
+[personas.yield-maxi]
+label = "Yield maximizer"
+action_rate_multiplier = 1.5
+action_weights = { stake = 1.0, request_unstake = 0.05, claim_unstake = 0.05 }
+triggers = [
+  { if = "pool.exchange_rate_bps > 10500", then = "request_unstake", weight_boost = 2.0 },
+]
+
+[personas.panic-exiter]
+label = "Panic exiter"
+action_rate_multiplier = 1.0
+action_weights = { stake = 0.05, request_unstake = 0.8, claim_unstake = 0.15 }
+triggers = [
+  { if = "pool.exchange_rate_bps < 9500", then = "request_unstake", weight_boost = 5.0 },
+]
+
+[personas.arb-redeemer]
+label = "Arb redeemer"
+action_rate_multiplier = 1.2
+action_weights = { stake = 0.2, request_unstake = 0.5, claim_unstake = 0.3 }
+triggers = [
+  { if = "pool.pending_unstake_count > 0", then = "claim_unstake", weight_boost = 2.5 },
+]
+
+# === SIDECAR-CUT ===
+# A future `scripts/liquid-staking-scratch.sh` will truncate this file
+# at the `# === SIDECAR-CUT ===` line above and append
+# `fixtures/personas/liquid-staking/{steady-staker,yield-maxi,panic-exiter,arb-redeemer}.toml`
+# for the real liquid-staking persona library before handing the
+# result to the engine. The block below is the smoke-test persona set
+# used by `riptide adapt --adapter …` with names that match
+# `cli/src/adapt/smoke.ts`'s generic run-config (`grinder` / `botter` /
+# `casual`), so the shipping adapter clears the smoke gate without CLI
+# changes.
+#
+# Smoke personas only exercise stake / request_unstake / claim_unstake.
+# Amounts stay modest so lazy-init-rate math never overflows and the
+# queue branch is not accidentally firing during smoke.
+[personas.grinder]
+label = "Liquid-staking baseline (smoke)"
+action_rate_multiplier = 1.0
+action_weights = { stake = 0.6, request_unstake = 0.3, claim_unstake = 0.1 }
+triggers = []
+
+[personas.botter]
+label = "Liquid-staking high-rate (smoke)"
+action_rate_multiplier = 2.0
+action_weights = { stake = 0.4, request_unstake = 0.4, claim_unstake = 0.2 }
+triggers = []
+
+[personas.casual]
+label = "Liquid-staking low-rate (smoke)"
+action_rate_multiplier = 0.5
+action_weights = { stake = 0.7, request_unstake = 0.2, claim_unstake = 0.1 }
+triggers = []
+
+# Reviewer-facing lineage metadata (inspection-only — see
+# `riptide lineage liquid-staking`). Every assumption and
+# unsupported-field entry is reviewable against
+# `fixtures/idls/liquid-staking.json` and the program source
+# under `programs/liquid-staking/`.
+[lineage]
+idl_source = "fixtures/idls/liquid-staking.json"
+generator = "hand-authored"
+inferred_assumptions = [
+  "`protocol = \"generic\"` instead of `Protocol::LiquidStaking` — classification reads instruction/observation names, so the dedicated variant would be cosmetic. LST-specific taxonomy hooks (withdrawal_queue_run / depeg_after_slash / reserve_buffer_exhaustion) work via name matching.",
+  "`initialize_pool` is not mapped as a runtime action; the processor lazy-inits the pool on first touch at a 1:1 exchange rate, so runtime dispatch would race every agent into `PoolAlreadyInitialized` errors (same precedent as amm).",
+  "`apply_slash` is admin-gated and not mapped for persona dispatch. Named depeg / redemption-run proofs call it directly through a replay trajectory; the shipping smoke scenario leaves `[[scheduled_actions]]` empty.",
+  "`claim_unstake` is zero-arg: `[instructions].claim_unstake` omits the `amount` binding and the corresponding action has an empty `takes`, exercising the generic primitive's zero-arg dispatch path.",
+  "The `[[oracles]]` entry binds an externally-owned admin-mock price account for forward compat — the shipping liquid_staking processor does NOT currently read it (depeg is driven by on-account `exchange_rate_bps` state). The binding still honestly exercises the owner-aware oracle path at tick 0.",
+  "`kind = \"admin-mock\"` over `\"pyth\"` — minimal oracle bootstrap. The Pyth layout path is proven working for generic adapters (see `perps_sibling_oracle_proof::generic_push_through_pyth_kind_mutates_real_pyth_bytes`) and the adapter can switch without program-level changes.",
+  "`exchange_rate_bounded` invariant's 100_000-bps ceiling is 10x the nominal 10_000-bps 1:1 rate; any proposal sweep over `initial_exchange_rate_bps` must stay under this ceiling or the smoke gate turns red.",
+]
+unsupported_fields = [
+  "instruction `initialize_pool(initial_exchange_rate_bps)` — admin setup, handled by lazy init",
+  "instruction `apply_slash(slash_bps)` — admin-gated stress mutation, dispatched via replay trajectory, not persona draws",
+  "account `pool.admin` / `pool.oracle` / `pool.is_initialized` — pubkey/bool metadata, not persona-observable",
+  "account `stake_account.owner` / `stake_account.pool` / `stake_account.is_initialized` — pubkey/bool metadata, not persona-observable",
+  "oracle-sanity hooks (e.g. `sync_exchange_rate` against a Pyth feed) — the program does not currently compare on-account rate against the bound oracle; the oracle binding is forward-compat plumbing",
+]
+
+[[oracles]]
+name = "stake_price_feed"
+kind = "admin-mock"
+account = "oracle"
+base_price = 1.0
+exponent = -2

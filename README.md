@@ -43,12 +43,12 @@ From pre-launch stress tests to trajectory replays to game-economy sandboxes, Ri
 Terminal output when running the same cell:
 
 ```
-$ riptide run solend-fork/hero-grid/w25-s40 --serve
+$ riptide run lending/hero-grid/w25-s40 --serve
 riptide run: 1 scenario
 TICK 1/20
 ... (engine tick progress elided)
 TICK 20/20
-ok solend-fork/hero-grid/w25-s40  (0.1s, 0 invariant fires)
+ok lending/hero-grid/w25-s40  (0.1s, 0 invariant fires)
 
 1 pass · 0 fail · 0 skip
 Dashboard: http://localhost:4173
@@ -56,7 +56,7 @@ Dashboard: http://localhost:4173
 exit 0
 ```
 
-The full-path form `riptide run fixtures/scenarios/solend-fork/hero-grid/w25-s40/run-config.json` still works (backward-compat for scripts and CI); the short form above is the default once `.riptide/scenarios/` is populated — which it is inside this monorepo via a `fixtures/scenarios/` symlink, and in any user repo via `riptide init`.
+The full-path form `riptide run fixtures/scenarios/lending/hero-grid/w25-s40/run-config.json` still works (backward-compat for scripts and CI); the short form above is the default once `.riptide/scenarios/` is populated — which it is inside this monorepo via a `fixtures/scenarios/` symlink, and in any user repo via `riptide init`.
 
 The hero grid sweeps the `whale-share × shock-magnitude` parameter region and records each cell's `cumulative_bad_debt` in its `simulation-result.json`; the grid's value is the *region map* — which cells end up inside the bad-debt neighborhood and which don't. Invariant-driven CI gating is a separate mode: declare `[[invariants]]` on your own adapter (like the shipping replay adapter does for `no_bad_debt` — `fixtures/replays/lending-whale-bad-debt/adapter.toml`) and the engine exits `1` the moment any invariant fires, so the same `riptide run` output pattern doubles as a CI gate.
 
@@ -216,13 +216,13 @@ riptide run --serve
 
 The `.riptide/` tree holds your adapter, persona library, and scenarios — version-control them alongside your program. `riptide run` with no arguments discovers every `.riptide/scenarios/**/run-config.json` and runs it sequentially; pass a glob pattern to filter, or an explicit `.json` path to run a single file. See [`docs/install.md`](docs/install.md#next-steps-after-install) for the full first-run walkthrough.
 
-The same short-form invocation works inside the cloned Riptide monorepo itself — `.riptide/scenarios/` is a symlink to `fixtures/scenarios/` at the repo root, so `riptide run solend-fork/hero-grid/w25-s40 --serve` discovers and runs the shipping hero-grid cell straight from a monorepo checkout. The full-path form (`riptide run fixtures/scenarios/<path>/run-config.json`) still works unchanged for existing CI and scripts.
+The same short-form invocation works inside the cloned Riptide monorepo itself — `.riptide/scenarios/` is a symlink to `fixtures/scenarios/` at the repo root, so `riptide run lending/hero-grid/w25-s40 --serve` discovers and runs the shipping hero-grid cell straight from a monorepo checkout. The full-path form (`riptide run fixtures/scenarios/<path>/run-config.json`) still works unchanged for existing CI and scripts.
 
 Prefer a container? The repo ships a multi-stage `Dockerfile` pinned to the full [`TOOLCHAIN.md`](TOOLCHAIN.md) stack:
 
 ```bash
 docker build -t riptide .
-docker run --rm riptide run solend-fork/hero-grid/w25-s40
+docker run --rm riptide run lending/hero-grid/w25-s40
 ```
 
 > **Public distribution (GHCR `ghcr.io/riptidesim/riptide`, crates.io `riptide-engine`, npm `@riptide/cli`) is wired up and dry-run-verified in the repo but has not been published yet.** Until then, use the build-from-source or local-Docker paths above.
@@ -250,7 +250,7 @@ Exit codes follow a jest-style contract: `0` every scenario passed, `1` one or m
 For the shipping hero-grid `w25-s40` cell (mainnet-adjacent Solend fork, produces bad debt under whale concentration):
 
 ```bash
-riptide run solend-fork/hero-grid/w25-s40 --serve
+riptide run lending/hero-grid/w25-s40 --serve
 ```
 
 For the historical replay path:
@@ -307,7 +307,7 @@ riptide replay fixtures/replays/stablecoin-uxd-style-collateral-cascade/config.j
 > scalar-observation → scalar-oracle-write bridge — not a generalized
 > N-protocol scenario engine. The UXD-style collateral-cascade proof is
 > **one named single-program pressure replay** against a minimal
-> `stablecoin-fork` that internalizes the hedge-gap as an admin-gated
+> `stablecoin` that internalizes the hedge-gap as an admin-gated
 > `apply_hedge_loss` mutation — not a literal UXD / Perena / Parrot codebase
 > replay, not a live hedge-venue integration, and not a generalized peg-defense
 > or stablecoin → lending multi-program chain. Scope cuts we are explicit
@@ -353,8 +353,8 @@ surfaces carry the guarantee:
   committed. See [`docs/ci-handoff.md`](docs/ci-handoff.md).
 - **Shipping adapters declare their lineage, and JSON-IDL-backed
   adapters get positive machine validation.** The five shipping
-  protocol-class adapters (`solend-fork`, `perps-fork`, `amm-fork`,
-  `liquid-staking-fork`, `stablecoin-fork`) carry hand-reviewed
+  protocol-class adapters (`lending`, `perpetuals`, `amm`,
+  `liquid-staking`, `stablecoin`) carry hand-reviewed
   `[lineage]` blocks naming the IDL source, inferred assumptions,
   and unsupported fields. The top-level `riptide lineage <adapter>`
   command prints the block reviewer-readably (inspection-only — no
@@ -363,7 +363,7 @@ surfaces carry the guarantee:
   instruction, arg, account, and dotted `account.field` reference is
   cross-checked against the IDL, positive mismatches fail with exit
   2, and `riptide adapt` runs the same analyzer in-process as a
-  preflight. Non-JSON lineage sources (e.g. `solend-fork`'s Rust
+  preflight. Non-JSON lineage sources (e.g. `lending`'s Rust
   source of record) stay inspection-only WARN with no false PASS,
   and no live mainnet IDL fetch happens in either command. See
   [`docs/adapter-lineage.md`](docs/adapter-lineage.md).
@@ -382,7 +382,7 @@ All documentation lives under [`docs/`](docs/):
 | [Evidence pack](docs/pack.md) | Reviewer-ready `.riptide/pack/<run-id>/` shape emitted on every run and replay — `manifest.json` reference, byte-stability contract |
 | [CI handoff](docs/ci-handoff.md) | Cold-start GitHub Actions recipe that reruns a committed proof and asserts its canonical hash; downstream-adoption template |
 | [Adapter lineage](docs/adapter-lineage.md) | Optional `[lineage]` block on adapter TOMLs + `riptide lineage` inspection command, and what `riptide lint` machine-checks today (JSON IDL only) |
-| [Case study: Solend-fork](docs/case-studies/solend-fork.md) | The 3×3 whale × shock hero grid — the shipping outcome demo and the load-bearing claim |
+| [Case study: Solend-fork](docs/case-studies/lending.md) | The 3×3 whale × shock hero grid — the shipping outcome demo and the load-bearing claim |
 | [Benchmark: Agent scaling](docs/benchmarks/agent-scaling.md) | 1000 agents for 30 ticks in under 5 seconds on a standard laptop, ~55 MB RAM, byte-deterministic |
 | [Toolchain pins](TOOLCHAIN.md) | Exact Rust, Solana CLI, `cargo-build-sbf`, platform-tools, and Node versions the engine and programs build against |
 | [Contributing](CONTRIBUTING.md) | Decision tree for adapter vs persona vs taxonomy vs engine, dev setup, project structure, regression gates, PR process |

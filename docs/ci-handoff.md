@@ -40,7 +40,7 @@ The workflow runs on every push, every pull request, and on manual
    `curl | sh` — a swapped installer fails the checksum step and
    the workflow exits loudly.
 4. Builds the three programs the contagion proof consumes:
-   `lending_pool`, `admin_mock_oracle`, `liquid_staking_fork`.
+   `lending_pool`, `admin_mock_oracle`, `liquid_staking`.
 5. Runs the deterministic engine gate
    (`cargo test -p riptide-engine --release --features litesvm-backend
    --test replay_lst_lending_contagion_proof`) under `CI=1`, so a

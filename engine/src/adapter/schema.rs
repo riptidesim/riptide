@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 pub enum Protocol {
     /// Lending primitive (deposit/borrow/repay/withdraw/liquidate +
     /// pool_state/health_factor). First concrete impl:
-    /// `crate::primitive::solend_fork::LiteSvmHarness`.
+    /// `crate::primitive::lending::LiteSvmHarness`.
     Lending,
     /// Generic primitive driven entirely by inline adapter definitions.
     Generic,

@@ -854,7 +854,7 @@ pub struct GenericHarness {
     /// already rejects adapters that declare more than one. `None` for
     /// adapters that declare no `[[oracles]]` block; `push_oracle_price`
     /// is a no-op in that case so existing generic adapters without an
-    /// oracle binding (perps-fork, amm-fork) keep their byte-identical
+    /// oracle binding (perpetuals, amm) keep their byte-identical
     /// regression behavior.
     oracle_binding: Option<RuntimeOracleBinding>,
     current_slot: u64,
@@ -947,7 +947,7 @@ impl GenericHarness {
     /// Mutable access to the harness's LiteSVM instance. Used by proof
     /// tests that need to dispatch program instructions outside the
     /// adapter's `[instructions]` registry (e.g. `open_position` /
-    /// `close_position` on `perps-fork`, which are intentionally not
+    /// `close_position` on `perpetuals`, which are intentionally not
     /// bound to runtime actions in the shipping adapter).
     pub fn svm_mut(&mut self) -> &mut LiteSVM {
         &mut self.svm
@@ -1080,8 +1080,8 @@ impl crate::primitive::Primitive for GenericHarness {
     /// account through the real layout dispatcher.
     ///
     /// - Adapters with no `[[oracles]]` block keep the trait's no-op
-    ///   semantics (preserves the shipped `perps-fork.toml` /
-    ///   `amm-fork.toml` scratch-gate hashes).
+    ///   semantics (preserves the shipped `perpetuals.toml` /
+    ///   `amm.toml` scratch-gate hashes).
     /// - Adapters that declared one oracle reach this path on every
     ///   tick: encode through `oracle_layout_for(kind)`, write into the
     ///   bound shared account via `svm.set_account`, then decode the

@@ -176,7 +176,7 @@ Hooks that rule it out:
 The spec (R3.4) originally listed four perps categories. One was
 dropped as a downstream consequence of the perps-lite scope cut:
 
-- **`funding_rate_manipulation` — DROPPED.** The perps-fork program
+- **`funding_rate_manipulation` — DROPPED.** The perpetuals program
   shipped without `update_funding_rate` ( scope cut). No
   funding rate instruction exists in the IDL, and no `funding_rate`
   observation is declared in the adapter. There is nothing for the

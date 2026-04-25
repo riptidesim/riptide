@@ -1,7 +1,7 @@
 # Stablecoin persona — leverage looper.
 #
 # Standalone TOML fragment. Canonical reviewer-inspection source for
-# the persona mirrored inline into `fixtures/adapters/stablecoin-fork.toml`
+# the persona mirrored inline into `fixtures/adapters/stablecoin.toml`
 # above that file's `# === SIDECAR-CUT ===` marker. A future
 # bare-adapter scratch harness that wants to compose an adapter from
 # scratch (not from the shipping adapter) can concatenate this file

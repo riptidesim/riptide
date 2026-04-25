@@ -1,6 +1,6 @@
 //! Liquid-staking-fork LiteSVM round-trip (T01 gate, Sprint 10).
 //!
-//! End-to-end coverage that the shipped `liquid_staking_fork.so` loads
+//! End-to-end coverage that the shipped `liquid_staking.so` loads
 //! in LiteSVM and exercises every instruction of the liquid-staking
 //! surface: `initialize_pool → stake → request_unstake → claim_unstake`
 //! plus the stress mutation `apply_slash`.
@@ -19,19 +19,19 @@
 //!   (admin == [0;32]) rejects every slash attempt.
 //!
 //! Five tests:
-//! 1. `liquid_staking_fork_roundtrip_full_path` — init → stake →
+//! 1. `liquid_staking_roundtrip_full_path` — init → stake →
 //!    request-covered → claim.
-//! 2. `liquid_staking_fork_withdrawal_queue_fires_and_settles` —
+//! 2. `liquid_staking_withdrawal_queue_fires_and_settles` —
 //!    request exceeding the reserve fraction lands on `pending_*`;
 //!    subsequent stakes refill reserve and a later claim settles.
-//! 3. `liquid_staking_fork_depeg_via_slash` — slash depegs the
+//! 3. `liquid_staking_depeg_via_slash` — slash depegs the
 //!    exchange rate; post-slash redemptions price at the new rate.
-//! 4. `liquid_staking_fork_rejects_unstake_after_full_collapse` —
+//! 4. `liquid_staking_rejects_unstake_after_full_collapse` —
 //!    exchange-rate collapse to zero is rejected by `request_unstake`.
-//! 5. `liquid_staking_fork_apply_slash_rejects_on_lazy_init_pool` —
+//! 5. `liquid_staking_apply_slash_rejects_on_lazy_init_pool` —
 //!    the lazy-init authority hole is closed: slash requires an
 //!    explicitly-initialized admin.
-//! 6. `liquid_staking_fork_is_deterministic` — two replays produce
+//! 6. `liquid_staking_is_deterministic` — two replays produce
 //!    byte-identical non-identity pool + stake-account state.
 
 #![cfg(feature = "litesvm-backend")]
@@ -49,7 +49,7 @@ use solana_system_interface::instruction as system_instruction;
 use solana_transaction::Transaction;
 
 // --- Byte-level constants mirrored from
-//     `programs/liquid-staking-fork/src/state.rs`. ---
+//     `programs/liquid-staking/src/state.rs`. ---
 
 const POOL_STATE_LEN: usize = 1 + 32 + 32 + 8 + 8 + 8 + 8 + 8 + 8 + 8; // 121
 const STAKE_ACCOUNT_LEN: usize = 1 + 32 + 32 + 8 + 8 + 8 + 8; // 97
@@ -111,7 +111,7 @@ fn workspace_root() -> PathBuf {
 
 fn ls_so_path() -> PathBuf {
     workspace_root()
-        .join("programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so")
+        .join("programs/liquid-staking/target/deploy/liquid_staking.so")
 }
 
 /// Mirrors the load-bearing-gate discipline used by
@@ -134,7 +134,7 @@ fn skip_if_missing(paths: &[&Path]) -> bool {
             "CI={}: refusing to soft-skip Sprint 10 T01 gate on missing SBF \
              artifact(s): {}.\n\
              Rebuild with:\n  \
-             cargo build-sbf --manifest-path programs/liquid-staking-fork/Cargo.toml",
+             cargo build-sbf --manifest-path programs/liquid-staking/Cargo.toml",
             std::env::var("CI").unwrap_or_default(),
             list.join(", "),
         );
@@ -167,7 +167,7 @@ impl LsHarness {
 
         let program_id = Pubkey::new_unique();
         svm.add_program(program_id, &std::fs::read(ls_so_path()).unwrap())
-            .expect("load liquid_staking_fork.so");
+            .expect("load liquid_staking.so");
 
         let admin = Keypair::new();
         let staker = Keypair::new();
@@ -348,7 +348,7 @@ impl LsHarness {
 // --- Tests ---
 
 #[test]
-fn liquid_staking_fork_roundtrip_full_path() {
+fn liquid_staking_roundtrip_full_path() {
     if skip_if_missing(&[&ls_so_path()]) {
         return;
     }
@@ -415,7 +415,7 @@ fn liquid_staking_fork_roundtrip_full_path() {
 }
 
 #[test]
-fn liquid_staking_fork_withdrawal_queue_fires_and_settles() {
+fn liquid_staking_withdrawal_queue_fires_and_settles() {
     if skip_if_missing(&[&ls_so_path()]) {
         return;
     }
@@ -476,7 +476,7 @@ fn liquid_staking_fork_withdrawal_queue_fires_and_settles() {
     // to reach >= 500 to settle the queue. Currently reserve=200.
     // Each ~1_000 stake adds 200 to reserve. Stagger the amounts so
     // the two transactions hash distinctly under LiteSVM's
-    // AlreadyProcessed dedup (same pattern amm-fork roundtrip uses).
+    // AlreadyProcessed dedup (same pattern amm roundtrip uses).
     // 1_001 * 2000 / 10_000 and 1_002 * 2000 / 10_000 both truncate
     // to 200, so reserve still reaches exactly 600.
     h.stake(1_001);
@@ -508,7 +508,7 @@ fn liquid_staking_fork_withdrawal_queue_fires_and_settles() {
 }
 
 #[test]
-fn liquid_staking_fork_queue_count_tracks_accounts_not_calls() {
+fn liquid_staking_queue_count_tracks_accounts_not_calls() {
     if skip_if_missing(&[&ls_so_path()]) {
         return;
     }
@@ -577,7 +577,7 @@ fn liquid_staking_fork_queue_count_tracks_accounts_not_calls() {
 }
 
 #[test]
-fn liquid_staking_fork_depeg_via_slash() {
+fn liquid_staking_depeg_via_slash() {
     if skip_if_missing(&[&ls_so_path()]) {
         return;
     }
@@ -642,7 +642,7 @@ fn liquid_staking_fork_depeg_via_slash() {
 }
 
 #[test]
-fn liquid_staking_fork_rejects_unstake_after_full_collapse() {
+fn liquid_staking_rejects_unstake_after_full_collapse() {
     if skip_if_missing(&[&ls_so_path()]) {
         return;
     }
@@ -703,7 +703,7 @@ fn liquid_staking_fork_rejects_unstake_after_full_collapse() {
 }
 
 #[test]
-fn liquid_staking_fork_apply_slash_rejects_on_lazy_init_pool() {
+fn liquid_staking_apply_slash_rejects_on_lazy_init_pool() {
     if skip_if_missing(&[&ls_so_path()]) {
         return;
     }
@@ -764,7 +764,7 @@ fn liquid_staking_fork_apply_slash_rejects_on_lazy_init_pool() {
 }
 
 #[test]
-fn liquid_staking_fork_is_deterministic() {
+fn liquid_staking_is_deterministic() {
     if skip_if_missing(&[&ls_so_path()]) {
         return;
     }

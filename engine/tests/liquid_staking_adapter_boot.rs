@@ -1,7 +1,7 @@
 //! Liquid-staking-fork adapter + oracle-wiring boot gate (T02, Sprint 10).
 //!
 //! Proves two things about the shipping liquid-staking adapter at
-//! `fixtures/adapters/liquid-staking-fork.toml`:
+//! `fixtures/adapters/liquid-staking.toml`:
 //!
 //! 1. **Adapter validation green** — `load_adapter` parses the TOML,
 //!    resolves the program `.so`, the IDL, and the externally-owned
@@ -41,16 +41,16 @@ fn workspace_root() -> PathBuf {
 }
 
 fn ls_adapter_path() -> PathBuf {
-    workspace_root().join("fixtures/adapters/liquid-staking-fork.toml")
+    workspace_root().join("fixtures/adapters/liquid-staking.toml")
 }
 
 fn ls_so_path() -> PathBuf {
     workspace_root()
-        .join("programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so")
+        .join("programs/liquid-staking/target/deploy/liquid_staking.so")
 }
 
 fn ls_idl_path() -> PathBuf {
-    workspace_root().join("fixtures/idls/liquid-staking-fork.json")
+    workspace_root().join("fixtures/idls/liquid-staking.json")
 }
 
 fn admin_mock_oracle_so() -> PathBuf {
@@ -78,7 +78,7 @@ fn skip_if_missing(paths: &[&Path]) -> bool {
             "CI={}: refusing to soft-skip Sprint 10 T02 gate on missing SBF \
              artifact(s): {}.\n\
              Rebuild with:\n  \
-             cargo build-sbf --manifest-path programs/liquid-staking-fork/Cargo.toml\n  \
+             cargo build-sbf --manifest-path programs/liquid-staking/Cargo.toml\n  \
              cargo build-sbf --manifest-path programs/admin_mock_oracle/Cargo.toml",
             std::env::var("CI").unwrap_or_default(),
             list.join(", "),
@@ -117,7 +117,7 @@ fn liquid_staking_adapter_boots_through_generic_harness() {
     // check IDL field sizes against `[accounts].*.space`. A failure
     // here turns the T02 gate red.
     let adapter = load_adapter(&ls_adapter_path())
-        .expect("load_adapter must accept the shipping liquid-staking-fork adapter");
+        .expect("load_adapter must accept the shipping liquid-staking adapter");
     assert!(
         adapter.program_so.is_some(),
         "adapter must resolve a program_so path"
@@ -169,7 +169,7 @@ fn liquid_staking_adapter_boots_through_generic_harness() {
         agent_count: 2,
         adapter: adapter.clone(),
     })
-    .expect("bootstrap liquid-staking-fork through the generic harness");
+    .expect("bootstrap liquid-staking through the generic harness");
 
     // Pool + stake-accounts materialized.
     let pool_pubkey = harness
@@ -195,7 +195,7 @@ fn liquid_staking_adapter_boots_through_generic_harness() {
     assert_eq!(
         oracle_on_chain.owner, expected_oracle_owner,
         "bootstrap must place the oracle under sibling-program ownership (admin_mock_oracle), \
-         not under the simulated liquid_staking_fork program id"
+         not under the simulated liquid_staking program id"
     );
     assert_ne!(
         oracle_on_chain.owner, harness.program_id,
@@ -224,7 +224,7 @@ fn liquid_staking_adapter_boots_through_generic_harness() {
     // claimable is zero and the pending amount (500) exceeds reserve
     // (200), so ClaimUnstake would return NothingToClaim and revert.
     // Exercising claim through the generic path is covered by the
-    // roundtrip test suite (liquid_staking_fork_roundtrip.rs).
+    // roundtrip test suite (liquid_staking_roundtrip.rs).
 
     // Read pool bytes back; decode and assert the shape.
     let pool_acct = harness
@@ -232,7 +232,7 @@ fn liquid_staking_adapter_boots_through_generic_harness() {
         .get_account(&pool_pubkey)
         .expect("pool account present after dispatch");
     let pool_bytes = &pool_acct.data;
-    // Pool layout from programs/liquid-staking-fork/src/state.rs:
+    // Pool layout from programs/liquid-staking/src/state.rs:
     //   1 (is_initialized) + 32 (admin) + 32 (oracle)
     //   + 8 total_assets + 8 lst_supply + 8 reserve_buffer
     //   + 8 pending_unstake_assets + 8 pending_unstake_count

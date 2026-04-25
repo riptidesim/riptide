@@ -1,6 +1,6 @@
 //! Stablecoin-fork LiteSVM round-trip gate.
 //!
-//! End-to-end coverage that the shipped `stablecoin_fork.so` loads in
+//! End-to-end coverage that the shipped `stablecoin.so` loads in
 //! LiteSVM and exercises every instruction of the stablecoin surface:
 //! `initialize_pool → deposit_collateral → mint_stable → request_redeem
 //! → claim_redeem` plus the stress mutation `apply_hedge_loss`.
@@ -21,19 +21,19 @@
 //!   (admin == [0;32]) rejects every haircut attempt.
 //!
 //! Tests:
-//! 1. `stablecoin_fork_roundtrip_full_path` — init → deposit → mint →
+//! 1. `stablecoin_roundtrip_full_path` — init → deposit → mint →
 //!    request-covered → claim.
-//! 2. `stablecoin_fork_redemption_queue_fires_and_settles` — request
+//! 2. `stablecoin_redemption_queue_fires_and_settles` — request
 //!    exceeding reserve lands on `pending_*`; refills restore reserve
 //!    and a later claim clears.
-//! 3. `stablecoin_fork_queue_count_tracks_positions_not_calls` —
+//! 3. `stablecoin_queue_count_tracks_positions_not_calls` —
 //!    repeat queued requests from one position aggregate to a single
 //!    queue entry.
-//! 4. `stablecoin_fork_depeg_via_hedge_loss` — haircut drops
+//! 4. `stablecoin_depeg_via_hedge_loss` — haircut drops
 //!    `effective_collateral_ratio_bps` while supply stays intact.
-//! 5. `stablecoin_fork_apply_hedge_loss_rejects_on_lazy_init_pool` —
+//! 5. `stablecoin_apply_hedge_loss_rejects_on_lazy_init_pool` —
 //!    closes the lazy-init authority hole.
-//! 6. `stablecoin_fork_is_deterministic` — two replays produce
+//! 6. `stablecoin_is_deterministic` — two replays produce
 //!    byte-identical non-identity pool + position state.
 
 #![cfg(feature = "litesvm-backend")]
@@ -51,7 +51,7 @@ use solana_system_interface::instruction as system_instruction;
 use solana_transaction::Transaction;
 
 // --- Byte-level constants mirrored from
-//     `programs/stablecoin-fork/src/state.rs`. ---
+//     `programs/stablecoin/src/state.rs`. ---
 
 const POOL_STATE_LEN: usize = 1 + 32 + 32 + 8 + 8 + 8 + 8 + 8 + 8 + 8; // 121
 const POSITION_STATE_LEN: usize = 1 + 32 + 32 + 8 + 8 + 8 + 8 + 8; // 105
@@ -106,10 +106,10 @@ fn workspace_root() -> PathBuf {
 }
 
 fn sb_so_path() -> PathBuf {
-    workspace_root().join("programs/stablecoin-fork/target/deploy/stablecoin_fork.so")
+    workspace_root().join("programs/stablecoin/target/deploy/stablecoin.so")
 }
 
-/// Same discipline the liquid-staking-fork roundtrip uses:
+/// Same discipline the liquid-staking roundtrip uses:
 /// - `CI=<non-empty>` → HARD FAIL with a named `cargo build-sbf`
 ///   diagnostic. CI must never report green on the stablecoin bundle
 ///   gate without actually exercising the `.so`.
@@ -127,14 +127,14 @@ fn skip_if_missing(paths: &[&Path]) -> bool {
             "CI={}: refusing to soft-skip stablecoin bundle gate on missing SBF \
              artifact(s): {}.\n\
              Rebuild with:\n  \
-             cargo build-sbf --manifest-path programs/stablecoin-fork/Cargo.toml",
+             cargo build-sbf --manifest-path programs/stablecoin/Cargo.toml",
             std::env::var("CI").unwrap_or_default(),
             list.join(", "),
         );
     }
     for path in &missing {
         eprintln!(
-            "\x1b[33mATTENTION\x1b[0m stablecoin-fork soft-skip: {} missing. \
+            "\x1b[33mATTENTION\x1b[0m stablecoin soft-skip: {} missing. \
              Rebuild with `cargo build-sbf` — this round-trip did NOT run.",
             path.display()
         );
@@ -160,7 +160,7 @@ impl SbHarness {
 
         let program_id = Pubkey::new_unique();
         svm.add_program(program_id, &std::fs::read(sb_so_path()).unwrap())
-            .expect("load stablecoin_fork.so");
+            .expect("load stablecoin.so");
 
         let admin = Keypair::new();
         let user = Keypair::new();
@@ -354,7 +354,7 @@ impl SbHarness {
 // --- Tests ---
 
 #[test]
-fn stablecoin_fork_roundtrip_full_path() {
+fn stablecoin_roundtrip_full_path() {
     if skip_if_missing(&[&sb_so_path()]) {
         return;
     }
@@ -430,7 +430,7 @@ fn stablecoin_fork_roundtrip_full_path() {
 }
 
 #[test]
-fn stablecoin_fork_redemption_queue_fires_and_settles() {
+fn stablecoin_redemption_queue_fires_and_settles() {
     if skip_if_missing(&[&sb_so_path()]) {
         return;
     }
@@ -515,12 +515,12 @@ fn stablecoin_fork_redemption_queue_fires_and_settles() {
 }
 
 #[test]
-fn stablecoin_fork_queue_count_tracks_positions_not_calls() {
+fn stablecoin_queue_count_tracks_positions_not_calls() {
     if skip_if_missing(&[&sb_so_path()]) {
         return;
     }
 
-    // Regression discipline inherited from liquid-staking-fork:
+    // Regression discipline inherited from liquid-staking:
     // `pending_redemption_count` MUST track positions with non-zero
     // pending, not individual `request_redeem` calls. Two queued
     // requests from one position aggregate to one account-level
@@ -572,7 +572,7 @@ fn stablecoin_fork_queue_count_tracks_positions_not_calls() {
 }
 
 #[test]
-fn stablecoin_fork_queued_redeem_locks_collateral_against_remint() {
+fn stablecoin_queued_redeem_locks_collateral_against_remint() {
     if skip_if_missing(&[&sb_so_path()]) {
         return;
     }
@@ -659,7 +659,7 @@ fn stablecoin_fork_queued_redeem_locks_collateral_against_remint() {
 }
 
 #[test]
-fn stablecoin_fork_depeg_via_hedge_loss() {
+fn stablecoin_depeg_via_hedge_loss() {
     if skip_if_missing(&[&sb_so_path()]) {
         return;
     }
@@ -734,7 +734,7 @@ fn stablecoin_fork_depeg_via_hedge_loss() {
 }
 
 #[test]
-fn stablecoin_fork_apply_hedge_loss_rejects_on_lazy_init_pool() {
+fn stablecoin_apply_hedge_loss_rejects_on_lazy_init_pool() {
     if skip_if_missing(&[&sb_so_path()]) {
         return;
     }
@@ -743,7 +743,7 @@ fn stablecoin_fork_apply_hedge_loss_rejects_on_lazy_init_pool() {
     // the first deposit/mint triggers the processor's lazy-init path,
     // which seeds `admin = [0;32]`. `apply_hedge_loss` must refuse to
     // fire against that state — closes the same authority hole
-    // liquid-staking-fork closed for `apply_slash`.
+    // liquid-staking closed for `apply_slash`.
     let mut h = SbHarness::new();
     h.allocate_pool(); // program-owned, zero-bytes, NOT initialized.
     h.create_position();
@@ -793,7 +793,7 @@ fn stablecoin_fork_apply_hedge_loss_rejects_on_lazy_init_pool() {
 }
 
 #[test]
-fn stablecoin_fork_is_deterministic() {
+fn stablecoin_is_deterministic() {
     if skip_if_missing(&[&sb_so_path()]) {
         return;
     }

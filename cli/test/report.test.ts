@@ -273,7 +273,7 @@ test("renderNarrative produces lending-shaped report with key metrics", () => {
     agents_depleted: 0,
     largest_single_tick_drawdown: 0.003
   });
-  const md = renderNarrative(result, { adapterPath: "fixtures/adapters/solend-fork.toml" });
+  const md = renderNarrative(result, { adapterPath: "fixtures/adapters/lending.toml" });
   assert.match(md, /# Riptide Simulation Report/);
   assert.match(md, /## Run metadata/);
   assert.match(md, /Seed.*42/);

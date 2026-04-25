@@ -1,7 +1,7 @@
 # Stablecoin persona — arb redeemer.
 #
 # Standalone TOML fragment. Canonical reviewer-inspection source for
-# the persona mirrored inline into `fixtures/adapters/stablecoin-fork.toml`
+# the persona mirrored inline into `fixtures/adapters/stablecoin.toml`
 # above that file's `# === SIDECAR-CUT ===` marker. A future
 # bare-adapter scratch harness that wants to compose an adapter from
 # scratch (not from the shipping adapter) can concatenate this file
@@ -17,7 +17,7 @@
 # for reserve-refill moments and settles their share ahead of the
 # queued population.
 #
-# Mirrors liquid-staking-fork's arb-redeemer in cadence
+# Mirrors liquid-staking's arb-redeemer in cadence
 # (`action_rate_multiplier = 1.2`, split redemption weight, queue-sweep
 # trigger). The hook moved from `pool.pending_unstake_count` to
 # `pool.pending_redemption_count`.

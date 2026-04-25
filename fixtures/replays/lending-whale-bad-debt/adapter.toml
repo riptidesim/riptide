@@ -1,13 +1,13 @@
 # Solend-fork lending adapter — replay variant.
 #
-# Identical to `fixtures/adapters/solend-fork.toml` except for the
+# Identical to `fixtures/adapters/lending.toml` except for the
 # trailing `[[invariants]]` block: this variant ships the `no_bad_debt`
 # invariant so the whale-bad-debt replay can prove "bad_debt
 # invariant fires at the expected tick" on a CI gate, rather than only
 # showing bad-debt accrual as a summary number.
 #
 # **Why a replay-specific adapter.** Adding this invariant to the
-# shipped `fixtures/adapters/solend-fork.toml` would change the output
+# shipped `fixtures/adapters/lending.toml` would change the output
 # shape of every lending run (invariants_fired gains a row), which
 # breaks the hero grid determinism hash
 # `89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11`

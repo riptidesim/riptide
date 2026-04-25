@@ -2,10 +2,10 @@
 #
 #. Ships as a standalone TOML fragment that the sidecar
 # script `scripts/perps-scratch.sh` concatenates onto a
-# truncated copy of `fixtures/adapters/perps-fork.toml` below the
+# truncated copy of `fixtures/adapters/perpetuals.toml` below the
 # `# === SIDECAR-CUT ===` marker.
 #
-# Runtime note: perps-fork's generic-path executable actions
+# Runtime note: perpetuals's generic-path executable actions
 # are limited to `deposit` and `withdraw` (single-u64-arg encoding).
 # Semantic flavour is encoded in the relative weights and in the
 # persona's trigger condition referencing a perps-specific observation.

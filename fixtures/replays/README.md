@@ -40,7 +40,7 @@ the whale-bad-debt replay under `lending-whale-bad-debt/` ships a
 replay-scoped `adapter.toml` with a `no_bad_debt` invariant so the
 credibility gate can assert the cascade fires on a
 machine-checkable invariant event, without mutating the shipped
-`fixtures/adapters/solend-fork.toml` and breaking the hero-grid
+`fixtures/adapters/lending.toml` and breaking the hero-grid
 byte-stability. Replays that do not need custom
 configuration can point the replay-config JSON directly at a
 shipped adapter and skip the sibling `adapter.toml`.

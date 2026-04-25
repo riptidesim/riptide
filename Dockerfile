@@ -145,12 +145,12 @@ RUN cargo build-sbf --manifest-path programs/resource_grinder/Cargo.toml \
  && test -f /src/programs/resource_grinder/target/deploy/resource_grinder.so
 RUN cargo build-sbf --manifest-path programs/admin_mock_oracle/Cargo.toml \
  && test -f /src/programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so
-RUN cargo build-sbf --manifest-path programs/perps-fork/Cargo.toml \
- && test -f /src/programs/perps-fork/target/deploy/perps_fork.so
-RUN cargo build-sbf --manifest-path programs/amm-fork/Cargo.toml \
- && test -f /src/programs/amm-fork/target/deploy/amm_fork.so
-RUN cargo build-sbf --manifest-path programs/stablecoin-fork/Cargo.toml \
- && test -f /src/programs/stablecoin-fork/target/deploy/stablecoin_fork.so
+RUN cargo build-sbf --manifest-path programs/perpetuals/Cargo.toml \
+ && test -f /src/programs/perpetuals/target/deploy/perpetuals.so
+RUN cargo build-sbf --manifest-path programs/amm/Cargo.toml \
+ && test -f /src/programs/amm/target/deploy/amm.so
+RUN cargo build-sbf --manifest-path programs/stablecoin/Cargo.toml \
+ && test -f /src/programs/stablecoin/target/deploy/stablecoin.so
 
 # ---------------------------------------------------------------------------
 # Runtime stage — minimal, ships only what `riptide` needs at runtime.
@@ -225,12 +225,12 @@ COPY --from=build /src/programs/resource_grinder/target/deploy/resource_grinder.
                   /src/programs/resource_grinder/target/deploy/resource_grinder.so
 COPY --from=build /src/programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so \
                   /src/programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so
-COPY --from=build /src/programs/perps-fork/target/deploy/perps_fork.so \
-                  /src/programs/perps-fork/target/deploy/perps_fork.so
-COPY --from=build /src/programs/amm-fork/target/deploy/amm_fork.so \
-                  /src/programs/amm-fork/target/deploy/amm_fork.so
-COPY --from=build /src/programs/stablecoin-fork/target/deploy/stablecoin_fork.so \
-                  /src/programs/stablecoin-fork/target/deploy/stablecoin_fork.so
+COPY --from=build /src/programs/perpetuals/target/deploy/perpetuals.so \
+                  /src/programs/perpetuals/target/deploy/perpetuals.so
+COPY --from=build /src/programs/amm/target/deploy/amm.so \
+                  /src/programs/amm/target/deploy/amm.so
+COPY --from=build /src/programs/stablecoin/target/deploy/stablecoin.so \
+                  /src/programs/stablecoin/target/deploy/stablecoin.so
 
 # --- Fixtures + examples + scripts -------------------------------------------
 # Fixtures are read from disk by every engine invocation; examples/configs
@@ -260,7 +260,7 @@ exec node /src/cli/dist/src/index.js "$@"\n' > /usr/local/bin/riptide \
 ENV RIPTIDE_ENGINE_BIN=/src/target/release/riptide-engine
 
 # Default to /src so run-config / policies / adapter relative paths
-# like `fixtures/scenarios/solend-fork/...` resolve against the
+# like `fixtures/scenarios/lending/...` resolve against the
 # shipped fixture tree.
 WORKDIR /src
 

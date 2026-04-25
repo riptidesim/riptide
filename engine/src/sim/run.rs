@@ -1129,7 +1129,7 @@ where
 /// `persona_id = "scheduled"`, AND invokes the primitive's
 /// [`Primitive::on_scheduled_action`] hook so the backend can perform
 /// any on-chain side effect it needs. Lending/mock primitives leave
-/// the hook as the trait default (no-op); 's perps-fork overrides
+/// the hook as the trait default (no-op); 's perpetuals overrides
 /// it to dispatch the real `update_funding_rate` instruction.
 ///
 /// A primitive failure in the hook maps to a `SimulationAbort::Infra`
@@ -1181,7 +1181,7 @@ fn dispatch_scheduled_actions<H: crate::primitive::Primitive + ?Sized>(
             triggered_by: None,
         });
         // Primitive-level hook — lets backends react to the firing
-        // ( perps-fork uses this to dispatch the on-chain
+        // ( perpetuals uses this to dispatch the on-chain
         // `update_funding_rate` ix). Default impl is a no-op.
         harness
             .on_scheduled_action(&name, &sa.instruction, &sa.accounts, &sa.args)

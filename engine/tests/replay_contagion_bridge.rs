@@ -103,8 +103,8 @@ fn bridge_propagates_upstream_lst_state_into_downstream_lending_oracle() {
     let repo = monorepo_root();
     let required: &[(PathBuf, &str)] = &[
         (
-            repo.join("programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so"),
-            "liquid_staking_fork.so",
+            repo.join("programs/liquid-staking/target/deploy/liquid_staking.so"),
+            "liquid_staking.so",
         ),
         (
             repo.join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so"),
@@ -522,8 +522,8 @@ fn engine_replay_config_flag_drives_multi_component_replay_end_to_end() {
     let repo = monorepo_root();
     let required: &[(PathBuf, &str)] = &[
         (
-            repo.join("programs/liquid-staking-fork/target/deploy/liquid_staking_fork.so"),
-            "liquid_staking_fork.so",
+            repo.join("programs/liquid-staking/target/deploy/liquid_staking.so"),
+            "liquid_staking.so",
         ),
         (
             repo.join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so"),

@@ -22,7 +22,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 ENGINE="${RIPTIDE_ENGINE_BIN:-$REPO_ROOT/target/release/riptide-engine}"
-BASE_ADAPTER="fixtures/adapters/amm-fork.toml"
+BASE_ADAPTER="fixtures/adapters/amm.toml"
 PERSONAS_DIR="fixtures/personas"
 PERSONA_IDS=(lp-provider arbitrageur sandwich-attacker swapper rug-puller)
 TICKS=30
@@ -50,9 +50,9 @@ done
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-RUNTIME_ADAPTER="$WORK_DIR/amm-fork.runtime.toml"
-PROGRAM_SO_ABS="$REPO_ROOT/programs/amm-fork/target/deploy/amm_fork.so"
-IDL_PATH_ABS="$REPO_ROOT/fixtures/idls/amm-fork.json"
+RUNTIME_ADAPTER="$WORK_DIR/amm.runtime.toml"
+PROGRAM_SO_ABS="$REPO_ROOT/programs/amm/target/deploy/amm.so"
+IDL_PATH_ABS="$REPO_ROOT/fixtures/idls/amm.json"
 awk '/^# === SIDECAR-CUT ===$/ { exit } { print }' "$BASE_ADAPTER" \
   | sed -e "s|^program_so *=.*|program_so = \"$PROGRAM_SO_ABS\"|" \
         -e "s|^idl_path *=.*|idl_path = \"$IDL_PATH_ABS\"|" \

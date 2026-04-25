@@ -1,5 +1,5 @@
 // Shared adapter name/path resolution for commands that accept either
-// a short adapter name (`solend-fork`) resolved under the fixtures root
+// a short adapter name (`lending`) resolved under the fixtures root
 // or an explicit path to an adapter TOML.
 //
 // Used by `riptide lineage`, `riptide lint`, and any downstream health

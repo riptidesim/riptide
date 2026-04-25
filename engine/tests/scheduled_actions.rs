@@ -337,11 +337,11 @@ fn no_scheduled_actions_declared_leaves_event_stream_clean() {
 }
 
 #[test]
-fn solend_fork_adapter_parses_without_scheduled_actions() {
-    let solend_toml = include_str!("../../fixtures/adapters/solend-fork.toml");
-    let adapter = parse_adapter_str(solend_toml, "solend-fork.toml").expect("parse");
+fn lending_adapter_parses_without_scheduled_actions() {
+    let solend_toml = include_str!("../../fixtures/adapters/lending.toml");
+    let adapter = parse_adapter_str(solend_toml, "lending.toml").expect("parse");
     assert!(
         adapter.scheduled_actions.is_empty(),
-        "solend-fork.toml must default to zero scheduled actions"
+        "lending.toml must default to zero scheduled actions"
     );
 }

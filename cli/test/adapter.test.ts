@@ -2,7 +2,7 @@
 //
 // Contract: the CLI Zod schema and the engine serde schema parse the
 // same adapter TOML into structurally equivalent objects. If either
-// validator rejects `fixtures/adapters/solend-fork.toml`, this test
+// validator rejects `fixtures/adapters/lending.toml`, this test
 // fails — so schema drift is caught before a demo run.
 //
 // We don't invoke the engine binary here (that path is exercised by
@@ -29,15 +29,15 @@ async function loadFixture(): Promise<unknown> {
     "..",
     "fixtures",
     "adapters",
-    "solend-fork.toml"
+    "lending.toml"
   );
   const raw = await readFile(fixturePath, "utf8");
   return TOML.parse(raw);
 }
 
-test("AdapterSchema accepts the shipped solend-fork fixture", async () => {
+test("AdapterSchema accepts the shipped lending fixture", async () => {
   const raw = await loadFixture();
-  const adapter = validateAdapter(raw, "fixtures/adapters/solend-fork.toml");
+  const adapter = validateAdapter(raw, "fixtures/adapters/lending.toml");
 
   assert.equal(adapter.protocol, "lending");
   assert.equal(Object.keys(adapter.instructions).length, 5);

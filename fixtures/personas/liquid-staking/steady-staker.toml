@@ -2,8 +2,8 @@
 #
 # Standalone TOML fragment the future `scripts/liquid-staking-scratch.sh`
 # sidecar will concatenate onto a truncated copy of
-# `fixtures/adapters/liquid-staking-fork.toml` below the
-# `# === SIDECAR-CUT ===` marker. Matches the perps-fork / amm-fork
+# `fixtures/adapters/liquid-staking.toml` below the
+# `# === SIDECAR-CUT ===` marker. Matches the perpetuals / amm
 # sidecar shape.
 #
 # Low-rate, stake-dominant. Represents the quiet majority that holds

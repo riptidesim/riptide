@@ -30,7 +30,7 @@ test("buildSimulateOptions: missing adapter TOML names file and suggests shipped
     (err: Error) => {
       assert.match(err.message, /adapter TOML not found/);
       assert.match(err.message, /\/nonexistent\/riptide\/adapter\.toml/);
-      assert.match(err.message, /fixtures\/adapters\/solend-fork\.toml/);
+      assert.match(err.message, /fixtures\/adapters\/lending\.toml/);
       return true;
     }
   );

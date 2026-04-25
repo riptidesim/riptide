@@ -37,7 +37,7 @@ This is the most common question for new contributors. Most contributions are *n
 ### Make it an **Adapter** when
 
 - You want Riptide to run against a specific Solana program (yours, a fork, a public one).
-- The existing adapter patterns (`solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `liquid-staking-fork.toml`, `stablecoin-fork.toml`, `resource-grinder.toml`) come close — you copy one, swap the IDL + accounts + actions + observations + invariants.
+- The existing adapter patterns (`lending.toml`, `perpetuals.toml`, `amm.toml`, `liquid-staking.toml`, `stablecoin.toml`, `resource-grinder.toml`) come close — you copy one, swap the IDL + accounts + actions + observations + invariants.
 - See [Adding an Adapter](#adding-an-adapter).
 
 ### Make it a **Persona** when
@@ -94,7 +94,7 @@ The installer detects missing toolchains and prints actionable hints rather than
 
 ```bash
 # Canonical smoke: the shipping hero-grid cell
-riptide run solend-fork/hero-grid/w25-s40
+riptide run lending/hero-grid/w25-s40
 
 # Regression gate (engine suites)
 cargo test -p riptide-engine
@@ -137,15 +137,15 @@ riptide/
 │
 ├── programs/                     # Standalone SBF crates (built out of the root workspace)
 │   ├── lending_pool/             # Forked Solend SPL-Token-Lending pool
-│   ├── perps-fork/               # Minimal perps-lite program
-│   ├── amm-fork/                 # Constant-product x*y=k pool
-│   ├── liquid-staking-fork/      # Minimal pooled-stake / withdrawal-queue LST surface
-│   ├── stablecoin-fork/          # Minimal collateral / stable-supply / redemption-queue surface + apply_hedge_loss stress mutation
+│   ├── perpetuals/               # Minimal perps-lite program
+│   ├── amm/                 # Constant-product x*y=k pool
+│   ├── liquid-staking/      # Minimal pooled-stake / withdrawal-queue LST surface
+│   ├── stablecoin/          # Minimal collateral / stable-supply / redemption-queue surface + apply_hedge_loss stress mutation
 │   ├── resource_grinder/         # Non-DeFi toy program proving the generic path
 │   └── admin_mock_oracle/        # Shared-oracle helper for perps + liquid staking + stablecoin
 │
 ├── fixtures/
-│   ├── adapters/                 # Adapter TOMLs (solend-fork, perps-fork, amm-fork, liquid-staking-fork, stablecoin-fork, resource-grinder)
+│   ├── adapters/                 # Adapter TOMLs (lending, perpetuals, amm, liquid-staking, stablecoin, resource-grinder)
 │   ├── personas/                 # Persona TOMLs (whale, leveraged-long, arbitrageur, stablecoin/*, …)
 │   ├── scenarios/                # Run-config bundles per-adapter per-experiment
 │   ├── replays/                  # Failure-shape replay fixtures (lending-whale-bad-debt, liquid-staking-*, stablecoin-uxd-style-collateral-cascade)
@@ -201,8 +201,8 @@ An adapter wires a specific Solana program into the engine.
 1. **Compile your program to `.so`** and get its Anchor IDL (or a hand-written IDL JSON).
 2. **Generate or hand-write the adapter TOML:**
    - *Skill path:* install the `riptide-adapt` Claude Code skill (`skills/riptide-adapt/SKILL.md`). Invoke it in-session pointing at your program source or IDL. The skill reads the program, classifies it against the primitive library (lending / perps / AMM / generic), writes the adapter TOML, and runs `riptide adapt` as a smoke test. No API keys or endpoint config.
-   - *Hand-written path:* copy the closest shipping adapter from `fixtures/adapters/` (`solend-fork.toml`, `perps-fork.toml`, `amm-fork.toml`, `liquid-staking-fork.toml`, `stablecoin-fork.toml`, or `resource-grinder.toml`) and edit `program_so`, `[[accounts]]`, `[[actions]]`, `[[observations]]`, and `[[invariants]]`.
-3. **Wire an oracle if the program needs one.** A generic adapter can declare a single `[[oracles]]` block bound to a `kind = "shared"` account. The harness bootstraps that account at tick 0 with real admin-mock or Pyth bytes and mutates it on every scenario/replay oracle update. The bound account can optionally declare `owner = { program_so = "<path>.so" }` (owner resolved from the companion `target/deploy/<name>-keypair.json`) for sibling-owned oracles such as `admin_mock_oracle`, or `owner = { pubkey = "<base58>" }` for real external programs such as Pyth. Omit `owner` and the simulated program owns the account. See [`docs/architecture.md#oracle-binding-for-generic-adapters`](docs/architecture.md#oracle-binding-for-generic-adapters) and the end-to-end proof at `engine/tests/perps_sibling_oracle_proof.rs`. Two or more `[[oracles]]` entries on a generic adapter is currently a loader error — multi-oracle generic semantics remain a follow-up.
+   - *Hand-written path:* copy the closest shipping adapter from `fixtures/adapters/` (`lending.toml`, `perpetuals.toml`, `amm.toml`, `liquid-staking.toml`, `stablecoin.toml`, or `resource-grinder.toml`) and edit `program_so`, `[[accounts]]`, `[[actions]]`, `[[observations]]`, and `[[invariants]]`.
+3. **Wire an oracle if the program needs one.** A generic adapter can declare a single `[[oracles]]` block bound to a `kind = "shared"` account. The harness bootstraps that account at tick 0 with real admin-mock or Pyth bytes and mutates it on every scenario/replay oracle update. The bound account can optionally declare `owner = { program_so = "<path>.so" }` (owner resolved from the companion `target/deploy/<name>-keypair.json`) for sibling-owned oracles such as `admin_mock_oracle`, or `owner = { pubkey = "<base58>" }` for real external programs such as Pyth. Omit `owner` and the simulated program owns the account. See [`docs/architecture.md#oracle-binding-for-generic-adapters`](docs/architecture.md#oracle-binding-for-generic-adapters) and the end-to-end proof at `engine/tests/perpetuals_sibling_oracle_proof.rs`. Two or more `[[oracles]]` entries on a generic adapter is currently a loader error — multi-oracle generic semantics remain a follow-up.
 4. **Smoke-test it:** `riptide adapt --adapter fixtures/adapters/<your-adapter>.toml` — confirms the engine boots it and observes a state delta.
 5. **Commit** the adapter under `fixtures/adapters/` and the IDL under `fixtures/idls/`.
 
@@ -271,7 +271,7 @@ Engine changes are rare. If you're about to write one, stop and ask:
 - **Is this a genuinely new engine capability?** If yes — good, write it, but:
   - It ships with its own integration test in `engine/tests/`.
   - It must preserve the `e2e_determinism` regression.
-  - It does not break the three byte-stable hashes shipped today (Solend-fork hero-grid `w25-s40`, perps-fork scratch, AMM-fork scratch — see [Determinism & Regression Gates](#determinism--regression-gates)).
+  - It does not break the three byte-stable hashes shipped today (Solend-fork hero-grid `w25-s40`, perpetuals scratch, AMM-fork scratch — see [Determinism & Regression Gates](#determinism--regression-gates)).
   - It updates `docs/architecture.md` if the change touches a documented pattern.
 
 Engine changes that break determinism without a conscious retune are the top-priority reverts.
@@ -302,10 +302,10 @@ Before opening a PR, make sure the regression floor is green:
 # Engine-side determinism + parity + roundtrip gates
 cargo test -p riptide-engine --test litesvm_parity
 cargo test -p riptide-engine --test e2e_determinism
-cargo test -p riptide-engine --test perps_fork_roundtrip
-cargo test -p riptide-engine --test amm_fork_roundtrip
-cargo test -p riptide-engine --test liquid_staking_fork_roundtrip
-cargo test -p riptide-engine --test stablecoin_fork_roundtrip
+cargo test -p riptide-engine --test perpetuals_roundtrip
+cargo test -p riptide-engine --test amm_roundtrip
+cargo test -p riptide-engine --test liquid_staking_roundtrip
+cargo test -p riptide-engine --test stablecoin_roundtrip
 cargo test -p riptide-engine --test replay_framework
 cargo test -p riptide-engine --test replay_lending_whale_bad_debt
 cargo test -p riptide-engine --test replay_liquid_staking_depeg_redemption_run
@@ -348,7 +348,7 @@ docs/description       # Documentation
 ### Before submitting
 
 1. **Run the regression gates** (see [Determinism & Regression Gates](#determinism--regression-gates)).
-2. **Test manually:** run the shipping demo (`riptide run solend-fork/hero-grid/w25-s40`) and confirm the hash is unchanged.
+2. **Test manually:** run the shipping demo (`riptide run lending/hero-grid/w25-s40`) and confirm the hash is unchanged.
 3. **Keep PRs focused.** One logical change per PR. Don't mix an adapter addition with a skill rewrite.
 4. **Scrub for sprint numbers + internal task IDs.** Nothing user-facing should carry internal sprint/phase references.
 
@@ -381,7 +381,7 @@ Scopes: `engine`, `cli`, `adapter`, `persona`, `taxonomy`, `skill`, `docs`, `ins
 
 Examples:
 ```
-feat(adapter): add stablecoin-fork adapter + 4-persona library
+feat(adapter): add stablecoin adapter + 4-persona library
 fix(engine): preserve determinism when liquidation cascade reorders events
 docs(architecture): clarify LiteSVM-vs-validator parity path
 feat(skill): extend riptide-scenarios classify.md with impermanent_loss_spike

@@ -1,6 +1,6 @@
 //! AMM-fork LiteSVM round-trip ( · gate).
 //!
-//! End-to-end coverage that the shipped `amm_fork.so` loads in LiteSVM
+//! End-to-end coverage that the shipped `amm.so` loads in LiteSVM
 //! and exercises every instruction of the AMM-lite scope:
 //! `initialize_pool → add_liquidity → swap → remove_liquidity`.
 //!
@@ -11,23 +11,23 @@
 //! `[[oracles]]` block, which is load-bearing for the story.
 //!
 //! Four tests:
-//! 1. `amm_fork_roundtrip_full_path` — init → add → swap → read reserves →
+//! 1. `amm_roundtrip_full_path` — init → add → swap → read reserves →
 //! remove. Asserts reserves update under constant-product, LP supply
 //! round-trips, cumulative volume + fees accrue.
-//! 2. `amm_fork_constant_product_holds_within_tolerance` — fires 5 swaps
+//! 2. `amm_constant_product_holds_within_tolerance` — fires 5 swaps
 //! in alternating directions on a no-fee pool and asserts the
 //! product `reserve_a * reserve_b` stays within integer-math rounding
 //! tolerance of its initial value. (Proves the swap math respects the
 //! invariant up to per-swap truncation.)
-//! 3. `amm_fork_rejects_slippage` — swap with `min_amount_out` above the
+//! 3. `amm_rejects_slippage` — swap with `min_amount_out` above the
 //! achievable output must reject with `SlippageExceeded`.
-//! 4. `amm_fork_is_deterministic` — two fresh instances replay the full
+//! 4. `amm_is_deterministic` — two fresh instances replay the full
 //! path and produce byte-identical final pool state on every non-
 //! identity field.
 //!
 //! All four tests are gated on the `.so` artifact existing; a missing
 //! `.so` prints a skip message (same pattern as t17's
-//! `perps_fork_roundtrip_long_path`).
+//! `perpetuals_roundtrip_long_path`).
 
 #![cfg(feature = "litesvm-backend")]
 
@@ -43,7 +43,7 @@ use solana_sdk::{
 use solana_system_interface::instruction as system_instruction;
 use solana_transaction::Transaction;
 
-// --- Byte-level constants mirrored from `programs/amm-fork/src/state.rs` ---
+// --- Byte-level constants mirrored from `programs/amm/src/state.rs` ---
 
 const POOL_STATE_LEN: usize =
     1 + 32 + 32 + 32 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8; // 161
@@ -56,7 +56,7 @@ const DIRECTION_B_TO_A: u64 = 1;
 //
 // Mirrored locally so the test does not need to depend on the on-chain
 // crate from the engine workspace (same pattern t17 uses for
-// `perps_fork::state::PerpsInstructionData`).
+// `perpetuals::state::PerpsInstructionData`).
 #[derive(BorshSerialize)]
 enum AmmIx {
     InitializePool {
@@ -112,16 +112,16 @@ fn workspace_root() -> PathBuf {
 }
 
 fn amm_so_path() -> PathBuf {
-    workspace_root().join("programs/amm-fork/target/deploy/amm_fork.so")
+    workspace_root().join("programs/amm/target/deploy/amm.so")
 }
 
 fn skip_if_missing(paths: &[&Path]) -> bool {
     for p in paths {
         if !p.exists() {
             eprintln!(
-                "skipping t24 amm-fork LiteSVM test: {} missing \
+                "skipping t24 amm LiteSVM test: {} missing \
                  (build with \
-                 `cargo build-sbf --manifest-path programs/amm-fork/Cargo.toml`)",
+                 `cargo build-sbf --manifest-path programs/amm/Cargo.toml`)",
                 p.display()
             );
             return true;
@@ -149,7 +149,7 @@ impl AmmHarness {
 
         let program_id = Pubkey::new_unique();
         svm.add_program(program_id, &std::fs::read(amm_so_path()).unwrap())
-            .expect("load amm_fork.so");
+            .expect("load amm.so");
 
         let admin = Keypair::new();
         let trader = Keypair::new();
@@ -328,7 +328,7 @@ impl AmmHarness {
 // --- Tests ---
 
 #[test]
-fn amm_fork_roundtrip_full_path() {
+fn amm_roundtrip_full_path() {
     if skip_if_missing(&[&amm_so_path()]) {
         return;
     }
@@ -389,7 +389,7 @@ fn amm_fork_roundtrip_full_path() {
 }
 
 #[test]
-fn amm_fork_constant_product_holds_within_tolerance() {
+fn amm_constant_product_holds_within_tolerance() {
     if skip_if_missing(&[&amm_so_path()]) {
         return;
     }
@@ -440,7 +440,7 @@ fn amm_fork_constant_product_holds_within_tolerance() {
 }
 
 #[test]
-fn amm_fork_rejects_slippage() {
+fn amm_rejects_slippage() {
     if skip_if_missing(&[&amm_so_path()]) {
         return;
     }
@@ -473,7 +473,7 @@ fn amm_fork_rejects_slippage() {
 }
 
 #[test]
-fn amm_fork_is_deterministic() {
+fn amm_is_deterministic() {
     if skip_if_missing(&[&amm_so_path()]) {
         return;
     }

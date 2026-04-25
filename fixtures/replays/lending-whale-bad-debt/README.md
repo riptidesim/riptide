@@ -68,7 +68,7 @@ fires on it at a named tick".
 - `oracle-trajectory.json` — coarse multi-tick price path ending at
   the stress threshold.
 - `adapter.toml` — replay-scoped lending adapter with the
-  `no_bad_debt` invariant added (the shipped `fixtures/adapters/solend-fork.toml`
+  `no_bad_debt` invariant added (the shipped `fixtures/adapters/lending.toml`
   stays invariant-free to preserve its hero-grid byte-stability).
 - `config.json` — the replay-config JSON the CLI consumes.
 - `expected-summary.json` — canonical SHA-256 + invariant firing
@@ -106,7 +106,7 @@ cargo test -p riptide-engine --release --features litesvm-backend \
 - CoinDesk follow-up on the whale reducing risk:
   - https://www.coindesk.com/business/2022/06/27/solanas-biggest-defi-lender-almost-got-rekt-then-binance-stepped-in
 - Internal parameter-boundary reference:
-  - `docs/case-studies/solend-fork.md`
+  - `docs/case-studies/lending.md`
 
 ## Honesty framing
 
