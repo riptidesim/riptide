@@ -151,11 +151,11 @@ disk plus the local dashboard view over it:
   inspection-only WARN with no false PASS; no live mainnet IDL
   fetch in either command. See [`adapter-lineage.md`](adapter-lineage.md).
 
-These surfaces are **simulation evidence**, not audit signoff. A
-green CI run is a reproducibility check, not a security
-attestation; a run verdict describes the declared simulation run, not a
-safety verdict on the program; and a lineage block is an authored
-declaration, not a machine-verified coverage claim.
+These surfaces are **simulation evidence**, not audit signoff.
+A green CI run is a reproducibility check, not a security
+attestation; a run verdict describes the declared simulation
+run, not audit signoff on the program; and a lineage block is
+an authored declaration, not a machine-verified coverage claim.
 
 ## Further reading
 

@@ -133,7 +133,7 @@ reviewer inspects when deciding whether a green run is trustworthy.
 `.github/workflows/riptide-handoff-template.yml.example` (drop the
 `.example` suffix when you copy it).
 
-The template is parameterized so every reviewer-facing guarantee is
+The template is parameterized so every reviewer-facing claim is
 anchored in **your** inputs — not Riptide's. In particular, the
 template does **not** ship with any Riptide canonical hashes
 hard-coded; those belong to Riptide's CI alone. Every downstream
@@ -246,7 +246,7 @@ adopter pins their own hash to their own replay fixture.
 ## Honest scope
 
 - **Simulation evidence, not audit signoff.** A green CI run is a
-  reproducibility guarantee, not a security attestation. Forward the
+  reproducibility check, not a security attestation. Forward the
   pack + workflow URL as "the engine produced byte-identical output
   on a clean runner," not as "this program is audited."
 - **No cross-program validation against a mainnet IDL.** The workflow
