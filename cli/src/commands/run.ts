@@ -5,7 +5,7 @@
 //   $ riptide run <pattern>      → discover all, filter by glob
 //   $ riptide run <path.json>    → run a single run-config file (backward-compat)
 //   $ riptide run --only-failing → rerun only scenarios that failed last time
-//   $ riptide run --serve        → after the sweep, serve artifacts of the last scenario
+//   $ riptide run --serve        → after the sweep, serve the run collection dashboard
 //   $ riptide run --adapter <t>  → pin every scenario to one adapter (override)
 //
 // Disambiguation rule: if the positional arg ends in `.json` AND
@@ -50,7 +50,7 @@ export function createRunCommand(): Command {
     )
     .option(
       "--serve",
-      "After the sweep, start the Riptide web dashboard (default port 4173) serving the last scenario's artifacts. Blocks on Ctrl-C.",
+      "After the sweep, start the Riptide web dashboard (default port 4173) serving the run collection. Blocks on Ctrl-C.",
       false
     )
     .option(
@@ -143,21 +143,10 @@ export function createRunCommand(): Command {
         emitJsonOutput(summary, resolved.scenarios.length === 1);
       }
 
-      // `--serve` MVP (R3.4): show the LAST scenario's artifacts only
-      // with a note about multi-scenario aggregation being Sprint 9+.
-      // Only starts a server if we actually produced artifacts (i.e.
-      // at least one pass or fail — aborted runs leave no dir).
-      if (cliOpts.serve && summary.lastArtifactsDir) {
-        if (summary.total > 1) {
-          process.stderr.write(
-            chalk.gray(
-              `note: --serve is showing the last scenario (${summary.scenarios.at(-1)?.name ?? "?"}). ` +
-                `Multi-scenario aggregation is Sprint 9+.\n`
-            )
-          );
-        }
-        const handle = await startDashboardServer(summary.lastArtifactsDir);
+      if (cliOpts.serve) {
+        const handle = await startDashboardServer(summary.runCollectionPath);
         process.stderr.write(chalk.cyan(`Dashboard: ${handle.url}\n`));
+        process.stderr.write(chalk.gray(`Run collection: ${summary.runCollectionPath}\n`));
         process.stderr.write(chalk.gray(`  (Ctrl-C to stop)\n`));
         await blockUntilSignal(handle);
       }

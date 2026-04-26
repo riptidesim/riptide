@@ -129,6 +129,178 @@
       color: var(--rt-fg-1);
       font-weight: 500;
     }
+    .collection-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1px;
+      background: var(--rt-border);
+      border: 1px solid var(--rt-border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .stat-cell {
+      background: var(--rt-bg-panel);
+      padding: 11px 14px;
+      min-width: 0;
+    }
+    .stat-cell .k,
+    .metric-row .raw-key,
+    .chip-label {
+      color: var(--rt-fg-3);
+      font: var(--rt-text-label);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .stat-cell .v {
+      margin-top: 4px;
+      font: var(--rt-text-mono);
+      color: var(--rt-fg-1);
+      word-break: break-word;
+    }
+    .scenario-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--rt-bg-panel);
+      border: 1px solid var(--rt-border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .scenario-table th,
+    .scenario-table td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--rt-border);
+      font: var(--rt-text-mono-sm);
+      vertical-align: top;
+    }
+    .scenario-table th {
+      color: var(--rt-fg-3);
+      background: var(--rt-bg-panel-2);
+      font: var(--rt-text-label);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .scenario-table tr:last-child td { border-bottom: 0; }
+    .scenario-table tbody tr {
+      cursor: pointer;
+    }
+    .scenario-table tbody tr:hover,
+    .scenario-table tbody tr.selected {
+      background: rgba(34, 240, 230, 0.08);
+    }
+    .scenario-name {
+      color: var(--rt-fg-1);
+      font-weight: 600;
+      word-break: break-word;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 20px;
+      border: 1px solid var(--rt-border);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font: var(--rt-text-label);
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .pill.ok,
+    .metric-row.good td:first-child {
+      color: var(--rt-pass);
+      border-color: rgba(34, 197, 94, 0.45);
+    }
+    .pill.danger,
+    .metric-row.danger td:first-child {
+      color: var(--rt-fail);
+      border-color: rgba(239, 68, 68, 0.55);
+    }
+    .pill.warn,
+    .metric-row.warn td:first-child {
+      color: var(--rt-warn);
+      border-color: rgba(245, 176, 65, 0.55);
+    }
+    .pill.info {
+      color: var(--rt-info);
+      border-color: rgba(34, 240, 230, 0.42);
+    }
+    .interpretation-panel {
+      display: grid;
+      grid-template-columns: minmax(220px, 0.8fr) minmax(260px, 1.2fr) minmax(220px, 1fr);
+      gap: 1px;
+      background: var(--rt-border);
+      border: 1px solid var(--rt-border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .interpretation-cell {
+      background: var(--rt-bg-panel);
+      padding: 14px 16px;
+      min-width: 0;
+    }
+    .interpretation-cell h3 {
+      margin: 0 0 10px;
+      color: var(--rt-fg-1);
+      font: 600 15px/1.25 var(--rt-font-sans);
+      letter-spacing: 0;
+    }
+    .interpretation-summary {
+      color: var(--rt-fg-1);
+      font: var(--rt-text-body);
+      margin: 8px 0 0;
+    }
+    .evidence-list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--rt-fg-2);
+      font: var(--rt-text-mono-sm);
+    }
+    .evidence-list li {
+      margin: 0 0 6px;
+      word-break: break-word;
+    }
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .metric-table th,
+    .metric-table td {
+      width: auto;
+    }
+    .metric-table thead th {
+      background: var(--rt-bg-panel-2);
+      color: var(--rt-fg-3);
+      font: var(--rt-text-label);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .metric-row .metric-label {
+      color: var(--rt-fg-1);
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .metric-row .metric-hint {
+      color: var(--rt-fg-3);
+      font: var(--rt-text-meta);
+      max-width: 44ch;
+    }
+    .metric-row .metric-value {
+      color: var(--rt-fg-1);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .metric-row .metric-unit {
+      color: var(--rt-fg-3);
+      font: var(--rt-text-meta);
+    }
+    .metric-group-row th {
+      color: var(--rt-signal-cyan);
+      background: var(--rt-bg-panel-2);
+      width: auto;
+    }
     .meta-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -316,6 +488,35 @@
       color: var(--rt-fg-1);
       font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
     }
+    @media (max-width: 820px) {
+      header.masthead {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      header.masthead .tagline {
+        margin-left: 0;
+      }
+      main {
+        padding: 18px 16px 48px;
+      }
+      .interpretation-panel {
+        grid-template-columns: 1fr;
+      }
+      .scenario-table {
+        display: block;
+        overflow-x: auto;
+      }
+      .controls {
+        align-items: stretch;
+      }
+      .controls select,
+      .controls input {
+        width: 100%;
+      }
+      .controls .count {
+        margin-left: 0;
+      }
+    }
   </style>
 </head>
 <body>
@@ -324,24 +525,76 @@
     <span id="runLabel" class="tagline">loading…</span>
   </header>
   <main>
+    <section id="collection">
+      <h2>Run collection</h2>
+      <div id="collectionStats" class="collection-strip"></div>
+      <div class="controls">
+        <label for="scenarioSelect">Scenario</label>
+        <select id="scenarioSelect"></select>
+        <label for="verdictFilter">Verdict</label>
+        <select id="verdictFilter">
+          <option value="">all</option>
+          <option value="failure-observed">failure observed</option>
+          <option value="no-failure-observed">no failure observed</option>
+          <option value="inconclusive">inconclusive</option>
+          <option value="setup-error">setup error</option>
+        </select>
+        <label for="coverageFilter">Coverage</label>
+        <select id="coverageFilter">
+          <option value="">all</option>
+          <option value="exercised">exercised</option>
+          <option value="partial">partial</option>
+          <option value="unexercised">unexercised</option>
+          <option value="unknown">unknown</option>
+        </select>
+        <label for="statusFilter">Status</label>
+        <select id="statusFilter">
+          <option value="">all</option>
+          <option value="pass">pass</option>
+          <option value="fail">fail</option>
+          <option value="error">error</option>
+          <option value="skipped">skipped</option>
+        </select>
+        <label for="invariantFilter">Invariant</label>
+        <input id="invariantFilter" placeholder="name" />
+        <label for="scenarioSearch">Search</label>
+        <input id="scenarioSearch" placeholder="text" />
+        <span class="count" id="scenarioCount"></span>
+      </div>
+      <table class="scenario-table">
+        <thead>
+          <tr><th>Scenario</th><th>Status</th><th>Verdict</th><th>Coverage</th><th>Fires</th><th>Preview</th></tr>
+        </thead>
+        <tbody id="scenarioRows"></tbody>
+      </table>
+    </section>
+
+    <section id="interpretation">
+      <h2>Interpretation</h2>
+      <div id="interpretationPanel" class="interpretation-panel"></div>
+    </section>
+
     <section id="meta">
       <h2>Run metadata</h2>
-      <p class="section-subtitle">How this run was configured — the scenario, the random seed, how many ticks it covered, and which agent personas took part. Use this to tell at a glance what kind of simulation you're looking at (lending, perps, AMM, or a historical replay) and how to reproduce it.</p>
+      <p class="section-subtitle">Scenario configuration, seed, tick count, agent roster, and artifact source.</p>
       <div id="metaGrid" class="meta-grid"></div>
     </section>
 
     <section id="summary">
       <h2>Summary metrics</h2>
-      <p class="section-subtitle">End-of-run aggregate numbers emitted by the adapter. Units and field names come from the adapter itself, so a lending run surfaces things like TVL and bad debt, a perps run surfaces open-interest and PnL, and so on. "Normal" depends on the scenario — compare across seeds to see what holds.</p>
+      <p class="section-subtitle">End-of-run adapter metrics with readable labels where Riptide recognizes the key.</p>
       <div id="runStats" class="run-stats" hidden></div>
-      <table class="kv" id="summaryTable">
+      <table class="kv metric-table" id="summaryTable">
+        <thead>
+          <tr><th>Metric</th><th>Raw key</th><th>Value</th><th>Unit / hint</th></tr>
+        </thead>
         <tbody></tbody>
       </table>
     </section>
 
     <section id="agents">
       <h2>Agents</h2>
-      <p class="section-subtitle">Who acted and how it went. Grouped by persona archetype: how many agents of this type ran, how many actions they fired, what fraction succeeded vs reverted, and (where causal data is available) which invariant fires traced back to their actions.</p>
+      <p class="section-subtitle">Persona roster, action counts, success counts, reverted counts, and invariant attribution availability.</p>
       <p class="section-subtitle" id="agentsAttrNote" hidden></p>
       <table class="kv" id="agentsTable">
         <thead>
@@ -353,13 +606,13 @@
 
     <section id="invariants">
       <h2>Invariants <span id="invariantBadge"></span></h2>
-      <p class="section-subtitle">Machine-checkable rules the run is watching. Red rows mean a rule fired during this run — the condition was violated at least once. A clean run shows every rule at zero firings.</p>
+      <p class="section-subtitle">Declared rule rows and any observed firings for the selected scenario.</p>
       <div id="invariantBlock"></div>
     </section>
 
     <section id="timeseries">
       <h2>Timeseries</h2>
-      <p class="section-subtitle">Per-tick values recorded as the simulation advanced. Pick a series to plot against tick number. Flat means the metric held steady; sharp moves line up with events below. Adapter decides which fields are numeric and chart-worthy.</p>
+      <p class="section-subtitle">Per-tick numeric values recorded by the adapter.</p>
       <div class="controls">
         <label for="seriesSelect">Series</label>
         <select id="seriesSelect"></select>
@@ -369,7 +622,7 @@
 
     <section id="events">
       <h2>Event stream</h2>
-      <p class="section-subtitle">Every action an agent attempted, in tick order. Green outcomes succeeded, red ones failed, amber ones were skipped (e.g. precondition not met). Filter by action, outcome, or agent substring to zoom in. Large runs are capped at 2000 rendered rows — the raw stream is linked below.</p>
+      <p class="section-subtitle">Agent and replay events in tick order. Large runs are capped at 2000 rendered rows.</p>
       <div class="controls">
         <label for="actionFilter">Action</label>
         <select id="actionFilter"><option value="">all</option></select>
@@ -395,12 +648,151 @@
     </section>
 
     <div class="footer">
-      Served by <code>riptide --serve</code> · view raw: <a href="/api/result">/api/result</a> · <a href="/api/report">/api/report</a>
+      Served by <code>riptide --serve</code> · view raw: <a id="rawResultLink" href="/api/result">/api/result</a> · <a id="rawReportLink" href="/api/report">/api/report</a>
     </div>
   </main>
 
   <script>
     const FMT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 });
+    const COUNT_FMT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+    const STATE = {
+      collection: null,
+      selectedScenarioName: "",
+      selectedResult: null
+    };
+
+    const VERDICT_ORDER = ["failure-observed", "no-failure-observed", "inconclusive", "setup-error"];
+    const COVERAGE_ORDER = ["exercised", "partial", "unexercised", "unknown"];
+    const STATUS_ORDER = ["pass", "fail", "error", "skipped"];
+
+    const METRIC_REGISTRY = {
+      final_tvl: {
+        label: "Final TVL",
+        unit: "tokens",
+        hint: "End-of-run total value locked",
+        format: "number"
+      },
+      final_utilization: {
+        label: "Final utilization",
+        unit: "%",
+        hint: "Borrowed liquidity divided by available liquidity",
+        format: "percent"
+      },
+      total_bad_debt: {
+        label: "Total bad debt",
+        unit: "tokens",
+        hint: "Debt remaining after collateral is exhausted",
+        format: "number"
+      },
+      largest_single_tick_drawdown: {
+        label: "Largest tick drawdown",
+        unit: "tokens",
+        hint: "Largest one-tick drop observed in the adapter metric",
+        format: "number"
+      },
+      total_liquidations: {
+        label: "Total liquidations",
+        unit: "count",
+        hint: "Liquidation actions observed during the run",
+        format: "integer"
+      },
+      agents_active: {
+        label: "Agents active",
+        unit: "count",
+        hint: "Agents still active at the end of the run",
+        format: "integer"
+      },
+      agents_liquidated: {
+        label: "Agents liquidated",
+        unit: "count",
+        hint: "Agents liquidated during the run",
+        format: "integer"
+      },
+      agents_depleted: {
+        label: "Agents depleted",
+        unit: "count",
+        hint: "Agents with depleted balances at the end of the run",
+        format: "integer"
+      },
+      effective_collateral_ratio: {
+        label: "Effective collateral ratio",
+        unit: "%",
+        hint: "Collateral value relative to outstanding stable supply",
+        format: "percent"
+      },
+      cumulative_hedge_loss: {
+        label: "Cumulative hedge loss",
+        unit: "%",
+        hint: "Cumulative hedge loss from the stablecoin collateral pool",
+        format: "percent"
+      },
+      exchange_rate: {
+        label: "Exchange rate",
+        unit: "%",
+        hint: "Liquid-staking or share exchange rate",
+        format: "percent"
+      },
+      collateral_assets: {
+        label: "Collateral assets",
+        unit: "tokens",
+        hint: "Collateral assets held by the pool",
+        format: "number"
+      },
+      reserve_buffer: {
+        label: "Reserve buffer",
+        unit: "tokens",
+        hint: "Reserve buffer available in the pool",
+        format: "number"
+      },
+      reserve_buffer_assets: {
+        label: "Reserve buffer",
+        unit: "tokens",
+        hint: "Reserve buffer assets available in the pool",
+        format: "number"
+      },
+      pending_redemption_assets: {
+        label: "Pending redemption assets",
+        unit: "tokens",
+        hint: "Assets waiting in the redemption queue",
+        format: "number"
+      },
+      pending_redemption_count: {
+        label: "Pending redemptions",
+        unit: "count",
+        hint: "Redemption requests waiting in the queue",
+        format: "number"
+      },
+      pending_unstake_assets: {
+        label: "Pending unstake assets",
+        unit: "tokens",
+        hint: "Liquid-staking assets waiting to unstake",
+        format: "number"
+      },
+      pending_unstake_count: {
+        label: "Pending unstakes",
+        unit: "count",
+        hint: "Unstake requests waiting in the queue",
+        format: "number"
+      },
+      stable_supply: {
+        label: "Stablecoin supply",
+        unit: "tokens",
+        hint: "Outstanding stablecoin amount",
+        format: "number"
+      },
+      lst_supply: {
+        label: "LST supply",
+        unit: "tokens",
+        hint: "Outstanding liquid-staking token amount",
+        format: "number"
+      },
+      total_assets: {
+        label: "Total assets",
+        unit: "tokens",
+        hint: "Total assets observed by the pool",
+        format: "number"
+      }
+    };
 
     function fmtValue(v) {
       if (v === null || v === undefined) return "—";
@@ -415,18 +807,276 @@
       return String(v);
     }
 
-    function renderMeta(result) {
+    function humanizeKey(key) {
+      return String(key)
+        .replaceAll("_", " ")
+        .replaceAll("-", " ")
+        .replaceAll(".", " ")
+        .replace(/\b\w/g, (m) => m.toUpperCase());
+    }
+
+    function normalizeMetricKey(key) {
+      const raw = String(key);
+      const parts = raw.toLowerCase().split(".");
+      let local = parts[parts.length - 1] || raw.toLowerCase();
+      if (local === "summary" && parts.length > 1) local = parts[parts.length - 2];
+      const aggregateMatch = local.match(/_(avg|max|min)$/);
+      const aggregate = aggregateMatch ? aggregateMatch[1] : "";
+      if (aggregate) local = local.slice(0, -aggregate.length - 1);
+      const basisPoints = local.endsWith("_bps");
+      if (basisPoints) local = local.slice(0, -4);
+      return {
+        raw,
+        local,
+        aggregate,
+        basisPoints,
+        qualifiedPrefix: parts.slice(0, -1).join(".")
+      };
+    }
+
+    function aggregateLabel(prefix, aggregate) {
+      if (!aggregate) return prefix;
+      if (aggregate === "avg") return `Average ${prefix.toLowerCase()}`;
+      if (aggregate === "max") return `Maximum ${prefix.toLowerCase()}`;
+      if (aggregate === "min") return `Minimum ${prefix.toLowerCase()}`;
+      return prefix;
+    }
+
+    function aggregateHintSuffix(aggregate) {
+      if (aggregate === "avg") return " Average over recorded ticks.";
+      if (aggregate === "max") return " Maximum over recorded ticks.";
+      if (aggregate === "min") return " Minimum over recorded ticks.";
+      return "";
+    }
+
+    function metricMeta(key) {
+      const normalized = normalizeMetricKey(key);
+      const direct = METRIC_REGISTRY[key] || METRIC_REGISTRY[normalized.local];
+      if (direct) {
+        const format = normalized.basisPoints ? "bps" : direct.format;
+        const unit = normalized.basisPoints ? "%" : direct.unit;
+        const hint =
+          direct.hint +
+          aggregateHintSuffix(normalized.aggregate) +
+          (normalized.basisPoints ? " Raw value is basis points." : "");
+        return {
+          key,
+          known: true,
+          normalized_key: normalized.local,
+          aggregate: normalized.aggregate,
+          basis_points: normalized.basisPoints,
+          ...direct,
+          label: aggregateLabel(direct.label, normalized.aggregate),
+          unit,
+          hint,
+          format
+        };
+      }
+      const lower = normalized.local;
+      if (lower.includes("collateral") && (lower.includes("ratio") || lower.includes("backing"))) {
+        return {
+          key,
+          known: true,
+          normalized_key: lower,
+          aggregate: normalized.aggregate,
+          basis_points: normalized.basisPoints,
+          label: aggregateLabel("Collateral ratio", normalized.aggregate),
+          unit: "%",
+          hint:
+            "Collateral value relative to issued or borrowed value" +
+            aggregateHintSuffix(normalized.aggregate) +
+            (normalized.basisPoints ? " Raw value is basis points." : ""),
+          format: normalized.basisPoints ? "bps" : "percent"
+        };
+      }
+      if (lower.includes("backing") && (lower.includes("ratio") || lower.includes("reserve"))) {
+        return {
+          key,
+          known: true,
+          normalized_key: lower,
+          aggregate: normalized.aggregate,
+          basis_points: normalized.basisPoints,
+          label: aggregateLabel("Backing ratio", normalized.aggregate),
+          unit: "%",
+          hint:
+            "Reserve backing relative to outstanding supply" +
+            aggregateHintSuffix(normalized.aggregate) +
+            (normalized.basisPoints ? " Raw value is basis points." : ""),
+          format: normalized.basisPoints ? "bps" : "percent"
+        };
+      }
+      if (lower.includes("stablecoin") && lower.includes("supply")) {
+        return {
+          key,
+          known: true,
+          normalized_key: lower,
+          aggregate: normalized.aggregate,
+          basis_points: normalized.basisPoints,
+          label: aggregateLabel("Stablecoin supply", normalized.aggregate),
+          unit: "tokens",
+          hint: "Outstanding stablecoin amount" + aggregateHintSuffix(normalized.aggregate),
+          format: "number"
+        };
+      }
+      if (lower.includes("exchange_rate") || lower.includes("exchange-rate") || lower.includes("lst_rate")) {
+        return {
+          key,
+          known: true,
+          normalized_key: lower,
+          aggregate: normalized.aggregate,
+          basis_points: normalized.basisPoints,
+          label: aggregateLabel("Exchange rate", normalized.aggregate),
+          unit: normalized.basisPoints ? "%" : "x",
+          hint:
+            "Liquid-staking or share exchange rate" +
+            aggregateHintSuffix(normalized.aggregate) +
+            (normalized.basisPoints ? " Raw value is basis points." : ""),
+          format: normalized.basisPoints ? "bps" : "number"
+        };
+      }
+      if (lower.includes("queue") || lower.includes("pending_withdrawal")) {
+        return {
+          key,
+          known: true,
+          normalized_key: lower,
+          aggregate: normalized.aggregate,
+          basis_points: normalized.basisPoints,
+          label: aggregateLabel("Queue depth", normalized.aggregate),
+          unit: "count",
+          hint: "Pending queue size or queued withdrawal amount" + aggregateHintSuffix(normalized.aggregate),
+          format: "number"
+        };
+      }
+      if (lower.includes("observation") || lower.includes("aggregate") || lower.includes("samples")) {
+        return {
+          key,
+          known: true,
+          normalized_key: lower,
+          aggregate: normalized.aggregate,
+          basis_points: normalized.basisPoints,
+          label: aggregateLabel(humanizeKey(normalized.local), normalized.aggregate),
+          unit: "observations",
+          hint: "Adapter observation aggregate" + aggregateHintSuffix(normalized.aggregate),
+          format: "number"
+        };
+      }
+      return {
+        key,
+        known: false,
+        normalized_key: lower,
+        aggregate: normalized.aggregate,
+        basis_points: normalized.basisPoints,
+        label: aggregateLabel(humanizeKey(normalized.local), normalized.aggregate),
+        unit: "adapter",
+        hint: "Adapter-defined metric" + aggregateHintSuffix(normalized.aggregate),
+        format: "raw"
+      };
+    }
+
+    function formatMetricValue(value, meta) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        if (meta.format === "percent") return `${FMT.format(value * 100)}%`;
+        if (meta.format === "bps") return `${FMT.format(value / 100)}%`;
+        if (meta.format === "integer") return COUNT_FMT.format(Math.round(value));
+      }
+      return fmtValue(value);
+    }
+
+    function metricSeverity(key, value, meta) {
+      if (typeof value !== "number" || !Number.isFinite(value)) return "";
+      const normalized = normalizeMetricKey(key);
+      const lower = normalized.local;
+      const ratioValue = meta.format === "bps" ? value / 10000 : value;
+      if (lower === "total_bad_debt") return value > 0 ? "danger" : "good";
+      if (lower === "agents_liquidated" || lower === "agents_depleted") return value > 0 ? "warn" : "";
+      if (lower === "final_utilization") return value >= 0.95 ? "warn" : "";
+      if ((lower.includes("collateral") || lower.includes("backing")) && (meta.format === "percent" || meta.format === "bps")) {
+        if (ratioValue < 1) return "danger";
+        if (ratioValue < 1.1) return "warn";
+      }
+      if (lower.includes("bad_debt")) return value > 0 ? "danger" : "";
+      return "";
+    }
+
+    function pillClass(kind, value) {
+      if (kind === "status") {
+        if (value === "pass") return "ok";
+        if (value === "fail" || value === "error") return "danger";
+        if (value === "skipped") return "warn";
+      }
+      if (kind === "verdict") {
+        if (value === "no-failure-observed") return "ok";
+        if (value === "failure-observed" || value === "setup-error") return "danger";
+        if (value === "inconclusive") return "warn";
+      }
+      if (kind === "coverage") {
+        if (value === "exercised") return "ok";
+        if (value === "partial") return "warn";
+        if (value === "unexercised") return "danger";
+        if (value === "unknown") return "info";
+      }
+      if (kind === "severity") {
+        if (value === "critical") return "danger";
+        if (value === "warning") return "warn";
+        if (value === "info") return "info";
+        if (value === "none") return "ok";
+      }
+      if (kind === "confidence") {
+        if (value === "high" || value === "medium") return "ok";
+        if (value === "low") return "warn";
+        if (value === "none") return "info";
+      }
+      return "info";
+    }
+
+    function renderPill(kind, value) {
+      const shown = value || "unknown";
+      return `<span class="pill ${pillClass(kind, shown)}">${escapeHtml(humanizeKey(shown))}</span>`;
+    }
+
+    function compactTotals(totals, order) {
+      if (!totals || typeof totals !== "object") return "—";
+      const parts = order
+        .map((key) => [key, Number(totals[key] || 0)])
+        .filter(([, count]) => count > 0)
+        .map(([key, count]) => `${COUNT_FMT.format(count)} ${humanizeKey(key)}`);
+      return parts.length > 0 ? parts.join(" · ") : "0";
+    }
+
+    function currentScenario() {
+      const scenarios = STATE.collection && Array.isArray(STATE.collection.scenarios)
+        ? STATE.collection.scenarios
+        : [];
+      return scenarios.find((s) => s.name === STATE.selectedScenarioName) || scenarios[0] || null;
+    }
+
+    function scenarioQuery(name) {
+      return name ? `?scenario=${encodeURIComponent(name)}` : "";
+    }
+
+    function updateRawLinks(name) {
+      const query = scenarioQuery(name);
+      document.getElementById("rawResultLink").href = `/api/result${query}`;
+      document.getElementById("rawReportLink").href = `/api/report${query}`;
+    }
+
+    function renderMeta(result, scenario) {
       const grid = document.getElementById("metaGrid");
       const rc = result.run_config || {};
       const personas = Array.isArray(rc.personas) ? rc.personas : [];
       const uniq = [...new Set(personas)];
+      const interpretation = scenario && scenario.interpretation ? scenario.interpretation : {};
       const cells = [
-        ["scenario", rc.scenario ?? "—"],
+        ["scenario", scenario && scenario.name ? scenario.name : rc.scenario ?? "—"],
+        ["status", scenario && scenario.status ? scenario.status : "—"],
+        ["verdict", interpretation.verdict ?? "—"],
+        ["coverage", interpretation.coverage ?? "—"],
         ["seed", result.seed ?? rc.seed ?? "—"],
         ["ticks", result.total_ticks ?? rc.ticks ?? "—"],
         ["agents", rc.agents ?? "—"],
         ["personas", uniq.length ? uniq.join(", ") : "—"],
-        ["adapter output", rc.output_path ?? "—"]
+        ["run config", scenario && scenario.run_config_path ? scenario.run_config_path : "—"],
+        ["artifacts", scenario && scenario.artifacts_dir ? scenario.artifacts_dir : rc.output_path ?? "—"]
       ];
       grid.innerHTML = cells
         .map(
@@ -435,7 +1085,7 @@
         )
         .join("");
       document.getElementById("runLabel").textContent =
-        `${rc.scenario ?? "run"} · seed ${result.seed ?? rc.seed ?? "?"} · ${result.total_ticks ?? "?"} ticks · ${rc.agents ?? "?"} agents`;
+        `${scenario && scenario.name ? scenario.name : rc.scenario ?? "run"} · ${interpretation.verdict ?? "raw result"} · ${result.total_ticks ?? "?"} ticks`;
     }
 
     function renderSummary(result) {
@@ -444,12 +1094,38 @@
       const keys = Object.keys(summary).filter((k) => k !== "invariants_fired");
       keys.sort();
       if (keys.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="2" class="empty-note">summary is empty</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="empty-note">summary is empty</td></tr>`;
         return;
       }
-      tbody.innerHTML = keys
-        .map((k) => `<tr><th>${escapeHtml(k)}</th><td>${escapeHtml(fmtValue(summary[k]))}</td></tr>`)
-        .join("");
+      const known = [];
+      const unknown = [];
+      for (const key of keys) {
+        const meta = metricMeta(key);
+        (meta.known ? known : unknown).push([key, meta]);
+      }
+      const rows = [];
+      if (known.length > 0) {
+        rows.push(`<tr class="metric-group-row"><th colspan="4">Recognized metrics</th></tr>`);
+        rows.push(...known.map(([key, meta]) => renderMetricRow(key, summary[key], meta)));
+      }
+      if (unknown.length > 0) {
+        rows.push(`<tr class="metric-group-row"><th colspan="4">Adapter metrics</th></tr>`);
+        rows.push(...unknown.map(([key, meta]) => renderMetricRow(key, summary[key], meta)));
+      }
+      tbody.innerHTML = rows.join("");
+    }
+
+    function renderMetricRow(key, value, meta) {
+      const severity = metricSeverity(key, value, meta);
+      return `<tr class="metric-row ${escapeAttr(severity)}" title="${escapeAttr(meta.hint)}">
+        <td>
+          <div class="metric-label">${escapeHtml(meta.label)}</div>
+          <div class="metric-hint">${escapeHtml(meta.hint)}</div>
+        </td>
+        <td class="raw-key">${escapeHtml(key)}</td>
+        <td class="metric-value">${escapeHtml(formatMetricValue(value, meta))}</td>
+        <td class="metric-unit">${escapeHtml(meta.unit)}</td>
+      </tr>`;
     }
 
     function renderRunStats(result) {
@@ -705,12 +1381,21 @@
         .join("");
     }
 
-    function renderInvariants(result) {
+    function renderInvariants(result, scenario) {
       const container = document.getElementById("invariantBlock");
       const badge = document.getElementById("invariantBadge");
-      const rows = Array.isArray(result.summary && result.summary.invariants_fired)
+      let rows = Array.isArray(result.summary && result.summary.invariants_fired)
         ? result.summary.invariants_fired
         : [];
+      if (rows.length === 0 && scenario && Array.isArray(scenario.invariant_fires)) {
+        rows = scenario.invariant_fires.map((fire) => ({
+          name: fire.name,
+          field: "observed",
+          op: "at tick",
+          value: fire.tick,
+          firings: 1
+        }));
+      }
       if (rows.length === 0) {
         container.innerHTML = `<div class="empty-note">No invariants declared by this adapter.</div>`;
         badge.innerHTML = "";
@@ -720,13 +1405,22 @@
       badge.innerHTML = firedCount > 0
         ? `<span class="badge danger">${firedCount} firing${firedCount === 1 ? "" : "s"}</span>`
         : `<span class="badge">${rows.length} clean</span>`;
+      const evidence = scenario && scenario.interpretation && Array.isArray(scenario.interpretation.evidence)
+        ? scenario.interpretation.evidence
+        : [];
+      const evidenceText = evidence.length > 0 ? evidence.join(" | ") : "—";
       const body = rows
         .map((r) => {
           const fire = (r.firings ?? 0) > 0;
-          return `<tr class="${fire ? "fire" : ""}"><th>${escapeHtml(r.name || "(unnamed)")}</th><td>${escapeHtml(r.field || "")} ${escapeHtml(r.op || "")} ${escapeHtml(fmtValue(r.value))} · fired ${r.firings ?? 0}</td></tr>`;
+          return `<tr class="${fire ? "fire" : ""}">
+            <th>${escapeHtml(r.name || "(unnamed)")}</th>
+            <td>${escapeHtml(r.field || "")} ${escapeHtml(r.op || "")} ${escapeHtml(fmtValue(r.value))}</td>
+            <td>${renderPill("severity", fire ? "critical" : "none")}</td>
+            <td>${escapeHtml(fire ? evidenceText : "—")} · fired ${escapeHtml(fmtValue(r.firings ?? 0))}</td>
+          </tr>`;
         })
         .join("");
-      container.innerHTML = `<table class="kv"><tbody>${body}</tbody></table>`;
+      container.innerHTML = `<table class="kv"><thead><tr><th>Invariant</th><th>Rule</th><th>Severity</th><th>Evidence</th></tr></thead><tbody>${body}</tbody></table>`;
     }
 
     function pickNumericSeries(result) {
@@ -748,10 +1442,22 @@
       const ts = Array.isArray(result.timeseries) ? result.timeseries : [];
       const select = document.getElementById("seriesSelect");
       const shell = document.getElementById("chartShell");
+      if (tsChart) {
+        tsChart.destroy();
+        tsChart = null;
+      }
+      shell.classList.remove("empty");
+      shell.innerHTML = `<canvas id="tsChart"></canvas>`;
       const keys = pickNumericSeries(result);
       if (ts.length === 0 || keys.length === 0) {
         shell.classList.add("empty");
         shell.innerHTML = "<span>No numeric timeseries available for this run.</span>";
+        select.innerHTML = "";
+        return;
+      }
+      if (typeof Chart === "undefined") {
+        shell.classList.add("empty");
+        shell.innerHTML = "<span>Chart renderer unavailable.</span>";
         select.innerHTML = "";
         return;
       }
@@ -880,21 +1586,300 @@
       return escapeHtml(s);
     }
 
-    async function boot() {
+    async function loadCollection() {
+      const res = await fetch("/api/collection", { headers: { accept: "application/json" } });
+      if (res.ok) return res.json();
+
+      const fallback = await fetch("/api/result", { headers: { accept: "application/json" } });
+      if (!fallback.ok) {
+        throw new Error(`/api/collection returned ${res.status}; /api/result returned ${fallback.status}`);
+      }
+      const result = await fallback.json();
+      const name = result && result.run_config && result.run_config.scenario
+        ? result.run_config.scenario
+        : "single-run";
+      return {
+        schema_version: 1,
+        started_at: "",
+        finished_at: "",
+        allow_invariant_violations: false,
+        total_scenarios: 1,
+        totals_by_status: { pass: 1, fail: 0, error: 0, skipped: 0 },
+        totals_by_verdict: {
+          "failure-observed": 0,
+          "no-failure-observed": 0,
+          inconclusive: 0,
+          "setup-error": 0
+        },
+        totals_by_coverage: { exercised: 0, partial: 0, unexercised: 0, unknown: 0 },
+        scenarios: [
+          {
+            name,
+            run_config_path: "single-run source",
+            status: "pass",
+            wall_clock_s: 0,
+            invariant_fires: [],
+            invariant_fire_count: 0,
+            coverage_checks: [],
+            metric_preview: result.summary || {},
+            simulation_result_path: "simulation-result.json",
+            report_path: "report.md"
+          }
+        ]
+      };
+    }
+
+    function renderCollection(collection) {
+      const scenarios = Array.isArray(collection.scenarios) ? collection.scenarios : [];
+      const stats = [
+        ["scenarios", COUNT_FMT.format(collection.total_scenarios ?? scenarios.length)],
+        ["verdicts", compactTotals(collection.totals_by_verdict, VERDICT_ORDER)],
+        ["coverage", compactTotals(collection.totals_by_coverage, COVERAGE_ORDER)],
+        ["status", compactTotals(collection.totals_by_status, STATUS_ORDER)]
+      ];
+      if (collection.selected_pattern) stats.push(["selected", collection.selected_pattern]);
+      const statsEl = document.getElementById("collectionStats");
+      statsEl.innerHTML = stats
+        .map(([k, v]) => `<div class="stat-cell"><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div></div>`)
+        .join("");
+
+      const select = document.getElementById("scenarioSelect");
+      select.innerHTML = scenarios
+        .map((scenario) => `<option value="${escapeAttr(scenario.name)}">${escapeHtml(scenario.name)}</option>`)
+        .join("");
+      if (STATE.selectedScenarioName) select.value = STATE.selectedScenarioName;
+      renderScenarioRows();
+    }
+
+    function bindCollectionControls() {
+      document.getElementById("scenarioSelect").onchange = (event) => {
+        void selectScenario(event.target.value);
+      };
+      for (const id of ["verdictFilter", "coverageFilter", "statusFilter", "invariantFilter", "scenarioSearch"]) {
+        const el = document.getElementById(id);
+        el.oninput = renderScenarioRows;
+        el.onchange = renderScenarioRows;
+      }
+    }
+
+    function scenarioMatchesFilters(scenario) {
+      const interpretation = scenario.interpretation || {};
+      const verdict = document.getElementById("verdictFilter").value;
+      const coverage = document.getElementById("coverageFilter").value;
+      const status = document.getElementById("statusFilter").value;
+      const invariant = document.getElementById("invariantFilter").value.trim().toLowerCase();
+      const search = document.getElementById("scenarioSearch").value.trim().toLowerCase();
+      if (verdict && interpretation.verdict !== verdict) return false;
+      if (coverage && interpretation.coverage !== coverage) return false;
+      if (status && scenario.status !== status) return false;
+      if (invariant) {
+        const names = Array.isArray(scenario.invariant_fires)
+          ? scenario.invariant_fires.map((fire) => fire.name || "").join(" ").toLowerCase()
+          : "";
+        const checks = Array.isArray(scenario.coverage_checks)
+          ? scenario.coverage_checks.map((check) => `${check.name || ""} ${check.detail || ""}`).join(" ").toLowerCase()
+          : "";
+        if (!names.includes(invariant) && !checks.includes(invariant)) return false;
+      }
+      if (search) {
+        const haystack = [
+          scenario.name,
+          scenario.status,
+          scenario.error,
+          interpretation.verdict,
+          interpretation.coverage,
+          interpretation.confidence,
+          interpretation.severity,
+          ...(scenario.metric_preview ? Object.keys(scenario.metric_preview) : []),
+          ...(scenario.metric_preview ? Object.values(scenario.metric_preview).map(fmtValue) : [])
+        ].join(" ").toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      return true;
+    }
+
+    function renderScenarioRows() {
+      const body = document.getElementById("scenarioRows");
+      const count = document.getElementById("scenarioCount");
+      const scenarios = STATE.collection && Array.isArray(STATE.collection.scenarios)
+        ? STATE.collection.scenarios
+        : [];
+      const filtered = scenarios.filter(scenarioMatchesFilters);
+      count.textContent = `${filtered.length} / ${scenarios.length} scenarios`;
+      if (filtered.length === 0) {
+        body.innerHTML = `<tr><td colspan="6" class="empty-note">No scenarios match the current filters.</td></tr>`;
+        return;
+      }
+      body.innerHTML = filtered
+        .map((scenario) => {
+          const interpretation = scenario.interpretation || {};
+          const preview = metricPreviewText(scenario.metric_preview || {});
+          const selected = scenario.name === STATE.selectedScenarioName ? "selected" : "";
+          return `<tr class="${selected}" data-scenario="${escapeAttr(scenario.name)}">
+            <td><div class="scenario-name">${escapeHtml(scenario.name)}</div></td>
+            <td>${renderPill("status", scenario.status)}</td>
+            <td>${renderPill("verdict", interpretation.verdict || "unknown")}</td>
+            <td>${renderPill("coverage", interpretation.coverage || "unknown")}</td>
+            <td>${escapeHtml(fmtValue(scenario.invariant_fire_count ?? 0))}</td>
+            <td>${escapeHtml(preview)}</td>
+          </tr>`;
+        })
+        .join("");
+      for (const row of body.querySelectorAll("tr[data-scenario]")) {
+        row.onclick = () => void selectScenario(row.getAttribute("data-scenario") || "");
+      }
+    }
+
+    function metricPreviewText(preview) {
+      const entries = Object.entries(preview || {}).slice(0, 3);
+      if (entries.length === 0) return "—";
+      return entries
+        .map(([key, value]) => `${metricMeta(key).label}: ${fmtValue(value)}`)
+        .join(" · ");
+    }
+
+    function renderInterpretation(scenario) {
+      const panel = document.getElementById("interpretationPanel");
+      if (!scenario) {
+        panel.innerHTML = `<div class="interpretation-cell"><div class="empty-note">No scenario selected.</div></div>`;
+        return;
+      }
+      const interpretation = scenario.interpretation || {};
+      const checks = Array.isArray(interpretation.coverage_checks)
+        ? interpretation.coverage_checks
+        : Array.isArray(scenario.coverage_checks)
+          ? scenario.coverage_checks
+          : [];
+      const evidence = Array.isArray(interpretation.evidence) ? interpretation.evidence : [];
+      const reasons = Array.isArray(interpretation.reasons) ? interpretation.reasons : [];
+      panel.innerHTML = `
+        <div class="interpretation-cell">
+          <h3>${escapeHtml(scenario.name)}</h3>
+          <div class="chip-row">
+            ${renderPill("verdict", interpretation.verdict || "unknown")}
+            ${renderPill("confidence", interpretation.confidence || "none")}
+            ${renderPill("coverage", interpretation.coverage || "unknown")}
+            ${renderPill("severity", interpretation.severity || "none")}
+          </div>
+          <p class="interpretation-summary">${escapeHtml(interpretation.summary || scenario.error || "No interpretation attached.")}</p>
+        </div>
+        <div class="interpretation-cell">
+          <h3>Evidence</h3>
+          ${renderList(evidence.length ? evidence : reasons, "No evidence attached.")}
+        </div>
+        <div class="interpretation-cell">
+          <h3>Next action</h3>
+          <p class="interpretation-summary">${escapeHtml(interpretation.next_action || "Review the selected scenario artifacts.")}</p>
+          <h3 style="margin-top:14px">Coverage checks</h3>
+          ${renderCoverageChecks(checks)}
+        </div>`;
+    }
+
+    function renderList(items, emptyText) {
+      if (!items || items.length === 0) return `<div class="empty-note">${escapeHtml(emptyText)}</div>`;
+      return `<ul class="evidence-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+    }
+
+    function renderCoverageChecks(checks) {
+      if (!checks || checks.length === 0) return `<div class="empty-note">No coverage checks attached.</div>`;
+      return `<ul class="evidence-list">${checks
+        .map((check) => `<li>${renderPill("severity", check.status === "pass" ? "none" : check.status === "warn" ? "warning" : "critical")} ${escapeHtml(check.name || "check")}: ${escapeHtml(check.detail || "")}</li>`)
+        .join("")}</ul>`;
+    }
+
+    async function selectScenario(name) {
+      if (!name) return;
+      STATE.selectedScenarioName = name;
+      const select = document.getElementById("scenarioSelect");
+      if (select.value !== name) select.value = name;
+      const scenario = currentScenario();
+      renderScenarioRows();
+      renderInterpretation(scenario);
+      updateRawLinks(name);
+      const url = new URL(window.location.href);
+      url.searchParams.set("scenario", name);
+      window.history.replaceState(null, "", url);
+      await loadScenarioResult(name, scenario);
+    }
+
+    async function loadScenarioResult(name, scenario) {
       try {
-        const res = await fetch("/api/result", { headers: { accept: "application/json" } });
+        const res = await fetch(`/api/result${scenarioQuery(name)}`, { headers: { accept: "application/json" } });
         if (!res.ok) throw new Error(`/api/result returned ${res.status}`);
         const result = await res.json();
-        renderMeta(result);
+        STATE.selectedResult = result;
+        renderMeta(result, scenario);
         renderSummary(result);
         renderRunStats(result);
         renderAgents(result);
-        renderInvariants(result);
+        renderInvariants(result, scenario);
         renderTimeseries(result);
         renderEvents(result);
       } catch (err) {
+        renderMissingResult(scenario, err && err.message ? err.message : String(err));
+      }
+    }
+
+    function renderMissingResult(scenario, message) {
+      STATE.selectedResult = null;
+      document.getElementById("runLabel").textContent = scenario ? `${scenario.name} · result unavailable` : "result unavailable";
+      const cells = scenario
+        ? [
+            ["scenario", scenario.name],
+            ["status", scenario.status || "—"],
+            ["verdict", scenario.interpretation && scenario.interpretation.verdict ? scenario.interpretation.verdict : "—"],
+            ["coverage", scenario.interpretation && scenario.interpretation.coverage ? scenario.interpretation.coverage : "—"],
+            ["run config", scenario.run_config_path || "—"],
+            ["artifacts", scenario.artifacts_dir || "—"]
+          ]
+        : [["result", "unavailable"]];
+      document.getElementById("metaGrid").innerHTML = cells
+        .map(([k, v]) => `<div class="meta-cell"><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div></div>`)
+        .join("");
+      const runStats = document.getElementById("runStats");
+      runStats.hidden = false;
+      runStats.textContent = message;
+      document.querySelector("#summaryTable tbody").innerHTML =
+        `<tr><td colspan="4" class="empty-note">No simulation result available for this scenario.</td></tr>`;
+      document.querySelector("#agentsTable tbody").innerHTML =
+        `<tr><td colspan="6" class="empty-note">No agent activity available.</td></tr>`;
+      document.getElementById("agentsAttrNote").hidden = true;
+      document.getElementById("invariantBadge").innerHTML = "";
+      document.getElementById("invariantBlock").innerHTML =
+        `<div class="empty-note">No invariant result rows available.</div>`;
+      const shell = document.getElementById("chartShell");
+      if (tsChart) {
+        tsChart.destroy();
+        tsChart = null;
+      }
+      shell.classList.add("empty");
+      shell.innerHTML = "<span>No numeric timeseries available.</span>";
+      document.getElementById("seriesSelect").innerHTML = "";
+      document.getElementById("eventsBody").innerHTML =
+        `<tr><td colspan="5" class="empty-note">No events available.</td></tr>`;
+      document.getElementById("eventCount").textContent = "0 / 0 events";
+    }
+
+    async function boot() {
+      try {
+        const collection = await loadCollection();
+        STATE.collection = collection;
+        const scenarios = Array.isArray(collection.scenarios) ? collection.scenarios : [];
+        const requested = new URLSearchParams(window.location.search).get("scenario");
+        const selected = scenarios.find((scenario) => scenario.name === requested) || scenarios[0] || null;
+        STATE.selectedScenarioName = selected ? selected.name : "";
+        bindCollectionControls();
+        renderCollection(collection);
+        renderInterpretation(selected);
+        updateRawLinks(STATE.selectedScenarioName);
+        if (selected) {
+          await loadScenarioResult(selected.name, selected);
+        } else {
+          renderMissingResult(null, "collection has no scenarios");
+        }
+      } catch (err) {
         document.querySelector("main").innerHTML =
-          `<div class="empty-note" style="color:var(--rt-fail);border-color:var(--rt-fail)">Failed to load /api/result: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
+          `<div class="empty-note" style="color:var(--rt-fail);border-color:var(--rt-fail)">Failed to load dashboard data: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
       }
     }
 

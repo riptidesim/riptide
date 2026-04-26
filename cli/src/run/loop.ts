@@ -70,7 +70,7 @@ export interface RunSummary {
   lastRunPath: string;
   /** Absolute path to the latest run collection JSON just written. */
   runCollectionPath: string;
-  /** Artifacts dir of the last scenario that produced one (for --serve MVP). */
+  /** Artifacts dir of the last scenario that produced one. */
   lastArtifactsDir?: string;
   /** Per-scenario records (same shape as last-run.json). */
   scenarios: ScenarioRecord[];
