@@ -20,6 +20,7 @@ import {
   AdapterSchema,
   LENDING_ACTIONS,
   LENDING_OBSERVATIONS,
+  SEMANTIC_CLASS_RE_SOURCE,
   validateAdapter,
 } from "../src/schemas/adapter.js";
 
@@ -144,6 +145,180 @@ test("AdapterSchema accepts a generic adapter shape", () => {
   assert.equal(adapter.idl_path, raw.idl_path);
   assert.equal(adapter.accounts.player.kind, "agent");
 });
+
+function minimalLendingAdapterWithSemantics(overrides: Record<string, unknown> = {}): unknown {
+  return {
+    protocol: "lending",
+    instructions: {
+      deposit: { action: "deposit", amount: "amount" },
+      borrow: { action: "borrow", amount: "amount" },
+      repay: { action: "repay", amount: "amount" },
+      withdraw: { action: "withdraw", amount: "amount" },
+      liquidate: { action: "liquidate", amount: "repay_amount" },
+    },
+    state_mapping: {
+      "pool.total_deposits": "tvl",
+      "pool.total_borrows": "debt",
+      "pool.bad_debt": "bad_debt",
+      "position.collateral": "collateral",
+      "position.debt": "debt",
+      "position.liquidated": "liquidated",
+    },
+    semantics: {
+      class: "lending.v1",
+      roles: {
+        position: {
+          source: "instruction.deposit",
+          fields: { collateral_amount: "u128", debt_amount: "u128" },
+        },
+        reserve: {
+          source: "account.reserve",
+          fields: { collateral_price: "u128", max_ltv_bps: "u64" },
+        },
+        oracle: {
+          source: "account.oracle",
+          fields: { price: "u128" },
+        },
+        liquidation_config: {
+          source: "account.reserve",
+          fields: { liquidation_threshold_bps: "u64" },
+        },
+      },
+      derived: {
+        collateral_value: "position.collateral_amount * reserve.collateral_price / 10000",
+        debt_value: "position.debt_amount",
+        max_borrow_value: "collateral_value * reserve.max_ltv_bps / 10000",
+        health_factor: "collateral_value * 10000 / debt_value",
+      },
+      invariants: [
+        {
+          name: "bad_debt_bound",
+          expr: "debt_value <= collateral_value",
+          severity: "warn",
+        },
+        {
+          name: "ltv_below_max",
+          expr: "debt_value <= max_borrow_value",
+        },
+      ],
+      ...overrides,
+    },
+  };
+}
+
+test("AdapterSchema accepts semantics block and defaults invariant severity", () => {
+  const adapter = validateAdapter(minimalLendingAdapterWithSemantics(), "semantics.toml");
+
+  assert.equal(adapter.semantics?.class, "lending.v1");
+  assert.equal(adapter.semantics?.invariants[0]?.severity, "warn");
+  assert.equal(adapter.semantics?.invariants[1]?.severity, "error");
+});
+
+test("AdapterSchema semantics class regex mirrors Rust", () => {
+  assert.equal(SEMANTIC_CLASS_RE_SOURCE, "^[a-z][a-z0-9-]*\\.v[0-9]+$");
+});
+
+test("AdapterSchema rejects malformed semantics shapes", () => {
+  assert.throws(
+    () => validateAdapter(minimalLendingAdapterWithSemantics({ class: undefined }), "semantics.toml"),
+    /MissingSemanticClass/
+  );
+  assert.throws(
+    () => validateAdapter(minimalLendingAdapterWithSemantics({ class: "Lending.v1" }), "semantics.toml"),
+    /malformed semantic class/
+  );
+  assert.throws(
+    () => validateAdapter(minimalLendingAdapterWithSemantics({ class: "amm.v1" }), "semantics.toml"),
+    /UnknownSemanticClass/
+  );
+
+  const missingRole = minimalLendingAdapterWithSemantics({
+    roles: {
+      position: { source: "instruction.deposit", fields: { collateral_amount: "u128" } },
+      reserve: { source: "account.reserve", fields: { collateral_price: "u128" } },
+      oracle: { source: "account.oracle", fields: { price: "u128" } },
+    },
+  });
+  assert.throws(() => validateAdapter(missingRole, "semantics.toml"), /liquidation_config/);
+
+  const unknownSource = minimalLendingAdapterWithSemantics({
+    roles: {
+      position: { source: "wallet.position", fields: { collateral_amount: "u128" } },
+      reserve: { source: "account.reserve", fields: { collateral_price: "u128" } },
+      oracle: { source: "account.oracle", fields: { price: "u128" } },
+      liquidation_config: { source: "account.reserve", fields: { liquidation_threshold_bps: "u64" } },
+    },
+  });
+  assert.throws(() => validateAdapter(unknownSource, "semantics.toml"), /unknown source binding type/);
+
+  const duplicateInvariant = minimalLendingAdapterWithSemantics({
+    invariants: [
+      { name: "bad_debt_bound", expr: "debt_value <= collateral_value" },
+      { name: "bad_debt_bound", expr: "debt_value <= max_borrow_value" },
+    ],
+  });
+  assert.throws(() => validateAdapter(duplicateInvariant, "semantics.toml"), /duplicate semantic name/);
+});
+
+test("AdapterSchema semantic diagnostics escape terminal controls", () => {
+  assertSemanticDiagnosticEscaped(
+    "semantic class",
+    minimalLendingAdapterWithSemantics({ class: "lend\u001bing.v1" })
+  );
+
+  const badSource = minimalLendingAdapterWithSemantics() as any;
+  badSource.semantics.roles.position.source = "\u001b[2Jwallet.position";
+  assertSemanticDiagnosticEscaped("semantic source", badSource);
+
+  const badRole = minimalLendingAdapterWithSemantics() as any;
+  badRole.semantics.roles["bad\u001brole"] = {
+    source: "account.reserve",
+    fields: { amount: "u128" },
+  };
+  assertSemanticDiagnosticEscaped("semantic role name", badRole);
+
+  const badField = minimalLendingAdapterWithSemantics() as any;
+  badField.semantics.roles.position.fields["bad\u001bfield"] = "u128";
+  assertSemanticDiagnosticEscaped("semantic field name", badField);
+
+  const badDerived = minimalLendingAdapterWithSemantics() as any;
+  badDerived.semantics.derived["bad\u001bderived"] = "1";
+  assertSemanticDiagnosticEscaped("semantic derived name", badDerived);
+
+  const badInvariant = minimalLendingAdapterWithSemantics() as any;
+  badInvariant.semantics.invariants[0].name = "bad\u001binvariant";
+  assertSemanticDiagnosticEscaped("semantic invariant name", badInvariant);
+});
+
+function assertSemanticDiagnosticEscaped(label: string, raw: unknown): void {
+  assert.throws(
+    () => validateAdapter(raw, "semantics.toml"),
+    (err: unknown) => {
+      assert.ok(err instanceof Error, `${label}: expected Error`);
+      assert.equal(
+        containsTerminalControl(err.message),
+        false,
+        `${label}: diagnostic preserved a raw terminal control: ${JSON.stringify(err.message)}`
+      );
+      assert.match(
+        err.message,
+        /\\u\{1b\}/,
+        `${label}: diagnostic should escape the injected ESC byte`
+      );
+      return true;
+    }
+  );
+}
+
+function containsTerminalControl(value: string): boolean {
+  for (const char of value) {
+    const code = char.codePointAt(0)!;
+    if (code < 0x20) return true;
+    if (code === 0x7f) return true;
+    if (code >= 0x80 && code < 0xa0) return true;
+  }
+  return false;
+}
 
 test("AdapterSchema rejects unknown lending actions with an actionable error", () => {
   const raw = {

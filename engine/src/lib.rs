@@ -6,5 +6,6 @@ pub mod primitive;
 pub mod replay;
 pub mod safety;
 pub mod scenario;
+pub mod semantics;
 pub mod sim;
 pub mod types;

@@ -37,8 +37,10 @@ pub mod schema;
 pub use loader::{load_adapter, parse_adapter_str, AdapterError};
 pub use schema::{
     AccountDefinition, AccountKind, AccountOwner, ActionDefinition, Adapter, AdapterLineage,
-    ArgLiteral, InstructionMapping, Invariant, InvariantOp, ObservationDefinition,
-    ObservationType, OracleDefinition, OracleKind, PersonaDefinition, PersonaTriggerDefinition,
-    Protocol, ScheduledAction, ACTION_NAMES, LENDING_ACTIONS, LENDING_OBSERVATIONS,
-    LENDING_SNAPSHOT_METRICS, ORACLE_KINDS,
+    ArgLiteral, InstructionMapping, Invariant, InvariantOp, ObservationDefinition, ObservationType,
+    OracleDefinition, OracleKind, PersonaDefinition, PersonaTriggerDefinition, Protocol,
+    ScheduledAction, SemanticClassRef, SemanticExpression, SemanticFieldType, SemanticInvariant,
+    SemanticInvariantSeverity, SemanticRole, SemanticSourceBinding, Semantics, ACTION_NAMES,
+    LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS, ORACLE_KINDS,
+    SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
 };

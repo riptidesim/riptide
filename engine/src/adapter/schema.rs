@@ -6,8 +6,11 @@
 //! honestly: program artifact path, IDL path, and account bindings.
 
 use std::collections::BTreeMap;
+use std::fmt;
 
 use serde::{Deserialize, Serialize};
+
+use crate::semantics::{error::Span, expr::Expr};
 
 /// The protocol class this adapter describes. Selects which primitive
 /// impl the engine boots at runtime.
@@ -293,6 +296,13 @@ pub struct Adapter {
     #[serde(default)]
     pub scheduled_actions: Vec<ScheduledAction>,
 
+    /// Optional Economic Semantics block. Absent adapters stay in
+    /// legacy mode. When present, the loader validates the class,
+    /// role sources, and expression strings, then stores parsed ASTs
+    /// in the skipped fields on `SemanticExpression`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub semantics: Option<Semantics>,
+
     /// Optional declarative lineage block. Reviewer-facing metadata
     /// describing the IDL the adapter was authored against, the
     /// generator (hand-authored vs. `riptide-adapt@<sha>`), any
@@ -303,6 +313,160 @@ pub struct Adapter {
     /// continues to parse byte-for-byte.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lineage: Option<AdapterLineage>,
+}
+
+// ---------------------------------------------------------------------------
+// Economic semantics v1 adapter block
+// ---------------------------------------------------------------------------
+
+/// Regex string mirrored exactly by `cli/src/schemas/adapter.ts`.
+pub const SEMANTIC_CLASS_RE: &str = "^[a-z][a-z0-9-]*\\.v[0-9]+$";
+
+pub const SUPPORTED_SEMANTIC_CLASSES: &[&str] = &["lending.v1"];
+
+pub const LENDING_V1_REQUIRED_ROLES: &[&str] =
+    &["position", "reserve", "oracle", "liquidation_config"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SemanticClassRef {
+    LendingV1,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Semantics {
+    /// Raw class string from TOML. Optional at serde time so the
+    /// loader can return a structured `MissingSemanticClass` error.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub class: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub roles: BTreeMap<String, SemanticRole>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub derived: BTreeMap<String, SemanticExpression>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub invariants: Vec<SemanticInvariant>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extensions: BTreeMap<String, toml::Value>,
+    #[serde(skip)]
+    pub class_ref: Option<SemanticClassRef>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SemanticRole {
+    pub source: String,
+    pub fields: BTreeMap<String, SemanticFieldType>,
+    #[serde(skip)]
+    pub binding: Option<SemanticSourceBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SemanticSourceBinding {
+    Instruction(String),
+    Account(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SemanticFieldType {
+    U64,
+    U128,
+    I64,
+    I128,
+    Bool,
+    Pubkey,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SemanticExpression {
+    pub source: String,
+    pub ast: Option<Expr>,
+    pub span: Option<Span>,
+}
+
+impl SemanticExpression {
+    pub fn new(source: String) -> Self {
+        Self {
+            source,
+            ast: None,
+            span: None,
+        }
+    }
+}
+
+impl Serialize for SemanticExpression {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.source)
+    }
+}
+
+impl<'de> Deserialize<'de> for SemanticExpression {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let source = String::deserialize(deserializer)?;
+        Ok(Self::new(source))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SemanticInvariant {
+    pub name: String,
+    pub expr: SemanticExpression,
+    #[serde(default)]
+    pub severity: SemanticInvariantSeverity,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SemanticInvariantSeverity {
+    Error,
+    Warn,
+}
+
+impl Default for SemanticInvariantSeverity {
+    fn default() -> Self {
+        Self::Error
+    }
+}
+
+pub fn is_valid_semantic_class(value: &str) -> bool {
+    let Some((class_name, version)) = value.split_once('.') else {
+        return false;
+    };
+    if class_name.is_empty()
+        || version.len() < 2
+        || !version.starts_with('v')
+        || !version[1..].chars().all(|c| c.is_ascii_digit())
+    {
+        return false;
+    }
+    let mut chars = class_name.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    first.is_ascii_lowercase()
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+impl fmt::Display for SemanticFieldType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::U64 => write!(f, "u64"),
+            Self::U128 => write!(f, "u128"),
+            Self::I64 => write!(f, "i64"),
+            Self::I128 => write!(f, "i128"),
+            Self::Bool => write!(f, "bool"),
+            Self::Pubkey => write!(f, "pubkey"),
+        }
+    }
 }
 
 /// Declarative lineage block for the optional `[lineage]` section of an
@@ -410,9 +574,7 @@ impl Invariant {
     /// Resolve a stable display name for this invariant, falling back
     /// to `inv_<idx>` when the adapter did not supply one.
     pub fn display_name(&self, idx: usize) -> String {
-        self.name
-            .clone()
-            .unwrap_or_else(|| format!("inv_{idx}"))
+        self.name.clone().unwrap_or_else(|| format!("inv_{idx}"))
     }
 }
 
@@ -546,13 +708,7 @@ pub const LENDING_ACTIONS: &[&str] = &["deposit", "borrow", "repay", "withdraw",
 
 /// Canonical set of logical observation names the lending tick loop
 /// consumes from `state_mapping` values.
-pub const LENDING_OBSERVATIONS: &[&str] = &[
-    "tvl",
-    "debt",
-    "bad_debt",
-    "collateral",
-    "liquidated",
-];
+pub const LENDING_OBSERVATIONS: &[&str] = &["tvl", "debt", "bad_debt", "collateral", "liquidated"];
 
 /// Super-set of `LENDING_ACTIONS` used for error-message guidance. The
 /// generic-primitive path extends this at runtime with adapter-defined
@@ -772,7 +928,10 @@ unsupported_fields = [
         );
         assert_eq!(lineage.generator.as_deref(), Some("hand-authored"));
         assert_eq!(lineage.inferred_assumptions.len(), 2);
-        assert_eq!(lineage.unsupported_fields, vec!["InitializeOracle", "SetOraclePrice"]);
+        assert_eq!(
+            lineage.unsupported_fields,
+            vec!["InitializeOracle", "SetOraclePrice"]
+        );
     }
 
     #[test]

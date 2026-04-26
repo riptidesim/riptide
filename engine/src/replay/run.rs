@@ -527,6 +527,7 @@ mod tests {
             oracles: Default::default(),
             scheduled_actions: Default::default(),
             invariants: Default::default(),
+            semantics: None,
             lineage: None,
         };
         for (name, takes) in actions {

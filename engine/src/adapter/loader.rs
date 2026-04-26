@@ -4,14 +4,16 @@
 //! offending key — so a developer debugging an adapter sees "which file,
 //! which key" on the first line, not a cryptic "unknown variant".
 
-use std::{fmt, path::Path, str::FromStr};
+use std::{collections::BTreeSet, fmt, path::Path, str::FromStr};
 
 use solana_sdk::pubkey::Pubkey;
 
 use crate::adapter::schema::{
-    AccountKind, Adapter, Protocol, LENDING_ACTIONS, LENDING_OBSERVATIONS,
-    LENDING_SNAPSHOT_METRICS, ORACLE_KINDS,
+    is_valid_semantic_class, AccountKind, Adapter, Protocol, SemanticClassRef,
+    SemanticSourceBinding, LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS,
+    LENDING_V1_REQUIRED_ROLES, ORACLE_KINDS, SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
 };
+use crate::semantics::expr::parse as parse_semantic_expr;
 
 /// Errors returned by `load_adapter`. Every variant carries enough
 /// context to point at the file and key that caused the failure.
@@ -35,6 +37,40 @@ pub enum AdapterError {
         key: String,
         reason: String,
     },
+    MissingSemanticClass {
+        path: String,
+        key: String,
+    },
+    MalformedSemanticClass {
+        path: String,
+        key: String,
+        value: String,
+    },
+    UnknownSemanticClass {
+        path: String,
+        key: String,
+        name: String,
+    },
+    MalformedSemanticExpression {
+        path: String,
+        key: String,
+        source: crate::semantics::error::ExprError,
+    },
+    DuplicateSemanticName {
+        path: String,
+        key: String,
+        name: String,
+    },
+    UnknownSemanticSourceBinding {
+        path: String,
+        key: String,
+        source: String,
+    },
+    MissingRequiredSemanticRole {
+        path: String,
+        key: String,
+        role: String,
+    },
 }
 
 impl fmt::Display for AdapterError {
@@ -44,25 +80,98 @@ impl fmt::Display for AdapterError {
                 if source.kind() == std::io::ErrorKind::NotFound {
                     write!(
                         f,
-                        "adapter TOML not found at {path}\n\
+                        "adapter TOML not found at {}\n\
                          Expected a path to an adapter file (e.g. fixtures/adapters/lending.toml).\n\
-                         Check that --adapter points at a readable file, or drop the flag to use the default lending primitive."
+                         Check that --adapter points at a readable file, or drop the flag to use the default lending primitive.",
+                        escape_diagnostic(path)
                     )
                 } else {
-                    write!(f, "{path}: read failed: {source}")
+                    write!(f, "{}: read failed: {source}", escape_diagnostic(path))
                 }
             }
             Self::Parse { path, source } => write!(
                 f,
-                "{path}: TOML parse failed: {source}\n\
+                "{}: TOML parse failed: {source}\n\
                  Check for an unclosed bracket, a missing quote, or a stray comma near the \
-                 reported line/column."
+                 reported line/column.",
+                escape_diagnostic(path)
             ),
             Self::Validation { path, key, reason } => {
-                write!(f, "{path}: `{key}`: {reason}")
+                write!(
+                    f,
+                    "{}: `{}`: {}",
+                    escape_diagnostic(path),
+                    escape_diagnostic(key),
+                    escape_diagnostic(reason)
+                )
             }
+            Self::MissingSemanticClass { path, key } => write!(
+                f,
+                "{}: `{}`: MissingSemanticClass(class); `[semantics]` blocks must declare `class = \"lending.v1\"`",
+                escape_diagnostic(path),
+                escape_diagnostic(key)
+            ),
+            Self::MalformedSemanticClass { path, key, value } => write!(
+                f,
+                "{}: `{}`: malformed semantic class string `{}`; expected regex `{SEMANTIC_CLASS_RE}`",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(value)
+            ),
+            Self::UnknownSemanticClass { path, key, name } => write!(
+                f,
+                "{}: `{}`: UnknownSemanticClass({}); supported semantic classes: {SUPPORTED_SEMANTIC_CLASSES:?}",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(name)
+            ),
+            Self::MalformedSemanticExpression { path, key, source } => write!(
+                f,
+                "{}: `{}`: malformed semantic expression: {}",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(&source.to_string())
+            ),
+            Self::DuplicateSemanticName { path, key, name } => write!(
+                f,
+                "{}: `{}`: duplicate semantic name `{}`",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(name)
+            ),
+            Self::UnknownSemanticSourceBinding { path, key, source } => write!(
+                f,
+                "{}: `{}`: unknown source binding type `{}`; expected `instruction.<name>` or `account.<path>`",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(source)
+            ),
+            Self::MissingRequiredSemanticRole { path, key, role } => write!(
+                f,
+                "{}: `{}`: missing required role `{}` for `lending.v1`",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(role)
+            ),
         }
     }
+}
+
+fn escape_diagnostic(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if is_terminal_control(ch) {
+            escaped.extend(ch.escape_debug());
+        } else {
+            escaped.push(ch);
+        }
+    }
+    escaped
+}
+
+fn is_terminal_control(ch: char) -> bool {
+    let code = ch as u32;
+    code < 0x20 || code == 0x7f || (0x80..0xa0).contains(&code)
 }
 
 impl std::error::Error for AdapterError {
@@ -70,7 +179,14 @@ impl std::error::Error for AdapterError {
         match self {
             Self::Io { source, .. } => Some(source),
             Self::Parse { source, .. } => Some(source),
+            Self::MalformedSemanticExpression { source, .. } => Some(source),
             Self::Validation { .. } => None,
+            Self::MissingSemanticClass { .. }
+            | Self::MalformedSemanticClass { .. }
+            | Self::UnknownSemanticClass { .. }
+            | Self::DuplicateSemanticName { .. }
+            | Self::UnknownSemanticSourceBinding { .. }
+            | Self::MissingRequiredSemanticRole { .. } => None,
         }
     }
 }
@@ -87,7 +203,7 @@ pub fn load_adapter(path: &Path) -> Result<Adapter, AdapterError> {
         source,
     })?;
 
-    validate(&adapter, &path_str)?;
+    validate(&mut adapter, &path_str)?;
     resolve_generic_paths(&mut adapter, path);
     validate_resolved_paths(&adapter, &path_str)?;
     Ok(adapter)
@@ -137,8 +253,8 @@ fn validate_resolved_paths(adapter: &Adapter, path: &str) -> Result<(), AdapterE
                 ),
             });
         }
-        let keypair_path = sibling_deploy_keypair_path(owner_path).ok_or_else(|| {
-            AdapterError::Validation {
+        let keypair_path =
+            sibling_deploy_keypair_path(owner_path).ok_or_else(|| AdapterError::Validation {
                 path: path.to_string(),
                 key: format!("[accounts].{account_name}.owner.program_so"),
                 reason: format!(
@@ -146,8 +262,7 @@ fn validate_resolved_paths(adapter: &Adapter, path: &str) -> Result<(), AdapterE
                      `{owner_so}` (expected `<dir>/<program>.so` with a matching \
                      `<dir>/<program>-keypair.json`)."
                 ),
-            }
-        })?;
+            })?;
         if !keypair_path.exists() {
             return Err(AdapterError::Validation {
                 path: path.to_string(),
@@ -268,15 +383,15 @@ fn primitive_type_size(ty: &serde_json::Value) -> Option<usize> {
 /// Used by unit tests; also useful for the `riptide adapt` generator
 /// to validate generated output before writing.
 pub fn parse_adapter_str(toml_str: &str, virtual_path: &str) -> Result<Adapter, AdapterError> {
-    let adapter: Adapter = toml::from_str(toml_str).map_err(|source| AdapterError::Parse {
+    let mut adapter: Adapter = toml::from_str(toml_str).map_err(|source| AdapterError::Parse {
         path: virtual_path.to_string(),
         source,
     })?;
-    validate(&adapter, virtual_path)?;
+    validate(&mut adapter, virtual_path)?;
     Ok(adapter)
 }
 
-fn validate(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
+fn validate(adapter: &mut Adapter, path: &str) -> Result<(), AdapterError> {
     // Reject identifiers that could inject control sequences into
     // operator-visible output. Adapter
     // TOML is loaded from untrusted sources (hand-authored by third
@@ -288,10 +403,174 @@ fn validate(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
     // already used by the shipped fixtures.
     validate_identifiers(adapter, path)?;
     validate_lineage(adapter, path)?;
+    validate_semantics(adapter, path)?;
     match adapter.protocol {
         Protocol::Lending => validate_lending(adapter, path),
         Protocol::Generic => validate_generic(adapter, path),
     }
+}
+
+fn validate_semantics(adapter: &mut Adapter, path: &str) -> Result<(), AdapterError> {
+    let Some(semantics) = adapter.semantics.as_mut() else {
+        return Ok(());
+    };
+
+    let class = semantics
+        .class
+        .as_deref()
+        .ok_or_else(|| AdapterError::MissingSemanticClass {
+            path: path.to_string(),
+            key: "[semantics].class".into(),
+        })?;
+    if !is_valid_semantic_class(class) {
+        return Err(AdapterError::MalformedSemanticClass {
+            path: path.to_string(),
+            key: "[semantics].class".into(),
+            value: class.to_string(),
+        });
+    }
+    if class != "lending.v1" {
+        return Err(AdapterError::UnknownSemanticClass {
+            path: path.to_string(),
+            key: "[semantics].class".into(),
+            name: class.to_string(),
+        });
+    }
+    semantics.class_ref = Some(SemanticClassRef::LendingV1);
+
+    for role in LENDING_V1_REQUIRED_ROLES {
+        if !semantics.roles.contains_key(*role) {
+            return Err(AdapterError::MissingRequiredSemanticRole {
+                path: path.to_string(),
+                key: "[semantics.roles]".into(),
+                role: (*role).to_string(),
+            });
+        }
+    }
+
+    for (role_name, role) in semantics.roles.iter_mut() {
+        check_semantic_name(path, &format!("[semantics.roles].{role_name}"), role_name)?;
+        let source_key = format!("[semantics.roles].{role_name}.source");
+        role.binding = Some(parse_semantic_source(path, &source_key, &role.source)?);
+        if role.fields.is_empty() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[semantics.roles].{role_name}.fields"),
+                reason: "semantic role must declare at least one typed field".into(),
+            });
+        }
+        for field_name in role.fields.keys() {
+            check_semantic_name(
+                path,
+                &format!("[semantics.roles].{role_name}.fields.{field_name}"),
+                field_name,
+            )?;
+        }
+    }
+
+    for (name, expression) in semantics.derived.iter_mut() {
+        check_semantic_name(path, &format!("[semantics.derived].{name}"), name)?;
+        let ast = parse_semantic_expr(&expression.source).map_err(|source| {
+            AdapterError::MalformedSemanticExpression {
+                path: path.to_string(),
+                key: format!("[semantics.derived].{name}"),
+                source,
+            }
+        })?;
+        expression.span = Some(ast.span);
+        expression.ast = Some(ast);
+    }
+
+    let mut invariant_names = BTreeSet::new();
+    for (idx, invariant) in semantics.invariants.iter_mut().enumerate() {
+        let name_key = format!("[[semantics.invariants]][{idx}].name");
+        check_semantic_name(path, &name_key, &invariant.name)?;
+        if !invariant_names.insert(invariant.name.as_str()) {
+            return Err(AdapterError::DuplicateSemanticName {
+                path: path.to_string(),
+                key: name_key,
+                name: invariant.name.clone(),
+            });
+        }
+        if let Some(description) = invariant.description.as_deref() {
+            check_label(
+                path,
+                &format!("[[semantics.invariants]][{idx}].description"),
+                description,
+            )?;
+        }
+        let ast = parse_semantic_expr(&invariant.expr.source).map_err(|source| {
+            AdapterError::MalformedSemanticExpression {
+                path: path.to_string(),
+                key: format!("[[semantics.invariants]][{idx}].expr"),
+                source,
+            }
+        })?;
+        invariant.expr.span = Some(ast.span);
+        invariant.expr.ast = Some(ast);
+    }
+
+    Ok(())
+}
+
+fn parse_semantic_source(
+    path: &str,
+    key: &str,
+    source: &str,
+) -> Result<SemanticSourceBinding, AdapterError> {
+    if let Some(rest) = source.strip_prefix("instruction.") {
+        if rest.is_empty() {
+            return Err(AdapterError::UnknownSemanticSourceBinding {
+                path: path.to_string(),
+                key: key.to_string(),
+                source: source.to_string(),
+            });
+        }
+        check_ident(path, key, rest)?;
+        return Ok(SemanticSourceBinding::Instruction(rest.to_string()));
+    }
+    if let Some(rest) = source.strip_prefix("account.") {
+        if rest.is_empty() {
+            return Err(AdapterError::UnknownSemanticSourceBinding {
+                path: path.to_string(),
+                key: key.to_string(),
+                source: source.to_string(),
+            });
+        }
+        for segment in rest.split('.') {
+            check_ident(path, key, segment)?;
+        }
+        return Ok(SemanticSourceBinding::Account(rest.to_string()));
+    }
+    Err(AdapterError::UnknownSemanticSourceBinding {
+        path: path.to_string(),
+        key: key.to_string(),
+        source: source.to_string(),
+    })
+}
+
+fn check_semantic_name(path: &str, key: &str, value: &str) -> Result<(), AdapterError> {
+    if is_safe_semantic_name(value) {
+        Ok(())
+    } else {
+        Err(AdapterError::Validation {
+            path: path.to_string(),
+            key: key.to_string(),
+            reason: format!(
+                "semantic name `{}` must match `[a-z][a-z0-9_]*`",
+                value.escape_debug()
+            ),
+        })
+    }
+}
+
+fn is_safe_semantic_name(value: &str) -> bool {
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    first.is_ascii_lowercase()
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
 /// Validate the optional `[lineage]` block. Lineage is inspection-only
@@ -320,11 +599,7 @@ fn validate_lineage(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
         )?;
     }
     for (idx, entry) in lineage.unsupported_fields.iter().enumerate() {
-        check_lineage_text(
-            path,
-            &format!("[lineage].unsupported_fields[{idx}]"),
-            entry,
-        )?;
+        check_lineage_text(path, &format!("[lineage].unsupported_fields[{idx}]"), entry)?;
     }
     Ok(())
 }
@@ -373,9 +648,9 @@ fn check_ident(path: &str, key: &str, value: &str) -> Result<(), AdapterError> {
 fn is_safe_adapter_label(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= ADAPTER_IDENT_MAX_LEN * 2
-        && !value
-            .chars()
-            .any(|c| (c as u32) < 0x20 || (c as u32) == 0x7f || ((c as u32) >= 0x80 && (c as u32) < 0xa0))
+        && !value.chars().any(|c| {
+            (c as u32) < 0x20 || (c as u32) == 0x7f || ((c as u32) >= 0x80 && (c as u32) < 0xa0)
+        })
 }
 
 fn check_label(path: &str, key: &str, value: &str) -> Result<(), AdapterError> {
@@ -407,9 +682,9 @@ const ADAPTER_LINEAGE_TEXT_MAX_LEN: usize = 1024;
 fn is_safe_lineage_text(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= ADAPTER_LINEAGE_TEXT_MAX_LEN
-        && !value
-            .chars()
-            .any(|c| (c as u32) < 0x20 || (c as u32) == 0x7f || ((c as u32) >= 0x80 && (c as u32) < 0xa0))
+        && !value.chars().any(|c| {
+            (c as u32) < 0x20 || (c as u32) == 0x7f || ((c as u32) >= 0x80 && (c as u32) < 0xa0)
+        })
 }
 
 fn check_lineage_text(path: &str, key: &str, value: &str) -> Result<(), AdapterError> {
@@ -441,11 +716,7 @@ fn validate_identifiers(adapter: &Adapter, path: &str) -> Result<(), AdapterErro
             &mapping.action,
         )?;
         if let Some(amount) = mapping.amount.as_deref() {
-            check_ident(
-                path,
-                &format!("[instructions].{ix_name}.amount"),
-                amount,
-            )?;
+            check_ident(path, &format!("[instructions].{ix_name}.amount"), amount)?;
         }
         // literal-bound args (for multi-arg dispatch).
         // Each key is an IDL arg name the encoder later resolves
@@ -455,11 +726,7 @@ fn validate_identifiers(adapter: &Adapter, path: &str) -> Result<(), AdapterErro
         // via debug paths, but we keep the same identifier allow-list
         // applied to every adapter-supplied name for consistency.
         for arg_name in mapping.args.keys() {
-            check_ident(
-                path,
-                &format!("[instructions].{ix_name}.args"),
-                arg_name,
-            )?;
+            check_ident(path, &format!("[instructions].{ix_name}.args"), arg_name)?;
         }
     }
     // state_mapping: keys are dotted paths — validate each segment —
@@ -598,11 +865,8 @@ fn validate_lending(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
 /// (state_mapping values — i.e. `LENDING_OBSERVATIONS`). Also checks the
 /// optional `name` is a safe identifier and the value is finite.
 fn validate_invariants_lending(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
-    let declared_logical: std::collections::BTreeSet<&str> = adapter
-        .state_mapping
-        .values()
-        .map(|v| v.as_str())
-        .collect();
+    let declared_logical: std::collections::BTreeSet<&str> =
+        adapter.state_mapping.values().map(|v| v.as_str()).collect();
     for (idx, inv) in adapter.invariants.iter().enumerate() {
         let key = format!("[[invariants]][{idx}].field");
         if inv.field.is_empty() {
@@ -628,11 +892,7 @@ fn validate_invariants_lending(adapter: &Adapter, path: &str) -> Result<(), Adap
             });
         }
         if let Some(name) = inv.name.as_deref() {
-            check_ident(
-                path,
-                &format!("[[invariants]][{idx}].name"),
-                name,
-            )?;
+            check_ident(path, &format!("[[invariants]][{idx}].name"), name)?;
         }
         if !inv.value.is_finite() {
             return Err(AdapterError::Validation {
@@ -671,11 +931,7 @@ fn validate_invariants_generic(adapter: &Adapter, path: &str) -> Result<(), Adap
             });
         }
         if let Some(name) = inv.name.as_deref() {
-            check_ident(
-                path,
-                &format!("[[invariants]][{idx}].name"),
-                name,
-            )?;
+            check_ident(path, &format!("[[invariants]][{idx}].name"), name)?;
         }
         if !inv.value.is_finite() {
             return Err(AdapterError::Validation {
@@ -1044,8 +1300,8 @@ fn validate_account_owners(adapter: &Adapter, path: &str) -> Result<(), AdapterE
 /// declared account.
 /// 4. Oracle `name`s are unique within the adapter.
 fn validate_oracles(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
-    use std::collections::BTreeSet;
     use crate::adapter::schema::OracleKind;
+    use std::collections::BTreeSet;
     let mut seen: BTreeSet<&str> = BTreeSet::new();
     for (idx, oracle) in adapter.oracles.iter().enumerate() {
         if matches!(oracle.kind, OracleKind::Pyth) {
@@ -1112,8 +1368,7 @@ fn validate_oracles(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
                 });
             };
             let Some(declared_account) = adapter.accounts.get(account) else {
-                let mut declared: Vec<&str> =
-                    adapter.accounts.keys().map(String::as_str).collect();
+                let mut declared: Vec<&str> = adapter.accounts.keys().map(String::as_str).collect();
                 declared.sort_unstable();
                 return Err(AdapterError::Validation {
                     path: path.to_string(),
@@ -1157,8 +1412,7 @@ fn validate_scheduled_actions(adapter: &Adapter, path: &str) -> Result<(), Adapt
         }
         check_ident(path, &key_instr, &sa.instruction)?;
         if !adapter.instructions.contains_key(&sa.instruction) {
-            let mut declared: Vec<&str> =
-                adapter.instructions.keys().map(String::as_str).collect();
+            let mut declared: Vec<&str> = adapter.instructions.keys().map(String::as_str).collect();
             declared.sort_unstable();
             return Err(AdapterError::Validation {
                 path: path.to_string(),
@@ -1192,8 +1446,7 @@ fn validate_scheduled_actions(adapter: &Adapter, path: &str) -> Result<(), Adapt
             if matches!(adapter.protocol, Protocol::Generic)
                 && !adapter.accounts.contains_key(account)
             {
-                let mut declared: Vec<&str> =
-                    adapter.accounts.keys().map(String::as_str).collect();
+                let mut declared: Vec<&str> = adapter.accounts.keys().map(String::as_str).collect();
                 declared.sort_unstable();
                 return Err(AdapterError::Validation {
                     path: path.to_string(),
@@ -1229,12 +1482,14 @@ fn require_non_empty_option(
 }
 
 fn validate_dotted_path<'a>(path: &str, key: &'a str) -> Result<(&'a str, &'a str), AdapterError> {
-    let (account, field) = key.split_once('.').ok_or_else(|| AdapterError::Validation {
-        path: path.to_string(),
-        key: format!("[state_mapping].{key}"),
-        reason: "state_mapping keys must be `<account>.<field>` (e.g. `pool.total_deposits`)"
-            .into(),
-    })?;
+    let (account, field) = key
+        .split_once('.')
+        .ok_or_else(|| AdapterError::Validation {
+            path: path.to_string(),
+            key: format!("[state_mapping].{key}"),
+            reason: "state_mapping keys must be `<account>.<field>` (e.g. `pool.total_deposits`)"
+                .into(),
+        })?;
     if account.is_empty() || field.is_empty() {
         return Err(AdapterError::Validation {
             path: path.to_string(),
@@ -1250,17 +1505,19 @@ fn validate_trigger_condition(
     persona_name: &str,
     idx: usize,
     condition: &str,
-    observations: &std::collections::BTreeMap<String, crate::adapter::schema::ObservationDefinition>,
+    observations: &std::collections::BTreeMap<
+        String,
+        crate::adapter::schema::ObservationDefinition,
+    >,
 ) -> Result<(), AdapterError> {
     let parts: Vec<_> = condition.split_whitespace().collect();
     if parts.len() != 3 {
         return Err(AdapterError::Validation {
             path: path.to_string(),
             key: format!("[personas].{persona_name}.triggers[{idx}].if"),
-            reason:
-                "generic trigger conditions must be `<observation> <op> <constant>` \
+            reason: "generic trigger conditions must be `<observation> <op> <constant>` \
                  (e.g. `player.wood < 10`)"
-                    .into(),
+                .into(),
         });
     }
     match parts[1] {
@@ -1298,9 +1555,7 @@ fn validate_trigger_condition(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapter::schema::{
-        InstructionMapping, LENDING_ACTIONS, ObservationType, Protocol,
-    };
+    use crate::adapter::schema::{InstructionMapping, ObservationType, Protocol, LENDING_ACTIONS};
 
     fn sample_lending_toml() -> &'static str {
         r#"
@@ -1402,7 +1657,10 @@ foo = { action = "bogus" }
         let err = parse_adapter_str(toml_str, "test.toml").unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("test.toml"), "missing path: {msg}");
-        assert!(msg.contains("[instructions].foo.action"), "missing key: {msg}");
+        assert!(
+            msg.contains("[instructions].foo.action"),
+            "missing key: {msg}"
+        );
         assert!(msg.contains("bogus"), "missing offending value: {msg}");
     }
 
@@ -1436,7 +1694,10 @@ deposit = { action = "deposit", amount = "amount" }
 "#;
         let err = parse_adapter_str(toml_str, "test.toml").unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("[state_mapping].pool.total_deposits"), "got: {msg}");
+        assert!(
+            msg.contains("[state_mapping].pool.total_deposits"),
+            "got: {msg}"
+        );
         assert!(msg.contains("magic_number"), "got: {msg}");
     }
 
@@ -1462,12 +1723,18 @@ protocol = "lending"
         assert!(matches!(adapter.protocol, Protocol::Generic));
         assert_eq!(adapter.accounts.len(), 2);
         assert_eq!(adapter.actions.len(), 3);
-        assert_eq!(adapter.observations["player.gold"].kind(), ObservationType::UInt);
+        assert_eq!(
+            adapter.observations["player.gold"].kind(),
+            ObservationType::UInt
+        );
     }
 
     #[test]
     fn rejects_generic_missing_program_path() {
-        let toml_str = sample_generic_toml().replace("program_so = \"programs/resource_grinder/target/deploy/resource_grinder.so\"\n", "");
+        let toml_str = sample_generic_toml().replace(
+            "program_so = \"programs/resource_grinder/target/deploy/resource_grinder.so\"\n",
+            "",
+        );
         let err = parse_adapter_str(&toml_str, "generic.toml").unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("program_so"), "got: {msg}");
@@ -1475,7 +1742,10 @@ protocol = "lending"
 
     #[test]
     fn rejects_unknown_generic_action_reference() {
-        let toml_str = sample_generic_toml().replace("mine = { action = \"mine\" }", "mine = { action = \"bogus\" }");
+        let toml_str = sample_generic_toml().replace(
+            "mine = { action = \"mine\" }",
+            "mine = { action = \"bogus\" }",
+        );
         let err = parse_adapter_str(&toml_str, "generic.toml").unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("[instructions].mine.action"), "got: {msg}");
@@ -1484,8 +1754,7 @@ protocol = "lending"
 
     #[test]
     fn rejects_unknown_generic_trigger_operator() {
-        let toml_str =
-            sample_generic_toml().replace("player.wood < 10", "player.wood <= 10");
+        let toml_str = sample_generic_toml().replace("player.wood < 10", "player.wood <= 10");
         let err = parse_adapter_str(&toml_str, "generic.toml").unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("triggers[0].if"), "got: {msg}");
@@ -1494,11 +1763,17 @@ protocol = "lending"
 
     #[test]
     fn rejects_generic_unknown_account_binding_in_state_mapping() {
-        let toml_str = sample_generic_toml().replace("\"player.gold\" = \"player.gold\"", "\"unknown.gold\" = \"player.gold\"");
+        let toml_str = sample_generic_toml().replace(
+            "\"player.gold\" = \"player.gold\"",
+            "\"unknown.gold\" = \"player.gold\"",
+        );
         let err = parse_adapter_str(&toml_str, "generic.toml").unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("[state_mapping].unknown.gold"), "got: {msg}");
-        assert!(msg.contains("unknown generic account binding"), "got: {msg}");
+        assert!(
+            msg.contains("unknown generic account binding"),
+            "got: {msg}"
+        );
     }
 
     #[test]
@@ -1540,10 +1815,8 @@ protocol = "lending"
 
     #[test]
     fn rejects_action_name_with_embedded_newline() {
-        let toml_str = sample_generic_toml().replace(
-            "[actions.mine]",
-            "[actions.\"mine\\nforged\"]",
-        );
+        let toml_str =
+            sample_generic_toml().replace("[actions.mine]", "[actions.\"mine\\nforged\"]");
         let err = parse_adapter_str(&toml_str, "evil.toml").unwrap_err();
         assert!(
             err.to_string().contains("adapter identifier"),
@@ -1587,15 +1860,10 @@ protocol = "lending"
     #[test]
     fn rejects_overlong_identifier() {
         let long = "a".repeat(ADAPTER_IDENT_MAX_LEN + 1);
-        let toml_str = sample_generic_toml().replace(
-            "[actions.mine]",
-            &format!("[actions.{long}]"),
-        );
+        let toml_str =
+            sample_generic_toml().replace("[actions.mine]", &format!("[actions.{long}]"));
         let err = parse_adapter_str(&toml_str, "long.toml").unwrap_err();
-        assert!(
-            err.to_string().contains("adapter identifier"),
-            "got: {err}"
-        );
+        assert!(err.to_string().contains("adapter identifier"), "got: {err}");
     }
 
     #[test]
@@ -1798,8 +2066,8 @@ kind = "admin-mock"
             .join("fixtures")
             .join("adapters")
             .join("lending.toml");
-        let adapter = load_adapter(&fixture)
-            .unwrap_or_else(|e| panic!("fixture adapter should load: {e}"));
+        let adapter =
+            load_adapter(&fixture).unwrap_or_else(|e| panic!("fixture adapter should load: {e}"));
         assert!(matches!(adapter.protocol, Protocol::Lending));
         for action in LENDING_ACTIONS {
             let has_action = adapter
@@ -1856,8 +2124,8 @@ deposit = { action = "deposit", amount = "amount" }
 idl_source = "programs/lending_pool/src/state.rs"
 generator = "hand-authored"
 "#;
-        let adapter = parse_adapter_str(toml, "lineage-ok.toml")
-            .expect("well-formed lineage must parse");
+        let adapter =
+            parse_adapter_str(toml, "lineage-ok.toml").expect("well-formed lineage must parse");
         let lineage = adapter.lineage.expect("lineage block present");
         assert_eq!(
             lineage.idl_source.as_deref(),

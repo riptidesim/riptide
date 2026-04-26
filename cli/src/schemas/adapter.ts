@@ -22,6 +22,18 @@ export const LENDING_OBSERVATIONS = [
   "liquidated",
 ] as const;
 
+// Must remain byte-identical to
+// `engine/src/adapter/schema.rs::SEMANTIC_CLASS_RE`.
+export const SEMANTIC_CLASS_RE_SOURCE = "^[a-z][a-z0-9-]*\\.v[0-9]+$";
+export const SEMANTIC_CLASS_RE = new RegExp(SEMANTIC_CLASS_RE_SOURCE);
+export const SUPPORTED_SEMANTIC_CLASSES = ["lending.v1"] as const;
+export const LENDING_V1_REQUIRED_ROLES = [
+  "position",
+  "reserve",
+  "oracle",
+  "liquidation_config",
+] as const;
+
 export const ProtocolSchema = z.enum(["lending", "generic"]);
 export type Protocol = z.infer<typeof ProtocolSchema>;
 
@@ -145,6 +157,35 @@ export const ScheduledActionSchema = z.object({
 });
 export type ScheduledAction = z.infer<typeof ScheduledActionSchema>;
 
+export const SemanticFieldTypeSchema = z.enum(["u64", "u128", "i64", "i128", "bool", "pubkey"]);
+export type SemanticFieldType = z.infer<typeof SemanticFieldTypeSchema>;
+
+export const SemanticRoleSchema = z.object({
+  source: z.string().min(1),
+  fields: z.record(z.string(), SemanticFieldTypeSchema),
+}).strict();
+export type SemanticRole = z.infer<typeof SemanticRoleSchema>;
+
+export const SemanticInvariantSeveritySchema = z.enum(["error", "warn"]);
+export type SemanticInvariantSeverity = z.infer<typeof SemanticInvariantSeveritySchema>;
+
+export const SemanticInvariantSchema = z.object({
+  name: z.string().min(1),
+  expr: z.string().min(1),
+  severity: SemanticInvariantSeveritySchema.default("error"),
+  description: z.string().min(1).optional(),
+}).strict();
+export type SemanticInvariant = z.infer<typeof SemanticInvariantSchema>;
+
+export const SemanticsSchema = z.object({
+  class: z.string().min(1).optional(),
+  roles: z.record(z.string(), SemanticRoleSchema).default({}),
+  derived: z.record(z.string(), z.string().min(1)).default({}),
+  invariants: z.array(SemanticInvariantSchema).default([]),
+  extensions: z.record(z.string(), z.unknown()).default({}),
+}).strict();
+export type Semantics = z.infer<typeof SemanticsSchema>;
+
 // Optional `[lineage]` block. Inspection-only reviewer-facing metadata:
 // which IDL the adapter was authored against, the generator, any
 // inferred assumptions the author baked in, and IDL fields the adapter
@@ -179,6 +220,7 @@ export const AdapterSchema = z.object({
   invariants: z.array(InvariantSchema).default([]),
   oracles: z.array(OracleDefinitionSchema).default([]),
   scheduled_actions: z.array(ScheduledActionSchema).default([]),
+  semantics: SemanticsSchema.optional(),
   lineage: AdapterLineageSchema.optional(),
 });
 export type Adapter = z.infer<typeof AdapterSchema>;
@@ -243,6 +285,13 @@ function isSafeLineageText(value: string): boolean {
     if (code >= 0x80 && code < 0xa0) return false;
   }
   return true;
+}
+
+function escapeDiagnostic(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f-\u009f]/gu, (char) => {
+    const code = char.codePointAt(0)!;
+    return `\\u{${code.toString(16)}}`;
+  });
 }
 
 function rejectLineageText(path: string, key: string, value: string): never {
@@ -344,6 +393,7 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
 
   validateAdapterIdentifiers(adapter, path);
   validateLineage(adapter, path);
+  validateSemantics(adapter, path);
   validateAccountOwners(adapter, path);
 
   if (adapter.protocol === "lending") {
@@ -356,6 +406,105 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
   validateScheduledActions(adapter, path);
 
   return adapter;
+}
+
+function validateSemantics(adapter: Adapter, path: string): void {
+  const semantics = adapter.semantics;
+  if (semantics === undefined) return;
+
+  if (semantics.class === undefined) {
+    throw new Error(
+      `${path}: \`[semantics].class\`: MissingSemanticClass(class); \`[semantics]\` blocks must declare \`class = "lending.v1"\``
+    );
+  }
+  if (!SEMANTIC_CLASS_RE.test(semantics.class)) {
+    throw new Error(
+      `${path}: \`[semantics].class\`: malformed semantic class string \`${escapeDiagnostic(semantics.class)}\`; expected regex \`${SEMANTIC_CLASS_RE_SOURCE}\``
+    );
+  }
+  if (!SUPPORTED_SEMANTIC_CLASSES.includes(semantics.class as (typeof SUPPORTED_SEMANTIC_CLASSES)[number])) {
+    throw new Error(
+      `${path}: \`[semantics].class\`: UnknownSemanticClass(${escapeDiagnostic(semantics.class)}); supported semantic classes: ${JSON.stringify(SUPPORTED_SEMANTIC_CLASSES)}`
+    );
+  }
+
+  for (const role of LENDING_V1_REQUIRED_ROLES) {
+    if (!(role in semantics.roles)) {
+      throw new Error(
+        `${path}: \`[semantics.roles]\`: missing required role \`${role}\` for \`lending.v1\``
+      );
+    }
+  }
+
+  for (const [roleName, role] of Object.entries(semantics.roles)) {
+    checkSemanticName(path, `[semantics.roles].${roleName}`, roleName);
+    validateSemanticSource(path, `[semantics.roles].${roleName}.source`, role.source);
+    if (Object.keys(role.fields).length === 0) {
+      throw new Error(
+        `${path}: \`[semantics.roles].${roleName}.fields\`: semantic role must declare at least one typed field`
+      );
+    }
+    for (const fieldName of Object.keys(role.fields)) {
+      checkSemanticName(path, `[semantics.roles].${roleName}.fields.${fieldName}`, fieldName);
+    }
+  }
+
+  for (const name of Object.keys(semantics.derived)) {
+    checkSemanticName(path, `[semantics.derived].${name}`, name);
+  }
+
+  const invariantNames = new Set<string>();
+  semantics.invariants.forEach((invariant, idx) => {
+    const key = `[[semantics.invariants]][${idx}].name`;
+    checkSemanticName(path, key, invariant.name);
+    if (invariantNames.has(invariant.name)) {
+      throw new Error(
+        `${path}: \`${escapeDiagnostic(key)}\`: duplicate semantic name \`${escapeDiagnostic(invariant.name)}\``
+      );
+    }
+    invariantNames.add(invariant.name);
+    if (invariant.description !== undefined) {
+      checkLabel(path, `[[semantics.invariants]][${idx}].description`, invariant.description);
+    }
+  });
+}
+
+function validateSemanticSource(path: string, key: string, source: string): void {
+  const instruction = source.startsWith("instruction.") ? source.slice("instruction.".length) : null;
+  if (instruction !== null) {
+    if (instruction.length === 0) {
+      rejectUnknownSemanticSource(path, key, source);
+    }
+    checkIdentifier(path, key, instruction);
+    return;
+  }
+
+  const account = source.startsWith("account.") ? source.slice("account.".length) : null;
+  if (account !== null) {
+    if (account.length === 0) {
+      rejectUnknownSemanticSource(path, key, source);
+    }
+    for (const segment of account.split(".")) {
+      checkIdentifier(path, key, segment);
+    }
+    return;
+  }
+
+  rejectUnknownSemanticSource(path, key, source);
+}
+
+function rejectUnknownSemanticSource(path: string, key: string, source: string): never {
+  throw new Error(
+    `${path}: \`${escapeDiagnostic(key)}\`: unknown source binding type \`${escapeDiagnostic(source)}\`; expected \`instruction.<name>\` or \`account.<path>\``
+  );
+}
+
+function checkSemanticName(path: string, key: string, value: string): void {
+  if (!/^[a-z][a-z0-9_]*$/.test(value)) {
+    throw new Error(
+      `${path}: \`${escapeDiagnostic(key)}\`: semantic name \`${escapeDiagnostic(value)}\` must match \`[a-z][a-z0-9_]*\``
+    );
+  }
 }
 
 function validateLineage(adapter: Adapter, path: string): void {
