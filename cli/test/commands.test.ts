@@ -13,7 +13,7 @@ test("simulate help prints usage", async () => {
   });
 
   assert.match(stdout, /Usage: riptide simulate/);
-  assert.match(stdout, /Compile personas and run a Riptide simulation/);
+  assert.match(stdout, /compile personas and run a single deterministic\s+Riptide simulation/);
 });
 
 test("scenarios prints the stub list", async () => {
