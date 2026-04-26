@@ -18,6 +18,7 @@
 # and `.riptide/scenarios/` remain tracked in user repos; only the
 # transient state + run outputs are ignored.
 .riptide/last-run.json
+.riptide/run-collection.json
 .riptide/runs/
 .riptide/pack/
 
