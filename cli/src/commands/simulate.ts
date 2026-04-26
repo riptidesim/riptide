@@ -12,7 +12,9 @@ import { renderTimeline } from "../report/timeline.js";
 import { blockUntilSignal, startDashboardServer } from "../serve/index.js";
 
 export function createSimulateCommand(): Command {
-  const command = new Command("simulate").description("Compile personas and run a Riptide simulation");
+  const command = new Command("simulate").description(
+    "Legacy explicit-flag path — compile personas and run a single deterministic Riptide simulation. Prefer 'riptide run' for scenario discovery."
+  );
 
   registerRunConfigOptions(command);
   command.option("--format <format>", "Output format: human (default) or json", "human");

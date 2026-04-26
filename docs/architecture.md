@@ -31,10 +31,12 @@ flowchart TB
 
 1. **Adapter** — one TOML under `fixtures/adapters/` declaring your program, its actions, its observations, and its invariants. Examples: `lending.toml`, `perpetuals.toml`, `amm.toml`, `liquid-staking.toml`, `stablecoin.toml`, `resource-grinder.toml`.
 2. **Personas** — TOML under `fixtures/personas/` describing agent behavior with a trigger DSL (`player.gold < 100 → craft`). Each bundle ships a persona library the scenarios skill can compose from.
-3. **Scenarios** — engine shocks (oracle trajectories, scheduled actions) mounted from declarative presets. See `fixtures/scenarios/` and `engine/src/scenario/preset_spec.rs`.
+3. **Scenarios** — engine shocks (oracle trajectories, scheduled actions) mounted from declarative presets. Replay scenarios additionally read `initial-state.json`, `trajectory.json`, and `oracle-trajectory.json`, with an optional replay-scoped adapter override when the recorded program shape diverges from the one your repo currently builds. See `fixtures/scenarios/` and `engine/src/scenario/preset_spec.rs`.
 4. **Parameters** — run-config knobs that sweep over the dimensions that matter: whale share, shock magnitude, trade size, leverage, depositor concentration.
 5. **Failure-mode taxonomy** — categories like `whale_concentration`, `margin_cascade_from_oracle_shock`, `price_manipulation_via_swap`, `impermanent_loss_spike`. The `riptide-scenarios` skill matches your adapter's shape against this taxonomy.
 6. **Invariants** — machine-checkable properties (`no_bad_debt`, `reserve_a > 0`, `k == reserve_a * reserve_b` within tolerance) declared inline in the adapter. The engine exits non-zero when any invariant fires, so invariants double as CI gates.
+
+> **Sprint 19+ milestone — economic semantics.** A seventh layer is in design: a declarative `[semantics]` block inside the adapter that maps raw fields to protocol-class concepts (collateral value, debt, health, redemption pressure, margin) under versioned classes (`lending.v1`, `perps-margin.v1`, `amm.v1`, `lst.v1`, `stablecoin.v1`) with named roles, derived observations, expression invariants, and protocol-specific extensions. Once it lands, the six-layer stack becomes a seven-layer stack and integrating a new lending/perps/AMM protocol becomes mappings + extensions on the standard stress catalog instead of authoring a new simulator. Design contract: [`../.specs/designs/economic-semantics-v1.md`](../.specs/designs/economic-semantics-v1.md). **Status:** design committed, implementation in flight Sprint 19+. No engine code changes have landed yet; this paragraph is a forward-looking pointer, not a description of today's runtime surface.
 
 Five shipping protocol-class bundles exercise every layer end-to-end: **lending** (Solend fork), **perps** (perps-lite), **AMM** (constant-product), **liquid staking** (`liquid-staking` — a minimal pooled-stake / withdrawal-queue surface, not a fork of any real LST codebase), and **stablecoin** (`stablecoin` — a minimal collateral / stable-supply / reserve-buffer / redemption-queue surface with one admin-gated `apply_hedge_loss` stress mutation, not a fork of any real stablecoin codebase). A sixth generic bundle (`resource-grinder`) drives a non-DeFi SBF program end-to-end — if it runs, you can wire Riptide to your protocol.
 
@@ -54,7 +56,7 @@ What LiteSVM does not model: gossip, vote, PoH, full consensus behavior. The spe
 
 ## Determinism
 
-Same seed in, same bytes out, byte-for-byte, across the lending, perps, AMM, and generic bundles. The `e2e_determinism` integration test enforces this on every `cargo test -p riptide-engine` run by executing the same fixture twice and asserting the result JSON is byte-identical. Replay mode extends the same guarantee to declared trajectories — `riptide replay fixtures/replays/lending-whale-bad-debt/config.json` runs the shipping whale-concentrated-borrow bad-debt trajectory (historical inspiration: Solend's June 2022 whale-risk incident) deterministically against its replay-scoped adapter and asserts the declared `no_bad_debt` invariant fires at the declared cascade tick. The replay is a byte-stable run of a declared scenario, not a forensic reconstruction of mainnet state.
+Same seed in, same bytes out, byte-for-byte, across the lending, perps, AMM, and generic bundles. The `e2e_determinism` integration test enforces this on every `cargo test -p riptide-engine` run by executing the same fixture twice and asserting the result JSON is byte-identical. Replay mode extends the same byte-stable contract to declared trajectories — `riptide replay fixtures/replays/lending-whale-bad-debt/config.json` runs the shipping whale-concentrated-borrow bad-debt trajectory (historical inspiration: Solend's June 2022 whale-risk incident) deterministically against its replay-scoped adapter and asserts the declared `no_bad_debt` invariant fires at the declared cascade tick. The replay is a byte-stable run of a declared scenario, not a forensic reconstruction of mainnet state.
 
 Determinism is what makes the grid re-derivable by an adversarial reviewer: the adapter TOML + persona TOML + run-config + engine binary are the whole input. Nothing else is load-bearing.
 
@@ -150,7 +152,7 @@ disk plus the local dashboard view over it:
   fetch in either command. See [`adapter-lineage.md`](adapter-lineage.md).
 
 These surfaces are **simulation evidence**, not audit signoff. A
-green CI run is a reproducibility guarantee, not a security
+green CI run is a reproducibility check, not a security
 attestation; a run verdict describes the declared simulation run, not a
 safety verdict on the program; and a lineage block is an authored
 declaration, not a machine-verified coverage claim.

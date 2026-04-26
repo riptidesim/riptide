@@ -16,6 +16,43 @@ the Zod schema, and invokes the local `riptide-engine` binary to
 confirm a single write-action mutates observable state. It does not
 call any external service.
 
+## What you actually configure for a Riptide run
+
+The adapter is one file in a slightly larger committed surface. A
+realistic onboarding produces:
+
+- **Adapter TOML** — this skill's output: `.so`, IDL, accounts,
+  instructions, observations, oracle bindings, invariants.
+- **Personas / policies** — per-adapter behaviour files under
+  `fixtures/personas/<adapter>/*.toml` (or `.riptide/personas/`).
+  The `riptide-scenarios` skill drafts these alongside scenarios.
+- **Run config + scenario parameters** — `.riptide/scenarios/**/run-config.json`
+  for synthetic stress, with seed, ticks, agent counts, shock paths.
+- **Optional replay artifacts** — `initial-state.json`,
+  `trajectory.json`, `oracle-trajectory.json`, plus an optional
+  replay-scoped adapter override when the recorded program shape
+  diverges from the one the repo currently builds.
+
+This skill produces only the adapter TOML. Tell the user that
+personas + run config + scenario parameters are separate authoring
+steps (the `riptide-scenarios` skill or hand-authoring) before a
+realistic stress run.
+
+## Coming next — economic semantics
+
+A declarative `[semantics]` block inside the adapter is in design at
+`.specs/designs/economic-semantics-v1.md`: versioned protocol classes
+(`lending.v1`, `perps-margin.v1`, `amm.v1`, `lst.v1`, `stablecoin.v1`),
+named roles, derived observations, expression invariants, and
+protocol-specific extensions. **Status:** design committed,
+implementation in flight Sprint 19+. Do **not** emit a `[semantics]`
+block in generated adapters today — the engine does not consume it.
+Stay on the existing schema (instructions / accounts / observations /
+invariants / lineage). Mention semantics to the user only as a
+forward-looking pointer when they ask "why doesn't Riptide understand
+my protocol's collateral / debt / health concepts" — semantics is the
+answer that ships in Sprint 19+.
+
 ## Flow
 
 When the user invokes this skill, follow these steps yourself — you

@@ -93,11 +93,17 @@ flowchart LR
     R --> Z["Narrative report<br>markdown case study"]
 ```
 
-1. **Protocol Modeling** — Write an **adapter TOML** (Riptide's wiring file: declares your program's accounts, actions, observations, and invariants in plain TOML). Wire an oracle if your program needs one — admin-mock for testing, Pyth-layout for drop-in compatibility with real Pyth consumers. Declare the invariants that matter (machine-checkable properties that double as CI gates). Curate a persona library (reusable adversarial archetypes per protocol class).
-2. **Scenario Generation** — Match your adapter's shape against the **failure-mode taxonomy** (a catalog of named failure categories like `whale_concentration`, `liquidation_cascade`, `price_manipulation_via_swap` — curated from real DeFi incidents). Propose parameter sweeps — 1D or 2D grids where every cell is a complete bootable sub-scenario. Assign adversarial personas from the library.
-3. **Deterministic Simulation** — LiteSVM executes your real BPF program tick-by-tick. Personas fire instructions based on trigger conditions (`observation.utilization > 0.9 → withdraw_all`). Invariants evaluate every tick. Same seed → same sha256, always; enforced by a regression test.
-4. **Discovery & Reporting** — A mechanical report (metrics, events, invariant firings, summary) lands on disk as JSON. A narrative report (LLM cites specific ticks and event types, reads like a case study) lands as markdown. `riptide run` also writes `.riptide/run-collection.json` with status totals, verdict totals, coverage checks, and per-scenario interpretation. The web dashboard at `localhost:4173` reviews that collection and drills into each scenario.
-5. **Trajectory Replay** — Declare a tx-sequence + oracle-trajectory against the same adapter your synthetic sweeps use (the Solend June 2022 whale-risk incident ships as a reference replay). Riptide runs that declared trajectory deterministically tick-by-tick, and asserts your declared invariants fire at the declared ticks. The replay is a byte-stable run of what you declared — not a forensic reconstruction of what happened on-chain.
+The workflow follows a five-step accurate pattern:
+
+1. **Wire the program.** Author an **adapter TOML** that declares the program's `.so`, IDL, accounts, instructions, observations, oracle bindings, and invariants. Oracle binding picks one of the supported kinds — admin-mock for testing, Pyth-layout for drop-in Pyth consumers. Invariants are machine-checkable properties that double as CI gates. Lineage metadata records where the adapter came from (JSON IDL, hand-authored, inferred assumptions).
+2. **Define actors.** Author **personas / policies** under `fixtures/personas/<adapter>/*.toml` (or `.riptide/personas/`) — borrower / liquidator / LP / arbitrageur / redeemer behaviour, declared as deterministic policies over observations.
+3. **Declare a scenario or replay.** For synthetic stress, write a **run config** + scenario parameters: seed, ticks, agent counts, shock paths. For replay, swap the synthetic shock surface for explicit `initial-state.json`, `trajectory.json`, and `oracle-trajectory.json` files; an optional **replay-scoped adapter override** is supported when the recorded program shape diverges from the one your repo currently builds.
+4. **Run deterministically.** LiteSVM executes the real BPF program tick-by-tick. Personas fire instructions based on declared trigger conditions (`observation.utilization > 0.9 → withdraw_all`). Invariants evaluate every tick. Same committed inputs → same sha256, enforced by a regression test.
+5. **Inspect evidence.** Each run emits a mechanical report (JSON), a narrative report (markdown), `.riptide/run-collection.json` with status / verdict / coverage totals, and a reviewer-ready evidence pack with manifest, summary, trace, rerun script, and a canonical hash. The web dashboard at `localhost:4173` reviews that collection and drills into each scenario.
+
+> **Trajectory replay note.** The shipping `lending-whale-bad-debt` replay is a declared trajectory against the existing Solend-shaped lending primitive — historical inspiration: the Solend June 2022 whale-risk episode. It is a byte-stable run of what you declared on disk, not a byte-level mainnet reconstruction.
+
+> **Coming next — economic semantics.** Today you bind raw fields and write invariants over them. The next milestone is a declarative `[semantics]` block inside the adapter that maps raw fields to protocol-class concepts — collateral value, debt, health, redemption pressure, margin — under versioned classes (`lending.v1`, `perps-margin.v1`, `amm.v1`, `lst.v1`, `stablecoin.v1`) with named roles, derived observations, expression invariants, and protocol-specific extensions. Once it lands, integrating a new protocol becomes mappings + extensions on the standard stress catalog instead of authoring a new simulator. The design contract is committed at `.specs/designs/economic-semantics-v1.md`; **status: design committed, implementation in flight Sprint 19+**. Semantics complements adapter lineage; it does not replace it.
 
 > **Claude Code skills are optional accelerators, not requirements.** The `riptide-adapt`, `riptide-scenarios`, and `riptide-narrative` skills let a session-native LLM do first passes on adapter generation, scenario proposal, and report writing — typing them into any Claude Code session beats manual authoring on speed. You can hand-author every artifact instead: adapter TOML, persona TOMLs, scenarios, and run-configs are plain files you edit directly. The engine doesn't require any skill to run; the skills exist because most devs want faster starting points.
 
@@ -327,7 +333,7 @@ riptide replay fixtures/replays/stablecoin-uxd-style-collateral-cascade/config.j
 
 Riptide is designed to survive handoff to an auditor, security
 engineer, or risk-committee reviewer — without session context. Three
-surfaces carry the guarantee:
+surfaces carry the byte-stable contract:
 
 - **Every `riptide run` and `riptide replay` emits a reviewer-ready
   evidence pack** at `.riptide/pack/<run-id>/` — a directory with

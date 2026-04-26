@@ -31,6 +31,42 @@ Keep this framing intact when surfacing results to the user. Do not
 promote the skill's proposals to "findings" or "bugs". They are
 experiments worth running.
 
+## What you actually configure for a Riptide scenario
+
+A scenario today is composed from:
+
+- **Run config + scenario parameters** — `run-config.json`: seed,
+  ticks, agent counts, the scenario's named shock or sweep
+  dimension, the personas it activates.
+- **Personas / policies** — `policies.json` per `persona_id`, plus
+  reusable persona TOML under `fixtures/personas/<adapter>/*.toml`.
+- **Manifest** — `manifest.json` indexing adapter, slug, failure-mode
+  category, rationale.
+- **Replay surface (optional, separate path)** — when reproducing
+  recorded state, scenarios swap the synthetic shock surface for
+  explicit `initial-state.json`, `trajectory.json`, and
+  `oracle-trajectory.json` files, with an optional replay-scoped
+  adapter override. Replays are not what this skill proposes; this
+  skill writes synthetic stress scenarios. If the user wants a
+  replay, point them at the existing `fixtures/replays/` examples.
+
+This skill proposes synthetic stress scenarios — not replays.
+
+## Coming next — semantic-aware scenario hints
+
+The next product milestone is a declarative `[semantics]` block
+inside the adapter (versioned classes — `lending.v1`, `perps-margin.v1`,
+`amm.v1`, `lst.v1`, `stablecoin.v1` — with named roles, derived
+observations, expression invariants, and protocol-specific
+extensions). Once it lands, this skill will be able to propose
+scenarios against *economic concepts* (target bad-debt boundary,
+target margin floor, target backing ratio) instead of raw account
+fields. **Status:** design committed at
+`.specs/designs/economic-semantics-v1.md`; implementation in flight
+Sprint 19+. Until then, propose scenarios over the raw observation
+surface the adapter already declares — do not invent semantic
+concepts the engine does not yet evaluate.
+
 ## Inputs
 
 - **Required:** a Riptide adapter TOML (e.g.

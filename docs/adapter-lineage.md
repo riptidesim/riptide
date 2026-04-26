@@ -167,3 +167,42 @@ static diagnostic only.
   lineage from a program-id, remote IDL fetch, LSP / editor tooling,
   and adapter-diff CLI are all out of scope. Lineage blocks are
   hand-authored today.
+
+## Coming next — economic semantics complements lineage
+
+Lineage is one half of the per-adapter reviewer surface. The other
+half — currently in design, not yet implemented — is **economic
+semantics**: a declarative `[semantics]` block inside the adapter that
+maps raw fields to protocol-class concepts (collateral value, debt,
+health, redemption pressure, margin) under versioned classes
+(`lending.v1`, `perps-margin.v1`, `amm.v1`, `lst.v1`, `stablecoin.v1`)
+with named roles, derived observations, expression invariants, and
+protocol-specific extensions.
+
+**Semantics complements lineage; it does not replace it.** They answer
+different reviewer questions:
+
+- **Lineage** answers *where the adapter came from*: source, IDL,
+  generator, hand-authored vs auto-generated, inferred assumptions,
+  intentionally unsupported fields. It is the provenance record for
+  the adapter as a wiring artifact.
+- **Semantics** answers *what the program's fields mean economically*:
+  which account field is the collateral, which is the debt, which
+  oracle the position is priced against, what derived value
+  (`collateral_value`, `health`, `bad_debt`) the invariants should
+  evaluate against. It is the economic-meaning record on top of the
+  raw field bindings.
+
+Both blocks are expected to ship per-adapter once semantics lands.
+Removing one does not subsume the other; a future Solend / Kamino /
+Loopscale integration will declare both — lineage to record the IDL
+and authoring trail, semantics to declare the `lending.v1` role
+mappings + extensions for that protocol's specifics.
+
+**Status:** design committed at
+[`../.specs/designs/economic-semantics-v1.md`](../.specs/designs/economic-semantics-v1.md);
+implementation in flight Sprint 19+. No `[semantics]` block is
+authorable today — adapter authoring, lint, and adapt all read the
+existing `[lineage]` surface unchanged. This section is a
+forward-looking pointer for reviewers who want to know what the
+adapter surface is becoming.

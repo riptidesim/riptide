@@ -43,7 +43,9 @@ const MULTI_IDENT_MAX_LEN = 128;
 
 export function createReplayCommand(): Command {
   return new Command("replay")
-    .description("Run a historical replay from a JSON config file")
+    .description(
+      "Replay a declared trajectory deterministically — reads a replay-config JSON plus its initial-state, trajectory, and oracle-trajectory siblings (and an optional replay-scoped adapter override), runs the program byte-stably, and asserts declared invariant firings."
+    )
     .argument("<config>", "Path to a replay-config JSON file")
     .option("--format <format>", "Output format: human (default) or json", "human")
     .option(

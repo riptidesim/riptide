@@ -18,7 +18,9 @@ const program = new Command();
 
 program
   .name("riptide")
-  .description("Riptide CLI")
+  .description(
+    "Riptide CLI — wire a Solana program (adapter), define actors (personas), declare a scenario or replay, run deterministically against LiteSVM, inspect evidence."
+  )
   .version("0.1.0");
 
 program.addCommand(createSimulateCommand());
