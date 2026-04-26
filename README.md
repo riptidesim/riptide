@@ -16,7 +16,7 @@ Three things Riptide does:
 | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
 | A compiled Solana program (`.so`) + IDL                                              | A deterministic parameter-region map showing where your program breaks                                                 |
 | An **adapter TOML** wiring accounts, actions, observations, invariants               | Machine-checkable invariant exit codes (`0` = all held, `1` = at least one fired) ready for CI                         |
-| A **run-config** (scenario, seed, ticks, agent count)                                | A web dashboard (`localhost:4173`) — run metadata, timeseries, event stream, invariants highlighted                   |
+| A **run-config** (scenario, seed, ticks, agent count)                                | A web dashboard (`localhost:4173`) — run collection review, verdicts, coverage checks, metrics, events, invariants    |
 | Optionally: a **persona library** (shipping TOMLs ready to use, or hand-author yours)| A narrative case-study report citing specific ticks and events                                                         |
 | *(optional)* a declared tx-sequence + oracle-trajectory JSON                         | A byte-stable replay of that trajectory against the same adapter, with declared invariants evaluated every tick        |
 | *(optional)* `riptide init` in your Anchor repo                                      | A ready-to-fill `.riptide/` tree — adapter stub, starter personas, baseline scenario, version-control it with your program |
@@ -38,22 +38,20 @@ From pre-launch stress tests to trajectory replays to game-economy sandboxes, Ri
 
 ![Web dashboard rendering the Solend-fork `w25-s40` hero grid cell](docs/assets/dashboard-hero.png)
 
-*The web dashboard at `localhost:4173` after a `riptide run --serve` completes. Run metadata, summary metrics, a tick-by-tick timeseries, the full event stream (filterable by action / outcome / agent), and invariant firings highlighted in red.*
+*The web dashboard at `localhost:4173` after a `riptide run --serve` completes. The top of the page reviews the run collection: status totals, verdict totals, coverage totals, scenario picker, filters, and an interpretation panel before the selected scenario's metadata, metrics, timeseries, events, and invariant rows.*
 
 Terminal output when running the same cell:
 
 ```
 $ riptide run lending/hero-grid/w25-s40 --serve
 riptide run: 1 scenario
-TICK 1/20
-... (engine tick progress elided)
-TICK 20/20
-ok lending/hero-grid/w25-s40  (0.1s, 0 invariant fires)
+ok lending/hero-grid/w25-s40  (0.1s, no failure observed, confidence: medium, coverage: exercised)
 
-1 pass · 0 fail · 0 skip
-Dashboard: http://localhost:4173
+1 pass · 0 fail · 0 error · 0 skip
+verdicts: 1 no-failure-observed
 
-exit 0
+Dashboard: http://127.0.0.1:4173
+Run collection: /path/to/riptide/.riptide/run-collection.json
 ```
 
 The full-path form `riptide run fixtures/scenarios/lending/hero-grid/w25-s40/run-config.json` still works (backward-compat for scripts and CI); the short form above is the default once `.riptide/scenarios/` is populated — which it is inside this monorepo via a `fixtures/scenarios/` symlink, and in any user repo via `riptide init`.
@@ -64,7 +62,7 @@ The hero grid sweeps the `whale-share × shock-magnitude` parameter region and r
 
 - **Pre-launch stress testing** — map the parameter neighborhood where your protocol breaks before mainnet does; ship with a grid attached to the design doc.
 - **Trajectory replay** — declare a tx-sequence + oracle-trajectory against the same adapter your synthetic sweeps use, and Riptide replays it byte-stably tick-by-tick with invariants evaluated every tick (a whale-concentrated-borrow bad-debt replay — historical inspiration: the Solend June 2022 whale-risk incident — ships as a reference replay, a trajectory declared on disk, not a claim about mainnet state).
-- **Launch parameter selection** — run safe-vs-risky side-by-side comparisons to pick launch parameters with deterministic evidence instead of gut feel.
+- **Launch parameter selection** — run low-stress vs high-stress side-by-side comparisons to pick launch parameters with deterministic evidence instead of gut feel.
 - **CI integration** — declare invariants inline in your adapter; the engine exits 1 the moment any invariant fires, so your pipeline blocks on economic regressions the same way it blocks on test regressions.
 - **Post-audit verification** — bound an auditor's theoretical concern with a Riptide grid to see whether it actually manifests under the parameter regimes you chose.
 - **Game economy design** — the generic primitive runs *any* Solana program end-to-end, not just DeFi. Token flows, crafting loops, auction dynamics — anything with shared state under pressure is simulatable.
@@ -98,7 +96,7 @@ flowchart LR
 1. **Protocol Modeling** — Write an **adapter TOML** (Riptide's wiring file: declares your program's accounts, actions, observations, and invariants in plain TOML). Wire an oracle if your program needs one — admin-mock for testing, Pyth-layout for drop-in compatibility with real Pyth consumers. Declare the invariants that matter (machine-checkable properties that double as CI gates). Curate a persona library (reusable adversarial archetypes per protocol class).
 2. **Scenario Generation** — Match your adapter's shape against the **failure-mode taxonomy** (a catalog of named failure categories like `whale_concentration`, `liquidation_cascade`, `price_manipulation_via_swap` — curated from real DeFi incidents). Propose parameter sweeps — 1D or 2D grids where every cell is a complete bootable sub-scenario. Assign adversarial personas from the library.
 3. **Deterministic Simulation** — LiteSVM executes your real BPF program tick-by-tick. Personas fire instructions based on trigger conditions (`observation.utilization > 0.9 → withdraw_all`). Invariants evaluate every tick. Same seed → same sha256, always; enforced by a regression test.
-4. **Discovery & Reporting** — A mechanical report (metrics, events, invariant firings, summary) lands on disk as JSON. A narrative report (LLM cites specific ticks and event types, reads like a case study) lands as markdown. The web dashboard at `localhost:4173` renders everything visually with invariant firings highlighted red.
+4. **Discovery & Reporting** — A mechanical report (metrics, events, invariant firings, summary) lands on disk as JSON. A narrative report (LLM cites specific ticks and event types, reads like a case study) lands as markdown. `riptide run` also writes `.riptide/run-collection.json` with status totals, verdict totals, coverage checks, and per-scenario interpretation. The web dashboard at `localhost:4173` reviews that collection and drills into each scenario.
 5. **Trajectory Replay** — Declare a tx-sequence + oracle-trajectory against the same adapter your synthetic sweeps use (the Solend June 2022 whale-risk incident ships as a reference replay). Riptide runs that declared trajectory deterministically tick-by-tick, and asserts your declared invariants fire at the declared ticks. The replay is a byte-stable run of what you declared — not a forensic reconstruction of what happened on-chain.
 
 > **Claude Code skills are optional accelerators, not requirements.** The `riptide-adapt`, `riptide-scenarios`, and `riptide-narrative` skills let a session-native LLM do first passes on adapter generation, scenario proposal, and report writing — typing them into any Claude Code session beats manual authoring on speed. You can hand-author every artifact instead: adapter TOML, persona TOMLs, scenarios, and run-configs are plain files you edit directly. The engine doesn't require any skill to run; the skills exist because most devs want faster starting points.
@@ -202,7 +200,7 @@ cd riptide
 
 Linux is the supported path (macOS / Windows are out of scope — see [`docs/install.md`](docs/install.md)). Requires Rust, Node, and `cargo-build-sbf` on your `$PATH` — the installer checks and prints install hints if anything is missing.
 
-Once `riptide` is on your `$PATH`, the canonical first run is `install → doctor → init → lint → adapt → run`. `riptide doctor` confirms your toolchain + engine binary + any discovered adapters are sane before anything else runs; `riptide init` scaffolds a `.riptide/` working directory inside any Anchor repo, you fill in one stub adapter, `riptide lint` static-checks it against the JSON IDL named in `[lineage].idl_source`, `riptide adapt` smoke-tests it end-to-end against the local engine, and `riptide run` discovers every scenario you author and prints a jest-style pass/fail summary.
+Once `riptide` is on your `$PATH`, the canonical first run is `install → doctor → init → lint → adapt → run`. `riptide doctor` confirms your toolchain + engine binary + any discovered adapters are sane before anything else runs; `riptide init` scaffolds a `.riptide/` working directory inside any Anchor repo, you fill in one stub adapter, `riptide lint` static-checks it against the JSON IDL named in `[lineage].idl_source`, `riptide adapt` smoke-tests it end-to-end against the local engine, and `riptide run` discovers every scenario you author and prints a jest-style pass/fail summary with a run verdict, confidence, and coverage classification for each scenario.
 
 ```bash
 riptide doctor                                                        # Health check (no build, no network, no sim)
@@ -214,7 +212,7 @@ riptide adapt --adapter .riptide/adapters/<program-name>.toml         # End-to-e
 riptide run --serve
 ```
 
-The `.riptide/` tree holds your adapter, persona library, and scenarios — version-control them alongside your program. `riptide run` with no arguments discovers every `.riptide/scenarios/**/run-config.json` and runs it sequentially; pass a glob pattern to filter, or an explicit `.json` path to run a single file. See [`docs/install.md`](docs/install.md#next-steps-after-install) for the full first-run walkthrough.
+The `.riptide/` tree holds your adapter, persona library, and scenarios — version-control them alongside your program. `riptide run` with no arguments discovers every `.riptide/scenarios/**/run-config.json` and runs it sequentially; pass a glob pattern to filter, or an explicit `.json` path to run a single file. Each sweep writes `.riptide/run-collection.json` with totals by status, verdict, and coverage, plus per-scenario coverage checks and artifact paths. `--serve` starts a collection-aware dashboard instead of a single-scenario-only view. This is run evidence from simulation, not audit signoff and not a safety verdict. See [`docs/install.md`](docs/install.md#next-steps-after-install) for the full first-run walkthrough.
 
 The same short-form invocation works inside the cloned Riptide monorepo itself — `.riptide/scenarios/` is a symlink to `fixtures/scenarios/` at the repo root, so `riptide run lending/hero-grid/w25-s40 --serve` discovers and runs the shipping hero-grid cell straight from a monorepo checkout. The full-path form (`riptide run fixtures/scenarios/<path>/run-config.json`) still works unchanged for existing CI and scripts.
 
@@ -237,7 +235,7 @@ riptide run                              # Discover + run every scenario in .rip
 riptide run <pattern>                    # Filter discovered scenarios by glob (e.g. '*w25*', 'hero-grid/*')
 riptide run <run-config.json>            # Run a single run-config file directly (backward-compat)
 riptide run --only-failing               # Rerun only scenarios that failed or aborted last time
-riptide run --serve                      # After the sweep, start the dashboard on localhost:4173
+riptide run --serve                      # After the sweep, start the collection dashboard on localhost:4173
 riptide replay <replay-config>           # Replay a historical on-chain trajectory
 riptide adapt --adapter <toml>           # Smoke-test an adapter TOML end-to-end (runs lint preflight when JSON IDL lineage is present)
 riptide lint <adapter>                   # Static adapter validation against a JSON IDL (non-JSON sources warn — see docs/adapter-lineage.md)
@@ -247,7 +245,7 @@ riptide simulate <config>                # Legacy explicit-flag path — see doc
 
 Exit codes follow a jest-style contract: `0` every scenario passed, `1` one or more invariants fired, `2` setup error (discovery missing, adapter not found, engine binary absent), `3` internal partial abort, `130` SIGINT. CI wrappers can gate merges on economic regressions without extra shell logic.
 
-For the shipping hero-grid `w25-s40` cell (mainnet-adjacent Solend fork, produces bad debt under whale concentration):
+For the shipping hero-grid `w25-s40` cell (mainnet-adjacent Solend fork, with whale-concentration metrics visible in the dashboard):
 
 ```bash
 riptide run lending/hero-grid/w25-s40 --serve

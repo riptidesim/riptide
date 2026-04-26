@@ -70,7 +70,7 @@ On a run, the CLI compiles personas, pre-validates adapter + run-config, then sh
 
 Three invocation shapes share one command. `riptide run` runs everything discovered. `riptide run <pattern>` filters the discovered list by glob (`'*w25*'`, `'hero-grid/*'`). `riptide run <file-path>` runs a single run-config directly — the backward-compat path that scripts, CI, and the shipping fixtures still rely on; the file-existence check disambiguates it from a pattern. `riptide list` prints the discovered scenario list one per line, useful for CI integrations that want to know what will run before running it.
 
-Per-scenario results and the aggregate summary land in `.riptide/last-run.json` (schema pinned in `cli/src/run/last-run.ts`); `riptide run --only-failing` reads that file to rerun only the scenarios that failed or aborted most recently. The convention pairs with `.riptide/adapters/` and `.riptide/personas/` so every artifact Riptide reads — adapter, personas, scenarios — lives under the same version-controlled tree in the user's own repo.
+Per-scenario results and the aggregate summary land in `.riptide/last-run.json` (schema pinned in `cli/src/run/last-run.ts`); `riptide run --only-failing` reads that file to rerun only the scenarios that failed or aborted most recently. Each `riptide run` also writes `.riptide/run-collection.json`, a reviewer-facing collection with the selected pattern, totals by status/verdict/coverage, per-scenario verdict, confidence, coverage checks, artifact paths, and a small metric preview. `riptide run --serve` serves that run collection, so multi-scenario sweeps can be reviewed as a collection before drilling into one scenario. The convention pairs with `.riptide/adapters/` and `.riptide/personas/` so every artifact Riptide reads — adapter, personas, scenarios — lives under the same version-controlled tree in the user's own repo.
 
 Inside the Riptide monorepo itself, `.riptide/scenarios/` is a symlink to `fixtures/scenarios/`, so shipping scenarios are discoverable via the same convention as user-authored scenarios in any other repo — `riptide list` and `riptide run` work identically in both contexts. The symlink is tracked in git (mode `120000`), keeps every existing `fixtures/scenarios/…` reference in scripts and CI resolving unchanged, and adds no determinism risk because the engine never observes which path it traversed to reach a run-config.
 
@@ -92,7 +92,7 @@ What this surface does **not** yet cover:
 - **Generalized multi-program scenario sweeps.** The cross-protocol proof at `fixtures/replays/lst-lending-contagion-proof/` is replay-only composition: two shipping bundles plus one declared scalar-observation → scalar-oracle-write bridge in one deterministic replay run. Synthetic multi-program persona sweeps, arbitrary cross-program transaction graphs, a multi-program LST → stablecoin → lending chain, governance-contagion bundles, and cascade-graph dashboards are not in today's claim surface.
 - **Production LST / stablecoin / DeFi codebase coverage.** The `liquid-staking`, `stablecoin`, and `lending_pool` programs the bundles ship against are minimal forks chosen for determinism and clarity of the failure shape. No real Kelp / rsETH / Marinade / Jito / Sanctum / Kamino / Marginfi / UXD / Perena / Parrot / Ethena program is wired as an adapter today.
 - **Literal UXD / live hedge-venue integration / generalized peg-defense.** The `stablecoin` bundle captures UXD-style *pressure geometry* via a program-local `apply_hedge_loss(loss_bps)` stress mutation, not a stablecoin ↔ perps-venue composition. There is no live hedge-venue plumbing, no dynamic peg-defense policy engine, and no oracle-gated mint/redeem pricing in the shipping bundle — the stablecoin proof's backing stress is driven by on-account state only. A later bundle can add those layers without reshaping the current adapter.
-- **Watch mode / parallel scenario execution / `--serve` multi-scenario aggregation** remain follow-ups.
+- **Watch mode / parallel scenario execution / broad parameter-grid generation** remain follow-ups. The existing `riptide run --serve` path reviews the collection of scenarios selected by one `riptide run`; it is not a new sweep generator or watch service.
 - **Machine validation of non-JSON lineage sources.** `riptide lint` (added in the DX-hardening pass) machine-checks adapters whose `[lineage].idl_source` is a JSON IDL — mapped instructions, args, accounts, and `account.field` references must all resolve in the IDL. Rust-source-of-record adapters like `lending` stay inspection-only and warn honestly; there is no Rust parser in the linter today.
 - **Auto-adapter-from-program-id, live mainnet IDL fetch, LSP / editor tooling, adapter-diff CLI.** Every artifact Riptide reads is committed on disk; no run-time network dependency, no IDE integration.
 
@@ -108,9 +108,17 @@ These commands are the install-first operator surface — they exist so a new us
 
 ## Reviewer handoff surfaces
 
-Riptide's reviewer-forwardable substrate lives in three files every
-`riptide run` and `riptide replay` touches:
+Riptide's reviewer-forwardable substrate is the run evidence written on
+disk plus the local dashboard view over it:
 
+- **Every `riptide run` writes a run collection.**
+  `.riptide/run-collection.json` records the selected pattern/source,
+  status totals, verdict totals, coverage totals,
+  `allow_invariant_violations`, and one entry per scenario with
+  verdict, confidence, coverage checks, invariant fires, metric preview,
+  report path, and simulation-result path. The dashboard serves this
+  collection so a reviewer can switch scenarios and read the
+  interpretation without opening raw JSON first.
 - **Every run emits a pack.** `.riptide/pack/<run-id>/` carries
   `manifest.json`, `summary.md`, `trace.md`, `rerun.sh`, and
   `inputs/` + `outputs/` path indices with repo-relative paths only.
@@ -143,8 +151,9 @@ Riptide's reviewer-forwardable substrate lives in three files every
 
 These surfaces are **simulation evidence**, not audit signoff. A
 green CI run is a reproducibility guarantee, not a security
-attestation; a lineage block is an authored declaration, not a
-machine-verified coverage claim.
+attestation; a run verdict describes the declared simulation run, not a
+safety verdict on the program; and a lineage block is an authored
+declaration, not a machine-verified coverage claim.
 
 ## Further reading
 
