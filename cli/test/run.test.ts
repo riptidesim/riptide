@@ -33,9 +33,11 @@ import {
   type RunOneContext,
   type RunOneResult
 } from "../src/run/loop.js";
+import type { SimulationResult } from "../src/compiler/schema.js";
 import { resolveAdapterForScenario } from "../src/run/adapter.js";
 import {
   LAST_RUN_SCHEMA_VERSION,
+  failingNames,
   lastRunPath,
   readLastRun,
   writeLastRun
@@ -67,8 +69,7 @@ function passResult(wallClockS = 0.1): RunOneResult {
     kind: "pass",
     wallClockS,
     artifactsDir: "/tmp/unused",
-    // `result` is not consumed in tests — cast through unknown.
-    result: {} as unknown as RunOneResult extends { result: infer R } ? R : never
+    result: baseSimulationResult()
   };
 }
 
@@ -78,12 +79,93 @@ function failResult(fires: Array<{ name: string; tick: number }>, wallClockS = 0
     wallClockS,
     artifactsDir: "/tmp/unused",
     fires,
-    result: {} as unknown as RunOneResult extends { result: infer R } ? R : never
+    result: baseSimulationResult({
+      events: [
+        ...baseSimulationResult().events,
+        ...fires.map((fire) => ({
+          tick: fire.tick,
+          agent_id: "__engine__",
+          persona_id: "invariant",
+          persona_label: "invariant",
+          action: `invariant_violation:${fire.name}`,
+          params: {},
+          outcome: "failed" as const
+        }))
+      ],
+      summary: {
+        invariants_fired: fires.map((fire) => ({
+          name: fire.name,
+          field: "bad_debt",
+          op: "==",
+          value: 0,
+          firings: 1
+        }))
+      }
+    })
   };
 }
 
 function errorResult(error: string): RunOneResult {
   return { kind: "error", wallClockS: 0, error };
+}
+
+function baseSimulationResult(overrides: Partial<SimulationResult> = {}): SimulationResult {
+  const result: SimulationResult = {
+    run_config: {
+      agents: 1,
+      ticks: 4,
+      scenario: "unit",
+      seed: 1,
+      personas: ["cautious-yield-farmer"],
+      validator_url: "http://127.0.0.1:8899",
+      output_path: ".riptide/runs/unit"
+    },
+    seed: 1,
+    total_ticks: 4,
+    timeseries: [
+      { tick: 0, active_agents: 1, tvl: 100 },
+      { tick: 4, active_agents: 1, tvl: 101 }
+    ],
+    events: [
+      {
+        tick: 1,
+        agent_id: "agent-001",
+        persona_id: "cautious-yield-farmer",
+        persona_label: "Cautious Yield Farmer",
+        action: "deposit",
+        params: { amount: 1 },
+        outcome: "success"
+      }
+    ],
+    agents: [
+      {
+        agent_id: "agent-001",
+        persona_id: "cautious-yield-farmer",
+        persona_label: "Cautious Yield Farmer",
+        status: "active",
+        final_balance: 101,
+        pnl: 1,
+        total_actions: 1,
+        triggers_activated: 0
+      }
+    ],
+    summary: {
+      agents_active: 1,
+      agents_liquidated: 0,
+      agents_depleted: 0,
+      invariants_fired: [
+        { name: "no_bad_debt", field: "bad_debt", op: "==", value: 0, firings: 0 }
+      ]
+    },
+    simulation_boundaries: ["unit test"]
+  };
+
+  return {
+    ...result,
+    ...overrides,
+    run_config: { ...result.run_config, ...overrides.run_config },
+    summary: { ...result.summary, ...overrides.summary }
+  };
 }
 
 // --- resolveScenarios ---
@@ -293,9 +375,11 @@ test("runScenarios: writes .riptide/last-run.json with v1 schema", async () => {
   assert.equal(parsed.scenarios[0].name, "alpha");
   assert.equal(parsed.scenarios[0].status, "pass");
   assert.deepEqual(parsed.scenarios[0].invariant_fires, []);
+  assert.equal(parsed.scenarios[0].interpretation.verdict, "no-failure-observed");
   assert.equal(parsed.scenarios[1].name, "bravo");
   assert.equal(parsed.scenarios[1].status, "fail");
   assert.deepEqual(parsed.scenarios[1].invariant_fires, [{ name: "tvl_ok", tick: 3 }]);
+  assert.equal(parsed.scenarios[1].interpretation.verdict, "failure-observed");
   assert.equal(typeof parsed.started_at, "string");
   assert.equal(typeof parsed.finished_at, "string");
   assert.equal(parsed.signal_aborted, false);
@@ -322,6 +406,33 @@ test("runScenarios: errored scenario records 'error' status + partialAbort flag"
   assert.equal(summary.signalAborted, false);
   assert.equal(summary.scenarios[0]!.status, "error");
   assert.equal(summary.scenarios[0]!.error, "engine crashed");
+  assert.equal(summary.scenarios[0]!.interpretation?.verdict, "setup-error");
+  assert.equal(summary.scenarios[0]!.interpretation?.coverage, "unknown");
+});
+
+test("runScenarios: skipped scenarios receive setup-error interpretation on SIGINT", async () => {
+  const root = await tmpRoot("run-skip-interpretation");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  const scenarios: ResolvedScenario[] = [
+    { name: "alpha", runConfigPath: path.join(root, "a.json") },
+    { name: "bravo", runConfigPath: path.join(root, "b.json") }
+  ];
+  const runOne = async (): Promise<RunOneResult> => {
+    process.emit("SIGINT");
+    return passResult(0.1);
+  };
+
+  const summary = await runScenarios({
+    scenarios,
+    cwd: root,
+    runOne
+  });
+
+  assert.equal(summary.signalAborted, true);
+  assert.equal(summary.skipped, 1);
+  assert.equal(summary.scenarios[1]!.status, "skipped");
+  assert.equal(summary.scenarios[1]!.interpretation?.verdict, "setup-error");
+  assert.equal(summary.scenarios[1]!.interpretation?.coverage, "unknown");
 });
 
 test("runScenarios: distinguishes error (exit 2) from fail (invariant fire) in records", async () => {
@@ -783,4 +894,34 @@ test("readLastRun / writeLastRun round-trip", async () => {
   assert.ok(back);
   assert.equal(back!.scenarios.length, 1);
   assert.equal(back!.scenarios[0]!.name, "x");
+});
+
+test("readLastRun: old aborted statuses normalize to error for --only-failing", async () => {
+  const root = await tmpRoot("lastrun-old-aborted");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  await writeFile(
+    lastRunPath(root),
+    JSON.stringify({
+      schema_version: 1,
+      started_at: "2026-04-19T00:00:00.000Z",
+      finished_at: "2026-04-19T00:00:01.000Z",
+      signal_aborted: false,
+      partial_abort: true,
+      scenarios: [
+        {
+          name: "old-abort",
+          run_config_path: "/x.json",
+          status: "aborted",
+          wall_clock_s: 0,
+          invariant_fires: []
+        }
+      ]
+    }) + "\n",
+    "utf8"
+  );
+
+  const back = await readLastRun(root);
+  assert.ok(back);
+  assert.equal(back!.scenarios[0]!.status, "error");
+  assert.deepEqual([...failingNames(back!)], ["old-abort"]);
 });

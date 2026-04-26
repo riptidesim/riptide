@@ -47,6 +47,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import type { RunInterpretation } from "./interpretation.js";
+
 export const LAST_RUN_FILE_REL = path.join(".riptide", "last-run.json");
 export const LAST_RUN_SCHEMA_VERSION = 1 as const;
 
@@ -65,6 +67,8 @@ export interface ScenarioRecord {
   invariant_fires: InvariantFire[];
   artifacts_dir?: string;
   error?: string;
+  /** Additive run-evidence interpretation attached by `runScenarios()`. */
+  interpretation?: RunInterpretation;
   /**
    * Captured engine stderr, populated when the run loop ran in silent
    * mode. Transient — not serialized to `.riptide/last-run.json` — used

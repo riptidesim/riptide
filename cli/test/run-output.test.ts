@@ -22,48 +22,110 @@ import {
   createJestFormatter,
   firstFireOrNull,
   formatFailureBlock,
+  formatNextActionBlock,
   formatScenarioLine,
   formatSummaryLine,
+  formatVerdictTotalsLine,
   shouldUsePlainAscii
 } from "../src/run/output.js";
 import { EXIT_CODES, exitCodeFromSummary } from "../src/run/exit-codes.js";
 import type { RunSummary } from "../src/run/loop.js";
 import type { ScenarioRecord } from "../src/run/last-run.js";
+import type { Coverage, Confidence, RunInterpretation, Severity, Verdict } from "../src/run/interpretation.js";
+
+function interpretation(
+  verdict: Verdict,
+  opts: Partial<{
+    confidence: Confidence;
+    coverage: Coverage;
+    severity: Severity;
+    summary: string;
+    next_action: string;
+  }> = {}
+): RunInterpretation {
+  const defaults: Record<Verdict, { confidence: Confidence; coverage: Coverage; severity: Severity; summary: string; next_action: string }> = {
+    "failure-observed": {
+      confidence: "high",
+      coverage: "exercised",
+      severity: "critical",
+      summary: "Failure observed in this run: 1 invariant fire recorded.",
+      next_action: "Review the first invariant fire and inspect simulation artifacts before changing the scenario or adapter."
+    },
+    "no-failure-observed": {
+      confidence: "medium",
+      coverage: "exercised",
+      severity: "info",
+      summary: "No failure observed in this run.",
+      next_action: "Review coverage checks and artifacts before using this run as evidence."
+    },
+    inconclusive: {
+      confidence: "low",
+      coverage: "unexercised",
+      severity: "warning",
+      summary: "Scenario inconclusive: coverage checks did not show meaningful scenario exercise.",
+      next_action: "Add agent activity, state movement, or invariant inventory, then rerun the scenario."
+    },
+    "setup-error": {
+      confidence: "none",
+      coverage: "unknown",
+      severity: "warning",
+      summary: "Setup failed: engine crashed.",
+      next_action: "Fix setup or adapter configuration, then rerun the scenario."
+    }
+  };
+  const base = { ...defaults[verdict], ...opts };
+  return {
+    verdict,
+    confidence: base.confidence,
+    coverage: base.coverage,
+    severity: base.severity,
+    summary: base.summary,
+    next_action: base.next_action,
+    evidence: [],
+    reasons: [],
+    coverage_checks: []
+  };
+}
 
 // --- Per-scenario line format ---
 
-test("formatScenarioLine: PASS uses ✓ + count 0 with singular form 'invariant fires'", () => {
+test("formatScenarioLine: PASS includes no-failure verdict, confidence, and coverage", () => {
   const line = formatScenarioLine(
     {
       name: "baseline",
       run_config_path: "/x",
       status: "pass",
       wall_clock_s: 0.4,
-      invariant_fires: []
+      invariant_fires: [],
+      interpretation: interpretation("no-failure-observed")
     },
     "✓",
     "✗"
   );
   // Two-space gap is deliberate (mirrors jest's typography). Don't
   // collapse to a single space or the pin test catches it.
-  assert.equal(line, "✓ baseline  (0.4s, 0 invariant fires)");
+  assert.equal(
+    line,
+    "✓ baseline  (0.4s, no failure observed, confidence: medium, coverage: exercised)"
+  );
 });
 
-test("formatScenarioLine: FAIL with one fire names 'invariant fire' (singular) + first tick", () => {
+test("formatScenarioLine: FAIL includes failure verdict, confidence, coverage, and first fire", () => {
   const line = formatScenarioLine(
     {
       name: "hero-grid/w25-s40",
       run_config_path: "/x",
       status: "fail",
       wall_clock_s: 1.2,
-      invariant_fires: [{ name: "no_bad_debt", tick: 7 }]
+      invariant_fires: [{ name: "no_bad_debt", tick: 7 }],
+      interpretation: interpretation("failure-observed")
     },
     "✓",
     "✗"
   );
   assert.equal(
     line,
-    "✗ hero-grid/w25-s40  (1.2s, 1 invariant fire: no_bad_debt at tick 7)"
+    "✗ hero-grid/w25-s40  (1.2s, failure observed, confidence: high, coverage: exercised, 1 invariant fire: no_bad_debt at tick 7)"
   );
 });
 
@@ -77,12 +139,37 @@ test("formatScenarioLine: FAIL with N>1 fires uses plural 'invariant fires' + na
       invariant_fires: [
         { name: "first_inv", tick: 3 },
         { name: "second_inv", tick: 9 }
-      ]
+      ],
+      interpretation: interpretation("failure-observed")
     },
     "✓",
     "✗"
   );
-  assert.equal(line, "✗ smoke  (2.0s, 2 invariant fires: first_inv at tick 3)");
+  assert.equal(
+    line,
+    "✗ smoke  (2.0s, failure observed, confidence: high, coverage: exercised, 2 invariant fires: first_inv at tick 3)"
+  );
+});
+
+test("formatScenarioLine: inconclusive uses ? glyph and coverage", () => {
+  const line = formatScenarioLine(
+    {
+      name: "weak",
+      run_config_path: "/x",
+      status: "pass",
+      wall_clock_s: 0.2,
+      invariant_fires: [],
+      interpretation: interpretation("inconclusive")
+    },
+    "✓",
+    "✗",
+    "!",
+    "?"
+  );
+  assert.equal(
+    line,
+    "? weak  (0.2s, inconclusive, confidence: low, coverage: unexercised)"
+  );
 });
 
 test("formatScenarioLine: plain-ASCII glyphs replace ✓ / ✗ with ok / FAIL", () => {
@@ -92,27 +179,32 @@ test("formatScenarioLine: plain-ASCII glyphs replace ✓ / ✗ with ok / FAIL", 
       run_config_path: "/x",
       status: "pass",
       wall_clock_s: 0.1,
-      invariant_fires: []
+      invariant_fires: [],
+      interpretation: interpretation("no-failure-observed")
     },
     "ok",
     "FAIL"
   );
-  assert.equal(pass, "ok a  (0.1s, 0 invariant fires)");
+  assert.equal(pass, "ok a  (0.1s, no failure observed, confidence: medium, coverage: exercised)");
   const fail = formatScenarioLine(
     {
       name: "b",
       run_config_path: "/x",
       status: "fail",
       wall_clock_s: 0.1,
-      invariant_fires: [{ name: "inv", tick: 1 }]
+      invariant_fires: [{ name: "inv", tick: 1 }],
+      interpretation: interpretation("failure-observed")
     },
     "ok",
     "FAIL"
   );
-  assert.equal(fail, "FAIL b  (0.1s, 1 invariant fire: inv at tick 1)");
+  assert.equal(
+    fail,
+    "FAIL b  (0.1s, failure observed, confidence: high, coverage: exercised, 1 invariant fire: inv at tick 1)"
+  );
 });
 
-test("formatScenarioLine: error line names the first line of the error message", () => {
+test("formatScenarioLine: setup-error line names the first line of the error message", () => {
   const line = formatScenarioLine(
     {
       name: "c",
@@ -120,13 +212,17 @@ test("formatScenarioLine: error line names the first line of the error message",
       status: "error",
       wall_clock_s: 0,
       invariant_fires: [],
-      error: "engine crashed\nmore detail"
+      error: "engine crashed\nmore detail",
+      interpretation: interpretation("setup-error")
     },
     "✓",
     "✗",
     "!"
   );
-  assert.equal(line, "! c  (0.0s, error: engine crashed)");
+  assert.equal(
+    line,
+    "! c  (0.0s, setup failed: engine crashed, confidence: none, coverage: unknown)"
+  );
 });
 
 test("formatScenarioLine: skipped line prints a muted placeholder", () => {
@@ -161,6 +257,7 @@ test("formatSummaryLine: exact shape '<P> pass · <F> fail · <E> error · <K> s
     signalAborted: false,
     partialAbort: false,
     lastRunPath: "/x",
+    runCollectionPath: "/x-collection",
     scenarios: []
   };
   assert.equal(formatSummaryLine(summary), "3 pass · 1 fail · 0 error · 2 skip");
@@ -176,9 +273,54 @@ test("formatSummaryLine: errors counted separately from skip (R9.2 classifier ex
     signalAborted: false,
     partialAbort: true,
     lastRunPath: "/x",
+    runCollectionPath: "/x-collection",
     scenarios: []
   };
   assert.equal(formatSummaryLine(summary), "1 pass · 0 fail · 2 error · 0 skip");
+});
+
+test("formatVerdictTotalsLine: counts interpretation verdicts", () => {
+  const summary: RunSummary = {
+    pass: 1,
+    fail: 1,
+    error: 1,
+    skipped: 0,
+    total: 3,
+    signalAborted: false,
+    partialAbort: true,
+    lastRunPath: "/x",
+    runCollectionPath: "/x-collection",
+    scenarios: [
+      {
+        name: "a",
+        run_config_path: "/a",
+        status: "pass",
+        wall_clock_s: 0.1,
+        invariant_fires: [],
+        interpretation: interpretation("no-failure-observed")
+      },
+      {
+        name: "b",
+        run_config_path: "/b",
+        status: "fail",
+        wall_clock_s: 0.2,
+        invariant_fires: [{ name: "inv", tick: 1 }],
+        interpretation: interpretation("failure-observed")
+      },
+      {
+        name: "c",
+        run_config_path: "/c",
+        status: "error",
+        wall_clock_s: 0,
+        invariant_fires: [],
+        interpretation: interpretation("setup-error")
+      }
+    ]
+  };
+  assert.equal(
+    formatVerdictTotalsLine(summary),
+    "verdicts: 1 failure-observed · 1 no-failure-observed · 1 setup-error"
+  );
 });
 
 // --- Per-failure detail block ---
@@ -212,6 +354,80 @@ test("formatFailureBlock: error record uses the error glyph + 'error:' prefix", 
   };
   const block = formatFailureBlock(record, "✗", "!");
   assert.equal(block, ["  ! y", "    - error: engine crashed"].join("\n"));
+});
+
+test("formatNextActionBlock: appears for failure, inconclusive, and setup-error records", () => {
+  const summary: RunSummary = {
+    pass: 1,
+    fail: 1,
+    error: 1,
+    skipped: 0,
+    total: 3,
+    signalAborted: false,
+    partialAbort: true,
+    lastRunPath: "/repo/.riptide/last-run.json",
+    runCollectionPath: "/repo/.riptide/run-collection.json",
+    scenarios: [
+      {
+        name: "clean",
+        run_config_path: "/clean",
+        status: "pass",
+        wall_clock_s: 0.1,
+        invariant_fires: [],
+        interpretation: interpretation("no-failure-observed")
+      },
+      {
+        name: "weak",
+        run_config_path: "/weak",
+        status: "pass",
+        wall_clock_s: 0.1,
+        invariant_fires: [],
+        artifacts_dir: ".riptide/runs/weak",
+        interpretation: interpretation("inconclusive")
+      },
+      {
+        name: "broken",
+        run_config_path: "/broken",
+        status: "error",
+        wall_clock_s: 0,
+        invariant_fires: [],
+        interpretation: interpretation("setup-error")
+      }
+    ]
+  };
+
+  const block = formatNextActionBlock(summary);
+  assert.ok(block);
+  assert.match(block!, /weak: Add agent activity/);
+  assert.match(block!, /Inspect \.riptide\/runs\/weak\./);
+  assert.match(block!, /broken: Fix setup or adapter configuration/);
+  assert.match(block!, /Inspect \/repo\/\.riptide\/run-collection\.json\./);
+  assert.equal(block!.includes("clean:"), false);
+});
+
+test("formatNextActionBlock: omitted for clean no-failure runs", () => {
+  const summary: RunSummary = {
+    pass: 1,
+    fail: 0,
+    error: 0,
+    skipped: 0,
+    total: 1,
+    signalAborted: false,
+    partialAbort: false,
+    lastRunPath: "/x",
+    runCollectionPath: "/x-collection",
+    scenarios: [
+      {
+        name: "clean",
+        run_config_path: "/clean",
+        status: "pass",
+        wall_clock_s: 0.1,
+        invariant_fires: [],
+        interpretation: interpretation("no-failure-observed")
+      }
+    ]
+  };
+  assert.equal(formatNextActionBlock(summary), null);
 });
 
 // --- Plain-ASCII detection ---
@@ -248,7 +464,8 @@ test("createJestFormatter: emits per-scenario line on scenario_end, summary on r
       run_config_path: "/a",
       status: "pass",
       wall_clock_s: 0.1,
-      invariant_fires: []
+      invariant_fires: [],
+      interpretation: interpretation("no-failure-observed")
     }
   });
   fmt.handle({
@@ -261,7 +478,9 @@ test("createJestFormatter: emits per-scenario line on scenario_end, summary on r
       run_config_path: "/b",
       status: "fail",
       wall_clock_s: 0.2,
-      invariant_fires: [{ name: "inv", tick: 1 }]
+      invariant_fires: [{ name: "inv", tick: 1 }],
+      artifacts_dir: ".riptide/runs/bravo",
+      interpretation: interpretation("failure-observed")
     }
   });
   fmt.handle({
@@ -275,20 +494,24 @@ test("createJestFormatter: emits per-scenario line on scenario_end, summary on r
       signalAborted: false,
       partialAbort: false,
       lastRunPath: "/x",
+      runCollectionPath: "/x-collection",
       scenarios: [
         {
           name: "alpha",
           run_config_path: "/a",
           status: "pass",
           wall_clock_s: 0.1,
-          invariant_fires: []
+          invariant_fires: [],
+          interpretation: interpretation("no-failure-observed")
         },
         {
           name: "bravo",
           run_config_path: "/b",
           status: "fail",
           wall_clock_s: 0.2,
-          invariant_fires: [{ name: "inv", tick: 1 }]
+          invariant_fires: [{ name: "inv", tick: 1 }],
+          artifacts_dir: ".riptide/runs/bravo",
+          interpretation: interpretation("failure-observed")
         }
       ]
     }
@@ -296,14 +519,24 @@ test("createJestFormatter: emits per-scenario line on scenario_end, summary on r
 
   const lines = buf.split("\n");
   // per-scenario lines
-  assert.equal(lines[0], "ok alpha  (0.1s, 0 invariant fires)");
-  assert.equal(lines[1], "FAIL bravo  (0.2s, 1 invariant fire: inv at tick 1)");
-  // blank separator, then summary, then blank separator, then failure block
+  assert.equal(lines[0], "ok alpha  (0.1s, no failure observed, confidence: medium, coverage: exercised)");
+  assert.equal(
+    lines[1],
+    "FAIL bravo  (0.2s, failure observed, confidence: high, coverage: exercised, 1 invariant fire: inv at tick 1)"
+  );
+  // blank separator, then summary + verdict totals, then failure block + next action
   assert.equal(lines[2], "");
   assert.equal(lines[3], "1 pass · 1 fail · 0 error · 0 skip");
-  assert.equal(lines[4], "");
-  assert.equal(lines[5], "  FAIL bravo");
-  assert.equal(lines[6], "    - inv at tick 1");
+  assert.equal(lines[4], "verdicts: 1 failure-observed · 1 no-failure-observed");
+  assert.equal(lines[5], "");
+  assert.equal(lines[6], "  FAIL bravo");
+  assert.equal(lines[7], "    - inv at tick 1");
+  assert.equal(lines[8], "");
+  assert.equal(lines[9], "Next action:");
+  assert.equal(
+    lines[10],
+    "  - bravo: Review the first invariant fire and inspect simulation artifacts before changing the scenario or adapter. Inspect .riptide/runs/bravo."
+  );
 });
 
 test("createJestFormatter: dashboard URL echoed only when provided", () => {
@@ -332,6 +565,7 @@ test("createJestFormatter: dashboard URL echoed only when provided", () => {
       signalAborted: false,
       partialAbort: false,
       lastRunPath: "/x",
+      runCollectionPath: "/x-collection",
       scenarios: [
         {
           name: "a",
@@ -359,6 +593,7 @@ test("exit code: 0 when all scenarios passed and no abort", () => {
     signalAborted: false,
     partialAbort: false,
     lastRunPath: "/x",
+    runCollectionPath: "/x-collection",
     scenarios: []
   };
   assert.equal(exitCodeFromSummary(summary), EXIT_CODES.SUCCESS);
@@ -375,6 +610,7 @@ test("exit code: 1 when at least one invariant fired", () => {
     signalAborted: false,
     partialAbort: false,
     lastRunPath: "/x",
+    runCollectionPath: "/x-collection",
     scenarios: []
   };
   assert.equal(exitCodeFromSummary(summary), EXIT_CODES.INVARIANT_FIRE);
@@ -391,6 +627,7 @@ test("exit code: 2 when one or more scenarios errored (R9.2 reclassification)", 
     signalAborted: false,
     partialAbort: true,
     lastRunPath: "/x",
+    runCollectionPath: "/x-collection",
     scenarios: []
   };
   assert.equal(exitCodeFromSummary(summary), EXIT_CODES.SETUP_ERROR);
@@ -407,6 +644,7 @@ test("exit code: 130 on SIGINT (Unix convention, wins over fail/abort)", () => {
     signalAborted: true,
     partialAbort: false,
     lastRunPath: "/x",
+    runCollectionPath: "/x-collection",
     scenarios: []
   };
   assert.equal(exitCodeFromSummary(summary), EXIT_CODES.SIGINT);
@@ -493,6 +731,7 @@ test("createJestFormatter: color=false emits NO escape codes (NO_COLOR path)", (
       signalAborted: false,
       partialAbort: false,
       lastRunPath: "/x",
+      runCollectionPath: "/x-collection",
       scenarios: [
         {
           name: "x",
@@ -549,6 +788,7 @@ test("createJestFormatter: engine stderr rendered once in the failure block (no 
       signalAborted: false,
       partialAbort: true,
       lastRunPath: "/x",
+      runCollectionPath: "/x-collection",
       scenarios: [record]
     }
   });

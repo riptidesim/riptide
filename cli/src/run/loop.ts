@@ -11,6 +11,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
+import TOML from "toml";
+
 import { buildSimulateOptions, toRunConfig, type SimulateOptions } from "../config.js";
 import type { RunConfig } from "../compiler/schema.js";
 import {
@@ -21,6 +23,7 @@ import {
 import { runOrchestrator } from "../orchestrator/index.js";
 import { emitPack } from "../pack/index.js";
 import { writeArtifacts } from "../report/artifacts.js";
+import { validateAdapter } from "../schemas/adapter.js";
 import type { SimulationResult } from "../compiler/schema.js";
 
 import {
@@ -37,6 +40,8 @@ import {
   type LastRun,
   type ScenarioRecord
 } from "./last-run.js";
+import { writeRunCollection } from "./collection.js";
+import { interpretScenarioResult, type ArtifactReadability } from "./interpretation.js";
 
 export type RunEvent =
   | { type: "run_start"; total: number; cwd: string }
@@ -63,6 +68,8 @@ export interface RunSummary {
   partialAbort: boolean;
   /** Absolute path to the last-run.json just written. */
   lastRunPath: string;
+  /** Absolute path to the latest run collection JSON just written. */
+  runCollectionPath: string;
   /** Artifacts dir of the last scenario that produced one (for --serve MVP). */
   lastArtifactsDir?: string;
   /** Per-scenario records (same shape as last-run.json). */
@@ -236,6 +243,12 @@ export interface RunScenariosInput {
   silent?: boolean;
   /** Override artifact root for run-produced `simulation-result.json`. Defaults to `<cwd>/.riptide/runs`. */
   outputDir?: string;
+  /** Original positional pattern/path, when the command selected by user input. */
+  selectedPattern?: string;
+  /** Single-file source path, when resolution selected one explicit run-config. */
+  selectedSourcePath?: string;
+  /** Mirrors the CLI flag for reviewer-facing collection metadata only. */
+  allowInvariantViolations?: boolean;
   onEvent?: (event: RunEvent) => void;
   /** Injection hook for tests — substitute the orchestrator invocation. */
   runOne?: (ctx: RunOneContext) => Promise<RunOneResult>;
@@ -339,6 +352,7 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
         invariant_fires: [],
         error: "skipped: SIGINT received before scenario could start"
       };
+      record.interpretation = interpretScenarioResult({ record, result: null });
       records.push(record);
       skipped += 1;
       continue;
@@ -347,6 +361,7 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
     onEvent({ type: "scenario_start", index: i, total, scenario });
 
     let adapterResolution: ScenarioAdapterResolution | null = null;
+    let adapterPathForInterpretation: string | undefined;
     let runResult: RunOneResult;
 
     try {
@@ -362,6 +377,7 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
         }
         return adapterResolution.path;
       })();
+      adapterPathForInterpretation = adapterPath;
 
       if (adapterResolution && adapterResolution.kind === "error") {
         runResult = {
@@ -391,7 +407,11 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
       };
     }
 
-    const record = recordForResult(scenario, runResult);
+    const declaredInvariants =
+      runResult.kind === "pass" || runResult.kind === "fail"
+        ? declaredInvariantNames(adapterPathForInterpretation)
+        : undefined;
+    const record = recordForResult(input.cwd, scenario, runResult, declaredInvariants);
     records.push(record);
 
     if (record.status === "pass") {
@@ -423,6 +443,15 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
     scenarios: records
   };
   const lastRunAbsPath = await writeLastRun(input.cwd, lastRun);
+  const runCollectionAbsPath = await writeRunCollection({
+    cwd: input.cwd,
+    startedAt,
+    finishedAt,
+    scenarios: records,
+    selectedPattern: input.selectedPattern,
+    selectedSourcePath: input.selectedSourcePath,
+    allowInvariantViolations: input.allowInvariantViolations
+  });
 
   const summary: RunSummary = {
     pass,
@@ -433,6 +462,7 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
     signalAborted,
     partialAbort: partialAbort && !signalAborted,
     lastRunPath: lastRunAbsPath,
+    runCollectionPath: runCollectionAbsPath,
     lastArtifactsDir,
     scenarios: records
   };
@@ -442,9 +472,14 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
   return summary;
 }
 
-function recordForResult(scenario: ResolvedScenario, result: RunOneResult): ScenarioRecord {
+function recordForResult(
+  cwd: string,
+  scenario: ResolvedScenario,
+  result: RunOneResult,
+  declaredInvariants: readonly string[] | undefined
+): ScenarioRecord {
   if (result.kind === "pass") {
-    return {
+    const record: ScenarioRecord = {
       name: scenario.name,
       run_config_path: scenario.runConfigPath,
       status: "pass",
@@ -452,9 +487,16 @@ function recordForResult(scenario: ResolvedScenario, result: RunOneResult): Scen
       invariant_fires: [],
       artifacts_dir: result.artifactsDir
     };
+    record.interpretation = interpretScenarioResult({
+      record,
+      result: result.result,
+      declaredInvariants,
+      artifactReadability: artifactReadability(cwd, record.artifacts_dir)
+    });
+    return record;
   }
   if (result.kind === "fail") {
-    return {
+    const record: ScenarioRecord = {
       name: scenario.name,
       run_config_path: scenario.runConfigPath,
       status: "fail",
@@ -463,8 +505,15 @@ function recordForResult(scenario: ResolvedScenario, result: RunOneResult): Scen
       artifacts_dir: result.artifactsDir,
       engine_stderr: result.engineStderr
     };
+    record.interpretation = interpretScenarioResult({
+      record,
+      result: result.result,
+      declaredInvariants,
+      artifactReadability: artifactReadability(cwd, record.artifacts_dir)
+    });
+    return record;
   }
-  return {
+  const record: ScenarioRecord = {
     name: scenario.name,
     run_config_path: scenario.runConfigPath,
     status: "error",
@@ -473,10 +522,36 @@ function recordForResult(scenario: ResolvedScenario, result: RunOneResult): Scen
     error: result.error,
     engine_stderr: result.engineStderr
   };
+  record.interpretation = interpretScenarioResult({ record, result: null });
+  return record;
 }
 
 function roundSec(s: number): number {
   return Math.round(s * 1000) / 1000;
+}
+
+function artifactReadability(
+  cwd: string,
+  artifactsDir: string | undefined
+): ArtifactReadability | undefined {
+  if (!artifactsDir) return undefined;
+  const dir = path.resolve(cwd, artifactsDir);
+  return {
+    simulationResultJson: existsSync(path.join(dir, "simulation-result.json")),
+    reportMarkdown: existsSync(path.join(dir, "report.md"))
+  };
+}
+
+function declaredInvariantNames(adapterPath: string | undefined): string[] | undefined {
+  if (!adapterPath) return undefined;
+  try {
+    const raw = readFileSync(adapterPath, "utf8");
+    const parsed = TOML.parse(raw);
+    const adapter = validateAdapter(parsed, adapterPath);
+    return adapter.invariants.map((inv, idx) => inv.name ?? `inv_${idx}`);
+  } catch {
+    return undefined;
+  }
 }
 
 function errMessage(err: unknown): string {

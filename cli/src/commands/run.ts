@@ -133,6 +133,9 @@ export function createRunCommand(): Command {
         monorepoRoot: monorepoRootFromModule() ?? null,
         silent: !verbose,
         outputDir,
+        selectedPattern: positional,
+        selectedSourcePath: resolved.sourcePath,
+        allowInvariantViolations,
         onEvent: formatter.handle
       });
 
@@ -198,18 +201,25 @@ function emitJsonOutput(summary: import("../run/loop.js").RunSummary, singleScen
   process.stdout.write(
     JSON.stringify(
       {
-        pass: summary.pass,
-        fail: summary.fail,
-        error: summary.error,
-        skipped: summary.skipped,
-        total: summary.total,
-        signal_aborted: summary.signalAborted,
-        partial_abort: summary.partialAbort,
-        last_run_path: summary.lastRunPath,
-        scenarios: summary.scenarios
+        ...runSummaryJson(summary)
       },
       null,
       2
     ) + "\n"
   );
+}
+
+export function runSummaryJson(summary: import("../run/loop.js").RunSummary): Record<string, unknown> {
+  return {
+    pass: summary.pass,
+    fail: summary.fail,
+    error: summary.error,
+    skipped: summary.skipped,
+    total: summary.total,
+    signal_aborted: summary.signalAborted,
+    partial_abort: summary.partialAbort,
+    last_run_path: summary.lastRunPath,
+    run_collection_path: summary.runCollectionPath,
+    scenarios: summary.scenarios
+  };
 }
