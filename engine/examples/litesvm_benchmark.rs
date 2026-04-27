@@ -141,6 +141,7 @@ fn main() {
         invariants: Vec::new(),
         scheduled_actions: Vec::new(),
         semantics: None,
+        errors: Vec::new(),
     };
 
     // --- Run simulation ---
