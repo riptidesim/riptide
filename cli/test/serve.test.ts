@@ -7,6 +7,7 @@ import path from "node:path";
 import type { SimulationResult } from "../src/compiler/schema.js";
 import { RUN_COLLECTION_SCHEMA_VERSION, type RunCollection } from "../src/run/collection.js";
 import { startDashboardServer, type DashboardHandle } from "../src/serve/index.js";
+import { SEMANTIC_LABELS } from "../src/serve/labels.js";
 
 async function tmpRoot(label: string): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), `riptide-serve-${label}-`));
@@ -216,5 +217,87 @@ test("dashboard server returns a synthetic collection for a single artifact dire
 
     const report = await getText(`${handle.url}/api/report`);
     assert.match(report, /^# single/);
+  });
+});
+
+test("dashboard server passes through semantics fields and serves the label map", async () => {
+  const root = await tmpRoot("semantics");
+  const artifactsDir = path.join(root, "riptide-output", "semantic");
+  await mkdir(artifactsDir, { recursive: true });
+  const result = resultFor("semantic", artifactsDir);
+  result.semantics = {
+    class: "lending.v1",
+    roles_bound: [
+      { role_name: "position", source: "instruction.deposit_obligation_collateral" },
+      { role_name: "reserve", source: "account.reserve" },
+      { role_name: "oracle", source: "account.oracle" },
+      { role_name: "liquidation_config", source: "account.reserve" }
+    ],
+    derived_observation_definitions: [
+      { name: "collateral_value", expr: "position.collateral_amount * oracle.price" },
+      { name: "debt_value", expr: "position.debt_amount" },
+      { name: "health_factor", expr: "collateral_value / max(debt_value, 1)" },
+      { name: "custom_probe", expr: "health_factor + 1" }
+    ]
+  };
+  result.timeseries[0] = {
+    ...result.timeseries[0]!,
+    derived_observations: {
+      collateral_value: 125,
+      debt_value: 100,
+      health_factor: 1.25,
+      custom_probe: 2.25
+    }
+  };
+  result.summary.expression_invariants = [
+    {
+      name: "ltv_below_max",
+      expr: "debt_value <= max_borrow_value",
+      severity: "warn",
+      first_tick: 1,
+      firing_count: 1,
+      observed: [{ tick: 1, values: { debt_value: 100, max_borrow_value: 80 } }]
+    }
+  ];
+  await writeFile(
+    path.join(artifactsDir, "simulation-result.json"),
+    JSON.stringify(result, null, 2) + "\n",
+    "utf8"
+  );
+  await writeFile(path.join(artifactsDir, "report.md"), "# semantic\n", "utf8");
+
+  await withServer(artifactsDir, async (handle) => {
+    const labels = await getJson(`${handle.url}/api/labels`);
+    assert.deepEqual(labels, SEMANTIC_LABELS);
+    assert.equal(
+      (labels["lending.v1.health_factor"] as { label?: string }).label,
+      "Health factor"
+    );
+    assert.equal(
+      (labels["lending.v1.liquidation_threshold_value"] as { tooltip?: string }).tooltip,
+      "Collateral value at the reserve liquidation threshold."
+    );
+
+    const servedResult = await getJson(`${handle.url}/api/result`);
+    const semantics = servedResult.semantics as {
+      class: string;
+      roles_bound: Array<{ role_name: string; source: string }>;
+      derived_observation_definitions: Array<{ name: string; expr: string }>;
+    };
+    assert.equal(semantics.class, "lending.v1");
+    assert.equal(semantics.roles_bound.length, 4);
+    assert.equal(semantics.derived_observation_definitions[0]!.name, "collateral_value");
+    const timeseries = servedResult.timeseries as Array<{
+      derived_observations?: Record<string, unknown>;
+    }>;
+    assert.deepEqual(timeseries[0]!.derived_observations, {
+      collateral_value: 125,
+      debt_value: 100,
+      health_factor: 1.25,
+      custom_probe: 2.25
+    });
+    const summary = servedResult.summary as Record<string, unknown>;
+    const expressionRows = summary.expression_invariants as Array<Record<string, unknown>>;
+    assert.equal(expressionRows[0]!.name, "ltv_below_max");
   });
 });

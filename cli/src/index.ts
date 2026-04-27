@@ -13,6 +13,7 @@ import { createReplayCommand } from "./commands/replay.js";
 import { createRunCommand } from "./commands/run.js";
 import { createScenariosCommand } from "./commands/scenarios.js";
 import { createSimulateCommand } from "./commands/simulate.js";
+import { cliPackageVersion } from "./banner.js";
 import { renderCliError } from "./errors/render.js";
 
 const program = new Command();
@@ -22,7 +23,7 @@ program
   .description(
     "Riptide CLI — wire a Solana program (adapter), define actors (personas), declare a scenario or replay, run deterministically against LiteSVM, inspect evidence."
   )
-  .version("0.1.0");
+  .version(cliPackageVersion());
 
 program.addCommand(createSimulateCommand());
 program.addCommand(createRunCommand());

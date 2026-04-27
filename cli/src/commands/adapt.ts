@@ -43,6 +43,7 @@ import {
   type LintReport,
 } from "../lint/index.js";
 import { deriveRepoRoot } from "./lint.js";
+import { printBanner } from "../banner.js";
 
 export interface AdaptCommandDeps {
   // Injectable so tests can stub out the engine spawn.
@@ -64,8 +65,10 @@ export function createAdaptCommand(deps: AdaptCommandDeps = {}): Command {
     "--adapter <path>",
     "Path to the adapter TOML to smoke-test"
   );
+  command.option("--quiet", "Suppress interactive banner", false);
 
   return command.action(async (options: AdaptOptions) => {
+    printBanner({ flags: { quiet: Boolean(options.quiet) } });
     const exitCode = await runAdapt(options, deps);
     process.exit(exitCode);
   });
@@ -73,6 +76,7 @@ export function createAdaptCommand(deps: AdaptCommandDeps = {}): Command {
 
 export interface AdaptOptions {
   adapter: string;
+  quiet?: boolean;
 }
 
 // Exported for tests: returns the exit code instead of calling process.exit.

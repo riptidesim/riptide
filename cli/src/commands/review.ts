@@ -14,12 +14,14 @@ import { verifyCanonicalHash } from "../review/hash.js";
 import { buildReviewJsonPayload } from "../review/json.js";
 import { buildReviewMarkdown, collectInvariantFires } from "../review/markdown.js";
 import { loadPackManifest, ReviewValidationError, type ValidationResult } from "../review/manifest.js";
+import { printBanner } from "../banner.js";
 
 const execFileAsync = promisify(execFile);
 
 export interface ReviewOptions {
   out?: string;
   json?: boolean;
+  quiet?: boolean;
 }
 
 export interface ReviewCommandDeps {
@@ -35,7 +37,9 @@ export function createReviewCommand(deps: ReviewCommandDeps = {}): Command {
     .argument("<pack>", "Path to a Riptide evidence pack directory")
     .option("--out <md-path>", "Write reviewer markdown to a file instead of stdout")
     .option("--json", "Emit a structured JSON review payload", false)
+    .option("--quiet", "Suppress interactive banner", false)
     .action(async (pack: string, options: ReviewOptions) => {
+      printBanner({ flags: { json: Boolean(options.json), quiet: Boolean(options.quiet) } });
       const exitCode = await runReview(pack, options, deps);
       process.exit(exitCode);
     });

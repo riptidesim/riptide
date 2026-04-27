@@ -348,6 +348,78 @@
       font-weight: 500;
       width: 38%;
     }
+    .semantics-panel {
+      display: grid;
+      grid-template-columns: minmax(220px, 0.7fr) minmax(320px, 1.3fr);
+      gap: 1px;
+      background: var(--rt-border);
+      border: 1px solid var(--rt-border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .semantics-cell {
+      background: var(--rt-bg-panel);
+      padding: 14px 16px;
+      min-width: 0;
+    }
+    .semantics-cell h3 {
+      margin: 0 0 10px;
+      color: var(--rt-fg-1);
+      font: 600 15px/1.25 var(--rt-font-sans);
+      letter-spacing: 0;
+    }
+    #semantics h3 {
+      margin: 14px 0 10px;
+      color: var(--rt-fg-1);
+      font: 600 15px/1.25 var(--rt-font-sans);
+      letter-spacing: 0;
+    }
+    .semantics-panel h3 {
+      margin-top: 0;
+    }
+    .semantics-class {
+      color: var(--rt-signal-cyan);
+      font: var(--rt-text-mono);
+      word-break: break-word;
+    }
+    .semantics-table-shell {
+      overflow-x: auto;
+      border: 1px solid var(--rt-border);
+      border-radius: 6px;
+      background: var(--rt-bg-panel);
+    }
+    table.semantics-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 620px;
+    }
+    table.semantics-table th,
+    table.semantics-table td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--rt-border);
+      font: var(--rt-text-mono-sm);
+      vertical-align: top;
+    }
+    table.semantics-table th {
+      background: var(--rt-bg-panel-2);
+      color: var(--rt-fg-3);
+      font: var(--rt-text-label);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    table.semantics-table th .unit {
+      color: var(--rt-fg-4);
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      margin-left: 4px;
+    }
+    table.semantics-table tr:last-child td {
+      border-bottom: 0;
+    }
     table.kv tr.fire {
       background: rgba(239, 68, 68, 0.12);
     }
@@ -455,6 +527,10 @@
     .events .outcome-failed { color: var(--rt-fail); }
     .events .outcome-skipped { color: var(--rt-warn); }
     .events .params { color: var(--rt-fg-3); }
+    .events .program-error {
+      color: var(--rt-warn);
+      margin-top: 3px;
+    }
     .badge {
       display: inline-block;
       background: rgba(34, 240, 230, 0.14);
@@ -500,6 +576,9 @@
         padding: 18px 16px 48px;
       }
       .interpretation-panel {
+        grid-template-columns: 1fr;
+      }
+      .semantics-panel {
         grid-template-columns: 1fr;
       }
       .scenario-table {
@@ -573,6 +652,8 @@
       <h2>Interpretation</h2>
       <div id="interpretationPanel" class="interpretation-panel"></div>
     </section>
+
+    <section id="semantics" hidden></section>
 
     <section id="meta">
       <h2>Run metadata</h2>
@@ -658,12 +739,14 @@
     const STATE = {
       collection: null,
       selectedScenarioName: "",
-      selectedResult: null
+      selectedResult: null,
+      semanticLabels: {}
     };
 
     const VERDICT_ORDER = ["failure-observed", "no-failure-observed", "inconclusive", "setup-error"];
     const COVERAGE_ORDER = ["exercised", "partial", "unexercised", "unknown"];
     const STATUS_ORDER = ["pass", "fail", "error", "skipped"];
+    const STRUCTURED_SUMMARY_KEYS = new Set(["invariants_fired", "expression_invariants"]);
 
     const METRIC_REGISTRY = {
       final_tvl: {
@@ -1091,7 +1174,7 @@
     function renderSummary(result) {
       const tbody = document.querySelector("#summaryTable tbody");
       const summary = result.summary || {};
-      const keys = Object.keys(summary).filter((k) => k !== "invariants_fired");
+      const keys = Object.keys(summary).filter(isSummaryMetricKey);
       keys.sort();
       if (keys.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" class="empty-note">summary is empty</td></tr>`;
@@ -1113,6 +1196,10 @@
         rows.push(...unknown.map(([key, meta]) => renderMetricRow(key, summary[key], meta)));
       }
       tbody.innerHTML = rows.join("");
+    }
+
+    function isSummaryMetricKey(key) {
+      return !STRUCTURED_SUMMARY_KEYS.has(key);
     }
 
     function renderMetricRow(key, value, meta) {
@@ -1423,6 +1510,179 @@
       container.innerHTML = `<table class="kv"><thead><tr><th>Invariant</th><th>Rule</th><th>Severity</th><th>Evidence</th></tr></thead><tbody>${body}</tbody></table>`;
     }
 
+    function renderSemantics(result) {
+      const section = document.getElementById("semantics");
+      const semantics = result && result.semantics && typeof result.semantics === "object"
+        ? result.semantics
+        : null;
+      if (!semantics) {
+        section.hidden = true;
+        section.innerHTML = "";
+        return;
+      }
+
+      section.hidden = false;
+      section.innerHTML = `<h2>Semantics</h2><div id="semanticsPanel"></div>`;
+      const panel = document.getElementById("semanticsPanel");
+      const semanticClass = typeof semantics.class === "string" && semantics.class
+        ? semantics.class
+        : "unknown";
+      const roles = Array.isArray(semantics.roles_bound) ? semantics.roles_bound : [];
+      const roleRows = roles.length > 0
+        ? roles
+            .map((role) => {
+              const name = role && typeof role.role_name === "string" && role.role_name
+                ? role.role_name
+                : "(unnamed)";
+              const source = role && typeof role.source === "string" && role.source
+                ? role.source
+                : "unknown";
+              return `<tr><th>${escapeHtml(name)}</th><td>${escapeHtml(source)}</td></tr>`;
+            })
+            .join("")
+        : `<tr><td colspan="2" class="empty-note">No roles bound.</td></tr>`;
+
+      panel.innerHTML = `
+        <div class="semantics-panel">
+          <div class="semantics-cell">
+            <h3>Class</h3>
+            <div class="semantics-class">${escapeHtml(semanticClass)}</div>
+          </div>
+          <div class="semantics-cell">
+            <h3>Roles bound</h3>
+            <table class="kv"><tbody>${roleRows}</tbody></table>
+          </div>
+        </div>
+        ${renderDerivedObservationTable(result, semanticClass)}
+        ${renderExpressionInvariantFires(result)}`;
+    }
+
+    function renderDerivedObservationTable(result, semanticClass) {
+      const snapshots = Array.isArray(result.timeseries)
+        ? result.timeseries
+        : Array.isArray(result.ticks)
+          ? result.ticks
+          : [];
+      const derivedRows = snapshots
+        .map((row) => {
+          const derived = row && typeof row === "object" && row.derived_observations && typeof row.derived_observations === "object"
+            ? row.derived_observations
+            : null;
+          return derived ? { tick: row.tick, derived } : null;
+        })
+        .filter(Boolean)
+        .slice(-20);
+
+      if (derivedRows.length === 0) {
+        return `<div class="empty-note">No derived observations recorded.</div>`;
+      }
+
+      const definitions = result.semantics && Array.isArray(result.semantics.derived_observation_definitions)
+        ? result.semantics.derived_observation_definitions
+        : [];
+      const orderedNames = [];
+      for (const definition of definitions) {
+        const name = definition && typeof definition.name === "string" && definition.name
+          ? definition.name
+          : "";
+        if (name && !orderedNames.includes(name)) orderedNames.push(name);
+      }
+      for (const row of derivedRows) {
+        for (const name of Object.keys(row.derived || {})) {
+          if (name && !orderedNames.includes(name)) orderedNames.push(name);
+        }
+      }
+
+      if (orderedNames.length === 0) {
+        return `<div class="empty-note">No derived observation names recorded.</div>`;
+      }
+
+      const head = [`<th>Tick</th>`]
+        .concat(
+          orderedNames.map((name) => {
+            const meta = semanticObservationMeta(semanticClass, name);
+            const unit = meta.unit ? `<span class="unit">${escapeHtml(meta.unit)}</span>` : "";
+            return `<th title="${escapeAttr(meta.tooltip || "")}">${escapeHtml(meta.label)}${unit}</th>`;
+          })
+        )
+        .join("");
+      const body = derivedRows
+        .map((row) => {
+          const cells = orderedNames
+            .map((name) => `<td>${escapeHtml(fmtValue(row.derived[name]))}</td>`)
+            .join("");
+          return `<tr><td>${escapeHtml(fmtValue(row.tick))}</td>${cells}</tr>`;
+        })
+        .join("");
+
+      return `
+        <h3>Derived observations</h3>
+        <div class="semantics-table-shell">
+          <table class="semantics-table">
+            <thead><tr>${head}</tr></thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>`;
+    }
+
+    function renderExpressionInvariantFires(result) {
+      const rows = Array.isArray(result.summary && result.summary.expression_invariants)
+        ? result.summary.expression_invariants
+        : [];
+      if (rows.length === 0) return "";
+      const body = rows
+        .map((row) => {
+          const name = row && typeof row.name === "string" && row.name ? row.name : "(unnamed)";
+          const expr = row && typeof row.expr === "string" && row.expr ? row.expr : "expression unavailable";
+          const severity = row && typeof row.severity === "string" ? row.severity : "warn";
+          const firstTick = row && typeof row.first_tick === "number"
+            ? row.first_tick
+            : row && typeof row.first_fired_tick === "number"
+              ? row.first_fired_tick
+              : null;
+          const firingCount = Number(row && (row.firing_count ?? row.firings ?? 0));
+          const hasFired = Number.isFinite(firingCount) && firingCount > 0;
+          const observed = Array.isArray(row && row.observed) ? row.observed : [];
+          const observedText = observed.length > 0
+            ? observed
+                .map((entry) => {
+                  const tick = entry && typeof entry.tick === "number" ? `T${entry.tick}` : "T?";
+                  const values = entry && entry.values && typeof entry.values === "object"
+                    ? Object.entries(entry.values)
+                        .map(([key, value]) => `${key}=${fmtValue(value)}`)
+                        .join(", ")
+                    : "values unavailable";
+                  return `${tick}: ${values}`;
+                })
+                .join(" | ")
+            : hasFired ? "observed values unavailable" : "no fires recorded";
+          const statusText = hasFired
+            ? `first ${firstTick === null ? "unknown" : `T${firstTick}`} · fired ${fmtValue(firingCount)}`
+            : "not fired";
+          return `<tr${hasFired ? ` class="fire"` : ""}>
+            <th>${escapeHtml(name)}</th>
+            <td>${escapeHtml(expr)}</td>
+            <td>${renderPill("severity", severity === "error" ? "critical" : "warning")}</td>
+            <td>${escapeHtml(statusText)} · ${escapeHtml(observedText)}</td>
+          </tr>`;
+        })
+        .join("");
+      return `<h3>Expression invariants</h3><table class="kv"><thead><tr><th>Invariant</th><th>Expression</th><th>Severity</th><th>Observed</th></tr></thead><tbody>${body}</tbody></table>`;
+    }
+
+    function semanticObservationMeta(semanticClass, name) {
+      const rawName = typeof name === "string" && name.length > 0 ? name : "(unnamed)";
+      const key = `${semanticClass}.${rawName}`;
+      const meta = STATE.semanticLabels && STATE.semanticLabels[key] && typeof STATE.semanticLabels[key] === "object"
+        ? STATE.semanticLabels[key]
+        : null;
+      return {
+        label: typeof meta?.label === "string" && meta.label ? meta.label : rawName,
+        tooltip: typeof meta?.tooltip === "string" ? meta.tooltip : "",
+        unit: typeof meta?.unit === "string" ? meta.unit : ""
+      };
+    }
+
     function pickNumericSeries(result) {
       const ts = Array.isArray(result.timeseries) ? result.timeseries : [];
       if (ts.length === 0) return [];
@@ -1554,12 +1814,13 @@
         tbody.innerHTML = slice
           .map((ev) => {
             const paramsText = ev.params ? JSON.stringify(ev.params) : "";
+            const programError = programErrorText(ev.program_error);
             return `<tr>
               <td class="tick">${ev.tick ?? ""}</td>
               <td class="agent">${escapeHtml(ev.agent_id || "")}</td>
               <td class="action">${escapeHtml(ev.action || "")}</td>
               <td class="outcome-${escapeAttr(ev.outcome || "")}">${escapeHtml(ev.outcome || "")}${ev.outcome_detail ? ` (${escapeHtml(ev.outcome_detail)})` : ""}</td>
-              <td class="params">${escapeHtml(paramsText)}</td>
+              <td class="params">${escapeHtml(paramsText)}${programError ? `<div class="program-error">${escapeHtml(programError)}</div>` : ""}</td>
             </tr>`;
           })
           .join("") +
@@ -1572,6 +1833,21 @@
       outcomeFilter.onchange = refresh;
       agentFilter.oninput = refresh;
       refresh();
+    }
+
+    function programErrorText(programError) {
+      if (!programError || typeof programError !== "object") return "";
+      const code = Number(programError.code);
+      const codeText = Number.isFinite(code) ? String(code) : "?";
+      const label = typeof programError.label === "string" && programError.label
+        ? programError.label
+        : "";
+      const interpretation = typeof programError.interpretation === "string" && programError.interpretation
+        ? programError.interpretation
+        : "";
+      return label && interpretation
+        ? `${label} · code ${codeText} · ${interpretation}`
+        : `Custom(${codeText})`;
     }
 
     function escapeHtml(s) {
@@ -1811,6 +2087,7 @@
         renderMeta(result, scenario);
         renderSummary(result);
         renderRunStats(result);
+        renderSemantics(result);
         renderAgents(result);
         renderInvariants(result, scenario);
         renderTimeseries(result);
@@ -1847,6 +2124,8 @@
       document.getElementById("invariantBadge").innerHTML = "";
       document.getElementById("invariantBlock").innerHTML =
         `<div class="empty-note">No invariant result rows available.</div>`;
+      document.getElementById("semantics").hidden = true;
+      document.getElementById("semantics").innerHTML = "";
       const shell = document.getElementById("chartShell");
       if (tsChart) {
         tsChart.destroy();
@@ -1862,6 +2141,7 @@
 
     async function boot() {
       try {
+        STATE.semanticLabels = await loadLabels();
         const collection = await loadCollection();
         STATE.collection = collection;
         const scenarios = Array.isArray(collection.scenarios) ? collection.scenarios : [];
@@ -1880,6 +2160,17 @@
       } catch (err) {
         document.querySelector("main").innerHTML =
           `<div class="empty-note" style="color:var(--rt-fail);border-color:var(--rt-fail)">Failed to load dashboard data: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
+      }
+    }
+
+    async function loadLabels() {
+      try {
+        const res = await fetch("/api/labels", { headers: { accept: "application/json" } });
+        if (!res.ok) return {};
+        const labels = await res.json();
+        return labels && typeof labels === "object" && !Array.isArray(labels) ? labels : {};
+      } catch {
+        return {};
       }
     }
 

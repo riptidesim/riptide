@@ -9,6 +9,7 @@ import { Command } from "commander";
 import path from "node:path";
 
 import { RiptideDirExistsError, scaffold } from "../init/index.js";
+import { printBanner } from "../banner.js";
 
 export interface InitCommandDeps {
   personasSourceDir?: string;
@@ -17,6 +18,7 @@ export interface InitCommandDeps {
 export interface InitOptions {
   force: boolean;
   dir: string;
+  quiet?: boolean;
 }
 
 export function createInitCommand(deps: InitCommandDeps = {}): Command {
@@ -26,9 +28,11 @@ export function createInitCommand(deps: InitCommandDeps = {}): Command {
 
   command
     .option("--force", "Overwrite an existing .riptide/ directory without prompting", false)
-    .option("--dir <path>", "Directory to scaffold under (defaults to cwd)", process.cwd());
+    .option("--dir <path>", "Directory to scaffold under (defaults to cwd)", process.cwd())
+    .option("--quiet", "Suppress interactive banner", false);
 
   return command.action(async (options: InitOptions) => {
+    printBanner({ flags: { quiet: Boolean(options.quiet) } });
     const exitCode = await runInit(options, deps);
     process.exit(exitCode);
   });
@@ -59,7 +63,7 @@ export async function runInit(
     // path instead of jumping straight to `riptide run --adapter ...`.
     const adapterRel = `.riptide/adapters/${result.programName}.toml`;
     process.stderr.write(
-      `\nNext: edit ${chalk.cyan(adapterRel)} to match your program (TODO comments name every block), then:\n`
+      `\nNext: edit ${chalk.cyan(adapterRel)} to match your program (TODO comments name every block; the untouched stub is not lint-clean), then:\n`
     );
     process.stderr.write(
       `  1. ${chalk.cyan(`riptide lint ${result.programName}`)}  ${chalk.gray("# static validation against the JSON IDL named in [lineage].idl_source")}\n`

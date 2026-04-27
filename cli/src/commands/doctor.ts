@@ -25,6 +25,7 @@ import {
   type DoctorReport,
   type DoctorStatus,
 } from "../doctor/index.js";
+import { printBanner } from "../banner.js";
 
 export interface DoctorCommandDeps {
   /** Test seam — override stdout. */
@@ -44,15 +45,18 @@ export interface DoctorCommandDeps {
 export interface DoctorOptions {
   // Reserved for future flags (`--json`, `--no-adapters`, ...). Sprint 13
   // ships the bare command per the task spec.
+  quiet?: boolean;
 }
 
 export function createDoctorCommand(deps: DoctorCommandDeps = {}): Command {
   const command = new Command("doctor")
     .description(
       "Static health check — toolchain presence, engine binary resolution, and adapter load + lint status. No build, no network, no simulation."
-    );
+    )
+    .option("--quiet", "Suppress interactive banner", false);
 
   return command.action(async (options: DoctorOptions) => {
+    printBanner({ flags: { quiet: Boolean(options.quiet) } });
     const code = await runDoctor(options, deps);
     process.exit(code);
   });

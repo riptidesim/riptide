@@ -2,6 +2,7 @@ import path from "node:path";
 
 import type { HashVerification } from "./hash.js";
 import type { ReviewManifest } from "./manifest.js";
+import { labelForDerivedObservation } from "../serve/labels.js";
 
 export interface ReviewMarkdownInput {
   packRoot: string;
@@ -94,10 +95,57 @@ export function buildReviewMarkdown(input: ReviewMarkdownInput): string {
 }
 
 export function collectInvariantFires(simulationResult: Record<string, unknown>): InvariantFire[] {
-  return legacyInvariantRows(simulationResult);
+  const semanticClass = semanticClassFromResult(simulationResult);
+  const expressionRows = semanticClass
+    ? expressionInvariantRows(simulationResult, semanticClass)
+    : [];
+  return expressionRows.length > 0
+    ? expressionRows
+    : legacyInvariantRows(simulationResult, semanticClass);
 }
 
-function legacyInvariantRows(simulationResult: Record<string, unknown>): InvariantFire[] {
+function expressionInvariantRows(
+  simulationResult: Record<string, unknown>,
+  semanticClass: string
+): InvariantFire[] {
+  const summary = objectValue(simulationResult.summary);
+  const rows = Array.isArray(summary?.expression_invariants) ? summary.expression_invariants : [];
+  return rows
+    .map((row) => objectValue(row))
+    .filter((row): row is Record<string, unknown> => {
+      if (!row) return false;
+      return Number(row.firing_count ?? row.firings ?? 0) > 0;
+    })
+    .map((row) => {
+      const observedEntries = Array.isArray(row.observed) ? row.observed : [];
+      const observed = observedEntries.length > 0
+        ? observedEntries
+            .map((entry) => {
+              const record = objectValue(entry);
+              const tick = typeof record?.tick === "number" ? `T${record.tick}` : "T?";
+              return `${tick}: ${formatObservedCell(record?.values, semanticClass)}`;
+            })
+            .join(" | ")
+        : "observed values unavailable";
+      const firstTick = typeof row.first_tick === "number"
+        ? row.first_tick
+        : typeof row.first_fired_tick === "number"
+          ? row.first_fired_tick
+          : null;
+      return {
+        name: String(row.name ?? "unnamed_expression_invariant"),
+        rule: String(row.expr ?? "expression unavailable"),
+        firstTick,
+        firingCount: Number(row.firing_count ?? row.firings ?? 0),
+        observed,
+      };
+    });
+}
+
+function legacyInvariantRows(
+  simulationResult: Record<string, unknown>,
+  semanticClass: string | undefined
+): InvariantFire[] {
   const summary = objectValue(simulationResult.summary);
   const rows = Array.isArray(summary?.invariants_fired) ? summary.invariants_fired : [];
   const events = Array.isArray(simulationResult.events) ? simulationResult.events : [];
@@ -112,7 +160,7 @@ function legacyInvariantRows(simulationResult: Record<string, unknown>): Invaria
       const params = objectValue(event?.params);
       const observed =
         params && "observed" in params
-          ? String(params.observed)
+          ? formatObservedCell(params.observed, semanticClass)
           : "see trace.md";
       const firstTick = typeof event?.tick === "number"
         ? event.tick
@@ -127,6 +175,23 @@ function legacyInvariantRows(simulationResult: Record<string, unknown>): Invaria
         observed,
       };
     });
+}
+
+function formatObservedCell(value: unknown, semanticClass: string | undefined): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return formatValue(value);
+  }
+  return Object.entries(value as Record<string, unknown>)
+    .map(([name, observed]) => {
+      const meta = labelForDerivedObservation(semanticClass, name);
+      return `${meta?.label ?? name}: ${formatValue(observed)}`;
+    })
+    .join(", ");
+}
+
+function semanticClassFromResult(simulationResult: Record<string, unknown>): string | undefined {
+  const semantics = objectValue(simulationResult.semantics);
+  return typeof semantics?.class === "string" ? semantics.class : undefined;
 }
 
 function collectProgramErrors(simulationResult: Record<string, unknown>): string[] {

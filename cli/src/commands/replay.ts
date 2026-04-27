@@ -11,6 +11,7 @@ import { writeArtifacts } from "../report/artifacts.js";
 import { renderSummary, renderColoredTable } from "../report/summary.js";
 import { renderTimeline } from "../report/timeline.js";
 import { blockUntilSignal, startDashboardServer } from "../serve/index.js";
+import { printBanner } from "../banner.js";
 
 interface LegacyReplayConfigFile {
   adapter?: string;
@@ -48,6 +49,8 @@ export function createReplayCommand(): Command {
     )
     .argument("<config>", "Path to a replay-config JSON file")
     .option("--format <format>", "Output format: human (default) or json", "human")
+    .option("--json", "Alias for --format json", false)
+    .option("--quiet", "Suppress interactive banner", false)
     .option(
       "--allow-invariant-violations",
       "Exit 0 even if declared invariants fire during the replay (default: exit 1 on any firing)",
@@ -59,7 +62,8 @@ export function createReplayCommand(): Command {
       false
     )
     .action(async (configArg: string, cliOpts: Record<string, unknown>) => {
-      const formatJson = cliOpts.format === "json";
+      const formatJson = Boolean(cliOpts.json) || cliOpts.format === "json";
+      printBanner({ flags: { json: formatJson, quiet: Boolean(cliOpts.quiet), format: cliOpts.format } });
       const isTTY = process.stdout.isTTY && !formatJson;
 
       const absConfig = path.resolve(configArg);

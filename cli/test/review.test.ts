@@ -6,6 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
+import { collectInvariantFires } from "../src/review/markdown.js";
+
 const execFileAsync = promisify(execFile);
 const cliEntrypoint = path.resolve(process.cwd(), "dist/src/index.js");
 const __dirname = path.resolve(process.cwd(), "test");
@@ -38,6 +40,42 @@ test("review --json emits validation, invariant, digest, canonical hash, and raw
   assert.equal(Array.isArray(payload.validation), true);
   assert.equal(Array.isArray(payload.invariant_fires), true);
   assert.match(String((payload.manifest as Record<string, unknown>).digest), /^[a-f0-9]{64}$/);
+});
+
+test("review collects fired semantic expression invariants before legacy rows", () => {
+  const fires = collectInvariantFires({
+    semantics: { class: "lending.v1" },
+    summary: {
+      invariants_fired: [
+        {
+          name: "legacy_no_bad_debt",
+          field: "bad_debt",
+          op: "==",
+          value: 0,
+          firings: 1,
+          first_tick: 7,
+        },
+      ],
+      expression_invariants: [
+        {
+          name: "ltv_below_max",
+          expr: "debt_value <= max_borrow_value",
+          severity: "warn",
+          first_tick: 4,
+          firing_count: 1,
+          observed: [{ tick: 4, values: { debt_value: 100, max_borrow_value: 90 } }],
+        },
+      ],
+    },
+    events: [],
+  });
+
+  assert.equal(fires.length, 1);
+  assert.equal(fires[0]!.name, "ltv_below_max");
+  assert.equal(fires[0]!.rule, "debt_value <= max_borrow_value");
+  assert.equal(fires[0]!.firstTick, 4);
+  assert.equal(fires[0]!.firingCount, 1);
+  assert.equal(fires[0]!.observed, "T4: Debt value: 100, Max borrow value: 90");
 });
 
 test("review ignores invariant evidence from fields excluded from the canonical hash", async () => {

@@ -11,6 +11,7 @@ import {
   type RunCollectionScenario
 } from "../run/collection.js";
 import { interpretScenarioResult } from "../run/interpretation.js";
+import { SEMANTIC_LABELS } from "./labels.js";
 
 import type { InvariantFire, ScenarioRecord, ScenarioStatus } from "../run/last-run.js";
 
@@ -165,7 +166,7 @@ function sendNotFound(res: ServerResponse, pathname: string): void {
   sendJson(res, 404, {
     error: "not_found",
     message: `riptide dashboard: no route for ${pathname}`,
-    routes: ["GET /", "GET /api/collection", "GET /api/result", "GET /api/report"]
+    routes: ["GET /", "GET /api/collection", "GET /api/result", "GET /api/report", "GET /api/labels"]
   });
 }
 
@@ -568,6 +569,10 @@ function makeRequestHandler(source: DashboardSource) {
           return;
         }
         sendText(res, 200, relativizeDisplayPaths(raw, selection.displayBaseDir), "text/markdown");
+        return;
+      }
+      if (pathname === "/api/labels") {
+        sendJson(res, 200, SEMANTIC_LABELS);
         return;
       }
       if (pathname === "/api/health") {

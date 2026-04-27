@@ -23,6 +23,7 @@ import {
 } from "../src/lint/index.js";
 import { runLint } from "../src/commands/lint.js";
 import { resolveAdapterArg } from "../src/adapter/resolve.js";
+import { renderAdapterStub } from "../src/init/index.js";
 
 // Minimal but realistic JSON-IDL-backed adapter + IDL pair used for the
 // isolated-unit tests. Mirrors the shape of `fixtures/idls/amm.json`
@@ -614,6 +615,32 @@ test("runLint: unknown adapter name → exit 2 with named error", async () => {
   );
   assert.equal(exit, 2);
   assert.match(err, /adapter not found for `not-a-real-adapter`/);
+});
+
+test("runLint: untouched init stub gets scaffold-specific next step", async () => {
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-lint-init-stub-"));
+  const adaptersDir = path.join(repoRoot, ".riptide", "adapters");
+  await mkdir(adaptersDir, { recursive: true });
+  const adapterPath = path.join(adaptersDir, "lending.toml");
+  await writeFile(adapterPath, renderAdapterStub("lending"), "utf8");
+
+  let err = "";
+  const exit = await runLint(
+    adapterPath,
+    {},
+    {
+      repoRoot,
+      stdoutWrite: () => {},
+      stderrWrite: (c) => { err += c; },
+      color: false,
+    }
+  );
+
+  assert.equal(exit, 2);
+  assert.match(err, /incomplete `riptide init` stub/);
+  assert.match(err, /fill the TODO blocks/);
+  assert.match(err, /accounts, instructions, state_mapping, actions, observations, and personas/);
+  assert.match(err, /Then rerun `riptide lint/);
 });
 
 // ---- integration: shipping JSON-IDL adapters lint cleanly ----

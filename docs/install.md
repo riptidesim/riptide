@@ -14,7 +14,7 @@ cd riptide
 ./install.sh
 ```
 
-The script runs eight steps, each with a banner and a clear failure hint if something goes wrong. It (1) detects Rust, Cargo, Node, npm, and `cargo-build-sbf`, printing an actionable install command for anything missing; (2) builds the release engine (`cargo build --release -p riptide-engine`); (3) builds the three shipped on-chain programs (`lending_pool.so`, `resource_grinder.so`, `admin_mock_oracle.so`) via `cargo build-sbf`; (4) `npm install`s the CLI; (5) `npm run build`s it; (6) installs a bash shim at `$HOME/.local/bin/riptide` that execs Node against the compiled CLI entry point; (7) runs a lending smoke test (`riptide run examples/configs/safe.json`); (8) runs a generic-adapter smoke test against `resource-grinder`.
+The script runs eight steps, each with a banner and a clear failure hint if something goes wrong. It (1) detects Rust, Cargo, Node, npm, and `cargo-build-sbf`, printing an actionable install command for anything missing; (2) builds the release engine (`cargo build --release -p riptide-engine`); (3) builds the shipped on-chain programs (`lending_pool.so`, `resource_grinder.so`, `admin_mock_oracle.so`, `stablecoin.so`) via `cargo build-sbf`; (4) `npm install --ignore-scripts`s the CLI so the npm postinstall downloader does not fetch a release binary during source installs; (5) `npm run build`s it; (6) installs a bash shim at `$HOME/.local/bin/riptide` that execs Node against the compiled CLI entry point; (7) runs a lending smoke test (`riptide run examples/configs/safe.json --adapter fixtures/adapters/lending.toml`); (8) runs a generic-adapter smoke test against `resource-grinder`.
 
 The script is idempotent — rerunning it on an unchanged tree is safe and fast (cargo and npm handle their own incremental builds, the launcher is rewritten in place). It never uses sudo; missing toolchains produce a hint, not an install attempt. If `$HOME/.local/bin` is not on your `$PATH` it warns and prints the exact `export` line to add to your shell rc.
 
@@ -39,7 +39,7 @@ cargo build --release -p riptide-engine
 cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
 
 # CLI
-(cd cli && npm install --no-audit --no-fund && npm run build)
+(cd cli && npm install --no-audit --no-fund --ignore-scripts && npm run build)
 ```
 
 The engine's `env!("CARGO_MANIFEST_DIR")` bakes `/src/engine` (in Docker) or your repo path (locally), so the default lending `.so` lookup resolves relative to the crate root. Adapter TOMLs use relative paths that assume the repo layout — if you move `programs/` or `fixtures/`, adapters need their `program_so` updated. See [`../TOOLCHAIN.md`](../TOOLCHAIN.md) for the exact Rust, Solana CLI, `cargo-build-sbf`, platform-tools, and Node pins the Dockerfile and CI are locked to, plus the repo-local `vendor/` patches that freeze the SBF crate graph at a band the bundled SBF rustc can compile.

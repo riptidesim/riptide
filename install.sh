@@ -191,9 +191,13 @@ ADMIN_MOCK_ORACLE_SO_PATH="$REPO_ROOT/programs/admin_mock_oracle/target/deploy/a
 STABLECOIN_SO_PATH="$REPO_ROOT/programs/stablecoin/target/deploy/stablecoin.so"
 
 # ---------- Step 4: npm install ----------
-banner "installing CLI dependencies (npm install)"
-log "running: (cd cli && npm install --no-audit --no-fund)"
-( cd cli && npm install --no-audit --no-fund )
+banner "installing CLI dependencies (npm install --ignore-scripts)"
+# Source installs build the engine locally in Step 2. The CLI's
+# postinstall hook is only for published npm installs, where it fetches
+# a prebuilt engine from GitHub Releases. Skip it here so pre-release
+# source checkouts do not try to download a not-yet-cut release asset.
+log "running: (cd cli && npm install --no-audit --no-fund --ignore-scripts)"
+( cd cli && npm install --no-audit --no-fund --ignore-scripts )
 ok   "npm install done"
 
 # ---------- Step 5: npm run build ----------
@@ -258,9 +262,9 @@ if ! HELP_OUT="$("$LAUNCHER" --help 2>&1)"; then
 fi
 ok   "riptide --help responded"
 
-log "running safe lending smoke test: riptide run examples/configs/safe.json"
-SMOKE_OUT_DIR="$REPO_ROOT/examples/outputs/safe"
-mkdir -p "$REPO_ROOT/examples/outputs"
+LENDING_ADAPTER_PATH="$REPO_ROOT/fixtures/adapters/lending.toml"
+log "running safe lending smoke test: riptide run examples/configs/safe.json --adapter fixtures/adapters/lending.toml"
+SMOKE_OUT_DIR="$REPO_ROOT/.riptide/runs/configs"
 rm -rf "$SMOKE_OUT_DIR"
 
 # Shock knob matches examples/run-demo.sh — the canonical demo runs this way
@@ -269,22 +273,22 @@ export RIPTIDE_PRICE_SHOCK_DROP=0.5
 unset RIPTIDE_ENGINE_BIN RIPTIDE_POOL_LTV_BPS RIPTIDE_POOL_LIQ_THRESHOLD_BPS \
       RIPTIDE_POOL_LIQ_BONUS_BPS RIPTIDE_SEED_COLLATERAL RIPTIDE_STARTING_BALANCE || true
 
-# The spec's exact phrasing is `riptide run examples/configs/safe.json`.
-# The `run` subcommand reads the JSON config, applies the shipped
-# lending adapter by default, and dispatches the simulate flow.
-if ! ( cd "$REPO_ROOT" && "$LAUNCHER" run examples/configs/safe.json ); then
-  fail "smoke test failed: 'riptide run examples/configs/safe.json' did not exit cleanly."
+# The demo JSON lives outside the scenario bundle tree, so it does not
+# get an adapter from the bundle-name fallback. Pin the shipped lending
+# adapter explicitly.
+if ! ( cd "$REPO_ROOT" && "$LAUNCHER" run examples/configs/safe.json --adapter "$LENDING_ADAPTER_PATH" ); then
+  fail "smoke test failed: 'riptide run examples/configs/safe.json --adapter fixtures/adapters/lending.toml' did not exit cleanly."
   fail "try reproducing manually from the repo root:"
-  fail "  riptide run examples/configs/safe.json"
+  fail "  riptide run examples/configs/safe.json --adapter fixtures/adapters/lending.toml"
   fail "  bash examples/run-demo.sh      # fuller demo"
   fail "if either passes, this is an install-flow bug; open an issue with the full output."
   exit 1
 fi
 
 if [ ! -f "$SMOKE_OUT_DIR/simulation-result.json" ]; then
-  fail "smoke test exited 0 but no simulation-result.json was written at:"
+  fail "smoke test exited 0 but no run artifact was written at:"
   fail "  $SMOKE_OUT_DIR/simulation-result.json"
-  fail "this usually means the CLI's --output plumbing changed shape."
+  fail "this usually means the CLI's run artifact layout changed shape."
   exit 1
 fi
 ok   "lending smoke test green (artifact: $SMOKE_OUT_DIR/simulation-result.json)"

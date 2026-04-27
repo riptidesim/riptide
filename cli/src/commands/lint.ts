@@ -21,6 +21,7 @@
 
 import chalk, { Chalk } from "chalk";
 import { Command } from "commander";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { loadAdapter, defaultFixturesRoot } from "../adapter/resolve.js";
@@ -31,6 +32,7 @@ import {
   type LintFinding,
   type LintLevel,
 } from "../lint/index.js";
+import { printBanner } from "../banner.js";
 
 export interface LintCommandDeps {
   fixturesRoot?: string;
@@ -43,6 +45,7 @@ export interface LintCommandDeps {
 
 export interface LintOptions {
   // Reserved for future flags (e.g. `--json` for machine-readable output).
+  quiet?: boolean;
 }
 
 export function createLintCommand(deps: LintCommandDeps = {}): Command {
@@ -53,9 +56,11 @@ export function createLintCommand(deps: LintCommandDeps = {}): Command {
     .argument(
       "<adapter>",
       "Adapter name (e.g. amm) resolved under fixtures/adapters/, or an explicit path to an adapter TOML"
-    );
+    )
+    .option("--quiet", "Suppress interactive banner", false);
 
   return command.action(async (adapter: string, options: LintOptions) => {
+    printBanner({ flags: { quiet: Boolean(options.quiet) } });
     const exitCode = await runLint(adapter, options, deps);
     process.exit(exitCode);
   });
@@ -89,9 +94,7 @@ export async function runLint(
         );
         return 2;
       case "validation-failed":
-        stderr(
-          `riptide lint: adapter failed validation: ${loaded.error.message}\nnext step: fix the adapter TOML schema error above, then rerun \`riptide lint ${adapterArg}\`.\n`
-        );
+        stderr(renderValidationFailed(loaded.error, adapterArg));
         return 2;
     }
   }
@@ -107,6 +110,48 @@ export async function runLint(
 
   stdout(renderLintReport(report, { color: useColor }));
   return report.exitCode;
+}
+
+function renderValidationFailed(
+  error: { path: string; message: string },
+  adapterArg: string
+): string {
+  const stubHint = initStubValidationHint(error.path, error.message, adapterArg);
+  if (stubHint) return stubHint;
+  return (
+    `riptide lint: adapter failed validation: ${error.message}\n` +
+    `next step: fix the adapter TOML schema error above, then rerun \`riptide lint ${adapterArg}\`.\n`
+  );
+}
+
+function initStubValidationHint(
+  adapterPath: string,
+  validationMessage: string,
+  adapterArg: string
+): string | null {
+  let raw: string;
+  try {
+    raw = readFileSync(adapterPath, "utf8");
+  } catch {
+    return null;
+  }
+
+  if (!raw.includes("This is a stub") || !raw.includes("TODO:")) {
+    return null;
+  }
+
+  const rel = path.relative(process.cwd(), adapterPath);
+  const displayPath =
+    rel.length > 0 && !rel.startsWith("..") && !path.isAbsolute(rel)
+      ? rel
+      : adapterPath;
+
+  return (
+    `riptide lint: adapter is still an incomplete \`riptide init\` stub: ${adapterPath}\n` +
+    `schema check stopped at: ${validationMessage}\n` +
+    `next step: open ${displayPath} and fill the TODO blocks for accounts, instructions, state_mapping, actions, observations, and personas. ` +
+    `Then rerun \`riptide lint ${adapterArg}\`.\n`
+  );
 }
 
 export interface RenderOptions {

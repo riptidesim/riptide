@@ -29,6 +29,7 @@ import { resolveScenarios, runScenarios } from "../run/loop.js";
 import { createJestFormatter } from "../run/output.js";
 import { EXIT_CODES, exitCodeFromSummary } from "../run/exit-codes.js";
 import { blockUntilSignal, startDashboardServer } from "../serve/index.js";
+import { printBanner } from "../banner.js";
 
 export function createRunCommand(): Command {
   return new Command("run")
@@ -58,6 +59,8 @@ export function createRunCommand(): Command {
       "Output format: human (default, jest-style) or json (RunSummary for multi-scenario, SimulationResult for single-scenario)",
       "human"
     )
+    .option("--json", "Alias for --format json", false)
+    .option("--quiet", "Suppress interactive banner", false)
     .option(
       "--allow-invariant-violations",
       "Exit 0 even if declared invariants fire during any scenario (default: exit 1 on any firing). Mirrors engine flag; setup errors + SIGINT + engine crashes still return non-zero.",
@@ -75,7 +78,8 @@ export function createRunCommand(): Command {
     )
     .action(async (positional: string | undefined, cliOpts: Record<string, unknown>) => {
       const cwd = process.cwd();
-      const formatJson = cliOpts.format === "json";
+      const formatJson = Boolean(cliOpts.json) || cliOpts.format === "json";
+      printBanner({ flags: { json: formatJson, quiet: Boolean(cliOpts.quiet), format: cliOpts.format } });
       const allowInvariantViolations = Boolean(cliOpts.allowInvariantViolations);
       const verbose = Boolean(cliOpts.verbose);
       const outputDir =
