@@ -535,7 +535,7 @@ test("runLint: shipping liquid-staking lints cleanly (no FAILs)", async () => {
   assert.doesNotMatch(out, / FAIL {2}\[/);
 });
 
-test("runLint: shipping lending is warn-only (non-JSON lineage) → exit 1", async () => {
+test("runLint: shipping lending semantics preflight passes despite non-JSON lineage → exit 0", async () => {
   const fixturesRoot = path.resolve(process.cwd(), "..", "fixtures");
   const repoRoot = path.resolve(process.cwd(), "..");
   let out = "";
@@ -550,10 +550,11 @@ test("runLint: shipping lending is warn-only (non-JSON lineage) → exit 1", asy
       color: false,
     }
   );
-  assert.equal(exit, 1, `lending must land as WARN/1 (non-JSON lineage). stdout:\n${out}`);
+  assert.equal(exit, 0, `lending must land as PASS/0 after semantics lint. stdout:\n${out}`);
   assert.match(out, /non-JSON/);
+  assert.match(out, /semantics-clean/);
   assert.match(out, /programs\/lending_pool\/src\/state\.rs/);
-  assert.doesNotMatch(out, /Verdict: PASS/);
+  assert.match(out, /Verdict: PASS/);
   assert.doesNotMatch(out, / FAIL {2}\[/);
 });
 

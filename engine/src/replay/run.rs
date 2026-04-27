@@ -20,7 +20,7 @@ use crate::{
     scenario::OracleUpdate,
     semantics::{
         invariants::{build_expression_invariants_summary, ExpressionInvariantFire},
-        roles::RoleBindingContext,
+        roles::{instruction_source_matches, RoleBindingContext},
     },
     sim::run::{
         apply_position_observation, build_invariants_summary, build_summary,
@@ -557,7 +557,7 @@ fn replay_role_binding_anchor(
     };
     let anchor = match binding {
         SemanticSourceBinding::Instruction(expected)
-            if expected.as_str() == instruction.name.as_str() =>
+            if instruction_source_matches(expected.as_str(), Some(instruction.name.as_str())) =>
         {
             let agent_idx =
                 replay_instruction_position_agent_idx(adapter, instruction, actor_index)?;

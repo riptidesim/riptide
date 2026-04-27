@@ -118,7 +118,7 @@ fn value_from_source(
 ) -> Result<Value, RoleBindingError> {
     let value = match source {
         SemanticSourceBinding::Instruction(instruction) => {
-            if binding_context.current_instruction != Some(instruction.as_str()) {
+            if !instruction_source_matches(instruction, binding_context.current_instruction) {
                 return Err(RoleBindingError::MissingRoleBinding {
                     role: role_name.to_string(),
                 });
@@ -151,6 +151,18 @@ fn value_from_source(
         role: role_name.to_string(),
         field: field.to_string(),
     })
+}
+
+pub(crate) fn instruction_source_matches(binding: &str, current: Option<&str>) -> bool {
+    if binding == "deposit_or_borrow" {
+        return current.is_some_and(|instruction| {
+            matches!(
+                instruction,
+                "deposit" | "borrow" | "repay" | "withdraw" | "liquidate"
+            )
+        });
+    }
+    current == Some(binding)
 }
 
 fn position_agent<'a>(
@@ -361,6 +373,61 @@ mod tests {
     #[test]
     fn instruction_source_uses_the_context_agent_not_the_first_agent() {
         let semantics = semantics(SemanticSourceBinding::Instruction("borrow".into()));
+        let harness = MockHarness::new(2, 100.0);
+        let mut alice = Agent::new("alice", policy(), 0.0);
+        alice.position.collateral = 10.0;
+        let mut bob = Agent::new("bob", policy(), 0.0);
+        bob.position.collateral = 42.0;
+        let agents = vec![alice, bob];
+
+        let context = bind_lending_v1_roles(
+            &semantics,
+            &harness,
+            &agents,
+            &snapshot(),
+            RoleBindingContext::new(Some("borrow"), Some(1)),
+        )
+        .unwrap();
+
+        assert_eq!(
+            context.get("position.collateral_amount"),
+            Some(&Value::U128(42))
+        );
+    }
+
+    #[test]
+    fn deposit_or_borrow_source_requires_current_instruction_context_even_with_multiple_agents() {
+        let semantics = semantics(SemanticSourceBinding::Instruction(
+            "deposit_or_borrow".into(),
+        ));
+        let harness = MockHarness::new(2, 100.0);
+        let agents = vec![
+            Agent::new("alice", policy(), 0.0),
+            Agent::new("bob", policy(), 0.0),
+        ];
+
+        let err = bind_lending_v1_roles(
+            &semantics,
+            &harness,
+            &agents,
+            &snapshot(),
+            RoleBindingContext::tick_snapshot(&agents),
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            err,
+            RoleBindingError::MissingRoleBinding {
+                role: "position".into()
+            }
+        );
+    }
+
+    #[test]
+    fn deposit_or_borrow_source_uses_current_lending_instruction_agent() {
+        let semantics = semantics(SemanticSourceBinding::Instruction(
+            "deposit_or_borrow".into(),
+        ));
         let harness = MockHarness::new(2, 100.0);
         let mut alice = Agent::new("alice", policy(), 0.0);
         alice.position.collateral = 10.0;

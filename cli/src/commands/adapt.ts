@@ -135,8 +135,8 @@ export async function runAdapt(
   const repoRoot = deps.repoRoot ?? deriveRepoRoot(adapterPath, deps.fixturesRoot);
   const lintFn = deps.runLintImpl ?? lintAdapter;
 
-  if (lintKind === "json-idl") {
-    const lintSpinner = isTTY ? ora({ text: "Linting adapter against JSON IDL...", stream: process.stderr }).start() : null;
+  if (lintKind === "json-idl" || adapter.semantics !== undefined) {
+    const lintSpinner = isTTY ? ora({ text: "Running adapter lint preflight...", stream: process.stderr }).start() : null;
     let lintReport: LintReport;
     try {
       lintReport = await lintFn({

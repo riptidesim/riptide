@@ -81,6 +81,7 @@ test("AdapterSchema produces the same shape the serde side expects", async () =>
       "personas",
       "protocol",
       "scheduled_actions",
+      "semantics",
       "state_mapping",
     ],
     "top-level adapter keys should match engine/src/adapter/schema.rs::Adapter"

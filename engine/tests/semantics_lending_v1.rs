@@ -6,12 +6,21 @@ use std::{
 };
 
 use riptide_engine::{
-    adapter::parse_adapter_str,
-    agent::policy::LENDING_RUNTIME_ACTIONS,
+    adapter::{load_adapter, parse_adapter_str, Adapter},
+    agent::{policy::LENDING_RUNTIME_ACTIONS, state::Agent},
     replay::{load_replay_bundle, run_lending_replay},
-    scenario::BaselineScenario,
+    scenario::{BaselineScenario, PriceShockScenario},
+    semantics::{
+        derived::evaluate_derived_observations,
+        invariants::evaluate_expression_invariants,
+        roles::{bind_lending_v1_roles, RoleBindingContext},
+        Value as SemanticValue,
+    },
     sim::{run_simulation, MockHarness, SimulationParams},
-    types::{Policy, PositionSizing, PositionSizingStrategy, RunConfig, Trigger, TriggerCondition},
+    types::{
+        Policy, PositionSizing, PositionSizingStrategy, RunConfig, SimOutcome, TickSnapshot,
+        Trigger, TriggerCondition,
+    },
 };
 
 fn semantic_lending_toml() -> &'static str {
@@ -131,6 +140,13 @@ fn make_temp_replay_dir(label: &str) -> PathBuf {
     dir
 }
 
+fn monorepo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("engine crate has a parent directory")
+        .to_path_buf()
+}
+
 fn policy() -> Policy {
     Policy {
         persona_id: "semantic-lp".into(),
@@ -158,6 +174,35 @@ fn policy() -> Policy {
         max_exposure: 0.0,
         persona_args: BTreeMap::new(),
     }
+}
+
+fn run_single_agent_semantic_lending(adapter: &Adapter) -> riptide_engine::types::SimulationResult {
+    let cfg = RunConfig {
+        agents: 1,
+        ticks: 0,
+        scenario: "baseline".into(),
+        seed: 19,
+        personas: vec!["semantic-lp".into()],
+        validator_url: "unused".into(),
+        output_path: "unused".into(),
+    };
+    let mut harness = MockHarness::new(1, 100.0).with_risk_params(7_000, 8_000);
+    harness.seed_position(0, 10, 800);
+    let mut scenario = BaselineScenario::new(100.0, 0);
+    let params = SimulationParams {
+        run_config: &cfg,
+        policies: vec![policy()],
+        agent_personas: vec![0],
+        available_actions: LENDING_RUNTIME_ACTIONS.to_vec(),
+        starting_balance: 10_000.0,
+        starting_price: 100.0,
+        simulation_boundaries: vec!["semantics lending.v1".into()],
+        invariants: adapter.invariants.clone(),
+        scheduled_actions: Vec::new(),
+        semantics: adapter.semantics.clone(),
+    };
+
+    run_simulation(&mut harness, &mut scenario, params).unwrap()
 }
 
 #[test]
@@ -219,6 +264,228 @@ fn lending_v1_semantics_emit_derived_observations_and_expression_invariants() {
         fire.params["observed"]["max_borrow_value"].as_u64(),
         Some(700)
     );
+}
+
+#[test]
+fn migrated_lending_adapter_runs_semantics_end_to_end() {
+    let path = monorepo_root().join("fixtures/adapters/lending.toml");
+    let adapter = load_adapter(&path).expect("load migrated lending adapter");
+    let semantics = adapter
+        .semantics
+        .as_ref()
+        .expect("shipping lending adapter opts into semantics");
+    assert_eq!(semantics.class.as_deref(), Some("lending.v1"));
+    for role in ["position", "reserve", "oracle", "liquidation_config"] {
+        assert!(
+            semantics.roles.contains_key(role),
+            "missing required role {role}"
+        );
+    }
+    for derived in [
+        "collateral_value",
+        "debt_value",
+        "max_borrow_value",
+        "health_factor",
+    ] {
+        assert!(
+            semantics.derived.contains_key(derived),
+            "missing required derived observation {derived}"
+        );
+    }
+    assert_eq!(semantics.invariants.len(), 2);
+    assert!(semantics
+        .invariants
+        .iter()
+        .all(|invariant| invariant.severity.as_str() == "warn"));
+
+    let harness = MockHarness::new(2, 100.0).with_risk_params(7_000, 8_000);
+    let mut alice = Agent::new("alice", policy(), 0.0);
+    alice.position.collateral = 1.0;
+    alice.position.debt = 10.0;
+    let mut bob = Agent::new("bob", policy(), 0.0);
+    bob.position.collateral = 10.0;
+    bob.position.debt = 800.0;
+    let agents = vec![alice, bob];
+    let snapshot: TickSnapshot =
+        BTreeMap::from([("oracle_price".into(), serde_json::Value::from(100_u64))]);
+    let role_context = bind_lending_v1_roles(
+        semantics,
+        &harness,
+        &agents,
+        &snapshot,
+        RoleBindingContext::new(Some("borrow"), Some(1)),
+    )
+    .expect("bind migrated adapter roles from current instruction context");
+
+    assert_eq!(
+        role_context.get("position.collateral_amount"),
+        Some(&SemanticValue::U128(10))
+    );
+    assert_eq!(
+        role_context.get("position.debt_amount"),
+        Some(&SemanticValue::U128(800))
+    );
+
+    let derived = evaluate_derived_observations(semantics, &role_context)
+        .expect("evaluate migrated adapter derived observations");
+    assert_eq!(
+        derived.observations.get("collateral_value"),
+        Some(&SemanticValue::U128(1_000))
+    );
+    assert_eq!(
+        derived.observations.get("debt_value"),
+        Some(&SemanticValue::U128(800))
+    );
+    assert_eq!(
+        derived.observations.get("max_borrow_value"),
+        Some(&SemanticValue::U128(700))
+    );
+    assert_eq!(
+        derived.observations.get("liquidation_threshold_value"),
+        Some(&SemanticValue::U128(800))
+    );
+    assert_eq!(
+        derived.observations.get("health_factor"),
+        Some(&SemanticValue::U128(1))
+    );
+
+    let fires = evaluate_expression_invariants(semantics, &derived.context, 0)
+        .expect("evaluate migrated adapter expression invariants");
+    assert_eq!(fires.len(), 1);
+    assert_eq!(fires[0].name, "ltv_below_max");
+    assert_eq!(fires[0].severity.as_str(), "warn");
+    assert_eq!(
+        fires[0].observed.get("max_borrow_value"),
+        Some(&SemanticValue::U128(700))
+    );
+}
+
+#[test]
+fn lending_adapter_without_semantics_runs_legacy_mode() {
+    let path = monorepo_root().join("fixtures/adapters/lending.toml");
+    let raw = fs::read_to_string(&path).expect("read migrated lending adapter");
+    let start = raw.find("\n[semantics]\n").expect("semantics block start");
+    let end = raw
+        .find("\n# Reviewer-facing lineage")
+        .expect("lineage block remains after semantics");
+    let legacy_raw = format!("{}{}", &raw[..start], &raw[end..]);
+    let adapter =
+        parse_adapter_str(&legacy_raw, "lending-without-semantics.toml").expect("legacy parse");
+    assert!(adapter.semantics.is_none());
+
+    let result = run_single_agent_semantic_lending(&adapter);
+    assert!(
+        result.timeseries[0].get("derived_observations").is_none(),
+        "legacy mode must not emit derived_observations"
+    );
+    assert!(
+        result.summary.get("expression_invariants").is_none(),
+        "legacy mode must not emit expression_invariants"
+    );
+}
+
+#[test]
+fn migrated_lending_adapter_does_not_emit_semantics_on_idle_tick_snapshot() {
+    let path = monorepo_root().join("fixtures/adapters/lending.toml");
+    let adapter = load_adapter(&path).expect("load migrated lending adapter");
+
+    let result = run_single_agent_semantic_lending(&adapter);
+    assert!(
+        result.timeseries[0].get("derived_observations").is_none(),
+        "idle snapshots with instruction-bound semantics must not emit derived observations"
+    );
+    assert!(
+        result.summary.get("expression_invariants").is_some(),
+        "expression invariant definitions remain summarized even when idle ticks do not evaluate"
+    );
+}
+
+#[test]
+fn migrated_lending_adapter_binds_liquidation_semantics_to_borrower_target() {
+    let path = monorepo_root().join("fixtures/adapters/lending.toml");
+    let adapter = load_adapter(&path).expect("load migrated lending adapter");
+    let cfg = RunConfig {
+        agents: 2,
+        ticks: 1,
+        scenario: "shock".into(),
+        seed: 19,
+        personas: vec!["borrower".into(), "liquidator".into()],
+        validator_url: "unused".into(),
+        output_path: "unused".into(),
+    };
+    let borrower = Policy {
+        persona_id: "borrower".into(),
+        persona_label: "borrower".into(),
+        action_rate_multiplier: 1.0,
+        risk_tolerance: 0.5,
+        action_weights: BTreeMap::from([
+            ("deposit".into(), 0.0),
+            ("borrow".into(), 0.0),
+            ("withdraw".into(), 0.0),
+            ("repay".into(), 0.0),
+            ("liquidate".into(), 0.0),
+        ]),
+        triggers: vec![],
+        position_sizing: PositionSizing {
+            strategy: PositionSizingStrategy::Fixed,
+            params: BTreeMap::from([("amount".into(), 0.0)]),
+        },
+        max_exposure: 1.0,
+        persona_args: BTreeMap::new(),
+    };
+    let liquidator = Policy {
+        persona_id: "liquidator".into(),
+        persona_label: "liquidator".into(),
+        action_rate_multiplier: 1.0,
+        risk_tolerance: 0.5,
+        action_weights: BTreeMap::from([
+            ("deposit".into(), 0.0),
+            ("borrow".into(), 0.0),
+            ("withdraw".into(), 0.0),
+            ("repay".into(), 0.0),
+            ("liquidate".into(), 1.0),
+        ]),
+        triggers: vec![],
+        position_sizing: PositionSizing {
+            strategy: PositionSizingStrategy::Fixed,
+            params: BTreeMap::from([("amount".into(), 100.0)]),
+        },
+        max_exposure: 0.1,
+        persona_args: BTreeMap::new(),
+    };
+    let mut harness = MockHarness::new(2, 100.0).with_risk_params(7_000, 8_000);
+    harness.seed_position(0, 10, 900);
+    let mut scenario = PriceShockScenario::new(100.0, 0, 1, 0.5);
+    let params = SimulationParams {
+        run_config: &cfg,
+        policies: vec![borrower, liquidator],
+        agent_personas: vec![0, 1],
+        available_actions: LENDING_RUNTIME_ACTIONS.to_vec(),
+        starting_balance: 10_000.0,
+        starting_price: 100.0,
+        simulation_boundaries: vec!["liquidation semantic target".into()],
+        invariants: adapter.invariants.clone(),
+        scheduled_actions: Vec::new(),
+        semantics: adapter.semantics.clone(),
+    };
+
+    let result = run_simulation(&mut harness, &mut scenario, params).unwrap();
+    assert!(result.events.iter().any(|event| {
+        event.action == "liquidate" && matches!(event.outcome, SimOutcome::Success)
+    }));
+
+    let derived = result.timeseries[1]["derived_observations"]
+        .as_object()
+        .expect("instruction-backed derived observations");
+    assert_eq!(
+        derived["debt_value"].as_u64(),
+        Some(900),
+        "liquidation semantics must bind the borrower target, not the debt-free liquidator"
+    );
+    assert!(result
+        .events
+        .iter()
+        .any(|event| event.action == "expression_invariant_fire:ltv_below_max"));
 }
 
 #[test]

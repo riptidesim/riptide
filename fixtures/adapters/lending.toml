@@ -37,6 +37,48 @@ liquidate = { action = "liquidate", amount = "repay_amount" }
 
 [personas]
 
+[semantics]
+class = "lending.v1"
+
+[semantics.roles.position]
+source = "instruction.deposit_or_borrow"
+fields.collateral_amount = "u128"
+fields.debt_amount = "u128"
+
+[semantics.roles.reserve]
+source = "account.reserve"
+fields.collateral_decimals = "u64"
+fields.collateral_price = "u128"
+fields.max_ltv_bps = "u64"
+
+[semantics.roles.oracle]
+source = "account.oracle"
+fields.price = "u128"
+fields.confidence = "u128"
+
+[semantics.roles.liquidation_config]
+source = "account.reserve"
+fields.liquidation_threshold_bps = "u64"
+
+[semantics.derived]
+collateral_value = "position.collateral_amount * reserve.collateral_price"
+debt_value = "position.debt_amount"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+liquidation_threshold_value = "collateral_value * liquidation_config.liquidation_threshold_bps / 10000"
+health_factor = "liquidation_threshold_value / max(debt_value, 1)"
+
+[[semantics.invariants]]
+name = "bad_debt_bound"
+expr = "debt_value <= collateral_value"
+severity = "warn"
+description = "Position debt must not exceed collateral value"
+
+[[semantics.invariants]]
+name = "ltv_below_max"
+expr = "debt_value <= max_borrow_value"
+severity = "warn"
+description = "Position debt must not exceed max-borrow value"
+
 # Reviewer-facing lineage metadata (inspection-only — see
 # `riptide lineage lending`). Load-bearing only as documentation:
 # the engine does not validate the adapter against the IDL source at

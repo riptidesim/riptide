@@ -18,6 +18,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import type { Adapter, AdapterLineage, AccountOwner } from "../schemas/adapter.js";
+import { lintSemantics } from "./semantics.js";
 
 export type LintLevel = "pass" | "warn" | "fail" | "skip";
 
@@ -132,6 +133,16 @@ export async function lintAdapter(input: LintInput): Promise<LintReport> {
   const { adapter, adapterPath, adapterName, repoRoot } = input;
   const findings: LintFinding[] = [];
   const kind = classifyLineageSourceKind(adapter.lineage);
+  findings.push(...lintSemantics(adapter));
+  if (findings.some((finding) => finding.level === "fail")) {
+    return {
+      adapterPath,
+      adapterName,
+      sourceKind: kind,
+      findings,
+      exitCode: exitCodeFrom(findings),
+    };
+  }
 
   if (kind === "missing-lineage") {
     findings.push({
@@ -155,13 +166,17 @@ export async function lintAdapter(input: LintInput): Promise<LintReport> {
   const resolvedSourcePath = resolveLineageSource(idlSource, adapterPath, repoRoot);
 
   if (kind === "non-json") {
+    const hasSemantics = adapter.semantics !== undefined;
     findings.push({
-      level: "warn",
+      level: hasSemantics ? "skip" : "warn",
       code: "lineage-non-json",
       subject: `[lineage].idl_source = "${idlSource}"`,
-      message:
-        "machine validation is only available for JSON IDL sources; this source kind is inspection-only in Sprint 13.",
-      hint: "Use `riptide lineage <adapter>` for reviewer-readable inspection of the authored lineage.",
+      message: hasSemantics
+        ? "lineage source is non-JSON and remains inspection-only; the adapter's [semantics] block was machine-checked by lint."
+        : "machine validation is only available for JSON IDL sources; this source kind is inspection-only in Sprint 13.",
+      hint: hasSemantics
+        ? "Use `riptide lineage <adapter>` for reviewer-readable lineage inspection; semantics lint has already validated the economic preflight."
+        : "Use `riptide lineage <adapter>` for reviewer-readable inspection of the authored lineage.",
     });
     return {
       adapterPath,

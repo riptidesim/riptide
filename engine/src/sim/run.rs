@@ -9,7 +9,9 @@ use serde_json::Value;
 
 use super::harness::{Harness, HarnessError, PositionObservation};
 use crate::{
-    adapter::{Invariant, ScheduledAction, SemanticInvariantSeverity, Semantics},
+    adapter::{
+        Invariant, ScheduledAction, SemanticInvariantSeverity, SemanticSourceBinding, Semantics,
+    },
     agent::{policy::RuntimeAction, state::Agent, AgentRuntime},
     scenario::Scenario,
     semantics::{
@@ -567,6 +569,10 @@ where
             params_map.insert("amount".into(), Value::from(amount));
             let role_binding_attempted_instruction =
                 !matches!(outcome, SimOutcome::Skipped) && !matches!(action, RuntimeAction::NoOp);
+            let role_binding_agent_idx = match &action {
+                RuntimeAction::Liquidate => liquidate_target,
+                _ => Some(idx),
+            };
 
             events.push(SimEvent {
                 tick,
@@ -583,7 +589,9 @@ where
                     .map(|trigger| trigger.condition_label.clone()),
             });
             if role_binding_attempted_instruction {
-                last_role_binding_instruction = Some((action.as_str().to_string(), idx));
+                if let Some(agent_idx) = role_binding_agent_idx {
+                    last_role_binding_instruction = Some((action.as_str().to_string(), agent_idx));
+                }
             }
         }
 
@@ -1175,7 +1183,9 @@ where
         snapshot.insert(key, value);
     }
 
-    if let Some(semantics) = semantics {
+    if let Some(semantics) =
+        semantics.filter(|semantics| should_evaluate_semantics(semantics, role_binding_context))
+    {
         let role_context =
             bind_lending_v1_roles(semantics, harness, agents, &snapshot, role_binding_context)
                 .map_err(|e| SimulationAbort::BadInput(e.to_string()))?;
@@ -1200,6 +1210,19 @@ where
 
     timeseries.push(snapshot);
     Ok(())
+}
+
+fn should_evaluate_semantics(
+    semantics: &Semantics,
+    role_binding_context: RoleBindingContext<'_>,
+) -> bool {
+    role_binding_context.current_instruction.is_some()
+        || !semantics.roles.values().any(|role| {
+            matches!(
+                role.binding.as_ref(),
+                Some(SemanticSourceBinding::Instruction(_))
+            )
+        })
 }
 
 fn semantic_values_to_json(values: &BTreeMap<String, crate::semantics::Value>) -> Value {
