@@ -652,11 +652,9 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
     // Runs with no declared invariants never emit an `invariants_fired`
     // key, so `firing_count` stays 0 and the exit code stays 0 — this
     // is the / regression-gate contract.
-    let expression_error_count = count_error_expression_invariant_firings(&result);
-    let firing_count = count_invariant_firings(&result);
-    if expression_error_count > 0 {
-        Ok(EngineOutcome::SetupError)
-    } else if firing_count > 0 {
+    let firing_count =
+        count_invariant_firings(&result) + count_error_expression_invariant_firings(&result);
+    if firing_count > 0 {
         Ok(EngineOutcome::InvariantFired(firing_count))
     } else {
         Ok(EngineOutcome::Clean)
@@ -801,11 +799,9 @@ fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
     write_result(&cli.output, &result)?;
     eprintln!("wrote {}", cli.output.display());
 
-    let expression_error_count = count_error_expression_invariant_firings(&result);
-    let firing_count = count_invariant_firings(&result);
-    if expression_error_count > 0 {
-        Ok(EngineOutcome::SetupError)
-    } else if firing_count > 0 {
+    let firing_count =
+        count_invariant_firings(&result) + count_error_expression_invariant_firings(&result);
+    if firing_count > 0 {
         Ok(EngineOutcome::InvariantFired(firing_count))
     } else {
         Ok(EngineOutcome::Clean)
@@ -841,11 +837,9 @@ fn run_multi_component_replay_command(
     write_result(output_path, &result)?;
     eprintln!("wrote {}", output_path.display());
 
-    let expression_error_count = count_error_expression_invariant_firings(&result);
-    let firing_count = count_invariant_firings(&result);
-    if expression_error_count > 0 {
-        Ok(EngineOutcome::SetupError)
-    } else if firing_count > 0 {
+    let firing_count =
+        count_invariant_firings(&result) + count_error_expression_invariant_firings(&result);
+    if firing_count > 0 {
         Ok(EngineOutcome::InvariantFired(firing_count))
     } else {
         Ok(EngineOutcome::Clean)
@@ -873,7 +867,12 @@ fn count_invariant_firings(result: &SimulationResult) -> u64 {
         .map(|entries| {
             entries
                 .iter()
-                .filter_map(|entry| entry.get("firings").and_then(|v| v.as_u64()))
+                .filter_map(|entry| {
+                    entry
+                        .get("firing_count")
+                        .or_else(|| entry.get("firings"))
+                        .and_then(|v| v.as_u64())
+                })
                 .sum()
         })
         .unwrap_or(0)
@@ -894,7 +893,12 @@ fn count_error_expression_invariant_firings(result: &SimulationResult) -> u64 {
                         .map(|severity| severity == "error")
                         .unwrap_or(false)
                 })
-                .filter_map(|entry| entry.get("firings").and_then(|v| v.as_u64()))
+                .filter_map(|entry| {
+                    entry
+                        .get("firing_count")
+                        .or_else(|| entry.get("firings"))
+                        .and_then(|v| v.as_u64())
+                })
                 .sum()
         })
         .unwrap_or(0)

@@ -91,6 +91,18 @@ test("TickSnapshotSchema rejects a missing active_agents", () => {
   assert.equal(parsed.success, false);
 });
 
+test("TickSnapshotSchema accepts derived observations", () => {
+  const parsed = TickSnapshotSchema.safeParse({
+    tick: 0,
+    active_agents: 1,
+    derived_observations: {
+      collateral_value: 1000,
+      health_factor: "115792089237316195423570985008687907853"
+    }
+  });
+  assert.equal(parsed.success, true);
+});
+
 test("SimulationSummarySchema accepts a well-formed lending summary", () => {
   const parsed = SimulationSummarySchema.safeParse({
     agents_active: 5,
@@ -138,6 +150,70 @@ test("SimulationSummarySchema accepts an invariants_fired array (replay surface)
         firings: 1
       }
     ]
+  });
+  assert.equal(parsed.success, true);
+});
+
+test("SimulationSummarySchema accepts expression invariant rows with observed cap", () => {
+  const parsed = SimulationSummarySchema.safeParse({
+    agents_active: 1,
+    agents_liquidated: 0,
+    agents_depleted: 0,
+    expression_invariants: [
+      {
+        name: "ltv_below_max",
+        expr: "debt_value <= max_borrow_value",
+        severity: "warn",
+        first_tick: 0,
+        firing_count: 4,
+        first_fired_tick: 0,
+        firings: 4,
+        observed: [
+          { tick: 0, values: { debt_value: 800, max_borrow_value: 700 } },
+          { tick: 1, values: { debt_value: 800, max_borrow_value: 700 } },
+          { tick: 2, values: { debt_value: 800, max_borrow_value: 700 } }
+        ]
+      }
+    ]
+  });
+  assert.equal(parsed.success, true);
+});
+
+test("SimulationResultSchema accepts top-level semantics contract", () => {
+  const parsed = SimulationResultSchema.safeParse({
+    run_config: {
+      agents: 1,
+      ticks: 1,
+      scenario: "semantic",
+      seed: 1,
+      personas: ["semantic-lp"],
+      validator_url: "unused",
+      output_path: "out"
+    },
+    seed: 1,
+    total_ticks: 1,
+    timeseries: [
+      {
+        tick: 0,
+        active_agents: 1,
+        derived_observations: { debt_value: 800 }
+      }
+    ],
+    events: [],
+    agents: [],
+    summary: {
+      agents_active: 1,
+      agents_liquidated: 0,
+      agents_depleted: 0
+    },
+    semantics: {
+      class: "lending.v1",
+      roles_bound: [{ role_name: "position", source: "instruction.deposit_or_borrow" }],
+      derived_observation_definitions: [
+        { name: "debt_value", expr: "position.debt_amount" }
+      ]
+    },
+    simulation_boundaries: []
   });
   assert.equal(parsed.success, true);
 });

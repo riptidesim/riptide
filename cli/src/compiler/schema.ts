@@ -85,6 +85,10 @@ export const SimEventSchema = z.object({
   triggered_by: z.string().optional()
 });
 
+const JsonPrimitiveSchema = z.union([z.number(), z.boolean(), z.string(), z.null()]);
+
+export const DerivedObservationsSchema = z.record(z.string(), JsonPrimitiveSchema);
+
 // `TickSnapshot` is a primitive-agnostic key/value map. The engine-side
 // type is `BTreeMap<String, serde_json::Value>`, so on the CLI side we
 // accept any record whose values are JSON primitives (number / bool /
@@ -98,7 +102,7 @@ function isNonNegativeInteger(value: unknown): value is number {
 export const TickSnapshotSchema = z
   .record(
     z.string(),
-    z.union([z.number(), z.boolean(), z.string(), z.null()])
+    z.union([JsonPrimitiveSchema, DerivedObservationsSchema])
   )
   .refine((entry) => isNonNegativeInteger(entry.tick), {
     message: "tick snapshot `tick` must be a nonnegative integer"
@@ -138,6 +142,39 @@ export const InvariantFiredRowSchema = z.object({
     .nonnegative()
 });
 
+export const ExpressionInvariantObservedSchema = z.object({
+  tick: z.number().int().nonnegative(),
+  values: z.record(z.string(), JsonPrimitiveSchema)
+});
+
+export const ExpressionInvariantRowSchema = z.object({
+  name: z.string(),
+  expr: z.string(),
+  severity: z.enum(["error", "warn"]),
+  first_tick: z.number().int().nonnegative().nullable(),
+  firing_count: z.number().int().nonnegative(),
+  observed: z.array(ExpressionInvariantObservedSchema).max(3),
+  // Sprint 19 aliases remain accepted while Sprint 20 pins the clearer names.
+  first_fired_tick: z.number().int().nonnegative().nullable().optional(),
+  firings: z.number().int().nonnegative().optional()
+});
+
+export const RoleBindingSchema = z.object({
+  role_name: z.string().min(1),
+  source: z.string().min(1)
+});
+
+export const DerivedObservationDefinitionSchema = z.object({
+  name: z.string().min(1),
+  expr: z.string().min(1)
+});
+
+export const SemanticsSchema = z.object({
+  class: z.string().min(1),
+  roles_bound: z.array(RoleBindingSchema),
+  derived_observation_definitions: z.array(DerivedObservationDefinitionSchema)
+});
+
 // `SimulationSummary` is a primitive-agnostic key/value map. Lending
 // runs emit `final_tvl`/`final_utilization`/`total_liquidations`/
 // `total_bad_debt`/`largest_single_tick_drawdown`; generic runs emit
@@ -161,7 +198,8 @@ export const SimulationSummarySchema = z
       z.boolean(),
       z.string(),
       z.null(),
-      z.array(InvariantFiredRowSchema)
+      z.array(InvariantFiredRowSchema),
+      z.array(ExpressionInvariantRowSchema)
     ])
   )
   .refine((summary) => isNonNegativeInteger(summary.agents_active), {
@@ -182,6 +220,7 @@ export const SimulationResultSchema = z.object({
   events: z.array(SimEventSchema),
   agents: z.array(AgentFinalStateSchema),
   summary: SimulationSummarySchema,
+  semantics: SemanticsSchema.optional(),
   simulation_boundaries: z.array(z.string())
 });
 
@@ -195,6 +234,8 @@ export type TickSnapshot = z.infer<typeof TickSnapshotSchema>;
 export type AgentFinalState = z.infer<typeof AgentFinalStateSchema>;
 export type SimulationResult = z.infer<typeof SimulationResultSchema>;
 export type InvariantFiredRow = z.infer<typeof InvariantFiredRowSchema>;
+export type ExpressionInvariantRow = z.infer<typeof ExpressionInvariantRowSchema>;
+export type Semantics = z.infer<typeof SemanticsSchema>;
 
 export function validatePolicy(input: unknown): Policy {
   return PolicySchema.parse(input);

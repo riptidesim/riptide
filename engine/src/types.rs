@@ -123,7 +123,56 @@ pub struct SimulationResult {
     pub events: Vec<SimEvent>,
     pub agents: Vec<AgentFinalState>,
     pub summary: SimulationSummary,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub semantics: Option<Semantics>,
     pub simulation_boundaries: Vec<String>,
+}
+
+/// Top-level semantic contract emitted for adapters carrying a
+/// `[semantics]` block. This is adapter-load context only: the
+/// per-tick computed values stay under `timeseries[].derived_observations`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Semantics {
+    pub class: String,
+    pub roles_bound: Vec<RoleBinding>,
+    pub derived_observation_definitions: Vec<DerivedObservationDefinition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoleBinding {
+    pub role_name: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DerivedObservationDefinition {
+    pub name: String,
+    pub expr: String,
+}
+
+impl Semantics {
+    pub fn from_adapter(semantics: &crate::adapter::Semantics) -> Option<Self> {
+        let class = semantics.class.clone()?;
+        Some(Self {
+            class,
+            roles_bound: semantics
+                .roles
+                .iter()
+                .map(|(role_name, role)| RoleBinding {
+                    role_name: role_name.clone(),
+                    source: role.source.clone(),
+                })
+                .collect(),
+            derived_observation_definitions: semantics
+                .derived
+                .iter()
+                .map(|(name, expr)| DerivedObservationDefinition {
+                    name: name.clone(),
+                    expr: expr.source.clone(),
+                })
+                .collect(),
+        })
+    }
 }
 
 /// A single invariant fire. Captured when the declared comparison is

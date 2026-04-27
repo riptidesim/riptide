@@ -24,7 +24,7 @@ import { runOrchestrator } from "../orchestrator/index.js";
 import { emitPack } from "../pack/index.js";
 import { writeArtifacts } from "../report/artifacts.js";
 import { validateAdapter } from "../schemas/adapter.js";
-import type { SimulationResult } from "../compiler/schema.js";
+import type { ExpressionInvariantRow, SimulationResult } from "../compiler/schema.js";
 
 import {
   createAdapterResolver,
@@ -837,10 +837,44 @@ export function resolveArtifactsDir(ctx: RunOneContext): string {
 export function extractInvariantFires(result: SimulationResult): InvariantFire[] {
   const fires: InvariantFire[] = [];
   for (const event of result.events) {
-    if (event.persona_id !== "invariant") continue;
-    if (!event.action.startsWith("invariant_violation:")) continue;
-    const name = event.action.slice("invariant_violation:".length);
+    let name: string | null = null;
+    if (event.persona_id === "invariant" && event.action.startsWith("invariant_violation:")) {
+      name = event.action.slice("invariant_violation:".length);
+    }
+    if (
+      event.persona_id === "expression_invariant" &&
+      event.action.startsWith("expression_invariant_fire:") &&
+      event.params["severity"] === "error"
+    ) {
+      name = event.action.slice("expression_invariant_fire:".length);
+    }
+    if (!name) continue;
     fires.push({ name, tick: event.tick });
   }
+  if (fires.length > 0) return fires;
+
+  for (const row of expressionInvariantRows(result)) {
+    if (row.severity !== "error") continue;
+    const count = row.firing_count ?? row.firings ?? 0;
+    if (count <= 0) continue;
+    const tick = row.first_tick ?? row.first_fired_tick ?? row.observed[0]?.tick ?? 0;
+    fires.push({ name: row.name, tick });
+  }
   return fires;
+}
+
+function expressionInvariantRows(result: SimulationResult): ExpressionInvariantRow[] {
+  const value = result.summary["expression_invariants"];
+  if (!Array.isArray(value)) return [];
+  return value.filter((row): row is ExpressionInvariantRow => {
+    if (!row || typeof row !== "object") return false;
+    const candidate = row as Record<string, unknown>;
+    return (
+      typeof candidate.name === "string" &&
+      (candidate.severity === "error" || candidate.severity === "warn") &&
+      typeof candidate.firing_count === "number" &&
+      (typeof candidate.first_tick === "number" || candidate.first_tick === null) &&
+      Array.isArray(candidate.observed)
+    );
+  });
 }

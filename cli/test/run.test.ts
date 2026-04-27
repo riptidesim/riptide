@@ -558,6 +558,83 @@ test("extractInvariantFires: pulls (name, tick) pairs from events[] in emission 
   ]);
 });
 
+test("extractInvariantFires: includes severity-error expression invariant fires", () => {
+  const result = {
+    run_config: {},
+    seed: 0,
+    total_ticks: 0,
+    timeseries: [],
+    events: [
+      {
+        tick: 2,
+        persona_id: "expression_invariant",
+        action: "expression_invariant_fire:warn_only",
+        params: { severity: "warn" },
+        outcome: "success",
+        agent_id: "__engine__",
+        persona_label: "expression_invariant"
+      },
+      {
+        tick: 3,
+        persona_id: "expression_invariant",
+        action: "expression_invariant_fire:semantic_failure",
+        params: { severity: "error" },
+        outcome: "failed",
+        agent_id: "__engine__",
+        persona_label: "expression_invariant"
+      }
+    ],
+    agents: [],
+    summary: { agents_active: 0, agents_liquidated: 0, agents_depleted: 0 },
+    simulation_boundaries: []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+
+  assert.deepEqual(extractInvariantFires(result), [
+    { name: "semantic_failure", tick: 3 }
+  ]);
+});
+
+test("extractInvariantFires: falls back to expression invariant summary rows", () => {
+  const result = {
+    run_config: {},
+    seed: 0,
+    total_ticks: 0,
+    timeseries: [],
+    events: [],
+    agents: [],
+    summary: {
+      agents_active: 0,
+      agents_liquidated: 0,
+      agents_depleted: 0,
+      expression_invariants: [
+        {
+          name: "warn_only",
+          expr: "x < y",
+          severity: "warn",
+          first_tick: 0,
+          firing_count: 1,
+          observed: [{ tick: 0, values: {} }]
+        },
+        {
+          name: "semantic_failure",
+          expr: "x < y",
+          severity: "error",
+          first_tick: 4,
+          firing_count: 2,
+          observed: [{ tick: 4, values: {} }]
+        }
+      ]
+    },
+    simulation_boundaries: []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+
+  assert.deepEqual(extractInvariantFires(result), [
+    { name: "semantic_failure", tick: 4 }
+  ]);
+});
+
 // --- per-scenario adapter resolution (R9.1) ---
 
 test("resolveAdapterForScenario: --adapter override wins every other branch", async () => {

@@ -683,6 +683,9 @@ where
         events,
         agents: agent_finals,
         summary,
+        semantics: semantics
+            .as_ref()
+            .and_then(crate::types::Semantics::from_adapter),
         simulation_boundaries,
     })
 }
@@ -832,7 +835,7 @@ where
         simulation_boundaries,
         invariants,
         scheduled_actions,
-        semantics: _,
+        semantics,
     } = params;
 
     if harness.agent_count() != agent_personas.len() {
@@ -1018,6 +1021,9 @@ where
         events,
         agents: agent_finals,
         summary,
+        semantics: semantics
+            .as_ref()
+            .and_then(crate::types::Semantics::from_adapter),
         simulation_boundaries,
     })
 }

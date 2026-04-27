@@ -123,15 +123,36 @@ pub fn build_expression_invariants_summary(
                 "severity".into(),
                 serde_json::Value::from(invariant.severity.as_str()),
             );
+            let firing_count = matching.len() as u64;
+            let first_tick_value = first_tick
+                .map(serde_json::Value::from)
+                .unwrap_or(serde_json::Value::Null);
+            entry.insert("firing_count".into(), serde_json::Value::from(firing_count));
+            entry.insert("firings".into(), serde_json::Value::from(firing_count));
+            entry.insert("first_tick".into(), first_tick_value.clone());
+            entry.insert("first_fired_tick".into(), first_tick_value);
             entry.insert(
-                "firings".into(),
-                serde_json::Value::from(matching.len() as u64),
-            );
-            entry.insert(
-                "first_fired_tick".into(),
-                first_tick
-                    .map(serde_json::Value::from)
-                    .unwrap_or(serde_json::Value::Null),
+                "observed".into(),
+                serde_json::Value::Array(
+                    matching
+                        .iter()
+                        .take(3)
+                        .map(|fire| {
+                            let mut observed = serde_json::Map::new();
+                            observed.insert("tick".into(), serde_json::Value::from(fire.tick));
+                            observed.insert(
+                                "values".into(),
+                                serde_json::Value::Object(
+                                    fire.observed
+                                        .iter()
+                                        .map(|(key, value)| (key.clone(), value.to_json()))
+                                        .collect(),
+                                ),
+                            );
+                            serde_json::Value::Object(observed)
+                        })
+                        .collect(),
+                ),
             );
             serde_json::Value::Object(entry)
         })

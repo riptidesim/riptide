@@ -120,6 +120,7 @@ pub struct PackEmission {
 pub fn canonical_hash(result: &SimulationResult) -> String {
     let mut canonical = result.clone();
     canonical.run_config.output_path = "__canonical__".to_string();
+    canonical.semantics = None;
     canonical.summary.remove("expression_invariants");
     for tick in &mut canonical.timeseries {
         tick.remove("derived_observations");
@@ -739,6 +740,7 @@ mod tests {
                     "agents_active".into(),
                     serde_json::Value::from(1),
                 )]),
+                semantics: None,
                 simulation_boundaries: vec![],
             }
         }
@@ -753,6 +755,17 @@ mod tests {
             "expression_invariants".into(),
             serde_json::json!([{"name": "ltv_below_max", "severity": "warn", "firings": 1}]),
         );
+        observed.semantics = Some(crate::types::Semantics {
+            class: "lending.v1".into(),
+            roles_bound: vec![crate::types::RoleBinding {
+                role_name: "position".into(),
+                source: "account.position".into(),
+            }],
+            derived_observation_definitions: vec![crate::types::DerivedObservationDefinition {
+                name: "health_factor".into(),
+                expr: "collateral_value / max(debt_value, 1)".into(),
+            }],
+        });
 
         assert_eq!(
             canonical_hash(&base),

@@ -1,4 +1,5 @@
 import type {
+  ExpressionInvariantRow,
   InvariantFiredRow,
   SimEvent,
   SimulationResult,
@@ -26,6 +27,7 @@ export type CoverageCheckName =
   | "event_stream"
   | "state_movement"
   | "invariant_inventory"
+  | "semantics_evaluated"
   | "agent_roster"
   | "artifact_readability";
 
@@ -72,8 +74,10 @@ export interface InterpretScenarioInput {
 
 interface InvariantObservation {
   count: number;
+  errorExpressionCount: number;
   fires: InvariantFire[];
   firingRows: InvariantFiredRow[];
+  expressionFiringRows: ExpressionInvariantRow[];
 }
 
 export function interpretScenarioResult(input: InterpretScenarioInput): RunInterpretation {
@@ -97,7 +101,11 @@ export function interpretScenarioResult(input: InterpretScenarioInput): RunInter
   const invariantObservation = observeInvariantFires(input.record, result);
   const coverageChecks = buildCoverageChecks(input, result, invariantObservation);
   const coverage = classifyCoverage(coverageChecks, invariantObservation);
-  const verdict = classifyVerdict(coverage, invariantObservation.count);
+  const verdict = classifyVerdict(
+    coverage,
+    invariantObservation.count,
+    invariantObservation.errorExpressionCount
+  );
   const confidence = classifyConfidence(verdict, coverage, coverageChecks);
   const severity = classifySeverity(verdict);
   const evidence = buildEvidence(input, result, invariantObservation);
@@ -143,7 +151,7 @@ function buildCoverageChecks(
   result: SimulationResult,
   invariantObservation: InvariantObservation
 ): CoverageCheck[] {
-  return [
+  const checks: CoverageCheck[] = [
     checkTickProgression(input, result),
     checkEventStream(result),
     checkStateMovement(input, result),
@@ -151,6 +159,10 @@ function buildCoverageChecks(
     checkAgentRoster(result),
     checkArtifactReadability(input)
   ];
+  if (result.semantics) {
+    checks.push(checkSemanticsEvaluated(result));
+  }
+  return checks;
 }
 
 function checkTickProgression(
@@ -366,6 +378,30 @@ function checkAgentRoster(result: SimulationResult): CoverageCheck {
   };
 }
 
+function checkSemanticsEvaluated(result: SimulationResult): CoverageCheck {
+  const evaluated = result.timeseries.some((snapshot) => {
+    const derived = (snapshot as Record<string, unknown>).derived_observations;
+    return (
+      derived !== null &&
+      typeof derived === "object" &&
+      !Array.isArray(derived) &&
+      Object.keys(derived).length > 0
+    );
+  });
+  if (evaluated) {
+    return {
+      name: "semantics_evaluated",
+      status: "pass",
+      detail: "derived observations computed for at least one tick"
+    };
+  }
+  return {
+    name: "semantics_evaluated",
+    status: "fail",
+    detail: "semantics block present but no derived observations were computed"
+  };
+}
+
 function checkArtifactReadability(input: InterpretScenarioInput): CoverageCheck {
   if (!input.record.artifacts_dir) {
     return {
@@ -428,8 +464,13 @@ function classifyCoverage(
   return "exercised";
 }
 
-function classifyVerdict(coverage: Coverage, invariantFireCount: number): Verdict {
+function classifyVerdict(
+  coverage: Coverage,
+  invariantFireCount: number,
+  errorExpressionInvariantFireCount: number
+): Verdict {
   if (coverage === "unknown") return "setup-error";
+  if (errorExpressionInvariantFireCount > 0) return "failure-observed";
   if (coverage === "unexercised") return "inconclusive";
   if (invariantFireCount > 0) return "failure-observed";
   return "no-failure-observed";
@@ -500,6 +541,12 @@ function buildEvidence(
       `invariant rollup: ${row.name} fired ${row.firings} time${row.firings === 1 ? "" : "s"}`
     );
   }
+  for (const row of invariantObservation.expressionFiringRows) {
+    const count = expressionInvariantFiringCount(row);
+    evidence.push(
+      `expression invariant rollup: ${row.name} fired ${count} time${count === 1 ? "" : "s"} at severity ${row.severity}`
+    );
+  }
   evidence.push(`${result.events.length} event${result.events.length === 1 ? "" : "s"} recorded`);
   evidence.push(`${result.timeseries.length} timeseries snapshot${result.timeseries.length === 1 ? "" : "s"} recorded`);
   evidence.push(`${result.agents.length} final agent record${result.agents.length === 1 ? "" : "s"} recorded`);
@@ -539,6 +586,7 @@ function observeInvariantFires(
 ): InvariantObservation {
   const byKey = new Set<string>();
   const fires: InvariantFire[] = [];
+  let expressionEventCount = 0;
   for (const fire of record.invariant_fires) {
     const key = `${fire.name}@${fire.tick}`;
     if (byKey.has(key)) continue;
@@ -548,19 +596,33 @@ function observeInvariantFires(
 
   for (const event of result.events) {
     const name = invariantNameFromEvent(event);
-    if (!name) continue;
-    const key = `${name}@${event.tick}`;
+    const expressionName = expressionInvariantNameFromEvent(event);
+    if (!name && !expressionName) continue;
+    if (expressionName && expressionInvariantEventSeverity(event) !== "error") continue;
+    const keyName = name ?? expressionName!;
+    const key = `${keyName}@${event.tick}`;
     if (byKey.has(key)) continue;
     byKey.add(key);
-    fires.push({ name, tick: event.tick });
+    fires.push({ name: keyName, tick: event.tick });
+    if (expressionName) expressionEventCount += 1;
   }
 
   const firingRows = invariantRows(result).filter((row) => row.firings > 0);
   const rowFireCount = firingRows.reduce((acc, row) => acc + row.firings, 0);
+  const expressionFiringRows = expressionInvariantRows(result).filter(
+    (row) => row.severity === "error" && expressionInvariantFiringCount(row) > 0
+  );
+  const expressionRowFireCount = expressionFiringRows.reduce(
+    (acc, row) => acc + expressionInvariantFiringCount(row),
+    0
+  );
   return {
-    count: fires.length > 0 ? fires.length : rowFireCount,
+    count: fires.length > 0 ? fires.length : rowFireCount + expressionRowFireCount,
+    errorExpressionCount:
+      expressionEventCount > 0 ? expressionEventCount : expressionRowFireCount,
     fires,
-    firingRows
+    firingRows,
+    expressionFiringRows
   };
 }
 
@@ -584,10 +646,46 @@ function isInvariantFiredRow(value: unknown): value is InvariantFiredRow {
   );
 }
 
+function expressionInvariantRows(result: SimulationResult): ExpressionInvariantRow[] {
+  const value = result.summary["expression_invariants"];
+  if (!Array.isArray(value)) return [];
+  return value.filter(isExpressionInvariantRow);
+}
+
+function isExpressionInvariantRow(value: unknown): value is ExpressionInvariantRow {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.name === "string" &&
+    typeof row.expr === "string" &&
+    (row.severity === "error" || row.severity === "warn") &&
+    (typeof row.first_tick === "number" || row.first_tick === null) &&
+    typeof row.firing_count === "number" &&
+    Number.isInteger(row.firing_count) &&
+    row.firing_count >= 0 &&
+    Array.isArray(row.observed)
+  );
+}
+
+function expressionInvariantFiringCount(row: ExpressionInvariantRow): number {
+  return row.firing_count ?? row.firings ?? 0;
+}
+
 function invariantNameFromEvent(event: SimEvent): string | null {
   if (event.persona_id !== "invariant") return null;
   if (!event.action.startsWith("invariant_violation:")) return null;
   return event.action.slice("invariant_violation:".length);
+}
+
+function expressionInvariantNameFromEvent(event: SimEvent): string | null {
+  if (event.persona_id !== "expression_invariant") return null;
+  if (!event.action.startsWith("expression_invariant_fire:")) return null;
+  return event.action.slice("expression_invariant_fire:".length);
+}
+
+function expressionInvariantEventSeverity(event: SimEvent): string | null {
+  const severity = event.params["severity"];
+  return typeof severity === "string" ? severity : null;
 }
 
 function maxObservedTick(result: SimulationResult): number {
@@ -605,9 +703,10 @@ function maxObservedTick(result: SimulationResult): number {
 
 function isScenarioEvent(result: SimulationResult, event: SimEvent): boolean {
   if (invariantNameFromEvent(event)) return false;
+  if (expressionInvariantNameFromEvent(event)) return false;
   if (isReplayRun(result)) return event.persona_id !== "invariant";
   if (event.agent_id === "__engine__" || event.persona_id === "__engine__") return false;
-  return event.persona_id !== "invariant";
+  return event.persona_id !== "invariant" && event.persona_id !== "expression_invariant";
 }
 
 function findNumericTimeseriesMovement(timeseries: TickSnapshot[]): string | null {

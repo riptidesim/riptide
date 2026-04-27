@@ -1,7 +1,11 @@
 import chalk from "chalk";
 import Table from "cli-table3";
 
-import type { InvariantFiredRow, SimulationResult } from "../compiler/schema.js";
+import type {
+  ExpressionInvariantRow,
+  InvariantFiredRow,
+  SimulationResult
+} from "../compiler/schema.js";
 
 // Both `summary` and `timeseries[i]` are primitive-agnostic key/value
 // maps. Lending runs still emit their historical keys; generic runs
@@ -16,9 +20,16 @@ import type { InvariantFiredRow, SimulationResult } from "../compiler/schema.js"
 // being collapsed via `String(value)` (which would produce
 // `[object Object],[object Object],...`).
 
-type SummaryCell = number | boolean | string | null | InvariantFiredRow[];
+type SummaryCell =
+  | number
+  | boolean
+  | string
+  | null
+  | InvariantFiredRow[]
+  | ExpressionInvariantRow[];
 
 const INVARIANTS_FIRED_KEY = "invariants_fired";
+const EXPRESSION_INVARIANTS_KEY = "expression_invariants";
 
 function isInvariantFiredArray(value: unknown): value is InvariantFiredRow[] {
   if (!Array.isArray(value)) return false;
@@ -30,6 +41,20 @@ function isInvariantFiredArray(value: unknown): value is InvariantFiredRow[] {
       typeof (row as { field?: unknown }).field === "string" &&
       typeof (row as { op?: unknown }).op === "string" &&
       typeof (row as { firings?: unknown }).firings === "number"
+  );
+}
+
+function isExpressionInvariantArray(value: unknown): value is ExpressionInvariantRow[] {
+  if (!Array.isArray(value)) return false;
+  return value.every(
+    (row) =>
+      row !== null &&
+      typeof row === "object" &&
+      typeof (row as { name?: unknown }).name === "string" &&
+      typeof (row as { expr?: unknown }).expr === "string" &&
+      typeof (row as { severity?: unknown }).severity === "string" &&
+      typeof (row as { firing_count?: unknown }).firing_count === "number" &&
+      Array.isArray((row as { observed?: unknown }).observed)
   );
 }
 
@@ -124,6 +149,12 @@ function formatCell(value: SummaryCell): string {
     }
     return `${totalFirings} firing(s) across [${firedNames.join(", ")}]`;
   }
+  if (isExpressionInvariantArray(value)) {
+    const fired = value.filter((row) => expressionInvariantFiringCount(row) > 0);
+    if (fired.length === 0) return `${value.length} declared, 0 fires`;
+    const total = fired.reduce((sum, row) => sum + expressionInvariantFiringCount(row), 0);
+    return `${total} fire(s) across [${fired.map((row) => row.name).join(", ")}]`;
+  }
   // Defensive fallback — should be unreachable now that every concrete
   // SummaryCell variant is named above. Avoid `String(value)` so an
   // unknown shape never collapses to `[object Object]`.
@@ -160,6 +191,80 @@ export function renderInvariantsFiredBlock(rows: InvariantFiredRow[], colorize: 
     }
     const colored = row.firings > 0 ? chalk.red(fireSuffix) : chalk.green(fireSuffix);
     lines.push(`  - ${tag} (${colored})`);
+  }
+  return lines.join("\n");
+}
+
+function expressionInvariantFiringCount(row: ExpressionInvariantRow): number {
+  return row.firing_count ?? row.firings ?? 0;
+}
+
+function expressionInvariantFirstTick(row: ExpressionInvariantRow): number | null {
+  return row.first_tick ?? row.first_fired_tick ?? null;
+}
+
+function formatPrimitive(value: unknown): string {
+  if (typeof value === "number") return Number.isInteger(value) ? value.toString() : value.toFixed(4);
+  if (typeof value === "string") return sanitizeStringCell(value);
+  if (typeof value === "boolean") return String(value);
+  if (value === null) return "null";
+  return JSON.stringify(value);
+}
+
+function formatObservedValues(row: ExpressionInvariantRow): string {
+  if (row.observed.length === 0) return "observed: (none)";
+  const snapshots = row.observed.map((snapshot) => {
+    const values = Object.entries(snapshot.values)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => `${sanitizeKey(key)}=${formatPrimitive(value)}`)
+      .join(", ");
+    return `T${snapshot.tick} {${values}}`;
+  });
+  return `observed: ${snapshots.join("; ")}`;
+}
+
+function expressionInvariantRows(result: SimulationResult): ExpressionInvariantRow[] {
+  const value = (result.summary as Record<string, unknown>)[EXPRESSION_INVARIANTS_KEY];
+  return isExpressionInvariantArray(value) ? value : [];
+}
+
+function renderSemanticsSection(result: SimulationResult, colorize: boolean): string | null {
+  if (!result.semantics) return null;
+  const semantics = result.semantics;
+  const lines: string[] = [];
+  lines.push(colorize ? chalk.bold("Semantics:") : "Semantics:");
+  lines.push(`  Class: ${sanitizeStringCell(semantics.class)}`);
+  lines.push("  Roles bound:");
+  for (const role of semantics.roles_bound) {
+    lines.push(
+      `    - ${sanitizeKey(role.role_name)}: ${sanitizeStringCell(role.source)}`
+    );
+  }
+  const definitions = semantics.derived_observation_definitions;
+  const sample = definitions
+    .slice(0, 3)
+    .map((definition) => sanitizeKey(definition.name))
+    .join(", ");
+  const sampleSuffix = sample.length > 0 ? ` (${sample})` : "";
+  lines.push(`  Derived observations: ${definitions.length} defined${sampleSuffix}`);
+
+  const firedRows = expressionInvariantRows(result).filter(
+    (row) => expressionInvariantFiringCount(row) > 0
+  );
+  if (firedRows.length === 0) {
+    lines.push("  Expression invariant fires: none");
+    return lines.join("\n");
+  }
+  lines.push("  Expression invariant fires:");
+  for (const row of firedRows) {
+    const fireCount = expressionInvariantFiringCount(row);
+    const firstTick = expressionInvariantFirstTick(row);
+    const firstTickLabel = firstTick === null ? "none" : `T${firstTick}`;
+    lines.push(
+      `    - ${sanitizeKey(row.name)} [${sanitizeStringCell(row.severity)}] ` +
+        `${sanitizeStringCell(row.expr)}; first tick: ${firstTickLabel}; ` +
+        `fires: ${fireCount}; ${formatObservedValues(row)}`
+    );
   }
   return lines.join("\n");
 }
@@ -224,6 +329,7 @@ export function renderSummary(result: SimulationResult): string {
     ...LENDING_KEY_LABELS.map(([key]) => key),
     ...LIFECYCLE_KEYS,
     INVARIANTS_FIRED_KEY,
+    EXPRESSION_INVARIANTS_KEY,
   ]);
   const extraKeys = Object.keys(summary)
     .filter((key) => !handled.has(key))
@@ -242,6 +348,11 @@ export function renderSummary(result: SimulationResult): string {
   const invariantsCell = (summary as Record<string, unknown>)[INVARIANTS_FIRED_KEY];
   if (isInvariantFiredArray(invariantsCell)) {
     lines.push(renderInvariantsFiredBlock(invariantsCell, true));
+  }
+
+  const semanticsSection = renderSemanticsSection(result, true);
+  if (semanticsSection) {
+    lines.push(semanticsSection);
   }
 
   lines.push("Simulation Boundaries:");
@@ -324,6 +435,7 @@ export function renderColoredTable(result: SimulationResult): string {
     ...LENDING_KEY_LABELS.map(([key]) => key),
     ...LIFECYCLE_KEYS,
     INVARIANTS_FIRED_KEY,
+    EXPRESSION_INVARIANTS_KEY,
   ]);
   const extraKeys = Object.keys(summaryRecord)
     .filter((key) => !handled.has(key))
@@ -349,6 +461,38 @@ export function renderColoredTable(result: SimulationResult): string {
         fired ? chalk.red(valueCell) : chalk.green(valueCell),
       ]);
     }
+  }
+
+  if (result.semantics) {
+    table.push(["Semantics class", sanitizeStringCell(result.semantics.class)]);
+    table.push([
+      "Roles bound",
+      result.semantics.roles_bound
+        .map((role) => `${sanitizeKey(role.role_name)}=${sanitizeStringCell(role.source)}`)
+        .join(", ")
+    ]);
+    table.push([
+      "Derived observations",
+      `${result.semantics.derived_observation_definitions.length} defined${result.semantics.derived_observation_definitions.length > 0 ? ` (${result.semantics.derived_observation_definitions
+        .slice(0, 3)
+        .map((definition) => sanitizeKey(definition.name))
+        .join(", ")})` : ""}`
+    ]);
+    const firedRows = expressionInvariantRows(result).filter(
+      (row) => expressionInvariantFiringCount(row) > 0
+    );
+    table.push([
+      "Expression invariant fires",
+      firedRows.length === 0
+        ? "none"
+        : firedRows
+            .map((row) => {
+              const firstTick = expressionInvariantFirstTick(row);
+              const firstTickLabel = firstTick === null ? "none" : `T${firstTick}`;
+              return `${sanitizeKey(row.name)} [${sanitizeStringCell(row.severity)}] ${sanitizeStringCell(row.expr)}; first tick: ${firstTickLabel}; fires: ${expressionInvariantFiringCount(row)}; ${formatObservedValues(row)}`;
+            })
+            .join(" | ")
+    ]);
   }
 
   // Invariant violations in events

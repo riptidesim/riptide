@@ -175,6 +175,96 @@ test("classifies clean exercised runs as no failure observed", () => {
   assertNoForbiddenInterpretationText(interpretation);
 });
 
+test("warn expression invariant fires do not change verdict and report semantics coverage", () => {
+  const result = baseResult({
+    timeseries: [
+      {
+        tick: 0,
+        active_agents: 2,
+        tvl: 100,
+        utilization: 0.1,
+        derived_observations: { debt_value: 800 }
+      },
+      {
+        tick: 4,
+        active_agents: 2,
+        tvl: 125,
+        utilization: 0.2,
+        derived_observations: { debt_value: 800 }
+      }
+    ],
+    summary: {
+      expression_invariants: [
+        {
+          name: "ltv_below_max",
+          expr: "debt_value <= max_borrow_value",
+          severity: "warn",
+          first_tick: 0,
+          firing_count: 1,
+          observed: [{ tick: 0, values: { debt_value: 800, max_borrow_value: 700 } }]
+        }
+      ]
+    }
+  });
+  (result as { semantics: unknown }).semantics = {
+    class: "lending.v1",
+    roles_bound: [{ role_name: "position", source: "instruction.deposit_or_borrow" }],
+    derived_observation_definitions: [{ name: "debt_value", expr: "position.debt_amount" }]
+  };
+
+  const interpretation = interpret(baseRecord(), result);
+
+  assert.equal(interpretation.verdict, "no-failure-observed");
+  assert.equal(checkStatus(interpretation, "semantics_evaluated"), "pass");
+  assertNoForbiddenInterpretationText(interpretation);
+});
+
+test("error expression invariant fires produce failure-observed verdict", () => {
+  const result = baseResult({
+    timeseries: [
+      {
+        tick: 0,
+        active_agents: 2,
+        tvl: 100,
+        utilization: 0.1,
+        derived_observations: { debt_value: 800 }
+      },
+      {
+        tick: 4,
+        active_agents: 2,
+        tvl: 125,
+        utilization: 0.2,
+        derived_observations: { debt_value: 800 }
+      }
+    ],
+    summary: {
+      expression_invariants: [
+        {
+          name: "ltv_below_max",
+          expr: "debt_value <= max_borrow_value",
+          severity: "error",
+          first_tick: 0,
+          firing_count: 1,
+          observed: [{ tick: 0, values: { debt_value: 800, max_borrow_value: 700 } }]
+        }
+      ]
+    }
+  });
+  (result as { semantics: unknown }).semantics = {
+    class: "lending.v1",
+    roles_bound: [{ role_name: "position", source: "instruction.deposit_or_borrow" }],
+    derived_observation_definitions: [{ name: "debt_value", expr: "position.debt_amount" }]
+  };
+
+  const interpretation = interpret(baseRecord(), result);
+
+  assert.equal(interpretation.verdict, "failure-observed");
+  assert.equal(interpretation.confidence, "high");
+  assert.equal(checkStatus(interpretation, "semantics_evaluated"), "pass");
+  assert.match(interpretation.evidence.join("\n"), /expression invariant rollup: ltv_below_max fired 1 time at severity error/);
+  assertNoForbiddenInterpretationText(interpretation);
+});
+
 test("classifies populated summaries with no events and no state delta as inconclusive", () => {
   const result = baseResult({
     events: [],

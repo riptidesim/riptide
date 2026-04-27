@@ -388,6 +388,7 @@ fn rerun_sh_rejects_shell_metacharacter_injection() {
         events: Vec::new(),
         agents: Vec::new(),
         summary: Default::default(),
+        semantics: None,
         simulation_boundaries: Vec::new(),
     };
 

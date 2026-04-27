@@ -449,6 +449,61 @@ test("renderSummary excludes invariants_fired from the fallback metrics table", 
   assert.match(rendered, /Invariants:/);
 });
 
+test("renderSummary renders Semantics section for semantics-bearing results", () => {
+  const result = baseResult({
+    agents_active: 1,
+    agents_liquidated: 0,
+    agents_depleted: 0,
+    final_tvl: 1000
+  });
+  (result as { semantics: unknown }).semantics = {
+    class: "lending.v1",
+    roles_bound: [
+      { role_name: "position", source: "instruction.deposit_or_borrow" },
+      { role_name: "reserve", source: "account.reserve" }
+    ],
+    derived_observation_definitions: [
+      { name: "collateral_value", expr: "position.collateral_amount * reserve.collateral_price" },
+      { name: "debt_value", expr: "position.debt_amount" },
+      { name: "max_borrow_value", expr: "collateral_value * reserve.max_ltv_bps / 10000" },
+      { name: "health_factor", expr: "liquidation_threshold_value / max(debt_value, 1)" }
+    ]
+  };
+  (result as { summary: Record<string, unknown> }).summary.expression_invariants = [
+    {
+      name: "ltv_below_max",
+      expr: "debt_value <= max_borrow_value",
+      severity: "warn",
+      first_tick: 0,
+      firing_count: 2,
+      observed: [
+        { tick: 0, values: { debt_value: 800, max_borrow_value: 700 } },
+        { tick: 1, values: { debt_value: 800, max_borrow_value: 700 } }
+      ]
+    }
+  ];
+
+  const rendered = renderSummary(result);
+  assert.doesNotMatch(rendered, /\[object Object\]/);
+  assert.match(rendered, /Semantics:/);
+  assert.match(rendered, /Class: lending\.v1/);
+  assert.match(rendered, /position: instruction\.deposit_or_borrow/);
+  assert.match(rendered, /Derived observations: 4 defined \(collateral_value, debt_value, max_borrow_value\)/);
+  assert.match(rendered, /ltv_below_max \[warn\] debt_value <= max_borrow_value/);
+  assert.match(rendered, /T0 \{debt_value=800, max_borrow_value=700\}/);
+});
+
+test("renderSummary omits Semantics section for legacy results", () => {
+  const rendered = renderSummary(
+    baseResult({
+      agents_active: 1,
+      agents_liquidated: 0,
+      agents_depleted: 0
+    })
+  );
+  assert.doesNotMatch(rendered, /Semantics:/);
+});
+
 test("renderColoredTable renders structured invariants_fired rows (no [object Object])", () => {
   const result = baseResult({
     agents_active: 3,
