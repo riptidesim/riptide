@@ -33,6 +33,9 @@ pub fn decode_program_error(
     registry: &[ProgramErrorEntry],
     detail: Option<&str>,
 ) -> Option<DecodedProgramError> {
+    if registry.is_empty() {
+        return None;
+    }
     let code = extract_custom_code(detail?)?;
     Some(
         registry
@@ -127,9 +130,21 @@ mod tests {
 
     #[test]
     fn falls_back_to_code_only_for_unknown_custom_code() {
-        let decoded = decode_program_error(&[], Some("InstructionError(0, Custom(42))")).unwrap();
+        let entries = vec![ProgramErrorEntry {
+            code: 8,
+            label: "insufficient_collateral".into(),
+            interpretation: "Borrow or withdraw exceeded collateral constraints.".into(),
+        }];
+        let decoded =
+            decode_program_error(&entries, Some("InstructionError(0, Custom(42))")).unwrap();
         assert_eq!(decoded.code, 42);
         assert_eq!(decoded.label, None);
         assert_eq!(decoded.interpretation, None);
+    }
+
+    #[test]
+    fn leaves_legacy_adapter_without_registry_unchanged() {
+        let decoded = decode_program_error(&[], Some("InstructionError(0, Custom(42))"));
+        assert_eq!(decoded, None);
     }
 }

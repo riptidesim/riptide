@@ -31,7 +31,23 @@ interpretation = "Borrow or withdraw exceeded the position collateral constraint
 
 #[test]
 fn unknown_custom_program_error_falls_back_to_code_only() {
-    let decoded = decode_program_error(&[], Some("InstructionError(0, Custom(99))"))
+    let toml = r#"
+protocol = "lending"
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+
+[[errors]]
+code = 8
+label = "insufficient_collateral"
+interpretation = "Borrow or withdraw exceeded the position collateral constraint."
+"#;
+
+    let adapter = parse_adapter_str(toml, "errors.toml").expect("adapter parses");
+    let decoded = decode_program_error(&adapter.errors, Some("InstructionError(0, Custom(99))"))
         .expect("custom code is extracted");
     assert_eq!(decoded.code, 99);
     assert_eq!(decoded.label, None);
