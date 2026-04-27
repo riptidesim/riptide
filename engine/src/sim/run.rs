@@ -10,7 +10,8 @@ use serde_json::Value;
 use super::harness::{Harness, HarnessError, PositionObservation};
 use crate::{
     adapter::{
-        Invariant, ScheduledAction, SemanticInvariantSeverity, SemanticSourceBinding, Semantics,
+        decode_program_error, Invariant, ProgramErrorEntry, ScheduledAction,
+        SemanticInvariantSeverity, SemanticSourceBinding, Semantics,
     },
     agent::{policy::RuntimeAction, state::Agent, AgentRuntime},
     scenario::Scenario,
@@ -23,8 +24,8 @@ use crate::{
         roles::{bind_lending_v1_roles, RoleBindingContext},
     },
     types::{
-        AgentStatus, InvariantViolation, Policy, RunConfig, SimEvent, SimOutcome, SimulationResult,
-        SimulationSummary, TickSnapshot,
+        AgentStatus, InvariantViolation, Policy, ProgramErrorInfo, RunConfig, SimEvent, SimOutcome,
+        SimulationResult, SimulationSummary, TickSnapshot,
     },
 };
 
@@ -68,6 +69,8 @@ pub struct SimulationParams<'a> {
     /// per-tick derived observations and expression-invariant summary rows.
     #[doc(hidden)]
     pub semantics: Option<Semantics>,
+    #[doc(hidden)]
+    pub errors: Vec<ProgramErrorEntry>,
 }
 
 impl<'a> SimulationParams<'a> {
@@ -94,6 +97,7 @@ impl<'a> SimulationParams<'a> {
             invariants: Vec::new(),
             scheduled_actions: Vec::new(),
             semantics: None,
+            errors: Vec::new(),
         }
     }
 }
@@ -221,6 +225,7 @@ where
         invariants,
         scheduled_actions,
         semantics,
+        errors,
     } = params;
 
     if harness.agent_count() != agent_personas.len() {
@@ -574,6 +579,7 @@ where
                 _ => Some(idx),
             };
 
+            let program_error = program_error_info(&errors, detail.as_deref());
             events.push(SimEvent {
                 tick,
                 agent_id: agents[idx].agent_id.clone(),
@@ -583,6 +589,7 @@ where
                 params: params_map,
                 outcome,
                 outcome_detail: detail,
+                program_error,
                 triggered_by: decision
                     .fired_triggers
                     .first()
@@ -836,6 +843,7 @@ where
         invariants,
         scheduled_actions,
         semantics,
+        errors,
     } = params;
 
     if harness.agent_count() != agent_personas.len() {
@@ -964,6 +972,7 @@ where
             let mut params_map: BTreeMap<String, Value> = BTreeMap::new();
             params_map.insert("amount".into(), Value::from(amount));
 
+            let program_error = program_error_info(&errors, detail.as_deref());
             events.push(SimEvent {
                 tick,
                 agent_id: agents[idx].agent_id.clone(),
@@ -973,6 +982,7 @@ where
                 params: params_map,
                 outcome,
                 outcome_detail: detail,
+                program_error,
                 triggered_by: decision
                     .fired_triggers
                     .first()
@@ -1128,6 +1138,7 @@ pub(crate) fn evaluate_invariants(
                             inv.op.as_str(),
                             inv.value
                         )),
+                        program_error: None,
                         triggered_by: None,
                     });
                 }
@@ -1264,8 +1275,20 @@ fn expression_invariant_event(fire: &ExpressionInvariantFire) -> SimEvent {
             fire.name,
             fire.severity.as_str()
         )),
+        program_error: None,
         triggered_by: None,
     }
+}
+
+pub(crate) fn program_error_info(
+    registry: &[ProgramErrorEntry],
+    detail: Option<&str>,
+) -> Option<ProgramErrorInfo> {
+    decode_program_error(registry, detail).map(|decoded| ProgramErrorInfo {
+        code: decoded.code,
+        label: decoded.label,
+        interpretation: decoded.interpretation,
+    })
 }
 
 /// Fire every scheduled action whose cadence lands on
@@ -1338,6 +1361,7 @@ fn dispatch_scheduled_actions<H: crate::primitive::Primitive + ?Sized>(
             params,
             outcome: SimOutcome::Success,
             outcome_detail: None,
+            program_error: None,
             triggered_by: None,
         });
         // Primitive-level hook — lets backends react to the firing
@@ -1449,6 +1473,7 @@ mod tests {
             invariants: Vec::new(),
             scheduled_actions: Vec::new(),
             semantics: None,
+            errors: Vec::new(),
         }
     }
 
@@ -1610,6 +1635,7 @@ mod tests {
             invariants: Vec::new(),
             scheduled_actions: Vec::new(),
             semantics: None,
+            errors: Vec::new(),
         };
         let result = run_simulation(&mut h, &mut scenario, params).unwrap();
         // Repaid amount on chain = min(10_000, 200) = 200; cash debit must
@@ -1664,6 +1690,7 @@ mod tests {
             invariants: Vec::new(),
             scheduled_actions: Vec::new(),
             semantics: None,
+            errors: Vec::new(),
         };
         let result = run_simulation(&mut h, &mut scenario, params).unwrap();
         // The liquidation was applied at the init observe (tick 0) — but the

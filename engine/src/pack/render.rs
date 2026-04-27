@@ -33,9 +33,7 @@ pub fn render_summary_md(result: &SimulationResult, manifest: &PackManifest) -> 
         .adapter
         .clone()
         .unwrap_or_else(|| "<no adapter>".into());
-    lines.push(format!(
-        "- **Adapter:** `{adapter_surface}`"
-    ));
+    lines.push(format!("- **Adapter:** `{adapter_surface}`"));
     lines.push(format!(
         "- **Scenario:** `{}` · `{}` · ticks={} · agents={}",
         manifest.kind, manifest.scenario, manifest.total_ticks, manifest.agents
@@ -73,7 +71,10 @@ pub fn render_trace_md(result: &SimulationResult, manifest: &PackManifest) -> St
     out.push_str(&format!("> {EVIDENCE_DISCLAIMER}\n\n"));
     out.push_str(&format!(
         "- **Adapter:** `{}`\n",
-        manifest.adapter.clone().unwrap_or_else(|| "<no adapter>".into())
+        manifest
+            .adapter
+            .clone()
+            .unwrap_or_else(|| "<no adapter>".into())
     ));
     out.push_str(&format!("- **Kind:** `{}`\n", manifest.kind));
     out.push_str(&format!("- **Total ticks:** {}\n", manifest.total_ticks));
@@ -91,7 +92,9 @@ pub fn render_trace_md(result: &SimulationResult, manifest: &PackManifest) -> St
 
     let rows = collect_trace_rows(result);
     if rows.is_empty() {
-        out.push_str("| — | — | _no invariant / bridge / scheduled / oracle events emitted_ | — |\n");
+        out.push_str(
+            "| — | — | _no invariant / bridge / scheduled / oracle events emitted_ | — |\n",
+        );
     } else {
         for row in &rows {
             out.push_str(&format!(
@@ -159,9 +162,11 @@ pub fn render_trace_md(result: &SimulationResult, manifest: &PackManifest) -> St
         out.push_str("|-----:|-----|------:|\n");
         let fired_ticks = collect_fired_ticks(result);
         for tick in &fired_ticks {
-            if let Some(snapshot) = result.timeseries.iter().find(|s| {
-                s.get("tick").and_then(|v| v.as_u64()) == Some(*tick as u64)
-            }) {
+            if let Some(snapshot) = result
+                .timeseries
+                .iter()
+                .find(|s| s.get("tick").and_then(|v| v.as_u64()) == Some(*tick as u64))
+            {
                 for field in &fired_fields {
                     if let Some(val) = snapshot.get(field) {
                         out.push_str(&format!(
@@ -193,11 +198,11 @@ pub fn render_rerun_sh(
     s.push_str("# Riptide — reviewer-ready rerun recipe.\n");
     s.push_str("#\n");
     s.push_str(&format!("# {EVIDENCE_DISCLAIMER}\n"));
-    s.push_str(
-        "# Regenerates the accompanying simulation-result.json from committed inputs.\n",
-    );
+    s.push_str("# Regenerates the accompanying simulation-result.json from committed inputs.\n");
     s.push_str("# Expects to be run from this file's directory or anywhere; it cds to the repo\n");
-    s.push_str("# root and then executes the documented invocation. POSIX sh only — no bashisms.\n");
+    s.push_str(
+        "# root and then executes the documented invocation. POSIX sh only — no bashisms.\n",
+    );
     s.push_str("set -eu\n");
     s.push_str("here=$(cd \"$(dirname \"$0\")\" && pwd)\n");
     s.push_str("cd \"$here/../../..\"\n");
@@ -254,19 +259,16 @@ fn default_rerun_command(
         (Some(cfg), Some(pol)) => {
             let cfg = posix_single_quote(cfg);
             let pol = posix_single_quote(pol);
-            format!(
-                "exec riptide-engine --config {cfg} --policies {pol} --output {out}"
-            )
+            format!("exec riptide-engine --config {cfg} --policies {pol} --output {out}")
         }
         (Some(cfg), None) => {
             let cfg = posix_single_quote(cfg);
             format!("exec riptide-engine --config {cfg} --output {out}")
         }
-        _ => {
-            "# No canonical config path was captured at emit time —\n\
+        _ => "# No canonical config path was captured at emit time —\n\
              # consult the parent directory for the original invocation.\n\
-             :".into()
-        }
+             :"
+        .into(),
     }
 }
 
@@ -326,10 +328,26 @@ fn trace_row_for_event(event: &SimEvent) -> Option<TraceRow> {
         let component = component_from_qualified(rest);
         let details = format!(
             "field=`{}` observed={} {} expected={}",
-            event.params.get("field").and_then(Value::as_str).unwrap_or("?"),
-            event.params.get("observed").map(json_number_str).unwrap_or_else(|| "?".into()),
-            event.params.get("op").and_then(Value::as_str).unwrap_or("?"),
-            event.params.get("expected").map(json_number_str).unwrap_or_else(|| "?".into()),
+            event
+                .params
+                .get("field")
+                .and_then(Value::as_str)
+                .unwrap_or("?"),
+            event
+                .params
+                .get("observed")
+                .map(json_number_str)
+                .unwrap_or_else(|| "?".into()),
+            event
+                .params
+                .get("op")
+                .and_then(Value::as_str)
+                .unwrap_or("?"),
+            event
+                .params
+                .get("expected")
+                .map(json_number_str)
+                .unwrap_or_else(|| "?".into()),
         );
         return Some(TraceRow {
             tick: event.tick,
@@ -540,16 +558,9 @@ fn invariant_status_line(manifest: &PackManifest) -> String {
     if manifest.invariant_firings.is_empty() {
         return "no declared invariants in this run".into();
     }
-    let total: u64 = manifest
-        .invariant_firings
-        .iter()
-        .map(|r| r.firings)
-        .sum();
+    let total: u64 = manifest.invariant_firings.iter().map(|r| r.firings).sum();
     if total == 0 {
-        return format!(
-            "{} declared · 0 firings",
-            manifest.invariant_firings.len()
-        );
+        return format!("{} declared · 0 firings", manifest.invariant_firings.len());
     }
     let mut parts: Vec<String> = Vec::with_capacity(manifest.invariant_firings.len());
     for row in &manifest.invariant_firings {

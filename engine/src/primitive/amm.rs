@@ -87,19 +87,11 @@ pub trait AmmPrimitive: Primitive {
     /// Deposit `amount_a` + the matching `amount_b` (computed by the
     /// impl from the current reserve ratio) and mint LP tokens to
     /// `agent_idx`.
-    fn add_liquidity(
-        &mut self,
-        agent_idx: usize,
-        amount_a: u64,
-    ) -> Result<(), PrimitiveError>;
+    fn add_liquidity(&mut self, agent_idx: usize, amount_a: u64) -> Result<(), PrimitiveError>;
 
     /// Burn `lp_amount` of `agent_idx`'s LP tokens and return the
     /// proportional share of both reserves.
-    fn remove_liquidity(
-        &mut self,
-        agent_idx: usize,
-        lp_amount: u64,
-    ) -> Result<(), PrimitiveError>;
+    fn remove_liquidity(&mut self, agent_idx: usize, lp_amount: u64) -> Result<(), PrimitiveError>;
 
     // --- Observations ---
 

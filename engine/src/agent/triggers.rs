@@ -76,7 +76,11 @@ pub fn evaluate_trigger(
         TriggerCondition::HealthFactorBelow { threshold } => {
             observation.health_factor(agent) <= threshold
         }
-        TriggerCondition::ObservationCompare { ref key, op, ref value } => observation
+        TriggerCondition::ObservationCompare {
+            ref key,
+            op,
+            ref value,
+        } => observation
             .custom_observations
             .get(key)
             .is_some_and(|observed| matches_observation_value(observed, op, value)),

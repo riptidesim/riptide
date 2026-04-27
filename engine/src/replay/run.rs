@@ -23,7 +23,7 @@ use crate::{
         roles::{instruction_source_matches, RoleBindingContext},
     },
     sim::run::{
-        apply_position_observation, build_invariants_summary, build_summary,
+        apply_position_observation, build_invariants_summary, build_summary, program_error_info,
         record_lending_tick_snapshot, record_tick_snapshot, SimulationAbort,
     },
     types::{
@@ -729,6 +729,7 @@ fn dispatch_replay_instruction<H: Primitive + ?Sized>(
         Err(PrimitiveError::ProgramRejected(msg)) => (SimOutcome::Failed, Some(msg)),
         Err(PrimitiveError::Infra(msg)) => return Err(SimulationAbort::Infra(msg)),
     };
+    let program_error = program_error_info(&adapter.errors, detail.as_deref());
 
     if matches!(outcome, SimOutcome::Success) {
         if let Some(agent) = agents.get_mut(agent_idx) {
@@ -746,6 +747,7 @@ fn dispatch_replay_instruction<H: Primitive + ?Sized>(
             params: replay_args_to_json(&instruction.args),
             outcome,
             outcome_detail: detail,
+            program_error,
             triggered_by: None,
         });
     }
@@ -804,8 +806,28 @@ mod tests {
 
     use crate::adapter::{
         schema::{ActionDefinition, Adapter, Protocol},
-        ArgLiteral,
+        ArgLiteral, ProgramErrorEntry,
     };
+
+    struct RejectingReplayHarness;
+
+    impl Primitive for RejectingReplayHarness {
+        fn agent_count(&self) -> usize {
+            1
+        }
+
+        fn execute_action(
+            &mut self,
+            _agent_idx: usize,
+            _action: &str,
+            _amount: u64,
+            _target_idx: Option<usize>,
+        ) -> Result<(), PrimitiveError> {
+            Err(PrimitiveError::ProgramRejected(
+                "InstructionError(0, Custom(8))".into(),
+            ))
+        }
+    }
 
     fn make_adapter(actions: &[(&str, &[&str])]) -> Adapter {
         let mut adapter = Adapter {
@@ -822,6 +844,7 @@ mod tests {
             scheduled_actions: Default::default(),
             invariants: Default::default(),
             semantics: None,
+            errors: Default::default(),
             lineage: None,
         };
         for (name, takes) in actions {
@@ -917,5 +940,44 @@ mod tests {
         let err =
             collect_instruction_actor_ids(&instruction, &adapter, &mut actor_ids).unwrap_err();
         assert!(err.to_string().contains("empty args.target"));
+    }
+
+    #[test]
+    fn replay_dispatch_decodes_program_error_event() {
+        let mut adapter = make_adapter(&[]);
+        adapter.errors.push(ProgramErrorEntry {
+            code: 8,
+            label: "insufficient_collateral".into(),
+            interpretation: "Borrow or withdraw exceeded the position collateral constraint."
+                .into(),
+        });
+        let instruction = make_instruction("borrow", "alice", None);
+        let actor_index = BTreeMap::from([("alice".to_string(), 0usize)]);
+        let mut harness = RejectingReplayHarness;
+        let mut agents = vec![Agent::new("alice", synthetic_replay_policy("alice"), 0.0)];
+        let mut events = Vec::new();
+
+        dispatch_replay_instruction(
+            &mut harness,
+            &adapter,
+            &instruction,
+            1,
+            &actor_index,
+            &mut agents,
+            Some(&mut events),
+        )
+        .expect("program rejection is captured as a failed event");
+
+        let event = events.first().expect("event emitted");
+        let program_error = event.program_error.as_ref().expect("program error decoded");
+        assert_eq!(program_error.code, 8);
+        assert_eq!(
+            program_error.label.as_deref(),
+            Some("insufficient_collateral")
+        );
+        assert_eq!(
+            program_error.interpretation.as_deref(),
+            Some("Borrow or withdraw exceeded the position collateral constraint.")
+        );
     }
 }

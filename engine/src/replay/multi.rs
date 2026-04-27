@@ -81,7 +81,9 @@ use solana_sdk::{
 use solana_transaction::{Transaction, TransactionError};
 
 use crate::{
-    adapter::{load_adapter, Adapter, ArgLiteral, Invariant, OracleKind, Protocol},
+    adapter::{
+        decode_program_error, load_adapter, Adapter, ArgLiteral, Invariant, OracleKind, Protocol,
+    },
     agent::state::Agent,
     harness::{
         lending::{LendingPoolConfig, LendingProgramClient},
@@ -101,8 +103,8 @@ use crate::{
     sim::run::{build_invariants_summary, evaluate_invariants, SimulationAbort},
     types::{
         AgentStatus, InvariantViolation, ObservationValue, Policy, PositionSizing,
-        PositionSizingStrategy, RunConfig, SimEvent, SimOutcome, SimulationResult, TickSnapshot,
-        Trigger,
+        PositionSizingStrategy, ProgramErrorInfo, RunConfig, SimEvent, SimOutcome,
+        SimulationResult, TickSnapshot, Trigger,
     },
 };
 
@@ -584,12 +586,8 @@ impl MultiComponentHarness {
     ) -> Result<(), PrimitiveError> {
         let component = &mut self.components[component_idx];
         match &mut component.runtime {
-            ComponentRuntime::Generic(state) => {
-                push_generic_oracle(&mut self.svm, state, update)
-            }
-            ComponentRuntime::Lending(state) => {
-                push_lending_oracle(&mut self.svm, state, update)
-            }
+            ComponentRuntime::Generic(state) => push_generic_oracle(&mut self.svm, state, update),
+            ComponentRuntime::Lending(state) => push_lending_oracle(&mut self.svm, state, update),
         }
     }
 
@@ -609,14 +607,7 @@ impl MultiComponentHarness {
                     ComponentRuntime::Generic(s) => s,
                     _ => unreachable!(),
                 };
-                execute_generic_replay(
-                    &mut self.svm,
-                    state_ptr,
-                    &adapter,
-                    agent_idx,
-                    action,
-                    args,
-                )
+                execute_generic_replay(&mut self.svm, state_ptr, &adapter, agent_idx, action, args)
             }
             ComponentRuntime::Lending(_) => {
                 let state_ptr = match &mut self.components[component_idx].runtime {
@@ -676,9 +667,7 @@ impl MultiComponentHarness {
             ComponentRuntime::Generic(state) => {
                 generic_snapshot_metrics(&self.svm, state, &component.adapter)
             }
-            ComponentRuntime::Lending(state) => {
-                lending_snapshot_metrics(&self.svm, state)
-            }
+            ComponentRuntime::Lending(state) => lending_snapshot_metrics(&self.svm, state),
         }
     }
 
@@ -704,32 +693,33 @@ impl MultiComponentHarness {
             .collect();
         let mut firings = Vec::with_capacity(matching.len());
         for bridge in matching {
-            let observation = read_qualified_observation(self, &bridge.source_component, &bridge.source_field)
-                .map_err(|e| SimulationAbort::BadInput(format!(
-                    "bridge `{}`: {e}",
-                    bridge.name
-                )))?;
-            let update = bridge.transform.apply(observation).map_err(|e| {
-                SimulationAbort::BadInput(format!("bridge `{}`: {e}", bridge.name))
-            })?;
-            let target_idx = self.component_index(&bridge.target_component).map_err(|e| {
-                SimulationAbort::BadInput(format!("bridge `{}`: {e}", bridge.name))
-            })?;
+            let observation =
+                read_qualified_observation(self, &bridge.source_component, &bridge.source_field)
+                    .map_err(|e| {
+                        SimulationAbort::BadInput(format!("bridge `{}`: {e}", bridge.name))
+                    })?;
+            let update = bridge
+                .transform
+                .apply(observation)
+                .map_err(|e| SimulationAbort::BadInput(format!("bridge `{}`: {e}", bridge.name)))?;
+            let target_idx = self
+                .component_index(&bridge.target_component)
+                .map_err(|e| SimulationAbort::BadInput(format!("bridge `{}`: {e}", bridge.name)))?;
             // Validate target_oracle names the bound oracle on the
             // target component — the bridge should not write to an
             // oracle the target adapter does not expose. For lending
             // components the harness owns exactly one oracle account,
             // so the name is advisory; for generic components the
             // adapter's `[[oracles]][0].name` must match.
-            validate_bridge_target_oracle(&self.components[target_idx], &bridge).map_err(
-                |e| SimulationAbort::BadInput(format!("bridge `{}`: {e}", bridge.name)),
-            )?;
-            self.push_oracle_price(target_idx, &update).map_err(|e| match e {
-                PrimitiveError::Infra(msg) => SimulationAbort::Infra(msg),
-                PrimitiveError::ProgramRejected(msg) => {
-                    SimulationAbort::Infra(format!("bridge oracle write rejected: {msg}"))
-                }
-            })?;
+            validate_bridge_target_oracle(&self.components[target_idx], &bridge)
+                .map_err(|e| SimulationAbort::BadInput(format!("bridge `{}`: {e}", bridge.name)))?;
+            self.push_oracle_price(target_idx, &update)
+                .map_err(|e| match e {
+                    PrimitiveError::Infra(msg) => SimulationAbort::Infra(msg),
+                    PrimitiveError::ProgramRejected(msg) => {
+                        SimulationAbort::Infra(format!("bridge oracle write rejected: {msg}"))
+                    }
+                })?;
             firings.push(BridgeFiring {
                 name: bridge.name.clone(),
                 source_component: bridge.source_component.clone(),
@@ -802,13 +792,13 @@ fn read_qualified_observation(
     let metrics = harness
         .snapshot_metrics(idx)
         .map_err(|e| anyhow!("{e:?}"))?;
-    let value = metrics
-        .get(field)
-        .ok_or_else(|| anyhow!(
+    let value = metrics.get(field).ok_or_else(|| {
+        anyhow!(
             "source field `{field}` missing from component `{component_name}` snapshot; \
              available keys: {available:?}",
             available = metrics.keys().collect::<Vec<_>>()
-        ))?;
+        )
+    })?;
     value_to_f64(value).ok_or_else(|| {
         anyhow!("source field `{field}` is non-numeric in component `{component_name}`")
     })
@@ -855,9 +845,8 @@ fn bootstrap_generic_component(
     let idl = load_generic_idl(&idl_path)?;
 
     let program_id = Pubkey::new_unique();
-    svm.add_program(program_id, &program_bytes).map_err(|e| {
-        anyhow!("failed to load generic program into shared LiteSVM: {e}")
-    })?;
+    svm.add_program(program_id, &program_bytes)
+        .map_err(|e| anyhow!("failed to load generic program into shared LiteSVM: {e}"))?;
 
     let per_identity_lamports: u64 = 10_000_000_000;
     let admin = Keypair::new();
@@ -986,12 +975,7 @@ fn execute_generic_replay(
         data,
     };
     let blockhash = svm.latest_blockhash();
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
-        Some(&payer.pubkey()),
-        &[&payer],
-        blockhash,
-    );
+    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], blockhash);
     match svm.send_transaction(tx) {
         Ok(_) => Ok(()),
         Err(err) => match err.err {
@@ -1231,10 +1215,20 @@ fn bootstrap_lending_component(
             starting_price_u64,
             starting_exponent,
         ),
-        client.initialize_pool(admin.pubkey(), pool_kp.pubkey(), oracle_kp.pubkey(), pool_config),
+        client.initialize_pool(
+            admin.pubkey(),
+            pool_kp.pubkey(),
+            oracle_kp.pubkey(),
+            pool_config,
+        ),
     ];
-    lending_send_tx(svm, &admin, create_and_init, &[&admin, &oracle_kp, &pool_kp])
-        .context("lending component oracle + pool init")?;
+    lending_send_tx(
+        svm,
+        &admin,
+        create_and_init,
+        &[&admin, &oracle_kp, &pool_kp],
+    )
+    .context("lending component oracle + pool init")?;
 
     let rent_position = svm.minimum_balance_for_rent_exemption(POSITION_STATE_LEN);
     let mut positions = Vec::with_capacity(agent_count);
@@ -1340,9 +1334,12 @@ fn execute_lending_replay(
     };
     let agent = state.agents[agent_idx].insecure_clone();
     let ix = match action {
-        "deposit" => state
-            .client
-            .deposit(agent.pubkey(), state.pool, state.positions[agent_idx], amount),
+        "deposit" => state.client.deposit(
+            agent.pubkey(),
+            state.pool,
+            state.positions[agent_idx],
+            amount,
+        ),
         "withdraw" => state.client.withdraw(
             agent.pubkey(),
             state.pool,
@@ -1357,9 +1354,12 @@ fn execute_lending_replay(
             state.oracle,
             amount,
         ),
-        "repay" => state
-            .client
-            .repay(agent.pubkey(), state.pool, state.positions[agent_idx], amount),
+        "repay" => state.client.repay(
+            agent.pubkey(),
+            state.pool,
+            state.positions[agent_idx],
+            amount,
+        ),
         "liquidate" => {
             let target = target_idx.ok_or_else(|| {
                 PrimitiveError::ProgramRejected(
@@ -1382,12 +1382,7 @@ fn execute_lending_replay(
         }
     };
     let blockhash = svm.latest_blockhash();
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
-        Some(&agent.pubkey()),
-        &[&agent],
-        blockhash,
-    );
+    let tx = Transaction::new_signed_with_payer(&[ix], Some(&agent.pubkey()), &[&agent], blockhash);
     match svm.send_transaction(tx) {
         Ok(_) => Ok(()),
         Err(err) => match err.err {
@@ -1491,9 +1486,15 @@ fn lending_summarize_metrics(
         (pool_state.total_borrows as f64) / (pool_state.total_deposits as f64)
     };
     let mut summary = BTreeMap::new();
-    summary.insert("final_tvl".into(), json_f64(pool_state.total_deposits as f64));
+    summary.insert(
+        "final_tvl".into(),
+        json_f64(pool_state.total_deposits as f64),
+    );
     summary.insert("final_utilization".into(), json_f64(utilization));
-    summary.insert("total_bad_debt".into(), json_f64(pool_state.bad_debt as f64));
+    summary.insert(
+        "total_bad_debt".into(),
+        json_f64(pool_state.bad_debt as f64),
+    );
     summary.insert(
         "largest_single_tick_drawdown".into(),
         json_f64(largest_drawdown),
@@ -1543,11 +1544,7 @@ fn generic_summarize_metrics(
                 summary.insert(format!("{key}_false_count"), Value::from(false_count));
             }
             crate::adapter::ObservationType::Pubkey => {
-                let max_unique: u64 = column
-                    .iter()
-                    .filter_map(|v| v.as_u64())
-                    .max()
-                    .unwrap_or(0);
+                let max_unique: u64 = column.iter().filter_map(|v| v.as_u64()).max().unwrap_or(0);
                 summary.insert(format!("{key}_unique_count"), Value::from(max_unique));
             }
             crate::adapter::ObservationType::Map => {
@@ -1570,10 +1567,7 @@ fn generic_summarize_metrics(
 /// every matching key. The resulting timeseries is the shape
 /// per-component `summarize_metrics` consumers expect, so existing
 /// lending / generic summary contracts keep their semantics.
-fn per_component_timeseries(
-    qualified: &[TickSnapshot],
-    component_name: &str,
-) -> Vec<TickSnapshot> {
+fn per_component_timeseries(qualified: &[TickSnapshot], component_name: &str) -> Vec<TickSnapshot> {
     let prefix = format!("{component_name}.");
     qualified
         .iter()
@@ -1670,20 +1664,25 @@ pub fn run_multi_replay(
             .oracle_update_for_tick(0)
             .cloned()
         {
-            harness.push_oracle_price(component_idx, &update).map_err(|e| match e {
-                PrimitiveError::Infra(msg) => SimulationAbort::Infra(msg),
-                PrimitiveError::ProgramRejected(msg) => SimulationAbort::Infra(format!(
-                    "initial oracle push rejected: {msg}"
-                )),
-            })?;
+            harness
+                .push_oracle_price(component_idx, &update)
+                .map_err(|e| match e {
+                    PrimitiveError::Infra(msg) => SimulationAbort::Infra(msg),
+                    PrimitiveError::ProgramRejected(msg) => {
+                        SimulationAbort::Infra(format!("initial oracle push rejected: {msg}"))
+                    }
+                })?;
         }
         for instruction in &initial_instructions {
-            let agent_idx = actor_index.get(&instruction.agent).copied().ok_or_else(|| {
-                SimulationAbort::BadInput(format!(
+            let agent_idx = actor_index
+                .get(&instruction.agent)
+                .copied()
+                .ok_or_else(|| {
+                    SimulationAbort::BadInput(format!(
                     "component `{}`: initial-state instruction `{}` references unknown agent `{}`",
                     harness.components[component_idx].name, instruction.name, instruction.agent
                 ))
-            })?;
+                })?;
             let (replay_args, target_idx) = split_target_for_replay(
                 &harness.components[component_idx].adapter,
                 instruction,
@@ -1724,8 +1723,8 @@ pub fn run_multi_replay(
     let combined_invariants = build_qualified_invariants(&harness.components);
 
     // tick 0 snapshot (post bootstrap + initial state).
-    let snapshot = build_qualified_snapshot(harness, 0, &component_agents)
-        .map_err(SimulationAbort::Infra)?;
+    let snapshot =
+        build_qualified_snapshot(harness, 0, &component_agents).map_err(SimulationAbort::Infra)?;
     evaluate_invariants(
         &combined_invariants,
         0,
@@ -1786,6 +1785,10 @@ pub fn run_multi_replay(
                     Err(PrimitiveError::ProgramRejected(msg)) => (SimOutcome::Failed, Some(msg)),
                     Err(PrimitiveError::Infra(msg)) => return Err(SimulationAbort::Infra(msg)),
                 };
+                let program_error = program_error_info(
+                    &harness.components[component_idx].adapter,
+                    detail.as_deref(),
+                );
                 if matches!(outcome, SimOutcome::Success) {
                     if let Some(agent) = component_agents[component_idx].get_mut(agent_idx) {
                         agent.total_actions += 1;
@@ -1808,6 +1811,7 @@ pub fn run_multi_replay(
                     params,
                     outcome,
                     outcome_detail: detail,
+                    program_error,
                     triggered_by: None,
                 });
             }
@@ -1818,9 +1822,15 @@ pub fn run_multi_replay(
             let firings = harness.evaluate_bridges_for_source(&component_name)?;
             for firing in firings {
                 let mut params = BTreeMap::new();
-                params.insert("source_component".into(), Value::from(firing.source_component));
+                params.insert(
+                    "source_component".into(),
+                    Value::from(firing.source_component),
+                );
                 params.insert("source_field".into(), Value::from(firing.source_field));
-                params.insert("target_component".into(), Value::from(firing.target_component));
+                params.insert(
+                    "target_component".into(),
+                    Value::from(firing.target_component),
+                );
                 params.insert("target_oracle".into(), Value::from(firing.target_oracle));
                 params.insert(
                     "observation".into(),
@@ -1847,14 +1857,14 @@ pub fn run_multi_replay(
                     params,
                     outcome: SimOutcome::Success,
                     outcome_detail: None,
+                    program_error: None,
                     triggered_by: None,
                 });
             }
         }
 
-        let snapshot =
-            build_qualified_snapshot(harness, tick, &component_agents)
-                .map_err(SimulationAbort::Infra)?;
+        let snapshot = build_qualified_snapshot(harness, tick, &component_agents)
+            .map_err(SimulationAbort::Infra)?;
         evaluate_invariants(
             &combined_invariants,
             tick,
@@ -1932,8 +1942,7 @@ pub fn run_multi_replay(
                     // the agent-finals surface cannot silently merge
                     // colliding actor names across components.
                     let mut final_state = agent.final_state(final_price);
-                    final_state.agent_id =
-                        format!("{}:{}", component_name, final_state.agent_id);
+                    final_state.agent_id = format!("{}:{}", component_name, final_state.agent_id);
                     final_state.persona_id =
                         format!("{}:{}", component_name, final_state.persona_id);
                     final_state.persona_label =
@@ -2113,17 +2122,14 @@ fn split_target_for_replay(
         .unwrap_or(true);
     let target_idx = if target_is_reserved {
         match instruction.args.get("target") {
-            Some(ArgLiteral::String(target)) => Some(
-                actor_index
-                    .get(target)
-                    .copied()
-                    .ok_or_else(|| {
-                        SimulationAbort::BadInput(format!(
-                            "replay instruction `{}` targets unknown agent `{target}`",
-                            instruction.name
-                        ))
-                    })?,
-            ),
+            Some(ArgLiteral::String(target)) => {
+                Some(actor_index.get(target).copied().ok_or_else(|| {
+                    SimulationAbort::BadInput(format!(
+                        "replay instruction `{}` targets unknown agent `{target}`",
+                        instruction.name
+                    ))
+                })?)
+            }
             Some(other) => {
                 return Err(SimulationAbort::BadInput(format!(
                     "replay instruction `{}` expected string target, got `{other:?}`",
@@ -2159,6 +2165,14 @@ fn replay_args_to_json(args: &BTreeMap<String, ArgLiteral>) -> BTreeMap<String, 
             (k.clone(), value)
         })
         .collect()
+}
+
+fn program_error_info(adapter: &Adapter, detail: Option<&str>) -> Option<ProgramErrorInfo> {
+    decode_program_error(&adapter.errors, detail).map(|decoded| ProgramErrorInfo {
+        code: decoded.code,
+        label: decoded.label,
+        interpretation: decoded.interpretation,
+    })
 }
 
 fn resolve_path(base: &Path, value: &str) -> PathBuf {
@@ -2243,10 +2257,7 @@ mod tests {
             "output_path": "x"
         }"#;
         let err = parse_replay_config(raw).unwrap_err();
-        assert!(
-            err.to_string().contains("at least 2"),
-            "got: {err}"
-        );
+        assert!(err.to_string().contains("at least 2"), "got: {err}");
     }
 
     #[test]
@@ -2282,7 +2293,10 @@ mod tests {
             "output_path": "x"
         }"#;
         let err = parse_replay_config(raw).unwrap_err();
-        assert!(err.to_string().contains("unknown source component"), "got: {err}");
+        assert!(
+            err.to_string().contains("unknown source component"),
+            "got: {err}"
+        );
     }
 
     #[test]
@@ -2302,7 +2316,11 @@ mod tests {
             "output_path": "x"
         }"#;
         let err = parse_replay_config(raw).unwrap_err();
-        assert!(err.to_string().contains("source and target components must differ"), "got: {err}");
+        assert!(
+            err.to_string()
+                .contains("source and target components must differ"),
+            "got: {err}"
+        );
     }
 
     #[test]

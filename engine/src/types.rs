@@ -222,7 +222,18 @@ pub struct SimEvent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome_detail: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub program_error: Option<ProgramErrorInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub triggered_by: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProgramErrorInfo {
+    pub code: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interpretation: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

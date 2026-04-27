@@ -245,6 +245,105 @@ deposit = { action = "deposit", amount = "amount" }
 [personas]
 `;
 
+const ERROR_REGISTRY_TOML = `protocol = "lending"
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+
+[[errors]]
+code = 8
+label = "insufficient_collateral"
+interpretation = "Borrow or withdraw exceeded the position collateral constraint."
+
+[actions]
+[observations]
+[personas]
+`;
+
+const DUPLICATE_ERROR_CODE_TOML = `protocol = "lending"
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+
+[[errors]]
+code = 8
+label = "insufficient_collateral"
+interpretation = "Borrow or withdraw exceeded the position collateral constraint."
+
+[[errors]]
+code = 8
+label = "insufficient_liquidity"
+interpretation = "Pool liquidity was insufficient."
+
+[actions]
+[observations]
+[personas]
+`;
+
+const DUPLICATE_ERROR_LABEL_TOML = `protocol = "lending"
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+
+[[errors]]
+code = 8
+label = "insufficient_collateral"
+interpretation = "Borrow or withdraw exceeded the position collateral constraint."
+
+[[errors]]
+code = 9
+label = "insufficient_collateral"
+interpretation = "Pool liquidity was insufficient."
+
+[actions]
+[observations]
+[personas]
+`;
+
+const MALFORMED_ERROR_LABEL_TOML = `protocol = "lending"
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+
+[[errors]]
+code = 8
+label = "InsufficientCollateral"
+interpretation = "Borrow or withdraw exceeded the position collateral constraint."
+
+[actions]
+[observations]
+[personas]
+`;
+
+const MISSING_ERROR_FIELD_TOML = `protocol = "lending"
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+
+[[errors]]
+code = 8
+label = "insufficient_collateral"
+
+[actions]
+[observations]
+[personas]
+`;
+
 async function setupAdapterPair(
   adapterContents: string,
   idlContents: string | null
@@ -452,6 +551,49 @@ test("runLint: no [lineage] block → explicit SKIP, exit 0", async () => {
   // on the machine-checkable surface.
   assert.doesNotMatch(out, /mapped-surface-clean/);
 });
+
+test("runLint: valid [errors] registry is accepted", async () => {
+  const { adapterPath, repoRoot } = await setupAdapterPair(ERROR_REGISTRY_TOML, null);
+  let out = "";
+  let err = "";
+  const exit = await runLint(
+    adapterPath,
+    {},
+    {
+      repoRoot,
+      stdoutWrite: (c) => { out += c; },
+      stderrWrite: (c) => { err += c; },
+      color: false,
+    }
+  );
+  assert.equal(exit, 0, `stdout:\n${out}\nstderr:\n${err}`);
+  assert.match(out, /lineage-missing/);
+});
+
+for (const [name, toml, pattern] of [
+  ["duplicate code", DUPLICATE_ERROR_CODE_TOML, /duplicate program error code `8`/],
+  ["duplicate label", DUPLICATE_ERROR_LABEL_TOML, /duplicate program error label `insufficient_collateral`/],
+  ["malformed label", MALFORMED_ERROR_LABEL_TOML, /program error label must be snake_case/],
+  ["missing required field", MISSING_ERROR_FIELD_TOML, /interpretation.*expected string, received undefined/],
+] as const) {
+  test(`runLint: invalid [errors] ${name} → exit 2 with next step`, async () => {
+    const { adapterPath, repoRoot } = await setupAdapterPair(toml, null);
+    let err = "";
+    const exit = await runLint(
+      adapterPath,
+      {},
+      {
+        repoRoot,
+        stdoutWrite: () => {},
+        stderrWrite: (c) => { err += c; },
+        color: false,
+      }
+    );
+    assert.equal(exit, 2);
+    assert.match(err, pattern);
+    assert.match(err, /next step:/);
+  });
+}
 
 test("runLint: unknown adapter name → exit 2 with named error", async () => {
   const repoRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-lint-missing-"));

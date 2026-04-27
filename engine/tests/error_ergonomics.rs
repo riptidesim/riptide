@@ -450,6 +450,7 @@ fn t03_happy_path_lending_run_still_succeeds_with_improved_errors() {
         invariants: Vec::new(),
         scheduled_actions: Vec::new(),
         semantics: None,
+        errors: Vec::new(),
     };
     let result = run_simulation(&mut harness, &mut scenario, params).unwrap();
     assert_eq!(result.seed, 42);

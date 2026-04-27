@@ -1,4 +1,5 @@
 import type { SimulationResult } from "../compiler/schema.js";
+import { formatProgramError } from "./events.js";
 
 /**
  * Renders a markdown narrative report from a simulation result.
@@ -8,6 +9,7 @@ import type { SimulationResult } from "../compiler/schema.js";
 type SummaryValue = number | boolean | string | null;
 
 const LIFECYCLE_KEYS = new Set(["agents_active", "agents_liquidated", "agents_depleted"]);
+const STRUCTURED_SUMMARY_KEYS = new Set(["invariants_fired", "expression_invariants"]);
 
 function formatValue(value: SummaryValue): string {
   if (value === null) return "—";
@@ -77,9 +79,11 @@ function extractNotableEvents(result: SimulationResult, maxEvents = 10): Notable
   for (const event of result.events) {
     if (!isNotableEvent(event)) continue;
     const who = event.agent_id === "__engine__" ? "Engine" : `${event.persona_label ?? "Unknown"} (${event.agent_id})`;
+    const programError = formatProgramError(event);
+    const detail = programError ? ` — ${programError}` : "";
     notable.push({
       tick: event.tick,
-      description: `T${event.tick}: ${who} — ${event.action} → ${event.outcome}`
+      description: `T${event.tick}: ${who} — ${event.action} → ${event.outcome}${detail}`
     });
   }
   return notable.slice(0, maxEvents);
@@ -118,7 +122,7 @@ export function renderNarrative(
   lines.push("");
 
   const summaryEntries = Object.entries(result.summary as Record<string, SummaryValue>)
-    .filter(([key]) => !LIFECYCLE_KEYS.has(key))
+    .filter(([key]) => !LIFECYCLE_KEYS.has(key) && !STRUCTURED_SUMMARY_KEYS.has(key))
     .sort(([a], [b]) => a.localeCompare(b));
 
   if (summaryEntries.length > 0) {

@@ -186,12 +186,8 @@ impl SbHarness {
                 signers.push(s);
             }
         }
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&signer.pubkey()),
-            &signers,
-            blockhash,
-        );
+        let tx =
+            Transaction::new_signed_with_payer(&[ix], Some(&signer.pubkey()), &signers, blockhash);
         self.svm
             .send_transaction(tx)
             .unwrap_or_else(|e| panic!("send_transaction failed: {:?}", e.err));
@@ -205,25 +201,15 @@ impl SbHarness {
                 signers.push(s);
             }
         }
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&signer.pubkey()),
-            &signers,
-            blockhash,
-        );
+        let tx =
+            Transaction::new_signed_with_payer(&[ix], Some(&signer.pubkey()), &signers, blockhash);
         assert!(
             self.svm.send_transaction(tx).is_err(),
             "expected send_transaction to fail"
         );
     }
 
-    fn create_and_own(
-        &mut self,
-        payer: &Keypair,
-        target: &Keypair,
-        space: usize,
-        owner: &Pubkey,
-    ) {
+    fn create_and_own(&mut self, payer: &Keypair, target: &Keypair, space: usize, owner: &Pubkey) {
         let rent = self.svm.minimum_balance_for_rent_exemption(space);
         let ix = system_instruction::create_account(
             &payer.pubkey(),
@@ -773,9 +759,7 @@ fn stablecoin_apply_hedge_loss_rejects_on_lazy_init_pool() {
     // A wholly-different signer is also rejected (no "any signer works
     // when admin is unset" regression).
     let stranger = Keypair::new();
-    h.svm
-        .airdrop(&stranger.pubkey(), 10_000_000_000)
-        .unwrap();
+    h.svm.airdrop(&stranger.pubkey(), 10_000_000_000).unwrap();
     let ix_stranger = Instruction::new_with_borsh(
         h.program_id,
         &SbIx::ApplyHedgeLoss { loss_bps: 1_000 },

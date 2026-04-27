@@ -158,7 +158,11 @@ pub fn serialize_oracle_state(state: &OracleSnapshot) -> Vec<u8> {
 
 /// Build a fresh, initialized `LendingPoolState` owned by `admin` with the
 /// given oracle key and pool config. All counters start at zero.
-pub fn initial_pool_state(admin: &Pubkey, oracle: &Pubkey, config: &LendingPoolConfig) -> LendingPoolState {
+pub fn initial_pool_state(
+    admin: &Pubkey,
+    oracle: &Pubkey,
+    config: &LendingPoolConfig,
+) -> LendingPoolState {
     LendingPoolState {
         is_initialized: true,
         admin: admin.to_bytes(),
@@ -237,7 +241,10 @@ mod tests {
         let err = load_program_bytes(Path::new("/nonexistent/lending_pool.so")).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("lending_pool.so not found"), "got: {msg}");
-        assert!(msg.contains("cargo build-sbf"), "missing rebuild hint: {msg}");
+        assert!(
+            msg.contains("cargo build-sbf"),
+            "missing rebuild hint: {msg}"
+        );
     }
 
     #[test]

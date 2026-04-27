@@ -87,6 +87,7 @@ fn run_with(invariants: Vec<Invariant>) -> SimulationResult {
         invariants,
         scheduled_actions: Vec::new(),
         semantics: None,
+        errors: Vec::new(),
     };
     run_simulation(&mut harness, &mut scenario, params).unwrap()
 }

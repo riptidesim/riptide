@@ -145,8 +145,7 @@ fn admin_mock_oracle_so() -> PathBuf {
 }
 
 fn admin_mock_oracle_keypair() -> PathBuf {
-    workspace_root()
-        .join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle-keypair.json")
+    workspace_root().join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle-keypair.json")
 }
 
 fn perpetuals_idl() -> PathBuf {
@@ -306,12 +305,7 @@ exponent = 0
 // state the adapter bootstrap materialized.
 // ---------------------------------------------------------------------------
 
-fn send_tx(
-    harness: &mut GenericHarness,
-    payer: &Keypair,
-    ix: Instruction,
-    extra: &[&Keypair],
-) {
+fn send_tx(harness: &mut GenericHarness, payer: &Keypair, ix: Instruction, extra: &[&Keypair]) {
     let blockhash = harness.svm().latest_blockhash();
     let mut signers: Vec<&Keypair> = vec![payer];
     for s in extra {
@@ -319,12 +313,7 @@ fn send_tx(
             signers.push(s);
         }
     }
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
-        Some(&payer.pubkey()),
-        &signers,
-        blockhash,
-    );
+    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &signers, blockhash);
     harness
         .svm_mut()
         .send_transaction(tx)
@@ -455,8 +444,7 @@ fn read_market(harness: &GenericHarness) -> MarketStateMirror {
         .svm()
         .get_account(&pubkey)
         .expect("market account present");
-    MarketStateMirror::try_from_slice(&acc.data[..MARKET_STATE_LEN])
-        .expect("decode market state")
+    MarketStateMirror::try_from_slice(&acc.data[..MARKET_STATE_LEN]).expect("decode market state")
 }
 
 // ---------------------------------------------------------------------------
@@ -467,10 +455,7 @@ fn read_market(harness: &GenericHarness) -> MarketStateMirror {
 
 fn bootstrap_harness(name: &str) -> GenericHarness {
     let admin_so = admin_mock_oracle_so();
-    let owner_clause = format!(
-        r#"owner = {{ program_so = "{}" }}"#,
-        admin_so.display()
-    );
+    let owner_clause = format!(r#"owner = {{ program_so = "{}" }}"#, admin_so.display());
     let toml = perps_proof_adapter_toml(&owner_clause);
     let adapter_path = tmpdir(name).join("adapter.toml");
     fs::write(&adapter_path, &toml).expect("write adapter toml");
@@ -579,8 +564,13 @@ fn perps_close_outcome_shifts_after_generic_oracle_push() {
         .data
         .clone();
 
-    let shock = OracleUpdate { price: 60.0, exponent: 0 };
-    shocked.push_oracle_price(&shock).expect("push oracle shock");
+    let shock = OracleUpdate {
+        price: 60.0,
+        exponent: 0,
+    };
+    shocked
+        .push_oracle_price(&shock)
+        .expect("push oracle shock");
 
     let post_shock = shocked
         .inspect_shared_account("oracle")
@@ -625,7 +615,9 @@ fn perps_close_outcome_shifts_after_generic_oracle_push() {
     // The delta isolates to the oracle path: both runs share an
     // identical bootstrap, identical init + open sequence, identical
     // notional — the shocked run only diverges after push_oracle_price.
-    let delta = baseline_closed.collateral.saturating_sub(shocked_closed.collateral);
+    let delta = baseline_closed
+        .collateral
+        .saturating_sub(shocked_closed.collateral);
     assert_eq!(
         delta, 1_000,
         "close-outcome delta must equal the full posted margin when the \
@@ -636,7 +628,10 @@ fn perps_close_outcome_shifts_after_generic_oracle_push() {
     // byte-identical to what bootstrap wrote at tick 0. This proves the
     // write path is deterministic through the layout dispatcher.
     shocked
-        .push_oracle_price(&OracleUpdate { price: 100.0, exponent: 0 })
+        .push_oracle_price(&OracleUpdate {
+            price: 100.0,
+            exponent: 0,
+        })
         .expect("push oracle back to baseline");
     let restored = shocked
         .inspect_shared_account("oracle")
@@ -656,8 +651,8 @@ fn perps_close_outcome_shifts_after_generic_oracle_push() {
 /// `pyth_real_layout::pyth_sdk_solana_parses_our_mock_unchanged`).
 #[test]
 fn generic_push_through_pyth_kind_mutates_real_pyth_bytes() {
-    let grinder_so = workspace_root()
-        .join("programs/resource_grinder/target/deploy/resource_grinder.so");
+    let grinder_so =
+        workspace_root().join("programs/resource_grinder/target/deploy/resource_grinder.so");
     let grinder_idl = workspace_root().join("fixtures/idls/resource-grinder.json");
     if skip_if_missing(&[&grinder_so, &grinder_idl]) {
         return;
@@ -729,13 +724,20 @@ exponent = -2
     // Push a shock through the generic path — real Pyth layout bytes
     // must land on the account.
     harness
-        .push_oracle_price(&OracleUpdate { price: 75.5, exponent: -2 })
+        .push_oracle_price(&OracleUpdate {
+            price: 75.5,
+            exponent: -2,
+        })
         .expect("push pyth shock");
     let post = harness
         .inspect_shared_account("oracle")
         .expect("pyth post-push");
     assert_eq!(post.owner, expected_owner);
-    assert_eq!(post.data.len(), 3312, "real Pyth layout stays at 3312 bytes");
+    assert_eq!(
+        post.data.len(),
+        3312,
+        "real Pyth layout stays at 3312 bytes"
+    );
     let post_decoded = layout.decode(&post.data).expect("decode pyth post-push");
     assert_eq!(post_decoded.exponent, -2);
     assert!(

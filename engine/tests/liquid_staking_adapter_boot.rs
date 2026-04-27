@@ -45,8 +45,7 @@ fn ls_adapter_path() -> PathBuf {
 }
 
 fn ls_so_path() -> PathBuf {
-    workspace_root()
-        .join("programs/liquid-staking/target/deploy/liquid_staking.so")
+    workspace_root().join("programs/liquid-staking/target/deploy/liquid_staking.so")
 }
 
 fn ls_idl_path() -> PathBuf {
@@ -58,8 +57,7 @@ fn admin_mock_oracle_so() -> PathBuf {
 }
 
 fn admin_mock_oracle_keypair() -> PathBuf {
-    workspace_root()
-        .join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle-keypair.json")
+    workspace_root().join("programs/admin_mock_oracle/target/deploy/admin_mock_oracle-keypair.json")
 }
 
 /// Hard-fail-under-CI skip gate (mirrors
@@ -131,10 +129,7 @@ fn liquid_staking_adapter_boots_through_generic_harness() {
     assert_eq!(oracle.name, "stake_price_feed");
     assert!(matches!(oracle.kind, OracleKind::AdminMock));
     assert_eq!(oracle.account.as_deref(), Some("oracle"));
-    let pool = adapter
-        .accounts
-        .get("pool")
-        .expect("pool account declared");
+    let pool = adapter.accounts.get("pool").expect("pool account declared");
     let stake_account = adapter
         .accounts
         .get("stake_account")
@@ -160,12 +155,7 @@ fn liquid_staking_adapter_boots_through_generic_harness() {
                 .clone()
                 .expect("program_so resolved above"),
         ),
-        idl_path: PathBuf::from(
-            adapter
-                .idl_path
-                .clone()
-                .expect("adapter declares idl_path"),
-        ),
+        idl_path: PathBuf::from(adapter.idl_path.clone().expect("adapter declares idl_path")),
         agent_count: 2,
         adapter: adapter.clone(),
     })
@@ -291,7 +281,10 @@ fn liquid_staking_adapter_boots_through_generic_harness() {
         .data
         .clone();
     harness
-        .push_oracle_price(&OracleUpdate { price: 0.85, exponent: -2 })
+        .push_oracle_price(&OracleUpdate {
+            price: 0.85,
+            exponent: -2,
+        })
         .expect("generic oracle push on a sibling-owned account");
     let post = harness
         .inspect_shared_account("oracle")

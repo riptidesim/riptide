@@ -164,11 +164,8 @@ impl PerpsHarness {
 
         svm.add_program(perps_program_id, &std::fs::read(perps_so_path()).unwrap())
             .expect("load perpetuals.so");
-        svm.add_program(
-            oracle_program_id,
-            &std::fs::read(oracle_so_path()).unwrap(),
-        )
-        .expect("load admin_mock_oracle.so");
+        svm.add_program(oracle_program_id, &std::fs::read(oracle_so_path()).unwrap())
+            .expect("load admin_mock_oracle.so");
 
         let admin = Keypair::new();
         let trader = Keypair::new();
@@ -199,12 +196,8 @@ impl PerpsHarness {
                 signers.push(s);
             }
         }
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&signer.pubkey()),
-            &signers,
-            blockhash,
-        );
+        let tx =
+            Transaction::new_signed_with_payer(&[ix], Some(&signer.pubkey()), &signers, blockhash);
         self.svm
             .send_transaction(tx)
             .unwrap_or_else(|e| panic!("send_transaction failed: {:?}", e.err));
@@ -218,25 +211,15 @@ impl PerpsHarness {
                 signers.push(s);
             }
         }
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&signer.pubkey()),
-            &signers,
-            blockhash,
-        );
+        let tx =
+            Transaction::new_signed_with_payer(&[ix], Some(&signer.pubkey()), &signers, blockhash);
         assert!(
             self.svm.send_transaction(tx).is_err(),
             "expected send_transaction to fail"
         );
     }
 
-    fn create_and_own(
-        &mut self,
-        payer: &Keypair,
-        target: &Keypair,
-        space: usize,
-        owner: &Pubkey,
-    ) {
+    fn create_and_own(&mut self, payer: &Keypair, target: &Keypair, space: usize, owner: &Pubkey) {
         let rent = self.svm.minimum_balance_for_rent_exemption(space);
         let ix = system_instruction::create_account(
             &payer.pubkey(),
@@ -306,7 +289,12 @@ impl PerpsHarness {
         let trader_kp = self.trader.insecure_clone();
         let position_kp = self.position.insecure_clone();
         let perps_program_id = self.perps_program_id;
-        self.create_and_own(&trader_kp, &position_kp, POSITION_STATE_LEN, &perps_program_id);
+        self.create_and_own(
+            &trader_kp,
+            &position_kp,
+            POSITION_STATE_LEN,
+            &perps_program_id,
+        );
     }
 
     fn deposit(&mut self, amount: u64) {
@@ -392,8 +380,7 @@ impl PerpsHarness {
 
     fn read_market(&self) -> MarketState {
         let acc = self.svm.get_account(&self.market.pubkey()).unwrap();
-        MarketState::try_from_slice(&acc.data[..MARKET_STATE_LEN])
-            .expect("decode market state")
+        MarketState::try_from_slice(&acc.data[..MARKET_STATE_LEN]).expect("decode market state")
     }
 
     fn read_position(&self) -> PositionState {
@@ -401,7 +388,6 @@ impl PerpsHarness {
         PositionState::try_from_slice(&acc.data[..POSITION_STATE_LEN])
             .expect("decode position state")
     }
-
 }
 
 // --- Tests ---
@@ -469,7 +455,9 @@ fn perpetuals_liquidation_cascade() {
 
     // A liquidator not owning the position can call liquidate_position.
     let liquidator = Keypair::new();
-    h.svm.airdrop(&liquidator.pubkey(), 100_000_000_000).unwrap();
+    h.svm
+        .airdrop(&liquidator.pubkey(), 100_000_000_000)
+        .unwrap();
     h.liquidate(&liquidator);
 
     let liq = h.read_position();
@@ -518,10 +506,7 @@ fn perpetuals_is_deterministic() {
     assert_eq!(m1.total_oi_long, m2.total_oi_long);
     assert_eq!(m1.total_oi_short, m2.total_oi_short);
     assert_eq!(m1.total_collateral, m2.total_collateral);
-    assert_eq!(
-        m1.cumulative_socialized_loss,
-        m2.cumulative_socialized_loss
-    );
+    assert_eq!(m1.cumulative_socialized_loss, m2.cumulative_socialized_loss);
     assert_eq!(p1.is_initialized, p2.is_initialized);
     assert_eq!(p1.side, p2.side);
     assert_eq!(p1.collateral, p2.collateral);
@@ -602,7 +587,9 @@ fn perpetuals_rejects_cross_market_liquidation() {
     // Attempt to liquidate the position using market2 — the position
     // belongs to market1, so the cross-check must reject.
     let liquidator = Keypair::new();
-    h.svm.airdrop(&liquidator.pubkey(), 100_000_000_000).unwrap();
+    h.svm
+        .airdrop(&liquidator.pubkey(), 100_000_000_000)
+        .unwrap();
     let liq_data = PerpsIx::LiquidatePosition;
     let liq_ix = Instruction::new_with_borsh(
         h.perps_program_id,

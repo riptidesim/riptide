@@ -97,6 +97,7 @@ function baseAdapter(semantics: Semantics = BASE_SEMANTICS): Adapter {
     oracles: [],
     scheduled_actions: [],
     semantics,
+    errors: [],
   };
 }
 

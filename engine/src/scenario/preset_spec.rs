@@ -210,7 +210,9 @@ drop_percent = 0.6
             return;
         }
         let presets = load_presets_dir(&presets_dir).unwrap();
-        let spec = presets.get("price-shock").expect("price-shock preset present");
+        let spec = presets
+            .get("price-shock")
+            .expect("price-shock preset present");
         assert_eq!(spec.kind, ScenarioKind::PriceShock);
         assert_eq!(spec.base_price, 100.0);
         assert_eq!(spec.noise_bps, 25);

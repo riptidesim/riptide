@@ -107,8 +107,8 @@ fn canonical_hash(result: &SimulationResult) -> String {
 
 fn run_fixture() -> SimulationResult {
     let fixture = fixture_dir();
-    let adapter = load_adapter(&fixture.join("adapter.toml"))
-        .expect("load replay-scoped stablecoin adapter");
+    let adapter =
+        load_adapter(&fixture.join("adapter.toml")).expect("load replay-scoped stablecoin adapter");
     let bundle = load_replay_bundle(&fixture, &adapter).expect("load replay bundle");
 
     let idl_path = PathBuf::from(
@@ -131,8 +131,7 @@ fn run_fixture() -> SimulationResult {
     .expect("bootstrap replay harness");
 
     canonicalize(
-        run_replay(&mut harness, &adapter, &bundle, "__canonical__".into())
-            .expect("run replay"),
+        run_replay(&mut harness, &adapter, &bundle, "__canonical__".into()).expect("run replay"),
     )
 }
 
@@ -249,8 +248,7 @@ fn stablecoin_uxd_style_collateral_cascade_matches_expected_and_is_deterministic
 
     let actual_hash = canonical_hash(&first);
     assert_eq!(
-        actual_hash,
-        expected.result_sha256,
+        actual_hash, expected.result_sha256,
         "stablecoin UXD-style collateral-cascade replay hash drifted; update \
          fixtures/replays/stablecoin-uxd-style-collateral-cascade/expected-summary.json if \
          the new output is intentional",
@@ -274,7 +272,10 @@ fn stablecoin_uxd_style_collateral_cascade_matches_expected_and_is_deterministic
         "invariants_fired row count drifted",
     );
     for row in invariant_rows {
-        let name = row["name"].as_str().expect("invariant row `name`").to_string();
+        let name = row["name"]
+            .as_str()
+            .expect("invariant row `name`")
+            .to_string();
         let firings = row["firings"].as_u64().expect("invariant row `firings`") as usize;
         let expected_firings = expected
             .invariant_firings

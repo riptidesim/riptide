@@ -105,6 +105,7 @@ Three commands share one mental model for first-run diagnosis before any scenari
 - **`riptide doctor`** is a static health check. It probes the documented toolchain surface (`node`, `npm`, `rustc`, `cargo`, `solana`, `cargo-build-sbf`) via `execFile` without spawning a shell, resolves the `riptide-engine` binary through the same path `adapt` / `run` already trust (`$RIPTIDE_ENGINE_BIN` → `<repo>/target/release/` fallback → module-derived monorepo fallback), walks adapters under `<cwd>/.riptide/adapters/*.toml` and `<cwd>/fixtures/adapters/*.toml` (layered — the downstream user-repo layer wins when it exists, so a user repo's own adapters never accidentally inherit shipping fixtures), and runs the lint analyzer in-process against each. No build, no network, no simulation, no engine spawn. Exit codes are `0` all-pass / `1` warnings-only / `2` at least one fail.
 - **`riptide lint <adapter>`** is the static validator. When `[lineage].idl_source` is a JSON IDL, it cross-checks every adapter-mapped instruction, arg, account, and dotted `account.field` reference against the IDL. Positive mismatches fail loudly (`exit 2`) with a next-step hint naming the missing symbol; uncovered source surfaces may warn when the adapter neither maps them nor names them in `[lineage].unsupported_fields`. Non-JSON lineage sources (for example `programs/<name>/src/state.rs` on `lending`) land as explicit `WARN` with no false PASS — there is no Rust parser today. Missing `[lineage]` blocks land as explicit `SKIP`.
 - **`riptide adapt --adapter <toml>`** is the existing smoke-test harness, now with a lint preflight: when the adapter's lineage source is machine-checkable, adapt runs lint first and aborts before engine spawn on a concrete fail. Lineage-warn and lineage-skip cases continue through to the smoke test unchanged.
+- **`riptide review <pack>`** is the read-only reviewer surface for evidence packs. It parses `manifest.json`, resolves `inputs/paths.json` and `outputs/paths.json` relative to the pack root, verifies the engine canonical hash of the indexed simulation result, checks `rerun.sh` with `sh -n` without executing it, and emits markdown or `--json`. No engine spawn, no network, no pack mutation.
 
 These commands are the install-first operator surface — they exist so a new user can install Riptide, confirm their environment, static-check their adapter, and smoke-test it end-to-end before running a single scenario. They do not replace `cargo test -p riptide-engine` or the repo's regression gates; they exist upstream of them.
 
@@ -127,6 +128,11 @@ disk plus the local dashboard view over it:
   The pack is byte-stable for byte-stable input — see
   [`pack.md`](pack.md) for the shape reference and the pinned
   per-file hashes.
+- **Every pack can be reviewed cold.** `riptide review <pack>` verifies
+  the manifest, path indexes, canonical hash, and rerun script syntax,
+  then synthesizes a reviewer markdown summary from `manifest.json`,
+  `summary.md`, the indexed simulation result, and `provenance.json`
+  when present. It never executes the rerun recipe.
 - **One named proof reruns cold in GitHub Actions.** The shipping
   `.github/workflows/contagion-proof-ci.yml` workflow reruns the
   cross-protocol contagion proof from a cold checkout on every push /

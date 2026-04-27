@@ -204,9 +204,9 @@ pub fn observe_account_state(
         if mapped_account != account_name {
             continue;
         }
-        let extracted = value
-            .get_path(field_path)
-            .ok_or_else(|| anyhow!("field path `{field_path}` missing in account `{account_name}`"))?;
+        let extracted = value.get_path(field_path).ok_or_else(|| {
+            anyhow!("field path `{field_path}` missing in account `{account_name}`")
+        })?;
         let expected = adapter
             .observations
             .get(logical_name)
@@ -322,11 +322,7 @@ impl<'a> GenericInstructionBuilder<'a> {
     /// shape). Calls through to `build_action_data` with an empty
     /// `persona_args` map. Prefer `build_action_data` directly in
     /// + code paths so the persona context is explicit.
-    pub fn build_action_data_single_arg(
-        &self,
-        action_name: &str,
-        amount: u64,
-    ) -> Result<Vec<u8>> {
+    pub fn build_action_data_single_arg(&self, action_name: &str, amount: u64) -> Result<Vec<u8>> {
         static EMPTY: std::sync::OnceLock<BTreeMap<String, ArgLiteral>> =
             std::sync::OnceLock::new();
         let empty = EMPTY.get_or_init(BTreeMap::new);
@@ -413,7 +409,13 @@ impl<'a> GenericInstructionBuilder<'a> {
                             arg.name
                         )
                     })?;
-                    encode_literal_arg(&mut encoded, &arg.ty, literal, &instruction.name, &arg.name)?;
+                    encode_literal_arg(
+                        &mut encoded,
+                        &arg.ty,
+                        literal,
+                        &instruction.name,
+                        &arg.name,
+                    )?;
                 }
                 Ok(encoded)
             }
@@ -484,9 +486,7 @@ pub(crate) fn resolve_instruction_for_action<'a>(
     Ok((instruction_name.as_str(), mapping, instruction))
 }
 
-fn parse_generic_trigger(
-    trigger: &crate::adapter::PersonaTriggerDefinition,
-) -> Result<Trigger> {
+fn parse_generic_trigger(trigger: &crate::adapter::PersonaTriggerDefinition) -> Result<Trigger> {
     let parts: Vec<_> = trigger.condition.split_whitespace().collect();
     if parts.len() != 3 {
         bail!(
@@ -639,12 +639,12 @@ fn encode_literal_arg(
         }
         GenericTypeRef::Primitive(name) if name == "pubkey" => {
             let encoded = match literal {
-                ArgLiteral::String(s) => bs58::decode(s)
-                    .into_vec()
-                    .map_err(|e| anyhow!(
+                ArgLiteral::String(s) => bs58::decode(s).into_vec().map_err(|e| {
+                    anyhow!(
                         "instruction `{instruction_name}` arg `{arg_name}` declared as `pubkey` \
                          but literal `{s}` is not base58-decodable: {e}"
-                    ))?,
+                    )
+                })?,
                 other => bail!(
                     "instruction `{instruction_name}` arg `{arg_name}` declared as `pubkey` \
                      but literal was `{other:?}`; expected a base58-encoded 32-byte key"
@@ -703,7 +703,11 @@ fn literal_as_i64(
     }
 }
 
-fn decode_struct(idl: &GenericIdl, fields: &[GenericField], cursor: &mut ByteCursor<'_>) -> Result<GenericValue> {
+fn decode_struct(
+    idl: &GenericIdl,
+    fields: &[GenericField],
+    cursor: &mut ByteCursor<'_>,
+) -> Result<GenericValue> {
     let mut values = BTreeMap::new();
     for field in fields {
         values.insert(field.name.clone(), decode_value(idl, &field.ty, cursor)?);
@@ -711,12 +715,24 @@ fn decode_struct(idl: &GenericIdl, fields: &[GenericField], cursor: &mut ByteCur
     Ok(GenericValue::Struct(values))
 }
 
-fn decode_value(idl: &GenericIdl, ty: &GenericTypeRef, cursor: &mut ByteCursor<'_>) -> Result<GenericValue> {
+fn decode_value(
+    idl: &GenericIdl,
+    ty: &GenericTypeRef,
+    cursor: &mut ByteCursor<'_>,
+) -> Result<GenericValue> {
     match ty {
-        GenericTypeRef::Primitive(name) if name == "u64" => Ok(GenericValue::UInt(cursor.read_u64()?)),
-        GenericTypeRef::Primitive(name) if name == "i64" => Ok(GenericValue::Int(cursor.read_i64()?)),
-        GenericTypeRef::Primitive(name) if name == "bool" => Ok(GenericValue::Bool(cursor.read_bool()?)),
-        GenericTypeRef::Primitive(name) if name == "pubkey" => Ok(GenericValue::Pubkey(cursor.read_pubkey()?)),
+        GenericTypeRef::Primitive(name) if name == "u64" => {
+            Ok(GenericValue::UInt(cursor.read_u64()?))
+        }
+        GenericTypeRef::Primitive(name) if name == "i64" => {
+            Ok(GenericValue::Int(cursor.read_i64()?))
+        }
+        GenericTypeRef::Primitive(name) if name == "bool" => {
+            Ok(GenericValue::Bool(cursor.read_bool()?))
+        }
+        GenericTypeRef::Primitive(name) if name == "pubkey" => {
+            Ok(GenericValue::Pubkey(cursor.read_pubkey()?))
+        }
         GenericTypeRef::Vec { vec } => {
             let len = cursor.read_u32()? as usize;
             let mut items = Vec::with_capacity(len);
@@ -752,13 +768,19 @@ impl GenericValue {
     fn to_observation(&self, expected: ObservationType) -> Result<ObservationValue> {
         match (self, expected) {
             (GenericValue::Int(value), ObservationType::Int) => Ok(ObservationValue::Int(*value)),
-            (GenericValue::UInt(value), ObservationType::UInt) => Ok(ObservationValue::UInt(*value)),
-            (GenericValue::Bool(value), ObservationType::Bool) => Ok(ObservationValue::Bool(*value)),
+            (GenericValue::UInt(value), ObservationType::UInt) => {
+                Ok(ObservationValue::UInt(*value))
+            }
+            (GenericValue::Bool(value), ObservationType::Bool) => {
+                Ok(ObservationValue::Bool(*value))
+            }
             (GenericValue::Pubkey(value), ObservationType::Pubkey) => {
                 Ok(ObservationValue::Pubkey(value.clone()))
             }
             (GenericValue::Vec(values), ObservationType::Map) => vec_to_map(values),
-            _ => bail!("generic observation type mismatch; expected `{expected:?}`, got `{self:?}`"),
+            _ => {
+                bail!("generic observation type mismatch; expected `{expected:?}`, got `{self:?}`")
+            }
         }
     }
 }
@@ -925,11 +947,7 @@ impl GenericHarness {
     /// names. Mirrors [`Self::inspect_shared_account_pubkey`] for
     /// integration tests that need to hand agent-scoped accounts to
     /// raw instructions the adapter runtime does not dispatch.
-    pub fn inspect_agent_account_pubkey(
-        &self,
-        name: &str,
-        agent_idx: usize,
-    ) -> Option<Pubkey> {
+    pub fn inspect_agent_account_pubkey(&self, name: &str, agent_idx: usize) -> Option<Pubkey> {
         self.agent_accounts
             .get(name)
             .and_then(|pubkeys| pubkeys.get(agent_idx).copied())
@@ -1046,20 +1064,23 @@ impl GenericHarness {
                 TransactionError::InstructionError(_, _) => Err(
                     crate::primitive::PrimitiveError::ProgramRejected(format!("{:?}", error.err)),
                 ),
-                other => Err(crate::primitive::PrimitiveError::Infra(format!("{other:?}"))),
+                other => Err(crate::primitive::PrimitiveError::Infra(format!(
+                    "{other:?}"
+                ))),
             },
         }
     }
 
-    fn account_bytes(&self, pubkey: &Pubkey, account_name: &str) -> Result<Vec<u8>, crate::primitive::PrimitiveError> {
-        let account = self
-            .svm
-            .get_account(pubkey)
-            .ok_or_else(|| {
-                crate::primitive::PrimitiveError::Infra(format!(
-                    "generic account `{account_name}` ({pubkey}) not found"
-                ))
-            })?;
+    fn account_bytes(
+        &self,
+        pubkey: &Pubkey,
+        account_name: &str,
+    ) -> Result<Vec<u8>, crate::primitive::PrimitiveError> {
+        let account = self.svm.get_account(pubkey).ok_or_else(|| {
+            crate::primitive::PrimitiveError::Infra(format!(
+                "generic account `{account_name}` ({pubkey}) not found"
+            ))
+        })?;
         Ok(account.data)
     }
 }
@@ -1201,10 +1222,14 @@ impl crate::primitive::Primitive for GenericHarness {
         persona_args: &BTreeMap<String, crate::adapter::ArgLiteral>,
     ) -> Result<(), crate::primitive::PrimitiveError> {
         let (_, _, instruction) = resolve_instruction_for_action(&self.idl, &self.adapter, action)
-            .map_err(|error| crate::primitive::PrimitiveError::ProgramRejected(error.to_string()))?;
+            .map_err(|error| {
+                crate::primitive::PrimitiveError::ProgramRejected(error.to_string())
+            })?;
         let data = GenericInstructionBuilder::new(&self.idl, &self.adapter)
             .build_action_data(action, amount, persona_args)
-            .map_err(|error| crate::primitive::PrimitiveError::ProgramRejected(error.to_string()))?;
+            .map_err(|error| {
+                crate::primitive::PrimitiveError::ProgramRejected(error.to_string())
+            })?;
         let accounts = instruction
             .accounts
             .iter()
@@ -1234,10 +1259,12 @@ impl crate::primitive::Primitive for GenericHarness {
         let builder = GenericInstructionBuilder::new(&self.idl, &self.adapter);
         let instruction = builder
             .resolve_instruction_for_replay(action)
-            .map_err(|error| crate::primitive::PrimitiveError::ProgramRejected(error.to_string()))?;
-        let data = builder
-            .build_replay_data(action, args)
-            .map_err(|error| crate::primitive::PrimitiveError::ProgramRejected(error.to_string()))?;
+            .map_err(|error| {
+                crate::primitive::PrimitiveError::ProgramRejected(error.to_string())
+            })?;
+        let data = builder.build_replay_data(action, args).map_err(|error| {
+            crate::primitive::PrimitiveError::ProgramRejected(error.to_string())
+        })?;
         let accounts = instruction
             .accounts
             .iter()
@@ -1325,9 +1352,9 @@ impl crate::primitive::Primitive for GenericHarness {
         let mut per_agent: Vec<BTreeMap<String, ObservationValue>> =
             Vec::with_capacity(self.agents.len());
         for idx in 0..self.agents.len() {
-            per_agent.push(
-                <Self as crate::primitive::Primitive>::observation_values(self, idx)?,
-            );
+            per_agent.push(<Self as crate::primitive::Primitive>::observation_values(
+                self, idx,
+            )?);
         }
 
         let mut metrics = BTreeMap::new();
@@ -1364,66 +1391,42 @@ impl crate::primitive::Primitive for GenericHarness {
                 continue;
             }
             match definition.kind() {
-                crate::adapter::ObservationType::Int
-                | crate::adapter::ObservationType::UInt => {
-                    let numeric: Vec<f64> =
-                        column.iter().filter_map(|v| v.as_f64()).collect();
+                crate::adapter::ObservationType::Int | crate::adapter::ObservationType::UInt => {
+                    let numeric: Vec<f64> = column.iter().filter_map(|v| v.as_f64()).collect();
                     if numeric.is_empty() {
                         continue;
                     }
                     let avg = numeric.iter().sum::<f64>() / (numeric.len() as f64);
                     let min = numeric.iter().copied().fold(f64::INFINITY, f64::min);
-                    let max = numeric
-                        .iter()
-                        .copied()
-                        .fold(f64::NEG_INFINITY, f64::max);
+                    let max = numeric.iter().copied().fold(f64::NEG_INFINITY, f64::max);
                     summary.insert(format!("{key}_avg"), json_f64_gen(avg));
                     summary.insert(format!("{key}_max"), json_f64_gen(max));
                     summary.insert(format!("{key}_min"), json_f64_gen(min));
                 }
                 crate::adapter::ObservationType::Bool => {
-                    let true_count: u64 =
-                        column.iter().filter_map(|v| v.as_u64()).sum();
+                    let true_count: u64 = column.iter().filter_map(|v| v.as_u64()).sum();
                     // Each tick's column value is the number of agents
                     // with `true`. `false_count` = agents*ticks - trues.
-                    let total_cells = (self.agents.len() as u64)
-                        .saturating_mul(column.len() as u64);
+                    let total_cells =
+                        (self.agents.len() as u64).saturating_mul(column.len() as u64);
                     let false_count = total_cells.saturating_sub(true_count);
-                    summary
-                        .insert(format!("{key}_true_count"), serde_json::json!(true_count));
-                    summary
-                        .insert(format!("{key}_false_count"), serde_json::json!(false_count));
+                    summary.insert(format!("{key}_true_count"), serde_json::json!(true_count));
+                    summary.insert(format!("{key}_false_count"), serde_json::json!(false_count));
                 }
                 crate::adapter::ObservationType::Pubkey => {
-                    let max_unique: u64 = column
-                        .iter()
-                        .filter_map(|v| v.as_u64())
-                        .max()
-                        .unwrap_or(0);
-                    summary.insert(
-                        format!("{key}_unique_count"),
-                        serde_json::json!(max_unique),
-                    );
+                    let max_unique: u64 =
+                        column.iter().filter_map(|v| v.as_u64()).max().unwrap_or(0);
+                    summary.insert(format!("{key}_unique_count"), serde_json::json!(max_unique));
                 }
                 crate::adapter::ObservationType::Map => {
-                    let numeric: Vec<f64> =
-                        column.iter().filter_map(|v| v.as_f64()).collect();
+                    let numeric: Vec<f64> = column.iter().filter_map(|v| v.as_f64()).collect();
                     if numeric.is_empty() {
                         continue;
                     }
                     let avg = numeric.iter().sum::<f64>() / (numeric.len() as f64);
-                    let max = numeric
-                        .iter()
-                        .copied()
-                        .fold(f64::NEG_INFINITY, f64::max);
-                    summary.insert(
-                        format!("{key}_entry_count_avg"),
-                        json_f64_gen(avg),
-                    );
-                    summary.insert(
-                        format!("{key}_entry_count_max"),
-                        json_f64_gen(max),
-                    );
+                    let max = numeric.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                    summary.insert(format!("{key}_entry_count_avg"), json_f64_gen(avg));
+                    summary.insert(format!("{key}_entry_count_max"), json_f64_gen(max));
                 }
             }
         }
@@ -1855,7 +1858,10 @@ triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
     fn generic_persona_trigger_boosts_matching_action_score() {
         let adapter = sample_generic_adapter();
         let policies = build_generic_policies(&adapter, |_| {}).unwrap();
-        let policy = policies.iter().find(|policy| policy.persona_id == "grinder").unwrap();
+        let policy = policies
+            .iter()
+            .find(|policy| policy.persona_id == "grinder")
+            .unwrap();
         let mut agent = Agent::new("agent", policy.clone(), 0.0);
         let mut observation = AgentObservation::new(1, 0.0, 0.0, 0.0, 0.0, 0.0);
         observation
@@ -1873,7 +1879,10 @@ triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
         let adapter = sample_generic_adapter();
         let mut warnings = Vec::new();
         let policies = build_generic_policies(&adapter, |warning| warnings.push(warning)).unwrap();
-        let policy = policies.iter().find(|policy| policy.persona_id == "grinder").unwrap();
+        let policy = policies
+            .iter()
+            .find(|policy| policy.persona_id == "grinder")
+            .unwrap();
         let mut rng = rand::rngs::StdRng::seed_from_u64(7);
         let agent = Agent::new("agent", policy.clone(), 0.0);
         let observation = AgentObservation::new(1, 0.0, 0.0, 0.0, 0.0, 0.0);

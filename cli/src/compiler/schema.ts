@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ProgramErrorInfoSchema } from "../schemas/errors.js";
 
 export const TriggerConditionSchema = z.discriminatedUnion("type", [
   z.object({
@@ -82,6 +83,7 @@ export const SimEventSchema = z.object({
   params: z.record(z.string(), z.unknown()),
   outcome: z.enum(["success", "failed", "skipped"]),
   outcome_detail: z.string().optional(),
+  program_error: ProgramErrorInfoSchema.optional(),
   triggered_by: z.string().optional()
 });
 

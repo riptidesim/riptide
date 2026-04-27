@@ -5,6 +5,7 @@
 // `engine/src/adapter/loader.rs`.
 
 import { z } from "zod";
+import { ProgramErrorEntrySchema } from "./errors.js";
 
 export const LENDING_ACTIONS = [
   "deposit",
@@ -221,6 +222,7 @@ export const AdapterSchema = z.object({
   oracles: z.array(OracleDefinitionSchema).default([]),
   scheduled_actions: z.array(ScheduledActionSchema).default([]),
   semantics: SemanticsSchema.optional(),
+  errors: z.array(ProgramErrorEntrySchema).default([]),
   lineage: AdapterLineageSchema.optional(),
 });
 export type Adapter = z.infer<typeof AdapterSchema>;
@@ -394,6 +396,7 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
   validateAdapterIdentifiers(adapter, path);
   validateLineage(adapter, path);
   validateSemantics(adapter, path);
+  validateErrors(adapter, path);
   validateAccountOwners(adapter, path);
 
   if (adapter.protocol === "lending") {
@@ -406,6 +409,25 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
   validateScheduledActions(adapter, path);
 
   return adapter;
+}
+
+function validateErrors(adapter: Adapter, path: string): void {
+  const codes = new Set<number>();
+  const labels = new Set<string>();
+  adapter.errors.forEach((entry, idx) => {
+    if (codes.has(entry.code)) {
+      throw new Error(
+        `${path}: \`[[errors]][${idx}].code\`: duplicate program error code \`${entry.code}\`; each \`[[errors]]\` entry must have a unique u32 code`
+      );
+    }
+    codes.add(entry.code);
+    if (labels.has(entry.label)) {
+      throw new Error(
+        `${path}: \`[[errors]][${idx}].label\`: duplicate program error label \`${escapeDiagnostic(entry.label)}\`; each \`[[errors]]\` entry must have a unique snake_case label`
+      );
+    }
+    labels.add(entry.label);
+  });
 }
 
 function validateSemantics(adapter: Adapter, path: string): void {

@@ -67,8 +67,7 @@ fn canonical_hash_survives_serde_roundtrip() {
             return;
         }
     }
-    let fixture = monorepo_root()
-        .join("fixtures/replays/lst-lending-contagion-proof");
+    let fixture = monorepo_root().join("fixtures/replays/lst-lending-contagion-proof");
     let shape = load_replay_config(&fixture.join("config.json"))
         .expect("load multi-component contagion config");
     let cfg = match shape {
@@ -77,8 +76,8 @@ fn canonical_hash_survives_serde_roundtrip() {
     };
     let mut harness = MultiComponentHarness::bootstrap(&cfg, &fixture)
         .expect("bootstrap multi-component harness");
-    let mut result = run_multi_replay(&mut harness, "__canonical__".into())
-        .expect("run multi-component replay");
+    let mut result =
+        run_multi_replay(&mut harness, "__canonical__".into()).expect("run multi-component replay");
     // Simulate the CLI rewrite: output_path gets replaced with the
     // scenario's resolved artifact path before the JSON lands on
     // disk. canonical_hash must be robust against that rewrite.
@@ -102,8 +101,7 @@ fn canonical_hash_survives_serde_roundtrip() {
     // CLI-written pack and the in-memory test path report the same
     // number to reviewers.
     assert_eq!(
-        hash_in_memory,
-        "d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb",
+        hash_in_memory, "d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb",
         "canonical hash drifted from Sprint 11 pin",
     );
 }

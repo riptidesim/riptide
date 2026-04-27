@@ -86,13 +86,11 @@ mod litesvm_admin_mock_oracle {
                 signers.push(s);
             }
         }
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &signers,
-            blockhash,
-        );
-        svm.send_transaction(tx).map(|_| ()).map_err(|e| format!("{:?}", e.err))
+        let tx =
+            Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &signers, blockhash);
+        svm.send_transaction(tx)
+            .map(|_| ())
+            .map_err(|e| format!("{:?}", e.err))
     }
 
     /// done-when #4: "a new adapter can boot in LiteSVM, read a
@@ -124,7 +122,8 @@ mod litesvm_admin_mock_oracle {
             .expect("load admin_mock_oracle into LiteSVM");
 
         let admin = Keypair::new();
-        svm.airdrop(&admin.pubkey(), 10_000_000_000).expect("airdrop admin");
+        svm.airdrop(&admin.pubkey(), 10_000_000_000)
+            .expect("airdrop admin");
 
         let oracle_kp = Keypair::new();
         let rent = svm.minimum_balance_for_rent_exemption(ORACLE_STATE_LEN);
@@ -157,7 +156,9 @@ mod litesvm_admin_mock_oracle {
         // --- Read the initialized bytes through the layout dispatch ---
         let layout = oracle_layout_for(OracleKind::AdminMock);
         assert_eq!(layout.byte_len(), ORACLE_STATE_LEN);
-        let account = svm.get_account(&oracle_kp.pubkey()).expect("oracle account");
+        let account = svm
+            .get_account(&oracle_kp.pubkey())
+            .expect("oracle account");
         let initial = layout.decode(&account.data).expect("decode initial");
         assert_eq!(initial.exponent, 0);
         assert!((initial.price - 100.0).abs() < 1e-9);
@@ -178,7 +179,9 @@ mod litesvm_admin_mock_oracle {
         send(&mut svm, &admin, shock_ix, &[]).expect("shock oracle");
 
         // --- Re-read through the dispatch, confirm the shock landed ---
-        let account = svm.get_account(&oracle_kp.pubkey()).expect("oracle after shock");
+        let account = svm
+            .get_account(&oracle_kp.pubkey())
+            .expect("oracle after shock");
         let shocked = layout.decode(&account.data).expect("decode shocked");
         assert!((shocked.price - 40.0).abs() < 1e-9);
         assert_eq!(shocked.exponent, 0);
@@ -187,7 +190,13 @@ mod litesvm_admin_mock_oracle {
         // bytes the program wrote, proving the layout mirror is
         // byte-identical to the on-chain account shape. ---
         let engine_encoded = layout
-            .encode(admin.pubkey().to_bytes(), &OracleUpdate { price: 40.0, exponent: 0 })
+            .encode(
+                admin.pubkey().to_bytes(),
+                &OracleUpdate {
+                    price: 40.0,
+                    exponent: 0,
+                },
+            )
             .expect("engine encode");
         assert_eq!(
             &engine_encoded[..],
@@ -197,7 +206,6 @@ mod litesvm_admin_mock_oracle {
         );
     }
 }
-
 
 #[test]
 fn adapter_parses_admin_mock_oracles_block() {
@@ -375,13 +383,13 @@ mod owner_aware_bootstrap {
     //! adapter-declared owner pubkey and pre-populates tick-0 bytes
     //! through the shipping layout dispatcher — never a silent fallback
     //! to `program_id` and never an all-zero buffer.
+    use std::collections::BTreeMap;
+    use std::fs;
     use std::path::{Path, PathBuf};
     use std::str::FromStr;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::OnceLock;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use std::sync::atomic::{AtomicU64, Ordering};
-    use std::fs;
-    use std::collections::BTreeMap;
 
     use riptide_engine::{
         adapter::{load_adapter, parse_adapter_str, OracleKind},
@@ -517,10 +525,7 @@ exponent = {exponent}
             return;
         }
 
-        let owner_clause = format!(
-            r#"owner = {{ program_so = "{}" }}"#,
-            admin_so.display()
-        );
+        let owner_clause = format!(r#"owner = {{ program_so = "{}" }}"#, admin_so.display());
         let toml = adapter_toml_with_owner(&owner_clause, 100.0, 0, 50, "admin-mock", "");
         let adapter_path = tmpdir_for("owner").join("adapter.toml");
         write_adapter(&adapter_path, &toml);
@@ -534,11 +539,9 @@ exponent = {exponent}
         })
         .expect("bootstrap owner-aware generic harness");
 
-        let sibling_kp =
-            read_keypair_file(&admin_kp).expect("read admin_mock_oracle keypair");
+        let sibling_kp = read_keypair_file(&admin_kp).expect("read admin_mock_oracle keypair");
         let expected_owner = sibling_kp.pubkey();
-        let (oracle_pubkey, oracle_account) =
-            harness_oracle_account(&harness, "oracle");
+        let (oracle_pubkey, oracle_account) = harness_oracle_account(&harness, "oracle");
 
         assert_eq!(
             oracle_account.owner, expected_owner,
@@ -556,7 +559,10 @@ exponent = {exponent}
         let expected_bytes = layout
             .encode(
                 harness.admin.pubkey().to_bytes(),
-                &OracleUpdate { price: 100.0, exponent: 0 },
+                &OracleUpdate {
+                    price: 100.0,
+                    exponent: 0,
+                },
             )
             .expect("encode admin-mock tick-0 bytes");
         let byte_len = layout.byte_len();
@@ -599,8 +605,14 @@ exponent = {exponent}
         assert_eq!(oracle_account.owner, Pubkey::from_str(literal).unwrap());
         // Pyth layout decodes back to the declared base_price/exponent.
         let layout = oracle_layout_for(OracleKind::Pyth);
-        let decoded = layout.decode(&oracle_account.data).expect("decode pyth tick-0");
-        assert!((decoded.price - 150.0).abs() < 1e-6, "got {}", decoded.price);
+        let decoded = layout
+            .decode(&oracle_account.data)
+            .expect("decode pyth tick-0");
+        assert!(
+            (decoded.price - 150.0).abs() < 1e-6,
+            "got {}",
+            decoded.price
+        );
         assert_eq!(decoded.exponent, -2);
     }
 
@@ -648,8 +660,7 @@ exponent = 0
         if skip_if_missing(&[&grinder_so, &grinder_idl]) {
             return;
         }
-        let owner_clause =
-            r#"owner = { pubkey = "FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH" }"#;
+        let owner_clause = r#"owner = { pubkey = "FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH" }"#;
         // admin-mock layout floor is 50 bytes; declare 32 (still passes the
         // 8-byte discriminator floor but fails the layout floor).
         let toml = adapter_toml_with_owner(owner_clause, 100.0, 0, 32, "admin-mock", "");
@@ -665,7 +676,10 @@ exponent = 0
             Err(error) => error,
         };
         let msg = format!("{err:#}");
-        assert!(msg.contains("50"), "expected layout floor in message, got: {msg}");
+        assert!(
+            msg.contains("50"),
+            "expected layout floor in message, got: {msg}"
+        );
     }
 
     #[test]
@@ -723,12 +737,6 @@ mod generic_oracle_write_path {
     //! and Pyth both end-to-end — and that adapters without an
     //! `[[oracles]]` block keep the trait's no-op semantics so the
     //! existing generic scratch-gate regression hashes stay byte-stable.
-    use std::fs;
-    use std::path::{Path, PathBuf};
-    use std::str::FromStr;
-    use std::sync::atomic::{AtomicU64, Ordering};
-    use std::sync::OnceLock;
-    use std::time::{SystemTime, UNIX_EPOCH};
     use riptide_engine::{
         adapter::{load_adapter, parse_adapter_str, OracleKind},
         primitive::{GenericBootstrapConfig, GenericHarness, Primitive},
@@ -738,6 +746,12 @@ mod generic_oracle_write_path {
         pubkey::Pubkey,
         signature::{read_keypair_file, Signer},
     };
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::str::FromStr;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::OnceLock;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn workspace_root() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -779,8 +793,7 @@ mod generic_oracle_write_path {
         }
         let ci = std::env::var("CI").map(|v| !v.is_empty()).unwrap_or(false);
         if ci {
-            let list: Vec<String> =
-                missing.iter().map(|p| p.display().to_string()).collect();
+            let list: Vec<String> = missing.iter().map(|p| p.display().to_string()).collect();
             panic!(
                 "CI={}: refusing to soft-skip generic-oracle-write gate on missing SBF \
                  artifact(s): {}.\n\
@@ -884,10 +897,7 @@ exponent = {exponent}
         if skip_if_missing(&[&admin_so, &admin_kp, &grinder_so, &grinder_idl]) {
             return;
         }
-        let owner_clause = format!(
-            r#"owner = {{ program_so = "{}" }}"#,
-            admin_so.display()
-        );
+        let owner_clause = format!(r#"owner = {{ program_so = "{}" }}"#, admin_so.display());
         let toml = adapter_toml(&owner_clause, 100.0, 0, 50, "admin-mock");
         let adapter_path = tmpdir("admin-mock-push").join("adapter.toml");
         write_adapter(&adapter_path, &toml);
@@ -914,8 +924,13 @@ exponent = {exponent}
         let tick0_decoded = layout.decode(&tick0.data).expect("decode tick 0");
         assert!((tick0_decoded.price - 100.0).abs() < 1e-9);
 
-        let shock = OracleUpdate { price: 40.0, exponent: 0 };
-        harness.push_oracle_price(&shock).expect("push admin-mock shock");
+        let shock = OracleUpdate {
+            price: 40.0,
+            exponent: 0,
+        };
+        harness
+            .push_oracle_price(&shock)
+            .expect("push admin-mock shock");
 
         let post = harness
             .inspect_shared_account("oracle")
@@ -940,7 +955,10 @@ exponent = {exponent}
         // bytes to tick 0 (encoder is deterministic). Proves the write
         // path round-trips through the layout dispatcher.
         harness
-            .push_oracle_price(&OracleUpdate { price: 100.0, exponent: 0 })
+            .push_oracle_price(&OracleUpdate {
+                price: 100.0,
+                exponent: 0,
+            })
             .expect("push back to baseline");
         let returned = harness
             .inspect_shared_account("oracle")
@@ -975,7 +993,9 @@ exponent = {exponent}
         let expected_owner = Pubkey::from_str(literal).unwrap();
         let pyth_layout = oracle_layout_for(OracleKind::Pyth);
 
-        let tick0 = harness.inspect_shared_account("oracle").expect("pyth tick 0");
+        let tick0 = harness
+            .inspect_shared_account("oracle")
+            .expect("pyth tick 0");
         assert_eq!(tick0.owner, expected_owner);
         assert_eq!(
             tick0.data.len(),
@@ -986,15 +1006,22 @@ exponent = {exponent}
         assert_eq!(tick0_decoded.exponent, -2);
         assert!((tick0_decoded.price - 150.0).abs() < 1e-6);
 
-        let shock = OracleUpdate { price: 200.0, exponent: -2 };
+        let shock = OracleUpdate {
+            price: 200.0,
+            exponent: -2,
+        };
         harness.push_oracle_price(&shock).expect("push pyth shock");
 
-        let post = harness.inspect_shared_account("oracle").expect("pyth post push");
+        let post = harness
+            .inspect_shared_account("oracle")
+            .expect("pyth post push");
         assert_eq!(
             post.owner, expected_owner,
             "pyth owner (literal external pubkey) must survive the push path"
         );
-        let post_decoded = pyth_layout.decode(&post.data).expect("decode pyth post-push");
+        let post_decoded = pyth_layout
+            .decode(&post.data)
+            .expect("decode pyth post-push");
         assert_eq!(post_decoded.exponent, -2);
         assert!(
             (post_decoded.price - 200.0).abs() < 1e-6,
@@ -1058,10 +1085,16 @@ action_weights = {{ mine = 1.0 }}
         // No panic, no error — and no state change. Call twice to prove
         // the path is stably idempotent.
         harness
-            .push_oracle_price(&OracleUpdate { price: 50.0, exponent: 0 })
+            .push_oracle_price(&OracleUpdate {
+                price: 50.0,
+                exponent: 0,
+            })
             .expect("no-oracle push is a no-op");
         harness
-            .push_oracle_price(&OracleUpdate { price: 60.0, exponent: 0 })
+            .push_oracle_price(&OracleUpdate {
+                price: 60.0,
+                exponent: 0,
+            })
             .expect("no-oracle push is a no-op (second call)");
     }
 }

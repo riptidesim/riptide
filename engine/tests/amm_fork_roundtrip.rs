@@ -45,8 +45,7 @@ use solana_transaction::Transaction;
 
 // --- Byte-level constants mirrored from `programs/amm/src/state.rs` ---
 
-const POOL_STATE_LEN: usize =
-    1 + 32 + 32 + 32 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8; // 161
+const POOL_STATE_LEN: usize = 1 + 32 + 32 + 32 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8; // 161
 const LP_POSITION_STATE_LEN: usize = 1 + 32 + 32 + 8; // 73
 
 const DIRECTION_A_TO_B: u64 = 0;
@@ -178,12 +177,8 @@ impl AmmHarness {
                 signers.push(s);
             }
         }
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&signer.pubkey()),
-            &signers,
-            blockhash,
-        );
+        let tx =
+            Transaction::new_signed_with_payer(&[ix], Some(&signer.pubkey()), &signers, blockhash);
         self.svm
             .send_transaction(tx)
             .unwrap_or_else(|e| panic!("send_transaction failed: {:?}", e.err));
@@ -197,25 +192,15 @@ impl AmmHarness {
                 signers.push(s);
             }
         }
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&signer.pubkey()),
-            &signers,
-            blockhash,
-        );
+        let tx =
+            Transaction::new_signed_with_payer(&[ix], Some(&signer.pubkey()), &signers, blockhash);
         assert!(
             self.svm.send_transaction(tx).is_err(),
             "expected send_transaction to fail"
         );
     }
 
-    fn create_and_own(
-        &mut self,
-        payer: &Keypair,
-        target: &Keypair,
-        space: usize,
-        owner: &Pubkey,
-    ) {
+    fn create_and_own(&mut self, payer: &Keypair, target: &Keypair, space: usize, owner: &Pubkey) {
         let rent = self.svm.minimum_balance_for_rent_exemption(space);
         let ix = system_instruction::create_account(
             &payer.pubkey(),
@@ -372,10 +357,10 @@ fn amm_roundtrip_full_path() {
     h.remove_liquidity(lp_shares);
     let after_remove = h.read_pool();
     // withdrawn_a = shares * reserve_a_before / total_supply_before.
-    let expected_withdraw_a = (lp_shares as u128 * reserve_a_before as u128
-        / total_supply_before as u128) as u64;
-    let expected_withdraw_b = (lp_shares as u128 * reserve_b_before as u128
-        / total_supply_before as u128) as u64;
+    let expected_withdraw_a =
+        (lp_shares as u128 * reserve_a_before as u128 / total_supply_before as u128) as u64;
+    let expected_withdraw_b =
+        (lp_shares as u128 * reserve_b_before as u128 / total_supply_before as u128) as u64;
     assert_eq!(
         after_remove.reserve_a,
         reserve_a_before - expected_withdraw_a
@@ -384,7 +369,10 @@ fn amm_roundtrip_full_path() {
         after_remove.reserve_b,
         reserve_b_before - expected_withdraw_b
     );
-    assert_eq!(after_remove.total_lp_supply, total_supply_before - lp_shares);
+    assert_eq!(
+        after_remove.total_lp_supply,
+        total_supply_before - lp_shares
+    );
     assert_eq!(h.read_lp_position().lp_shares, 0);
 }
 

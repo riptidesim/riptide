@@ -179,12 +179,12 @@ pub const PYTH_OFFSET_NUM_QT: usize = 0x1C;
 pub const PYTH_OFFSET_LAST_SLOT: usize = 0x20;
 pub const PYTH_OFFSET_VALID_SLOT: usize = 0x28;
 pub const PYTH_OFFSET_EMA_PRICE_VAL: usize = 0x30; // i64
-pub const PYTH_OFFSET_EMA_CONF_VAL: usize = 0x48;  // i64
-pub const PYTH_OFFSET_TIMESTAMP: usize = 0x60;     // i64
-pub const PYTH_OFFSET_AGG_PRICE: usize = 0xD0;     // i64
-pub const PYTH_OFFSET_AGG_CONF: usize = 0xD8;      // u64
-pub const PYTH_OFFSET_AGG_STATUS: usize = 0xE0;    // u8
-pub const PYTH_OFFSET_AGG_PUB_SLOT: usize = 0xE8;  // u64
+pub const PYTH_OFFSET_EMA_CONF_VAL: usize = 0x48; // i64
+pub const PYTH_OFFSET_TIMESTAMP: usize = 0x60; // i64
+pub const PYTH_OFFSET_AGG_PRICE: usize = 0xD0; // i64
+pub const PYTH_OFFSET_AGG_CONF: usize = 0xD8; // u64
+pub const PYTH_OFFSET_AGG_STATUS: usize = 0xE0; // u8
+pub const PYTH_OFFSET_AGG_PUB_SLOT: usize = 0xE8; // u64
 
 impl OracleLayout for PythMockOracleLayout {
     fn byte_len(&self) -> usize {
@@ -318,8 +318,7 @@ mod tests {
     /// the same file.
     #[test]
     fn oracle_snapshot_matches_golden_bytes() {
-        const GOLDEN: &[u8] =
-            include_bytes!("../../../fixtures/oracle_state_golden.bin");
+        const GOLDEN: &[u8] = include_bytes!("../../../fixtures/oracle_state_golden.bin");
 
         let snapshot = OracleSnapshot {
             is_initialized: true,

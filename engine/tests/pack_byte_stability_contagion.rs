@@ -103,8 +103,7 @@ fn run_fixture() -> SimulationResult {
     let mut harness = MultiComponentHarness::bootstrap(&cfg, &fixture)
         .expect("bootstrap multi-component harness");
     canonicalize(
-        run_multi_replay(&mut harness, "__canonical__".into())
-            .expect("run multi-component replay"),
+        run_multi_replay(&mut harness, "__canonical__".into()).expect("run multi-component replay"),
     )
 }
 
@@ -148,8 +147,7 @@ fn emit_pack_for_fixture(dir: &Path) -> Vec<(String, Vec<u8>)> {
         adapter_display: Some("multi-component: liquid-staking × lending_pool".to_string()),
     };
 
-    emit_pack(&result, &inputs, &outputs, &options)
-        .expect("emit pack for contagion fixture");
+    emit_pack(&result, &inputs, &outputs, &options).expect("emit pack for contagion fixture");
 
     collect_pack_files(dir)
 }
@@ -198,12 +196,30 @@ fn sha256_hex(bytes: &[u8]) -> String {
 /// Then paste the emitted `(name, hash)` pairs back into this
 /// constant and re-run the verifying test.
 const EXPECTED_PACK_HASHES: &[(&str, &str)] = &[
-    ("inputs/paths.json", "a4fe09485bd0e73aabdca484299979ae60631872c43ac632de3a4ce411b0beb5"),
-    ("manifest.json", "8378f16042077b655ff180c76c592d9cf4fc01bedb7de920d7e094a794f0d78b"),
-    ("outputs/paths.json", "b5238b2cdb67074ece3cb9c191167a71c3750dd7ef37015c9274afc1929f63b7"),
-    ("rerun.sh", "9efc7a52991233f1c3a2cde0ff12882a7ea24dcded49a82825435734cdbfcfa7"),
-    ("summary.md", "19b3f5ab39ba22f1b5edc2afbadfd02610247fcaedd8d7e866908929e5039e52"),
-    ("trace.md", "be1742d0a8720bfa7c2d8ed62dba2c78da4a1db39b055d474ecb11e1d9414068"),
+    (
+        "inputs/paths.json",
+        "a4fe09485bd0e73aabdca484299979ae60631872c43ac632de3a4ce411b0beb5",
+    ),
+    (
+        "manifest.json",
+        "8378f16042077b655ff180c76c592d9cf4fc01bedb7de920d7e094a794f0d78b",
+    ),
+    (
+        "outputs/paths.json",
+        "b5238b2cdb67074ece3cb9c191167a71c3750dd7ef37015c9274afc1929f63b7",
+    ),
+    (
+        "rerun.sh",
+        "9efc7a52991233f1c3a2cde0ff12882a7ea24dcded49a82825435734cdbfcfa7",
+    ),
+    (
+        "summary.md",
+        "19b3f5ab39ba22f1b5edc2afbadfd02610247fcaedd8d7e866908929e5039e52",
+    ),
+    (
+        "trace.md",
+        "be1742d0a8720bfa7c2d8ed62dba2c78da4a1db39b055d474ecb11e1d9414068",
+    ),
 ];
 
 #[test]
@@ -220,14 +236,14 @@ fn dump_expected_pack_hashes() {
     let files = emit_pack_for_fixture(tmp.path());
     println!("===== BEGIN EXPECTED_PACK_HASHES =====");
     for (name, body) in &files {
-        println!(
-            "    (\"{}\", \"{}\"),",
-            name,
-            sha256_hex(body)
-        );
+        println!("    (\"{}\", \"{}\"),", name, sha256_hex(body));
     }
     println!("===== END EXPECTED_PACK_HASHES =====");
-    if std::env::var("RIPTIDE_DUMP_EXPECTED_CONTENT").ok().as_deref() == Some("1") {
+    if std::env::var("RIPTIDE_DUMP_EXPECTED_CONTENT")
+        .ok()
+        .as_deref()
+        == Some("1")
+    {
         for (name, body) in &files {
             println!("\n===== {name} =====");
             println!("{}", String::from_utf8_lossy(body));
@@ -310,8 +326,7 @@ fn pack_hashes_match_pinned_expectations() {
         .map(|(_, b)| String::from_utf8_lossy(b).into_owned())
         .expect("pack has manifest.json");
     assert!(
-        manifest_body
-            .contains("d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb"),
+        manifest_body.contains("d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb"),
         "manifest.json must carry the Sprint 11 canonical hash verbatim; body=\n{manifest_body}",
     );
 }
@@ -398,9 +413,7 @@ fn rerun_sh_rejects_shell_metacharacter_injection() {
         // Intentionally unsafe: a caller passing a command_hint
         // that carries `$(id)` would previously land verbatim into
         // rerun.sh. The scanner must bail.
-        command_hint: Some(
-            "exec riptide replay \"fixtures/$(id).toml\"".to_string(),
-        ),
+        command_hint: Some("exec riptide replay \"fixtures/$(id).toml\"".to_string()),
         adapter_display: None,
     };
 

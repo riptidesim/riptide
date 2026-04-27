@@ -31,9 +31,13 @@
 //! and `idl_path`, which give the engine enough information to boot a
 //! non-lending program honestly instead of hiding those details in code.
 
+pub mod errors;
 pub mod loader;
 pub mod schema;
 
+pub use errors::{
+    decode_program_error, validate_error_entries, DecodedProgramError, ProgramErrorEntry,
+};
 pub use loader::{load_adapter, parse_adapter_str, AdapterError};
 pub use schema::{
     AccountDefinition, AccountKind, AccountOwner, ActionDefinition, Adapter, AdapterLineage,

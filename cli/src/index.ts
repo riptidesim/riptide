@@ -8,6 +8,7 @@ import { createInitCommand } from "./commands/init.js";
 import { createLineageCommand } from "./commands/lineage.js";
 import { createLintCommand } from "./commands/lint.js";
 import { createListCommand } from "./commands/list.js";
+import { createReviewCommand } from "./commands/review.js";
 import { createReplayCommand } from "./commands/replay.js";
 import { createRunCommand } from "./commands/run.js";
 import { createScenariosCommand } from "./commands/scenarios.js";
@@ -26,6 +27,7 @@ program
 program.addCommand(createSimulateCommand());
 program.addCommand(createRunCommand());
 program.addCommand(createReplayCommand());
+program.addCommand(createReviewCommand());
 program.addCommand(createScenariosCommand());
 program.addCommand(createAdaptCommand());
 program.addCommand(createInitCommand());

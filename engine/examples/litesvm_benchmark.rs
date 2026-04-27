@@ -33,14 +33,10 @@ use riptide_engine::{
     harness::setup::default_program_so_path,
     scenario::BaselineScenario,
     sim::{
-        build_agent_personas,
-        litesvm::LiteSvmBootstrapConfig,
-        run_simulation, LiteSvmHarness, SimulationParams,
+        build_agent_personas, litesvm::LiteSvmBootstrapConfig, run_simulation, LiteSvmHarness,
+        SimulationParams,
     },
-    types::{
-        Policy, PositionSizing, PositionSizingStrategy,
-        RunConfig, Trigger, TriggerCondition,
-    },
+    types::{Policy, PositionSizing, PositionSizingStrategy, RunConfig, Trigger, TriggerCondition},
 };
 
 fn main() {
@@ -85,8 +81,8 @@ fn main() {
         seed_deposit: 100,
         adapter: None,
     };
-    let mut harness = LiteSvmHarness::bootstrap(bootstrap_config)
-        .expect("LiteSVM bootstrap failed");
+    let mut harness =
+        LiteSvmHarness::bootstrap(bootstrap_config).expect("LiteSVM bootstrap failed");
     let bootstrap_elapsed = t_bootstrap.elapsed();
     eprintln!("bootstrap={:.3}s", bootstrap_elapsed.as_secs_f64());
 
@@ -129,12 +125,9 @@ fn main() {
     };
 
     let policies = vec![policy];
-    let agent_personas = build_agent_personas(
-        &run_config.personas,
-        &policies,
-        agent_count as usize,
-    )
-    .expect("build_agent_personas failed");
+    let agent_personas =
+        build_agent_personas(&run_config.personas, &policies, agent_count as usize)
+            .expect("build_agent_personas failed");
 
     let mut scenario = BaselineScenario::new(100.0, 25);
     let params = SimulationParams {
@@ -152,8 +145,8 @@ fn main() {
 
     // --- Run simulation ---
     let t_sim = Instant::now();
-    let result = run_simulation(&mut harness, &mut scenario, params)
-        .expect("run_simulation failed");
+    let result =
+        run_simulation(&mut harness, &mut scenario, params).expect("run_simulation failed");
     let sim_elapsed = t_sim.elapsed();
     let total_elapsed = t_bootstrap.elapsed();
 

@@ -200,6 +200,7 @@ fn run_single_agent_semantic_lending(adapter: &Adapter) -> riptide_engine::types
         invariants: adapter.invariants.clone(),
         scheduled_actions: Vec::new(),
         semantics: adapter.semantics.clone(),
+        errors: Vec::new(),
     };
 
     run_simulation(&mut harness, &mut scenario, params).unwrap()
@@ -231,6 +232,7 @@ fn lending_v1_semantics_emit_derived_observations_and_expression_invariants() {
         invariants: adapter.invariants.clone(),
         scheduled_actions: Vec::new(),
         semantics: adapter.semantics.clone(),
+        errors: Vec::new(),
     };
 
     let result = run_simulation(&mut harness, &mut scenario, params).unwrap();
@@ -467,6 +469,7 @@ fn migrated_lending_adapter_binds_liquidation_semantics_to_borrower_target() {
         invariants: adapter.invariants.clone(),
         scheduled_actions: Vec::new(),
         semantics: adapter.semantics.clone(),
+        errors: Vec::new(),
     };
 
     let result = run_simulation(&mut harness, &mut scenario, params).unwrap();

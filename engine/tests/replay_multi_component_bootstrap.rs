@@ -25,9 +25,7 @@
 
 use std::path::{Path, PathBuf};
 
-use riptide_engine::replay::{
-    parse_replay_config, MultiComponentHarness, ReplayConfigShape,
-};
+use riptide_engine::replay::{parse_replay_config, MultiComponentHarness, ReplayConfigShape};
 
 fn monorepo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -63,7 +61,10 @@ fn legacy_single_component_config_round_trips_through_shared_loader() {
         ReplayConfigShape::Legacy(cfg) => {
             assert_eq!(cfg.adapter, "./adapter.toml");
             assert_eq!(cfg.trajectory_dir, ".");
-            assert_eq!(cfg.output_path, "riptide-output/replays/lending-whale-bad-debt");
+            assert_eq!(
+                cfg.output_path,
+                "riptide-output/replays/lending-whale-bad-debt"
+            );
         }
         ReplayConfigShape::Multi(_) => {
             panic!("legacy shipped replay config must keep parsing on the legacy branch");
@@ -71,8 +72,7 @@ fn legacy_single_component_config_round_trips_through_shared_loader() {
     }
 
     let lst_raw = std::fs::read_to_string(
-        monorepo_root()
-            .join("fixtures/replays/liquid-staking-depeg-redemption-run/config.json"),
+        monorepo_root().join("fixtures/replays/liquid-staking-depeg-redemption-run/config.json"),
     )
     .expect("read liquid-staking legacy replay config");
     match parse_replay_config(&lst_raw).expect("parse legacy config") {

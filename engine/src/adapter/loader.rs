@@ -13,6 +13,7 @@ use crate::adapter::schema::{
     SemanticSourceBinding, LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS,
     LENDING_V1_REQUIRED_ROLES, ORACLE_KINDS, SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
 };
+use crate::adapter::{errors::ErrorRegistryValidation, validate_error_entries};
 use crate::semantics::derived::{build_derived_order, DerivedObservationError};
 use crate::semantics::expr::parse as parse_semantic_expr;
 
@@ -428,12 +429,45 @@ fn validate(adapter: &mut Adapter, path: &str) -> Result<(), AdapterError> {
     // adapter forge CLI lines. The allow-list matches the names
     // already used by the shipped fixtures.
     validate_identifiers(adapter, path)?;
+    validate_errors(adapter, path)?;
     validate_lineage(adapter, path)?;
     validate_semantics(adapter, path)?;
     match adapter.protocol {
         Protocol::Lending => validate_lending(adapter, path),
         Protocol::Generic => validate_generic(adapter, path),
     }
+}
+
+fn validate_errors(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
+    validate_error_entries(&adapter.errors).map_err(|error| match error {
+        ErrorRegistryValidation::DuplicateCode { index, code } => AdapterError::Validation {
+            path: path.to_string(),
+            key: format!("[[errors]][{index}].code"),
+            reason: format!(
+                "duplicate program error code `{code}`; each `[[errors]]` entry must have a unique u32 code"
+            ),
+        },
+        ErrorRegistryValidation::DuplicateLabel { index, label } => AdapterError::Validation {
+            path: path.to_string(),
+            key: format!("[[errors]][{index}].label"),
+            reason: format!(
+                "duplicate program error label `{label}`; each `[[errors]]` entry must have a unique snake_case label"
+            ),
+        },
+        ErrorRegistryValidation::MalformedLabel { index, label } => AdapterError::Validation {
+            path: path.to_string(),
+            key: format!("[[errors]][{index}].label"),
+            reason: format!(
+                "malformed program error label `{label}`; expected snake_case `[a-z][a-z0-9_]*`"
+            ),
+        },
+        ErrorRegistryValidation::MalformedInterpretation { index } => AdapterError::Validation {
+            path: path.to_string(),
+            key: format!("[[errors]][{index}].interpretation"),
+            reason:
+                "program error interpretation must be a non-empty single-line string".into(),
+        },
+    })
 }
 
 fn validate_semantics(adapter: &mut Adapter, path: &str) -> Result<(), AdapterError> {

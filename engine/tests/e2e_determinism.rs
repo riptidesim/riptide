@@ -112,6 +112,7 @@ fn run_lending_fixture(seed: u64) -> SimulationResult {
         invariants: Vec::new(),
         scheduled_actions: Vec::new(),
         semantics: None,
+        errors: Vec::new(),
     };
     run_simulation(&mut harness, &mut scenario, params).unwrap()
 }
@@ -200,6 +201,7 @@ fn run_semantic_lending_fixture(seed: u64) -> SimulationResult {
         invariants: Vec::new(),
         scheduled_actions: Vec::new(),
         semantics: adapter.semantics.clone(),
+        errors: Vec::new(),
     };
     run_simulation(&mut harness, &mut scenario, params).unwrap()
 }
@@ -239,6 +241,7 @@ fn run_generic_fixture(seed: u64) -> SimulationResult {
         invariants: Vec::new(),
         scheduled_actions: Vec::new(),
         semantics: None,
+        errors: Vec::new(),
     };
     run_generic_simulation(&mut harness, &mut scenario, params).unwrap()
 }

@@ -47,6 +47,71 @@ liquidate = { action = "liquidate", amount = "repay_amount" }
 
 [personas]
 
+[[errors]]
+code = 0
+label = "invalid_account_owner"
+interpretation = "An account was not owned by the expected lending program."
+
+[[errors]]
+code = 1
+label = "invalid_account_data"
+interpretation = "An account could not be decoded as the expected lending state."
+
+[[errors]]
+code = 2
+label = "missing_oracle_account"
+interpretation = "The instruction did not include the required oracle account."
+
+[[errors]]
+code = 3
+label = "unauthorized"
+interpretation = "The signer was not authorized for the requested lending action."
+
+[[errors]]
+code = 4
+label = "uninitialized_pool"
+interpretation = "The lending pool account has not been initialized."
+
+[[errors]]
+code = 5
+label = "uninitialized_oracle"
+interpretation = "The oracle account has not been initialized."
+
+[[errors]]
+code = 6
+label = "position_liquidated"
+interpretation = "The position has already been liquidated."
+
+[[errors]]
+code = 7
+label = "position_healthy"
+interpretation = "The position is healthy and cannot be liquidated."
+
+[[errors]]
+code = 8
+label = "insufficient_collateral"
+interpretation = "Borrow or withdraw exceeded the position collateral constraint."
+
+[[errors]]
+code = 9
+label = "insufficient_liquidity"
+interpretation = "The pool does not have enough available liquidity."
+
+[[errors]]
+code = 10
+label = "deposit_limit_exceeded"
+interpretation = "The deposit would exceed the pool deposit limit."
+
+[[errors]]
+code = 11
+label = "borrow_limit_exceeded"
+interpretation = "The borrow would exceed the pool borrow limit."
+
+[[errors]]
+code = 12
+label = "math_overflow"
+interpretation = "The lending program hit a checked arithmetic overflow."
+
 # credibility invariant. Reads `cumulative_bad_debt` through the
 # lending-side observation alias (`bad_debt` in this adapter). Passes
 # at tick 0 (cumulative_bad_debt = 0 after bootstrap deposits, pre any

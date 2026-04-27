@@ -1127,6 +1127,7 @@ mod tests {
                 invariants: Vec::new(),
                 scheduled_actions: Vec::new(),
                 semantics: None,
+                errors: Vec::new(),
             };
             run_simulation(&mut harness, &mut scenario, params).unwrap()
         }
@@ -1273,6 +1274,7 @@ mod tests {
             oracles: Vec::new(),
             scheduled_actions: Vec::new(),
             semantics: None,
+            errors: Vec::new(),
             lineage: None,
         }
     }

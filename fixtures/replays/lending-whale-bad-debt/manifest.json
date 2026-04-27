@@ -3,7 +3,9 @@
   "kind": "replay",
   "run_id": "replay-lending-whale-bad-debt",
   "scenario": "replay:lending-whale-bad-debt",
-  "adapter": "fixtures/replays/lending-whale-bad-debt/adapter.toml",
+  "proof_level": 3,
+  "proof_level_label": "Failure-shape replay",
+  "adapter": "adapter.toml",
   "component_adapters": {},
   "total_ticks": 4,
   "agents": 10,
@@ -21,14 +23,14 @@
   ],
   "exit_code": 1,
   "inputs": {
-    "adapter": "fixtures/replays/lending-whale-bad-debt/adapter.toml",
-    "config": "fixtures/replays/lending-whale-bad-debt/config.json",
+    "adapter": "adapter.toml",
+    "config": "config.json",
     "policies": null,
     "trajectory_dirs": {},
     "component_adapters": {}
   },
   "outputs": {
-    "simulation_result": "fixtures/replays/lending-whale-bad-debt/riptide-output/replays/lending-whale-bad-debt/simulation-result.json",
+    "simulation_result": "riptide-output/replays/lending-whale-bad-debt/simulation-result.json",
     "last_run": null
   },
   "simulation_boundaries": [
@@ -36,5 +38,10 @@
     "Trajectory args are supplied inline per event; generic adapters may still fall back to adapter literals for unmapped constants.",
     "initial-state.json, when present, is applied as a pre-tick bootstrap instruction list before tick 0 is recorded.",
     "Agent balance/PnL fields are bookkeeping-only in replay mode; authoritative outputs are primitive snapshots, events, and invariant rollups."
+  ],
+  "what_this_proof_does_not_claim": [
+    "a byte-level reproduction of any specific on-chain incident,",
+    "a governance-intervention / OTC-coordination claim,",
+    "an audit or safety claim about any real lending protocol (Solend / Save, Kamino, MarginFi, etc.)."
   ]
 }

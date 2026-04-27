@@ -58,19 +58,11 @@ const STAKE_ACCOUNT_LEN: usize = 1 + 32 + 32 + 8 + 8 + 8 + 8; // 97
 
 #[derive(BorshSerialize)]
 enum LsIx {
-    InitializePool {
-        initial_exchange_rate_bps: u64,
-    },
-    Stake {
-        amount: u64,
-    },
-    RequestUnstake {
-        lst_amount: u64,
-    },
+    InitializePool { initial_exchange_rate_bps: u64 },
+    Stake { amount: u64 },
+    RequestUnstake { lst_amount: u64 },
     ClaimUnstake,
-    ApplySlash {
-        slash_bps: u64,
-    },
+    ApplySlash { slash_bps: u64 },
 }
 
 // --- Borsh mirrors of the account state. ---
@@ -110,8 +102,7 @@ fn workspace_root() -> PathBuf {
 }
 
 fn ls_so_path() -> PathBuf {
-    workspace_root()
-        .join("programs/liquid-staking/target/deploy/liquid_staking.so")
+    workspace_root().join("programs/liquid-staking/target/deploy/liquid_staking.so")
 }
 
 /// Mirrors the load-bearing-gate discipline used by
@@ -193,12 +184,8 @@ impl LsHarness {
                 signers.push(s);
             }
         }
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&signer.pubkey()),
-            &signers,
-            blockhash,
-        );
+        let tx =
+            Transaction::new_signed_with_payer(&[ix], Some(&signer.pubkey()), &signers, blockhash);
         self.svm
             .send_transaction(tx)
             .unwrap_or_else(|e| panic!("send_transaction failed: {:?}", e.err));
@@ -212,25 +199,15 @@ impl LsHarness {
                 signers.push(s);
             }
         }
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&signer.pubkey()),
-            &signers,
-            blockhash,
-        );
+        let tx =
+            Transaction::new_signed_with_payer(&[ix], Some(&signer.pubkey()), &signers, blockhash);
         assert!(
             self.svm.send_transaction(tx).is_err(),
             "expected send_transaction to fail"
         );
     }
 
-    fn create_and_own(
-        &mut self,
-        payer: &Keypair,
-        target: &Keypair,
-        space: usize,
-        owner: &Pubkey,
-    ) {
+    fn create_and_own(&mut self, payer: &Keypair, target: &Keypair, space: usize, owner: &Pubkey) {
         let rent = self.svm.minimum_balance_for_rent_exemption(space);
         let ix = system_instruction::create_account(
             &payer.pubkey(),
@@ -271,7 +248,12 @@ impl LsHarness {
         let staker_kp = self.staker.insecure_clone();
         let stake_account_kp = self.stake_account.insecure_clone();
         let program_id = self.program_id;
-        self.create_and_own(&staker_kp, &stake_account_kp, STAKE_ACCOUNT_LEN, &program_id);
+        self.create_and_own(
+            &staker_kp,
+            &stake_account_kp,
+            STAKE_ACCOUNT_LEN,
+            &program_id,
+        );
     }
 
     fn stake(&mut self, amount: u64) {
@@ -744,9 +726,7 @@ fn liquid_staking_apply_slash_rejects_on_lazy_init_pool() {
     // Also verify a wholly-different signer is rejected (no "any
     // signer works when admin is unset" regression).
     let stranger = Keypair::new();
-    h.svm
-        .airdrop(&stranger.pubkey(), 10_000_000_000)
-        .unwrap();
+    h.svm.airdrop(&stranger.pubkey(), 10_000_000_000).unwrap();
     let ix_stranger = Instruction::new_with_borsh(
         h.program_id,
         &LsIx::ApplySlash { slash_bps: 1_000 },

@@ -87,9 +87,7 @@ fn response_matches_action(response: &str, action: &RuntimeAction) -> bool {
         "panic_exit" | "reduce_exposure" => {
             action == &RuntimeAction::Withdraw || action == &RuntimeAction::Repay
         }
-        "rotate_capital" => {
-            action == &RuntimeAction::Withdraw || action == &RuntimeAction::Deposit
-        }
+        "rotate_capital" => action == &RuntimeAction::Withdraw || action == &RuntimeAction::Deposit,
         _ => normalized.contains(action.as_str()),
     }
 }

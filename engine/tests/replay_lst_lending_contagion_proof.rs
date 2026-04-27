@@ -35,9 +35,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use riptide_engine::{
-    replay::{
-        load_replay_config, run_multi_replay, MultiComponentHarness, ReplayConfigShape,
-    },
+    replay::{load_replay_config, run_multi_replay, MultiComponentHarness, ReplayConfigShape},
     types::SimulationResult,
 };
 
@@ -238,8 +236,7 @@ fn contagion_proof_matches_expected_summary_and_is_deterministic() {
     assert_eq!(first.events.len(), expected.event_count);
 
     assert_eq!(
-        first.run_config.scenario,
-        "replay:multi:lst-lending-contagion-proof-upstream",
+        first.run_config.scenario, "replay:multi:lst-lending-contagion-proof-upstream",
         "contagion scenario tag must derive from the upstream component's metadata.name",
     );
 
@@ -364,8 +361,8 @@ fn contagion_proof_matches_expected_summary_and_is_deterministic() {
     );
 
     // The downstream invariant that fires is the contagion proof.
-    let no_bad_debt_firing_tick = first_firing_tick(&first, "lending:no_bad_debt")
-        .expect("lending:no_bad_debt must fire");
+    let no_bad_debt_firing_tick =
+        first_firing_tick(&first, "lending:no_bad_debt").expect("lending:no_bad_debt must fire");
     assert_eq!(
         no_bad_debt_firing_tick, 4,
         "contagion proof claim: `lending:no_bad_debt` fires at the terminal cascade tick \
@@ -387,11 +384,17 @@ fn contagion_proof_matches_expected_summary_and_is_deterministic() {
     );
     for event in &bridge_events {
         assert_eq!(
-            event.params.get("source_component").and_then(|v| v.as_str()),
+            event
+                .params
+                .get("source_component")
+                .and_then(|v| v.as_str()),
             Some("liquid_staking")
         );
         assert_eq!(
-            event.params.get("target_component").and_then(|v| v.as_str()),
+            event
+                .params
+                .get("target_component")
+                .and_then(|v| v.as_str()),
             Some("lending")
         );
     }

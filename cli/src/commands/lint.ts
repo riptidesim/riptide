@@ -90,7 +90,7 @@ export async function runLint(
         return 2;
       case "validation-failed":
         stderr(
-          `riptide lint: adapter failed validation: ${loaded.error.message}\n`
+          `riptide lint: adapter failed validation: ${loaded.error.message}\nnext step: fix the adapter TOML schema error above, then rerun \`riptide lint ${adapterArg}\`.\n`
         );
         return 2;
     }

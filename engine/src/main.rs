@@ -564,6 +564,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 invariants: adapter.invariants.clone(),
                 scheduled_actions: adapter.scheduled_actions.clone(),
                 semantics: adapter.semantics.clone(),
+                errors: adapter.errors.clone(),
             };
 
             eprintln!("running tick loop ...");
@@ -592,6 +593,10 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 .map(|a| a.scheduled_actions.clone())
                 .unwrap_or_default();
             let lending_semantics = adapter.as_ref().and_then(|a| a.semantics.clone());
+            let lending_errors = adapter
+                .as_ref()
+                .map(|a| a.errors.clone())
+                .unwrap_or_default();
 
             eprintln!("bootstrapping LiteSVM backend ...");
             let bootstrap_config = LiteSvmBootstrapConfig {
@@ -634,6 +639,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 invariants: lending_invariants,
                 scheduled_actions: lending_scheduled_actions,
                 semantics: lending_semantics,
+                errors: lending_errors,
             };
 
             eprintln!("running tick loop ...");

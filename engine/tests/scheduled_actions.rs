@@ -79,6 +79,7 @@ fn run_with(ticks: u32, scheduled_actions: Vec<ScheduledAction>) -> SimulationRe
         invariants: Vec::new(),
         scheduled_actions,
         semantics: None,
+        errors: Vec::new(),
     };
     run_simulation(&mut harness, &mut scenario, params).unwrap()
 }
@@ -210,6 +211,7 @@ fn run_with_harness(
         invariants: Vec::new(),
         scheduled_actions,
         semantics: None,
+        errors: Vec::new(),
     };
     let result = run_simulation(&mut harness, &mut scenario, params).unwrap();
     (result, harness)

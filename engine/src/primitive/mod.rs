@@ -13,9 +13,9 @@
 //! `LendingPrimitive`. The generic tick loop (`run_generic_simulation`)
 //! binds on `Primitive` and has no lending vocabulary at all.
 
-pub mod lending;
-pub mod generic;
 pub mod amm;
+pub mod generic;
+pub mod lending;
 #[cfg(any(feature = "litesvm-backend", test))]
 pub mod lending_pool;
 

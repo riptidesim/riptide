@@ -33,11 +33,10 @@ use std::process::{Command, Stdio};
 
 use riptide_engine::adapter::OracleKind;
 use riptide_engine::scenario::oracle::{
-    oracle_layout_for, AdminMockOracleLayout, OracleLayout, OracleUpdate, PYTH_ACCOUNT_SIZE,
-    PYTH_ATYPE_PRICE, PYTH_MAGIC, PYTH_OFFSET_AGG_CONF, PYTH_OFFSET_AGG_PRICE,
+    oracle_layout_for, AdminMockOracleLayout, OracleLayout, OracleUpdate, PythMockOracleLayout,
+    PYTH_ACCOUNT_SIZE, PYTH_ATYPE_PRICE, PYTH_MAGIC, PYTH_OFFSET_AGG_CONF, PYTH_OFFSET_AGG_PRICE,
     PYTH_OFFSET_AGG_PUB_SLOT, PYTH_OFFSET_AGG_STATUS, PYTH_OFFSET_ATYPE, PYTH_OFFSET_EXPO,
     PYTH_OFFSET_MAGIC, PYTH_OFFSET_VER, PYTH_STATUS_TRADING, PYTH_VERSION,
-    PythMockOracleLayout,
 };
 
 /// Mirror of `pyth-sdk-solana::PriceInfo`. `#[repr(C)]` matches the
@@ -113,28 +112,48 @@ fn pyth_encode_matches_declared_byte_offsets() {
         exponent: -2,
     };
     let bytes = layout.encode([0u8; 32], &update).unwrap();
-    assert_eq!(bytes.len(), PYTH_ACCOUNT_SIZE, "pyth account must be 3312 bytes");
+    assert_eq!(
+        bytes.len(),
+        PYTH_ACCOUNT_SIZE,
+        "pyth account must be 3312 bytes"
+    );
 
     // Header validation constants at the exact offsets Pyth expects.
     assert_eq!(
-        u32::from_le_bytes(bytes[PYTH_OFFSET_MAGIC..PYTH_OFFSET_MAGIC + 4].try_into().unwrap()),
+        u32::from_le_bytes(
+            bytes[PYTH_OFFSET_MAGIC..PYTH_OFFSET_MAGIC + 4]
+                .try_into()
+                .unwrap()
+        ),
         PYTH_MAGIC,
         "magic 0xa1b2c3d4 at offset 0x00"
     );
     assert_eq!(
-        u32::from_le_bytes(bytes[PYTH_OFFSET_VER..PYTH_OFFSET_VER + 4].try_into().unwrap()),
+        u32::from_le_bytes(
+            bytes[PYTH_OFFSET_VER..PYTH_OFFSET_VER + 4]
+                .try_into()
+                .unwrap()
+        ),
         PYTH_VERSION,
         "ver == 2 at offset 0x04"
     );
     assert_eq!(
-        u32::from_le_bytes(bytes[PYTH_OFFSET_ATYPE..PYTH_OFFSET_ATYPE + 4].try_into().unwrap()),
+        u32::from_le_bytes(
+            bytes[PYTH_OFFSET_ATYPE..PYTH_OFFSET_ATYPE + 4]
+                .try_into()
+                .unwrap()
+        ),
         PYTH_ATYPE_PRICE,
         "atype == 3 (Price) at offset 0x08"
     );
 
     // expo at 0x14 as i32 little-endian.
     assert_eq!(
-        i32::from_le_bytes(bytes[PYTH_OFFSET_EXPO..PYTH_OFFSET_EXPO + 4].try_into().unwrap()),
+        i32::from_le_bytes(
+            bytes[PYTH_OFFSET_EXPO..PYTH_OFFSET_EXPO + 4]
+                .try_into()
+                .unwrap()
+        ),
         -2,
         "expo at offset 0x14"
     );
@@ -149,17 +168,24 @@ fn pyth_encode_matches_declared_byte_offsets() {
     // 123.45 × 10^2 == 12345 when exponent = -2.
     assert_eq!(agg_price, 12345, "agg.price at offset 0xD0");
     assert_eq!(
-        u64::from_le_bytes(bytes[PYTH_OFFSET_AGG_CONF..PYTH_OFFSET_AGG_CONF + 8].try_into().unwrap()),
+        u64::from_le_bytes(
+            bytes[PYTH_OFFSET_AGG_CONF..PYTH_OFFSET_AGG_CONF + 8]
+                .try_into()
+                .unwrap()
+        ),
         0,
         "agg.conf at offset 0xD8 (zero-fill)"
     );
     assert_eq!(
-        bytes[PYTH_OFFSET_AGG_STATUS],
-        PYTH_STATUS_TRADING,
+        bytes[PYTH_OFFSET_AGG_STATUS], PYTH_STATUS_TRADING,
         "agg.status at offset 0xE0 (Trading so readers don't fall through to prev_*)"
     );
     assert_eq!(
-        u64::from_le_bytes(bytes[PYTH_OFFSET_AGG_PUB_SLOT..PYTH_OFFSET_AGG_PUB_SLOT + 8].try_into().unwrap()),
+        u64::from_le_bytes(
+            bytes[PYTH_OFFSET_AGG_PUB_SLOT..PYTH_OFFSET_AGG_PUB_SLOT + 8]
+                .try_into()
+                .unwrap()
+        ),
         0,
         "agg.pub_slot at offset 0xE8 (zero-fill)"
     );
@@ -263,7 +289,11 @@ fn pyth_dispatch_through_oracle_kind_selector() {
     // `kind = "pyth"` gets real Pyth bytes written through this
     // dispatch path.
     let boxed = oracle_layout_for(OracleKind::Pyth);
-    assert_eq!(boxed.byte_len(), PYTH_ACCOUNT_SIZE, "Pyth kind dispatches to Pyth layout");
+    assert_eq!(
+        boxed.byte_len(),
+        PYTH_ACCOUNT_SIZE,
+        "Pyth kind dispatches to Pyth layout"
+    );
 
     let boxed = oracle_layout_for(OracleKind::AdminMock);
     assert_eq!(
@@ -379,9 +409,8 @@ fn run_pyth_consumer_helper(bytes: &[u8]) -> serde_json::Value {
     );
     let stdout = String::from_utf8(output.stdout).expect("helper stdout is utf8");
     let trimmed = stdout.trim();
-    serde_json::from_str(trimmed).unwrap_or_else(|e| {
-        panic!("helper stdout is not JSON: {e}; raw: {trimmed:?}")
-    })
+    serde_json::from_str(trimmed)
+        .unwrap_or_else(|e| panic!("helper stdout is not JSON: {e}; raw: {trimmed:?}"))
 }
 
 /// **The literal acceptance criterion** (tasks.md:37): a

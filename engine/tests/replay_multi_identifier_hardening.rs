@@ -131,8 +131,7 @@ fn rejects_bridge_target_oracle_with_path_separator() {
         ],
         "output_path": "riptide-output/replays/x"
     }"#;
-    let err =
-        parse_replay_config(raw).expect_err("path-separator target_oracle must be rejected");
+    let err = parse_replay_config(raw).expect_err("path-separator target_oracle must be rejected");
     let msg = format!("{err:#}");
     assert!(msg.contains("bridges[0].target_oracle"));
     assert!(msg.contains("must match `[A-Za-z0-9_-]+`"));
@@ -154,8 +153,7 @@ fn rejects_bridge_source_field_with_control_character() {
         ],
         "output_path": "riptide-output/replays/x"
     }"#;
-    let err =
-        parse_replay_config(raw).expect_err("control-char source_field must be rejected");
+    let err = parse_replay_config(raw).expect_err("control-char source_field must be rejected");
     let msg = format!("{err:#}");
     assert!(msg.contains("bridges[0].source_field"));
     assert!(msg.contains("must match `[A-Za-z0-9_.-]+`"));
@@ -184,8 +182,7 @@ fn rejects_bridge_source_component_with_control_characters() {
         ],
         "output_path": "riptide-output/replays/x"
     }"#;
-    let err = parse_replay_config(raw)
-        .expect_err("control-char source_component must be rejected");
+    let err = parse_replay_config(raw).expect_err("control-char source_component must be rejected");
     let msg = format!("{err:#}");
     assert!(
         msg.contains("bridges[0].source_component"),
@@ -226,8 +223,8 @@ fn rejects_bridge_target_component_with_path_separator() {
         ],
         "output_path": "riptide-output/replays/x"
     }"#;
-    let err = parse_replay_config(raw)
-        .expect_err("path-separator target_component must be rejected");
+    let err =
+        parse_replay_config(raw).expect_err("path-separator target_component must be rejected");
     let msg = format!("{err:#}");
     assert!(msg.contains("bridges[0].target_component"));
     assert!(msg.contains("must match `[A-Za-z0-9_-]+`"));
@@ -300,7 +297,6 @@ fn accepts_the_canonical_shipping_contagion_proof_config() {
             .join("fixtures/replays/lst-lending-contagion-proof/config.json"),
     )
     .expect("read shipping contagion proof config");
-    parse_replay_config(&raw).expect(
-        "shipping contagion proof config must still parse under the new identifier rules",
-    );
+    parse_replay_config(&raw)
+        .expect("shipping contagion proof config must still parse under the new identifier rules");
 }

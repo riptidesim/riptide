@@ -153,7 +153,7 @@ triggers = []
             ]
         }))
         .unwrap()
-        + "\n",
+            + "\n",
     )
     .expect("write initial-state.json");
     fs::write(
@@ -185,7 +185,7 @@ triggers = []
             ]
         }))
         .unwrap()
-        + "\n",
+            + "\n",
     )
     .expect("write oracle-trajectory.json");
 
@@ -216,8 +216,15 @@ triggers = []
     assert_eq!(first.total_ticks, 4);
     assert_eq!(first.timeseries.len(), 5, "ticks 0..=4 produce 5 snapshots");
     assert_eq!(first.run_config.scenario, "replay:resource-grinder-replay");
-    assert!(first.run_config.personas.is_empty(), "replay should bypass personas");
-    assert_eq!(first.events.len(), 5, "initial-state bootstrap should not emit replay events");
+    assert!(
+        first.run_config.personas.is_empty(),
+        "replay should bypass personas"
+    );
+    assert_eq!(
+        first.events.len(),
+        5,
+        "initial-state bootstrap should not emit replay events"
+    );
     assert_eq!(first.events.first().unwrap().tick, 0);
     assert_eq!(first.events.first().unwrap().action, "craft");
     assert_eq!(first.agents.len(), 1);

@@ -73,6 +73,7 @@ test("AdapterSchema produces the same shape the serde side expects", async () =>
     [
       "accounts",
       "actions",
+      "errors",
       "instructions",
       "invariants",
       "lineage",

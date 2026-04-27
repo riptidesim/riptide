@@ -124,8 +124,7 @@ fn run_fixture() -> SimulationResult {
     .expect("bootstrap replay harness");
 
     canonicalize(
-        run_replay(&mut harness, &adapter, &bundle, "__canonical__".into())
-            .expect("run replay"),
+        run_replay(&mut harness, &adapter, &bundle, "__canonical__".into()).expect("run replay"),
     )
 }
 
@@ -246,8 +245,7 @@ fn liquid_staking_depeg_redemption_run_matches_expected_and_is_deterministic() {
 
     let actual_hash = canonical_hash(&first);
     assert_eq!(
-        actual_hash,
-        expected.result_sha256,
+        actual_hash, expected.result_sha256,
         "liquid-staking depeg+redemption-run replay hash drifted; update \
          fixtures/replays/liquid-staking-depeg-redemption-run/expected-summary.json if \
          the new output is intentional",
@@ -271,7 +269,10 @@ fn liquid_staking_depeg_redemption_run_matches_expected_and_is_deterministic() {
         "invariants_fired row count drifted",
     );
     for row in invariant_rows {
-        let name = row["name"].as_str().expect("invariant row `name`").to_string();
+        let name = row["name"]
+            .as_str()
+            .expect("invariant row `name`")
+            .to_string();
         let firings = row["firings"].as_u64().expect("invariant row `firings`") as usize;
         let expected_firings = expected
             .invariant_firings

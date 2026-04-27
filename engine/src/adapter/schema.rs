@@ -10,6 +10,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use crate::adapter::errors::ProgramErrorEntry;
 use crate::semantics::{error::Span, expr::Expr};
 
 /// The protocol class this adapter describes. Selects which primitive
@@ -302,6 +303,12 @@ pub struct Adapter {
     /// in the skipped fields on `SemanticExpression`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub semantics: Option<Semantics>,
+
+    /// Optional adapter-supplied program error registry. Entries map
+    /// Solana `InstructionError(_, Custom(code))` values to stable,
+    /// reviewer-readable labels and interpretations.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<ProgramErrorEntry>,
 
     /// Optional declarative lineage block. Reviewer-facing metadata
     /// describing the IDL the adapter was authored against, the

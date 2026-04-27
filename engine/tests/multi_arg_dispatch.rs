@@ -103,12 +103,7 @@ const TYPE_MATRIX_IDL: &str = r#"
 }
 "#;
 
-fn swap_adapter_toml(
-    min_out: &str,
-    direction: &str,
-    takes: &str,
-    args_block: &str,
-) -> String {
+fn swap_adapter_toml(min_out: &str, direction: &str, takes: &str, args_block: &str) -> String {
     // Keep the program_so path pointing at a real shipped.so so the
     // loader's post-resolution existence check passes. The test only
     // drives `build_action_data` — nothing actually executes the.so.
@@ -160,8 +155,7 @@ fn three_arg_swap_encodes_deterministically() {
         r#""amount_in""#,
         r#"min_out = 0, direction = false"#,
     );
-    let adapter = parse_adapter_str(&toml, "t22-swap.toml")
-        .expect("multi-arg swap adapter parses");
+    let adapter = parse_adapter_str(&toml, "t22-swap.toml").expect("multi-arg swap adapter parses");
     let idl = parse_generic_idl_str(SWAP_IDL).expect("swap IDL parses");
 
     let builder = GenericInstructionBuilder::new(&idl, &adapter);
@@ -172,7 +166,11 @@ fn three_arg_swap_encodes_deterministically() {
     // 8-byte discriminator + u64 amount_in (8) + u64 min_out (8) +
     // bool direction (1) = 25 bytes total.
     assert_eq!(bytes.len(), 25, "swap payload length: {}", bytes.len());
-    assert_eq!(&bytes[..8], &[115, 119, 97, 112, 0, 0, 0, 0], "discriminator");
+    assert_eq!(
+        &bytes[..8],
+        &[115, 119, 97, 112, 0, 0, 0, 0],
+        "discriminator"
+    );
     assert_eq!(
         u64::from_le_bytes(bytes[8..16].try_into().unwrap()),
         1_000_000,
@@ -194,7 +192,9 @@ fn three_arg_swap_encodes_deterministically() {
     );
     let adapter_true = parse_adapter_str(&toml_true, "t22-swap-true.toml").unwrap();
     let builder_true = GenericInstructionBuilder::new(&idl, &adapter_true);
-    let bytes_true = builder_true.build_action_data_single_arg("swap", 1_000_000).unwrap();
+    let bytes_true = builder_true
+        .build_action_data_single_arg("swap", 1_000_000)
+        .unwrap();
     assert_eq!(bytes_true[24], 1, "direction=true → 0x01");
     assert_eq!(
         u64::from_le_bytes(bytes_true[16..24].try_into().unwrap()),
@@ -262,7 +262,11 @@ triggers = []
     // + bool flag (1) + pubkey recipient (32) = 62 bytes.
     assert_eq!(bytes.len(), 62, "payload length: {}", bytes.len());
     assert_eq!(&bytes[..8], &[1, 2, 3, 4, 5, 6, 7, 8], "discriminator");
-    assert_eq!(u64::from_le_bytes(bytes[8..16].try_into().unwrap()), 7, "amt");
+    assert_eq!(
+        u64::from_le_bytes(bytes[8..16].try_into().unwrap()),
+        7,
+        "amt"
+    );
     assert_eq!(
         i64::from_le_bytes(bytes[16..24].try_into().unwrap()),
         -42,
@@ -275,7 +279,11 @@ triggers = []
     );
     assert_eq!(bytes[28], 3, "tier (u8)");
     assert_eq!(bytes[29], 1, "flag=true (bool)");
-    assert_eq!(&bytes[30..62], recipient_bytes.as_slice(), "recipient 32-byte pubkey");
+    assert_eq!(
+        &bytes[30..62],
+        recipient_bytes.as_slice(),
+        "recipient 32-byte pubkey"
+    );
 }
 
 #[test]
@@ -345,7 +353,11 @@ triggers = []
         .build_action_data_single_arg("mine", 42)
         .expect("single-arg encodes");
     assert_eq!(bytes.len(), 16, "8-byte disc + 8-byte u64");
-    assert_eq!(&bytes[..8], &[109, 105, 110, 101, 0, 0, 0, 0], "mine discriminator");
+    assert_eq!(
+        &bytes[..8],
+        &[109, 105, 110, 101, 0, 0, 0, 0],
+        "mine discriminator"
+    );
     assert_eq!(u64::from_le_bytes(bytes[8..16].try_into().unwrap()), 42);
 }
 
@@ -436,7 +448,9 @@ triggers = []
         .expect("adapter parses (validation passes — loader only checks declared action args)");
     let idl = parse_generic_idl_str(SWAP_IDL).unwrap();
     let builder = GenericInstructionBuilder::new(&idl, &adapter);
-    let err = builder.build_action_data_single_arg("swap", 1_000).unwrap_err();
+    let err = builder
+        .build_action_data_single_arg("swap", 1_000)
+        .unwrap_err();
     let msg = err.to_string();
     assert!(
         msg.contains("direction") && msg.contains("not bound"),
@@ -552,7 +566,8 @@ action_rate_multiplier = 1.0
 action_weights = { call = 1.0 }
 triggers = []
 "#;
-    let adapter = parse_adapter_str(toml, "t22-shortkey.toml").expect("loader accepts; encoder decides");
+    let adapter =
+        parse_adapter_str(toml, "t22-shortkey.toml").expect("loader accepts; encoder decides");
     let idl = parse_generic_idl_str(TYPE_MATRIX_IDL).unwrap();
     let builder = GenericInstructionBuilder::new(&idl, &adapter);
     let err = builder.build_action_data_single_arg("call", 1).unwrap_err();
@@ -717,9 +732,18 @@ fn real_multi_runtime_arg_dispatch_varies_by_persona() {
     // Compile personas into Policies so we can pull persona_args the
     // way the tick loop does.
     let policies = build_generic_policies(&adapter, |_| {}).expect("compile personas");
-    let long = policies.iter().find(|p| p.persona_id == "leveraged_long").unwrap();
-    let short = policies.iter().find(|p| p.persona_id == "leveraged_short").unwrap();
-    let cautious = policies.iter().find(|p| p.persona_id == "cautious_long").unwrap();
+    let long = policies
+        .iter()
+        .find(|p| p.persona_id == "leveraged_long")
+        .unwrap();
+    let short = policies
+        .iter()
+        .find(|p| p.persona_id == "leveraged_short")
+        .unwrap();
+    let cautious = policies
+        .iter()
+        .find(|p| p.persona_id == "cautious_long")
+        .unwrap();
 
     let builder = GenericInstructionBuilder::new(&idl, &adapter);
 
@@ -728,7 +752,12 @@ fn real_multi_runtime_arg_dispatch_varies_by_persona() {
         .build_action_data("open_position", 1_000, &long.persona_args)
         .expect("long dispatches with persona-supplied side + leverage");
     // discriminator (8) + side u8 (1) + leverage_bps u32 (4) + notional u64 (8) = 21.
-    assert_eq!(long_bytes.len(), 21, "open_position payload: {}", long_bytes.len());
+    assert_eq!(
+        long_bytes.len(),
+        21,
+        "open_position payload: {}",
+        long_bytes.len()
+    );
     assert_eq!(long_bytes[8], 0, "leveraged_long side=0 (long)");
     assert_eq!(
         u32::from_le_bytes(long_bytes[9..13].try_into().unwrap()),
@@ -820,7 +849,10 @@ persona_args = { side = 0 }
         .expect("loader passes — missing field is caught at encode time");
     let idl = parse_generic_idl_str(OPEN_POSITION_IDL).unwrap();
     let policies = build_generic_policies(&adapter, |_| {}).unwrap();
-    let long = policies.iter().find(|p| p.persona_id == "leveraged_long").unwrap();
+    let long = policies
+        .iter()
+        .find(|p| p.persona_id == "leveraged_long")
+        .unwrap();
 
     let builder = GenericInstructionBuilder::new(&idl, &adapter);
     let err = builder
@@ -892,8 +924,14 @@ persona_args = {{ delta = -17, cap = 99, tier = 5, flag = true, recipient = "{re
     assert!(matches!(tester.persona_args["delta"], ArgLiteral::Int(-17)));
     assert!(matches!(tester.persona_args["cap"], ArgLiteral::Int(99)));
     assert!(matches!(tester.persona_args["tier"], ArgLiteral::Int(5)));
-    assert!(matches!(tester.persona_args["flag"], ArgLiteral::Bool(true)));
-    assert!(matches!(tester.persona_args["recipient"], ArgLiteral::String(_)));
+    assert!(matches!(
+        tester.persona_args["flag"],
+        ArgLiteral::Bool(true)
+    ));
+    assert!(matches!(
+        tester.persona_args["recipient"],
+        ArgLiteral::String(_)
+    ));
 
     let builder = GenericInstructionBuilder::new(&idl, &adapter);
     let bytes = builder

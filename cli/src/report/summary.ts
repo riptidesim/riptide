@@ -6,6 +6,7 @@ import type {
   InvariantFiredRow,
   SimulationResult
 } from "../compiler/schema.js";
+import { formatProgramError } from "./events.js";
 
 // Both `summary` and `timeseries[i]` are primitive-agnostic key/value
 // maps. Lending runs still emit their historical keys; generic runs
@@ -355,6 +356,16 @@ export function renderSummary(result: SimulationResult): string {
     lines.push(semanticsSection);
   }
 
+  const programErrors = result.events
+    .map((event) => formatProgramError(event))
+    .filter((value): value is string => value !== null);
+  if (programErrors.length > 0) {
+    lines.push(chalk.bold("Program Errors:"));
+    for (const error of [...new Set(programErrors)]) {
+      lines.push(`- ${sanitizeStringCell(error)}`);
+    }
+  }
+
   lines.push("Simulation Boundaries:");
   for (const boundary of result.simulation_boundaries) {
     lines.push(`- ${sanitizeStringCell(boundary)}`);
@@ -504,6 +515,16 @@ export function renderColoredTable(result: SimulationResult): string {
     table.push([
       chalk.yellow("Invariant violations"),
       chalk.yellow(`${invariantEvents.length} (${[...names].join(", ")})`)
+    ]);
+  }
+
+  const programErrors = result.events
+    .map((event) => formatProgramError(event))
+    .filter((value): value is string => value !== null);
+  if (programErrors.length > 0) {
+    table.push([
+      chalk.red("Program errors"),
+      chalk.red([...new Set(programErrors)].join(" | "))
     ]);
   }
 

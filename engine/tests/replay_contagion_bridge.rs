@@ -163,10 +163,10 @@ fn bridge_propagates_upstream_lst_state_into_downstream_lending_oracle() {
         ReplayConfigShape::Legacy(_) => panic!("expected multi shape"),
     };
 
-    let mut harness = MultiComponentHarness::bootstrap(&cfg, &repo)
-        .expect("bootstrap multi-component harness");
-    let result = run_multi_replay(&mut harness, "__test__".into())
-        .expect("run multi-component replay");
+    let mut harness =
+        MultiComponentHarness::bootstrap(&cfg, &repo).expect("bootstrap multi-component harness");
+    let result =
+        run_multi_replay(&mut harness, "__test__".into()).expect("run multi-component replay");
 
     // ----- Ordering + qualified snapshot contract -----
 
@@ -209,11 +209,7 @@ fn bridge_propagates_upstream_lst_state_into_downstream_lending_oracle() {
     }
     for key in ["agents_active", "agents_liquidated", "agents_depleted"] {
         assert!(
-            result
-                .summary
-                .get(key)
-                .and_then(|v| v.as_u64())
-                .is_some(),
+            result.summary.get(key).and_then(|v| v.as_u64()).is_some(),
             "summary missing required lifecycle counter `{key}`; keys: {:?}",
             result.summary.keys().collect::<Vec<_>>()
         );
@@ -263,22 +259,15 @@ fn bridge_propagates_upstream_lst_state_into_downstream_lending_oracle() {
         "multi replay must emit agent finals for every declared actor"
     );
     for agent in &result.agents {
-        assert!(
-            !agent.agent_id.is_empty(),
-            "agent_id must be non-empty"
-        );
-        assert!(
-            !agent.persona_id.is_empty(),
-            "persona_id must be non-empty"
-        );
+        assert!(!agent.agent_id.is_empty(), "agent_id must be non-empty");
+        assert!(!agent.persona_id.is_empty(), "persona_id must be non-empty");
         // Every agent identity field must be namespaced by its
         // component so report surfaces that group by persona_id /
         // persona_label cannot silently merge colliding actor names
         // across components (e.g. two components both shipping
         // `admin-actor` or `user-0`).
         assert!(
-            agent.agent_id.starts_with("liquid_staking:")
-                || agent.agent_id.starts_with("lending:"),
+            agent.agent_id.starts_with("liquid_staking:") || agent.agent_id.starts_with("lending:"),
             "agent_id `{}` must be component-namespaced",
             agent.agent_id
         );
@@ -313,26 +302,18 @@ fn bridge_propagates_upstream_lst_state_into_downstream_lending_oracle() {
         .find(|e| !e.persona_id.starts_with("__") && e.persona_id != "bridge")
         .expect("at least one component-dispatched event");
     assert!(
-        component_event
-            .persona_id
-            .starts_with("liquid_staking:")
+        component_event.persona_id.starts_with("liquid_staking:")
             || component_event.persona_id.starts_with("lending:"),
         "event persona_id `{}` must be component-namespaced",
         component_event.persona_id
     );
     assert!(
-        component_event
-            .persona_label
-            .starts_with("liquid_staking:")
+        component_event.persona_label.starts_with("liquid_staking:")
             || component_event.persona_label.starts_with("lending:"),
         "event persona_label `{}` must be component-namespaced",
         component_event.persona_label
     );
-    let declared_total_actions: u32 = result
-        .agents
-        .iter()
-        .map(|a| a.total_actions)
-        .sum();
+    let declared_total_actions: u32 = result.agents.iter().map(|a| a.total_actions).sum();
     // total_actions should track real successful dispatches across
     // both components' initial-state + tick trajectories (LST initial
     // state has 5 stakes + `initialize_pool`; lending initial state
@@ -413,11 +394,17 @@ fn bridge_propagates_upstream_lst_state_into_downstream_lending_oracle() {
     // observation it read.
     for event in &bridge_events {
         assert_eq!(
-            event.params.get("source_component").and_then(|v| v.as_str()),
+            event
+                .params
+                .get("source_component")
+                .and_then(|v| v.as_str()),
             Some("liquid_staking")
         );
         assert_eq!(
-            event.params.get("target_component").and_then(|v| v.as_str()),
+            event
+                .params
+                .get("target_component")
+                .and_then(|v| v.as_str()),
             Some("lending")
         );
         assert!(
@@ -458,9 +445,7 @@ fn bridge_propagates_upstream_lst_state_into_downstream_lending_oracle() {
                 .unwrap_or(false)
         })
         .unwrap_or_else(|| {
-            panic!(
-                "no invariant targeting `lending.pool.bad_debt` in {invariants:?}"
-            )
+            panic!("no invariant targeting `lending.pool.bad_debt` in {invariants:?}")
         });
     let firings = lending_no_bad_debt
         .get("firings")
@@ -489,10 +474,7 @@ fn bridge_propagates_upstream_lst_state_into_downstream_lending_oracle() {
                  in {invariants:?}"
             )
         });
-    let firings = lst_slash
-        .get("firings")
-        .and_then(|v| v.as_u64())
-        .unwrap();
+    let firings = lst_slash.get("firings").and_then(|v| v.as_u64()).unwrap();
     assert!(
         firings > 0,
         "no_slash_during_healthy_run must fire post-slash on qualified LST field; \
@@ -614,7 +596,9 @@ fn engine_replay_config_flag_drives_multi_component_replay_end_to_end() {
         "binary-produced summary missing `agents_active`"
     );
     assert!(
-        result.summary.contains_key("lending.summary.total_bad_debt"),
+        result
+            .summary
+            .contains_key("lending.summary.total_bad_debt"),
         "binary-produced summary missing `lending.summary.total_bad_debt`; keys: {:?}",
         result.summary.keys().collect::<Vec<_>>()
     );
