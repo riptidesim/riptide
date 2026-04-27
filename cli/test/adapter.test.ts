@@ -214,6 +214,16 @@ test("AdapterSchema accepts semantics block and defaults invariant severity", ()
   assert.equal(adapter.semantics?.invariants[1]?.severity, "error");
 });
 
+test("AdapterSchema rejects lending semantics on generic protocol", () => {
+  const raw = minimalLendingAdapterWithSemantics() as any;
+  raw.protocol = "generic";
+
+  assert.throws(
+    () => validateAdapter(raw, "semantics.toml"),
+    /protocol = "lending".*no semantics evaluator/
+  );
+});
+
 test("AdapterSchema semantics class regex mirrors Rust", () => {
   assert.equal(SEMANTIC_CLASS_RE_SOURCE, "^[a-z][a-z0-9-]*\\.v[0-9]+$");
 });

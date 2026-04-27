@@ -349,6 +349,8 @@ pub struct Semantics {
     pub extensions: BTreeMap<String, toml::Value>,
     #[serde(skip)]
     pub class_ref: Option<SemanticClassRef>,
+    #[serde(skip)]
+    pub derived_order: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -434,6 +436,15 @@ pub enum SemanticInvariantSeverity {
 impl Default for SemanticInvariantSeverity {
     fn default() -> Self {
         Self::Error
+    }
+}
+
+impl SemanticInvariantSeverity {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Error => "error",
+            Self::Warn => "warn",
+        }
     }
 }
 

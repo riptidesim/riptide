@@ -9,16 +9,20 @@ use serde_json::Value;
 
 use super::harness::{Harness, HarnessError, PositionObservation};
 use crate::{
-    adapter::{Invariant, ScheduledAction},
-    agent::{
-        policy::RuntimeAction,
-        state::Agent,
-        AgentRuntime,
-    },
+    adapter::{Invariant, ScheduledAction, SemanticInvariantSeverity, Semantics},
+    agent::{policy::RuntimeAction, state::Agent, AgentRuntime},
     scenario::Scenario,
+    semantics::{
+        derived::evaluate_derived_observations,
+        invariants::{
+            build_expression_invariants_summary, evaluate_expression_invariants,
+            ExpressionInvariantFire,
+        },
+        roles::{bind_lending_v1_roles, RoleBindingContext},
+    },
     types::{
-        AgentStatus, InvariantViolation, Policy, RunConfig, SimEvent, SimOutcome,
-        SimulationResult, SimulationSummary, TickSnapshot,
+        AgentStatus, InvariantViolation, Policy, RunConfig, SimEvent, SimOutcome, SimulationResult,
+        SimulationSummary, TickSnapshot,
     },
 };
 
@@ -57,6 +61,11 @@ pub struct SimulationParams<'a> {
     /// output.
     #[doc(hidden)]
     pub scheduled_actions: Vec<ScheduledAction>,
+    /// Optional parsed Economic Semantics block from the adapter. Absent
+    /// keeps legacy output byte-stable; present enables additive
+    /// per-tick derived observations and expression-invariant summary rows.
+    #[doc(hidden)]
+    pub semantics: Option<Semantics>,
 }
 
 impl<'a> SimulationParams<'a> {
@@ -82,6 +91,7 @@ impl<'a> SimulationParams<'a> {
             simulation_boundaries,
             invariants: Vec::new(),
             scheduled_actions: Vec::new(),
+            semantics: None,
         }
     }
 }
@@ -156,7 +166,11 @@ pub fn build_agent_personas(
 /// `true` if the agent transitioned to liquidated as a result of this
 /// observation (so the caller can bump cumulative counters and skip its
 /// action this tick).
-fn apply_position_observation(agent: &mut Agent, obs: &PositionObservation, tick: u32) -> bool {
+pub(crate) fn apply_position_observation(
+    agent: &mut Agent,
+    obs: &PositionObservation,
+    tick: u32,
+) -> bool {
     agent.position.collateral = obs.collateral as f64;
     agent.position.debt = obs.debt as f64;
     if obs.liquidated && !matches!(agent.status, AgentStatus::Liquidated) {
@@ -204,6 +218,7 @@ where
         simulation_boundaries,
         invariants,
         scheduled_actions,
+        semantics,
     } = params;
 
     if harness.agent_count() != agent_personas.len() {
@@ -218,6 +233,7 @@ where
     }
 
     let mut invariant_violations: Vec<InvariantViolation> = Vec::new();
+    let mut expression_invariant_fires: Vec<ExpressionInvariantFire> = Vec::new();
 
     // Master RNG for scenario + per-agent runtime derivation. Everything that
     // touches randomness in this loop pulls from here (or from a runtime
@@ -288,23 +304,26 @@ where
     // tick they could plausibly have happened on, not the configured max.
     let mut last_executed_tick: u32 = 0;
 
-    record_tick_snapshot(
+    record_lending_tick_snapshot(
         harness,
         0,
         &agents,
         &invariants,
+        semantics.as_ref(),
+        RoleBindingContext::tick_snapshot(&agents),
         &mut invariant_violations,
+        &mut expression_invariant_fires,
         &mut events,
         std::iter::once((
             "cumulative_liquidations".into(),
             Value::from(cumulative_liquidations),
         )),
         &mut timeseries,
-    )
-    .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+    )?;
 
     for tick in 1..=run_config.ticks {
         eprintln!("TICK {tick}/{}", run_config.ticks);
+        let mut last_role_binding_instruction: Option<(String, usize)> = None;
 
         // 0. Advance synthetic chain state (slot, blockhash, clock).
         // No-op for backends that manage their own progression (validator,
@@ -489,8 +508,7 @@ where
                 _ => amount,
             };
 
-            let (outcome, detail) = if action == RuntimeAction::NoOp || on_chain_amount == 0
-            {
+            let (outcome, detail) = if action == RuntimeAction::NoOp || on_chain_amount == 0 {
                 (SimOutcome::Skipped, None)
             } else {
                 match submit_action_to_target(
@@ -547,6 +565,8 @@ where
 
             let mut params_map: BTreeMap<String, Value> = BTreeMap::new();
             params_map.insert("amount".into(), Value::from(amount));
+            let role_binding_attempted_instruction =
+                !matches!(outcome, SimOutcome::Skipped) && !matches!(action, RuntimeAction::NoOp);
 
             events.push(SimEvent {
                 tick,
@@ -562,23 +582,34 @@ where
                     .first()
                     .map(|trigger| trigger.condition_label.clone()),
             });
+            if role_binding_attempted_instruction {
+                last_role_binding_instruction = Some((action.as_str().to_string(), idx));
+            }
         }
 
         // 4. Post-tick snapshot.
-        record_tick_snapshot(
+        let role_binding_context = last_role_binding_instruction
+            .as_ref()
+            .map(|(instruction, agent_idx)| {
+                RoleBindingContext::new(Some(instruction.as_str()), Some(*agent_idx))
+            })
+            .unwrap_or_else(|| RoleBindingContext::tick_snapshot(&agents));
+        record_lending_tick_snapshot(
             harness,
             tick,
             &agents,
             &invariants,
+            semantics.as_ref(),
+            role_binding_context,
             &mut invariant_violations,
+            &mut expression_invariant_fires,
             &mut events,
             std::iter::once((
                 "cumulative_liquidations".into(),
                 Value::from(cumulative_liquidations),
             )),
             &mut timeseries,
-        )
-        .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+        )?;
 
         last_executed_tick = tick;
 
@@ -627,6 +658,12 @@ where
         summary.insert(
             "invariants_fired".into(),
             build_invariants_summary(&invariants, &invariant_violations),
+        );
+    }
+    if let Some(semantics) = semantics.as_ref() {
+        summary.insert(
+            "expression_invariants".into(),
+            build_expression_invariants_summary(&semantics.invariants, &expression_invariant_fires),
         );
     }
 
@@ -787,6 +824,7 @@ where
         simulation_boundaries,
         invariants,
         scheduled_actions,
+        semantics: _,
     } = params;
 
     if harness.agent_count() != agent_personas.len() {
@@ -888,8 +926,7 @@ where
                 0.0,
                 custom,
             );
-            let decision =
-                runtimes[idx].decide(&mut agents[idx], &observation, &available_actions);
+            let decision = runtimes[idx].decide(&mut agents[idx], &observation, &available_actions);
             let action = decision.chosen.clone();
             let amount = decision.amount.max(0.0).round() as u64;
 
@@ -999,7 +1036,9 @@ fn snapshot_f64(snapshot: &TickSnapshot, field: &str) -> Option<f64> {
     }
     match field {
         "bad_debt" => snapshot.get("cumulative_bad_debt").and_then(value_to_f64),
-        "liquidated" => snapshot.get("cumulative_liquidations").and_then(value_to_f64),
+        "liquidated" => snapshot
+            .get("cumulative_liquidations")
+            .and_then(value_to_f64),
         _ => None,
     }
 }
@@ -1113,6 +1152,93 @@ where
     Ok(())
 }
 
+pub(crate) fn record_lending_tick_snapshot<H, I>(
+    harness: &H,
+    tick: u32,
+    agents: &[Agent],
+    invariants: &[Invariant],
+    semantics: Option<&Semantics>,
+    role_binding_context: RoleBindingContext<'_>,
+    violations: &mut Vec<InvariantViolation>,
+    expression_fires: &mut Vec<ExpressionInvariantFire>,
+    events: &mut Vec<SimEvent>,
+    extra_metrics: I,
+    timeseries: &mut Vec<TickSnapshot>,
+) -> Result<(), SimulationAbort>
+where
+    H: crate::primitive::LendingPrimitive + ?Sized,
+    I: IntoIterator<Item = (String, Value)>,
+{
+    let mut snapshot =
+        build_snapshot(harness, tick, agents).map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+    for (key, value) in extra_metrics {
+        snapshot.insert(key, value);
+    }
+
+    if let Some(semantics) = semantics {
+        let role_context =
+            bind_lending_v1_roles(semantics, harness, agents, &snapshot, role_binding_context)
+                .map_err(|e| SimulationAbort::BadInput(e.to_string()))?;
+        let derived = evaluate_derived_observations(semantics, &role_context)
+            .map_err(|e| SimulationAbort::BadInput(e.to_string()))?;
+        snapshot.insert(
+            "derived_observations".into(),
+            semantic_values_to_json(&derived.observations),
+        );
+
+        evaluate_invariants(invariants, tick, &snapshot, violations, events);
+
+        let fires = evaluate_expression_invariants(semantics, &derived.context, tick)
+            .map_err(|e| SimulationAbort::BadInput(e.to_string()))?;
+        for fire in fires {
+            events.push(expression_invariant_event(&fire));
+            expression_fires.push(fire);
+        }
+    } else {
+        evaluate_invariants(invariants, tick, &snapshot, violations, events);
+    }
+
+    timeseries.push(snapshot);
+    Ok(())
+}
+
+fn semantic_values_to_json(values: &BTreeMap<String, crate::semantics::Value>) -> Value {
+    Value::Object(
+        values
+            .iter()
+            .map(|(key, value)| (key.clone(), value.to_json()))
+            .collect(),
+    )
+}
+
+fn expression_invariant_event(fire: &ExpressionInvariantFire) -> SimEvent {
+    let mut params = BTreeMap::new();
+    params.insert("name".into(), Value::from(fire.name.clone()));
+    params.insert("expr".into(), Value::from(fire.expr.clone()));
+    params.insert("tick".into(), Value::from(fire.tick));
+    params.insert("severity".into(), Value::from(fire.severity.as_str()));
+    params.insert("observed".into(), semantic_values_to_json(&fire.observed));
+
+    SimEvent {
+        tick: fire.tick,
+        agent_id: "__engine__".into(),
+        persona_id: "expression_invariant".into(),
+        persona_label: "expression_invariant".into(),
+        action: format!("expression_invariant_fire:{}", fire.name),
+        params,
+        outcome: match fire.severity {
+            SemanticInvariantSeverity::Error => SimOutcome::Failed,
+            SemanticInvariantSeverity::Warn => SimOutcome::Success,
+        },
+        outcome_detail: Some(format!(
+            "expression invariant `{}` fired with severity {}",
+            fire.name,
+            fire.severity.as_str()
+        )),
+        triggered_by: None,
+    }
+}
+
 /// Fire every scheduled action whose cadence lands on
 /// the current tick. Ordering contract:
 ///
@@ -1166,7 +1292,12 @@ fn dispatch_scheduled_actions<H: crate::primitive::Primitive + ?Sized>(
         if !sa.args.is_empty() {
             params.insert(
                 "args".into(),
-                Value::Object(sa.args.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+                Value::Object(
+                    sa.args
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect(),
+                ),
             );
         }
         events.push(SimEvent {
@@ -1185,9 +1316,11 @@ fn dispatch_scheduled_actions<H: crate::primitive::Primitive + ?Sized>(
         // `update_funding_rate` ix). Default impl is a no-op.
         harness
             .on_scheduled_action(&name, &sa.instruction, &sa.accounts, &sa.args)
-            .map_err(|e| SimulationAbort::Infra(format!(
-                "scheduled action `{name}` primitive hook failed: {e:?}"
-            )))?;
+            .map_err(|e| {
+                SimulationAbort::Infra(format!(
+                    "scheduled action `{name}` primitive hook failed: {e:?}"
+                ))
+            })?;
     }
     Ok(())
 }
@@ -1286,6 +1419,7 @@ mod tests {
             simulation_boundaries: vec!["mock harness".into()],
             invariants: Vec::new(),
             scheduled_actions: Vec::new(),
+            semantics: None,
         }
     }
 
@@ -1446,6 +1580,7 @@ mod tests {
             simulation_boundaries: vec!["t".into()],
             invariants: Vec::new(),
             scheduled_actions: Vec::new(),
+            semantics: None,
         };
         let result = run_simulation(&mut h, &mut scenario, params).unwrap();
         // Repaid amount on chain = min(10_000, 200) = 200; cash debit must
@@ -1499,6 +1634,7 @@ mod tests {
             simulation_boundaries: vec!["t".into()],
             invariants: Vec::new(),
             scheduled_actions: Vec::new(),
+            semantics: None,
         };
         let result = run_simulation(&mut h, &mut scenario, params).unwrap();
         // The liquidation was applied at the init observe (tick 0) — but the

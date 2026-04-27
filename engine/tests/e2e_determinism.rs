@@ -15,7 +15,7 @@ use std::{
 };
 
 use riptide_engine::{
-    adapter::load_adapter,
+    adapter::{load_adapter, parse_adapter_str},
     agent::policy::LENDING_RUNTIME_ACTIONS,
     harness::setup::default_program_so_path,
     primitive::{
@@ -111,6 +111,95 @@ fn run_lending_fixture(seed: u64) -> SimulationResult {
         simulation_boundaries: vec!["t15 lending".into()],
         invariants: Vec::new(),
         scheduled_actions: Vec::new(),
+        semantics: None,
+    };
+    run_simulation(&mut harness, &mut scenario, params).unwrap()
+}
+
+fn semantic_lending_toml() -> &'static str {
+    r#"
+protocol = "lending"
+
+[instructions]
+deposit   = { action = "deposit",   amount = "amount" }
+borrow    = { action = "borrow",    amount = "amount" }
+repay     = { action = "repay",     amount = "amount" }
+withdraw  = { action = "withdraw",  amount = "amount" }
+liquidate = { action = "liquidate", amount = "repay_amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+"pool.total_borrows"  = "debt"
+"pool.bad_debt"       = "bad_debt"
+"position.collateral" = "collateral"
+"position.debt"       = "debt"
+"position.liquidated" = "liquidated"
+
+[semantics]
+class = "lending.v1"
+
+[semantics.roles.position]
+source = "account.position"
+fields.collateral_amount = "u128"
+fields.debt_amount = "u128"
+
+[semantics.roles.reserve]
+source = "account.reserve"
+fields.max_ltv_bps = "u64"
+fields.collateral_price = "u128"
+
+[semantics.roles.oracle]
+source = "account.oracle"
+fields.price = "u128"
+
+[semantics.roles.liquidation_config]
+source = "account.reserve"
+fields.liquidation_threshold_bps = "u64"
+
+[semantics.derived]
+collateral_value = "position.collateral_amount * oracle.price"
+debt_value = "position.debt_amount"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+health_factor = "collateral_value / max(debt_value, 1)"
+
+[[semantics.invariants]]
+name = "ltv_below_max"
+expr = "debt_value <= max_borrow_value"
+severity = "warn"
+"#
+}
+
+fn run_semantic_lending_fixture(seed: u64) -> SimulationResult {
+    let adapter = parse_adapter_str(semantic_lending_toml(), "semantic-lending.toml")
+        .expect("parse semantic lending adapter");
+    let cfg = RunConfig {
+        agents: 1,
+        ticks: 10,
+        scenario: "baseline".into(),
+        seed,
+        personas: vec!["test-lp".into()],
+        validator_url: "unused".into(),
+        output_path: "unused".into(),
+    };
+    let mut harness = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
+        agent_count: 1,
+        seed_deposit: 50,
+        starting_price: 100,
+        ..Default::default()
+    })
+    .unwrap();
+    let mut scenario = BaselineScenario::new(100.0, 25);
+    let params = SimulationParams {
+        run_config: &cfg,
+        policies: vec![lending_policy()],
+        agent_personas: vec![0],
+        available_actions: LENDING_RUNTIME_ACTIONS.to_vec(),
+        starting_balance: 10_000.0,
+        starting_price: 100.0,
+        simulation_boundaries: vec!["t15 semantic lending".into()],
+        invariants: Vec::new(),
+        scheduled_actions: Vec::new(),
+        semantics: adapter.semantics.clone(),
     };
     run_simulation(&mut harness, &mut scenario, params).unwrap()
 }
@@ -149,6 +238,7 @@ fn run_generic_fixture(seed: u64) -> SimulationResult {
         simulation_boundaries: vec!["t15 generic".into()],
         invariants: Vec::new(),
         scheduled_actions: Vec::new(),
+        semantics: None,
     };
     run_generic_simulation(&mut harness, &mut scenario, params).unwrap()
 }
@@ -209,6 +299,44 @@ fn lending_fixture_is_byte_stable_same_seed() {
 }
 
 #[test]
+fn semantic_lending_fixture_is_byte_stable_same_seed() {
+    let program_so = default_program_so_path();
+    if skip_if_missing(&program_so, "lending_pool.so") {
+        return;
+    }
+
+    let first = run_semantic_lending_fixture(42);
+    let second = run_semantic_lending_fixture(42);
+    assert_eq!(
+        canonical_bytes(&first),
+        canonical_bytes(&second),
+        "semantic lending fixture output diverged across same-seed runs"
+    );
+
+    for entry in &first.timeseries {
+        let derived = entry
+            .get("derived_observations")
+            .and_then(|value| value.as_object())
+            .expect("semantic lending ticks must include derived_observations");
+        assert!(
+            derived.contains_key("collateral_value"),
+            "derived observations missing collateral_value: {derived:?}"
+        );
+        assert!(
+            derived.contains_key("max_borrow_value"),
+            "derived observations missing max_borrow_value: {derived:?}"
+        );
+    }
+    let expression_rows = first
+        .summary
+        .get("expression_invariants")
+        .and_then(|value| value.as_array())
+        .expect("semantic lending summary must include expression_invariants");
+    assert_eq!(expression_rows.len(), 1);
+    assert_eq!(expression_rows[0]["name"], "ltv_below_max");
+}
+
+#[test]
 fn generic_fixture_is_byte_stable_same_seed() {
     let repo = monorepo_root();
     let program_so = repo.join("programs/resource_grinder/target/deploy/resource_grinder.so");
@@ -224,11 +352,17 @@ fn generic_fixture_is_byte_stable_same_seed() {
         "generic fixture output diverged across same-seed runs"
     );
     assert!(
-        first.events.iter().any(|event| event.outcome == SimOutcome::Success),
+        first
+            .events
+            .iter()
+            .any(|event| event.outcome == SimOutcome::Success),
         "generic fixture should produce at least one successful event"
     );
     assert!(
-        first.events.iter().any(|event| event.triggered_by.is_some()),
+        first
+            .events
+            .iter()
+            .any(|event| event.triggered_by.is_some()),
         "generic fixture should surface at least one persona trigger in the event log"
     );
 

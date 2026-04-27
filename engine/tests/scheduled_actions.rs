@@ -78,6 +78,7 @@ fn run_with(ticks: u32, scheduled_actions: Vec<ScheduledAction>) -> SimulationRe
         simulation_boundaries: vec!["t19 scheduled".into()],
         invariants: Vec::new(),
         scheduled_actions,
+        semantics: None,
     };
     run_simulation(&mut harness, &mut scenario, params).unwrap()
 }
@@ -122,10 +123,7 @@ interval_ticks = 1
     );
     assert_eq!(adapter.scheduled_actions[0].interval_ticks, 8);
     assert!(adapter.scheduled_actions[1].name.is_none());
-    assert_eq!(
-        adapter.scheduled_actions[1].display_name(1),
-        "scheduled_1"
-    );
+    assert_eq!(adapter.scheduled_actions[1].display_name(1), "scheduled_1");
 }
 
 #[test]
@@ -211,6 +209,7 @@ fn run_with_harness(
         simulation_boundaries: vec!["t19 scheduled".into()],
         invariants: Vec::new(),
         scheduled_actions,
+        semantics: None,
     };
     let result = run_simulation(&mut harness, &mut scenario, params).unwrap();
     (result, harness)
@@ -290,22 +289,24 @@ fn scheduler_respects_declaration_order_on_overlapping_ticks() {
 #[test]
 fn scheduler_is_deterministic_across_same_seed_runs() {
     // Same seed, same scheduled actions → byte-identical event sequence.
-    let make = || vec![
-        ScheduledAction {
-            name: Some("a".into()),
-            instruction: "deposit".into(),
-            interval_ticks: 3,
-            accounts: Vec::new(),
-            args: BTreeMap::new(),
-        },
-        ScheduledAction {
-            name: Some("b".into()),
-            instruction: "deposit".into(),
-            interval_ticks: 5,
-            accounts: Vec::new(),
-            args: BTreeMap::new(),
-        },
-    ];
+    let make = || {
+        vec![
+            ScheduledAction {
+                name: Some("a".into()),
+                instruction: "deposit".into(),
+                interval_ticks: 3,
+                accounts: Vec::new(),
+                args: BTreeMap::new(),
+            },
+            ScheduledAction {
+                name: Some("b".into()),
+                instruction: "deposit".into(),
+                interval_ticks: 5,
+                accounts: Vec::new(),
+                args: BTreeMap::new(),
+            },
+        ]
+    };
     let r1 = run_with(20, make());
     let r2 = run_with(20, make());
     let e1: Vec<_> = scheduled_events(&r1)

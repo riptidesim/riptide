@@ -13,6 +13,7 @@ use crate::adapter::schema::{
     SemanticSourceBinding, LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS,
     LENDING_V1_REQUIRED_ROLES, ORACLE_KINDS, SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
 };
+use crate::semantics::derived::{build_derived_order, DerivedObservationError};
 use crate::semantics::expr::parse as parse_semantic_expr;
 
 /// Errors returned by `load_adapter`. Every variant carries enough
@@ -70,6 +71,16 @@ pub enum AdapterError {
         path: String,
         key: String,
         role: String,
+    },
+    DerivedObservationCycle {
+        path: String,
+        key: String,
+        cycle: Vec<String>,
+    },
+    UnknownSemanticIdentifier {
+        path: String,
+        key: String,
+        name: String,
     },
 }
 
@@ -153,6 +164,19 @@ impl fmt::Display for AdapterError {
                 escape_diagnostic(key),
                 escape_diagnostic(role)
             ),
+            Self::DerivedObservationCycle { path, key, cycle } => write!(
+                f,
+                "{}: `{}`: DerivedObservationCycle({cycle:?})",
+                escape_diagnostic(path),
+                escape_diagnostic(key)
+            ),
+            Self::UnknownSemanticIdentifier { path, key, name } => write!(
+                f,
+                "{}: `{}`: unknown semantic identifier `{}`",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(name)
+            ),
         }
     }
 }
@@ -186,7 +210,9 @@ impl std::error::Error for AdapterError {
             | Self::UnknownSemanticClass { .. }
             | Self::DuplicateSemanticName { .. }
             | Self::UnknownSemanticSourceBinding { .. }
-            | Self::MissingRequiredSemanticRole { .. } => None,
+            | Self::MissingRequiredSemanticRole { .. }
+            | Self::DerivedObservationCycle { .. }
+            | Self::UnknownSemanticIdentifier { .. } => None,
         }
     }
 }
@@ -436,6 +462,19 @@ fn validate_semantics(adapter: &mut Adapter, path: &str) -> Result<(), AdapterEr
             name: class.to_string(),
         });
     }
+    if adapter.protocol != Protocol::Lending {
+        let protocol = match adapter.protocol {
+            Protocol::Lending => "lending",
+            Protocol::Generic => "generic",
+        };
+        return Err(AdapterError::Validation {
+            path: path.to_string(),
+            key: "[semantics].class".into(),
+            reason: format!(
+                "`lending.v1` semantics require `protocol = \"lending\"`; protocol `{protocol}` has no semantics evaluator"
+            ),
+        });
+    }
     semantics.class_ref = Some(SemanticClassRef::LendingV1);
 
     for role in LENDING_V1_REQUIRED_ROLES {
@@ -480,6 +519,34 @@ fn validate_semantics(adapter: &mut Adapter, path: &str) -> Result<(), AdapterEr
         expression.span = Some(ast.span);
         expression.ast = Some(ast);
     }
+
+    semantics.derived_order =
+        build_derived_order(&semantics.derived, &semantics.roles).map_err(|error| match error {
+            DerivedObservationError::DerivedObservationCycle { path: cycle } => {
+                AdapterError::DerivedObservationCycle {
+                    path: path.to_string(),
+                    key: "[semantics.derived]".into(),
+                    cycle,
+                }
+            }
+            DerivedObservationError::UnknownIdentifier { name } => {
+                AdapterError::UnknownSemanticIdentifier {
+                    path: path.to_string(),
+                    key: "[semantics.derived]".into(),
+                    name,
+                }
+            }
+            DerivedObservationError::MissingParsedExpression { name } => AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[semantics.derived].{name}"),
+                reason: "derived observation expression was not parsed before topo sort".into(),
+            },
+            DerivedObservationError::Evaluation { name, error } => AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[semantics.derived].{name}"),
+                reason: format!("unexpected load-time evaluation error: {error}"),
+            },
+        })?;
 
     let mut invariant_names = BTreeSet::new();
     for (idx, invariant) in semantics.invariants.iter_mut().enumerate() {

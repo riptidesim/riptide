@@ -22,25 +22,21 @@ use std::{
 
 use clap::Parser;
 use riptide_engine::{
-    agent::policy::LENDING_RUNTIME_ACTIONS,
     adapter::{load_adapter, Protocol},
-    harness::{
-        lending::LendingPoolConfig,
-        setup::default_program_so_path,
-    },
+    agent::policy::LENDING_RUNTIME_ACTIONS,
+    harness::{lending::LendingPoolConfig, setup::default_program_so_path},
     pack::{emit_pack, PackEmitOptions, PackInputs, PackOutputs},
     primitive::{
         build_generic_policies, generic_runtime_actions, GenericBootstrapConfig, GenericHarness,
     },
-    replay::{load_replay_bundle, run_replay},
+    replay::{load_replay_bundle, run_lending_replay, run_replay},
     scenario::{
         load_presets_dir, BaselineScenario, OracleUpdate, PresetSpec, PriceShockScenario, Scenario,
         ScenarioKind,
     },
     sim::{
-        build_agent_personas,
-        litesvm::LiteSvmBootstrapConfig,
-        run_generic_simulation, run_simulation, LiteSvmHarness, SimulationParams,
+        build_agent_personas, litesvm::LiteSvmBootstrapConfig, run_generic_simulation,
+        run_simulation, LiteSvmHarness, SimulationParams,
     },
     types::{Policy, RunConfig, SimulationResult},
 };
@@ -487,8 +483,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                     .and_then(|s| s.parse::<f64>().ok())
                     .filter(|v| (0.0..1.0).contains(v))
                     .unwrap_or(preset.drop_percent);
-                let shock_tick =
-                    (run_config.ticks / preset.shock_tick_denominator.max(1)).max(1);
+                let shock_tick = (run_config.ticks / preset.shock_tick_denominator.max(1)).max(1);
                 Box::new(PriceShockScenario::new(
                     preset.base_price,
                     preset.noise_bps,
@@ -568,6 +563,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 ],
                 invariants: adapter.invariants.clone(),
                 scheduled_actions: adapter.scheduled_actions.clone(),
+                semantics: adapter.semantics.clone(),
             };
 
             eprintln!("running tick loop ...");
@@ -595,6 +591,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 .as_ref()
                 .map(|a| a.scheduled_actions.clone())
                 .unwrap_or_default();
+            let lending_semantics = adapter.as_ref().and_then(|a| a.semantics.clone());
 
             eprintln!("bootstrapping LiteSVM backend ...");
             let bootstrap_config = LiteSvmBootstrapConfig {
@@ -636,6 +633,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 ],
                 invariants: lending_invariants,
                 scheduled_actions: lending_scheduled_actions,
+                semantics: lending_semantics,
             };
 
             eprintln!("running tick loop ...");
@@ -654,8 +652,11 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
     // Runs with no declared invariants never emit an `invariants_fired`
     // key, so `firing_count` stays 0 and the exit code stays 0 — this
     // is the / regression-gate contract.
+    let expression_error_count = count_error_expression_invariant_firings(&result);
     let firing_count = count_invariant_firings(&result);
-    if firing_count > 0 {
+    if expression_error_count > 0 {
+        Ok(EngineOutcome::SetupError)
+    } else if firing_count > 0 {
         Ok(EngineOutcome::InvariantFired(firing_count))
     } else {
         Ok(EngineOutcome::Clean)
@@ -674,8 +675,9 @@ fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
                 .parent()
                 .map(|p| p.to_path_buf())
                 .unwrap_or_else(|| PathBuf::from("."));
-            let shape = riptide_engine::replay::load_replay_config(config_path)
-                .map_err(|e| anyhow::anyhow!("load replay config {}: {e:#}", config_path.display()))?;
+            let shape = riptide_engine::replay::load_replay_config(config_path).map_err(|e| {
+                anyhow::anyhow!("load replay config {}: {e:#}", config_path.display())
+            })?;
             match shape {
                 riptide_engine::replay::ReplayConfigShape::Legacy(legacy) => {
                     let adapter_path = resolve_config_path(&base, &legacy.adapter);
@@ -786,7 +788,7 @@ fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
                 adapter: Some(adapter.clone()),
             })
             .map_err(|e| anyhow::anyhow!("LiteSVM replay bootstrap failed: {e:#}"))?;
-            run_replay(
+            run_lending_replay(
                 &mut harness,
                 &adapter,
                 &bundle,
@@ -799,8 +801,11 @@ fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
     write_result(&cli.output, &result)?;
     eprintln!("wrote {}", cli.output.display());
 
+    let expression_error_count = count_error_expression_invariant_firings(&result);
     let firing_count = count_invariant_firings(&result);
-    if firing_count > 0 {
+    if expression_error_count > 0 {
+        Ok(EngineOutcome::SetupError)
+    } else if firing_count > 0 {
         Ok(EngineOutcome::InvariantFired(firing_count))
     } else {
         Ok(EngineOutcome::Clean)
@@ -836,8 +841,11 @@ fn run_multi_component_replay_command(
     write_result(output_path, &result)?;
     eprintln!("wrote {}", output_path.display());
 
+    let expression_error_count = count_error_expression_invariant_firings(&result);
     let firing_count = count_invariant_firings(&result);
-    if firing_count > 0 {
+    if expression_error_count > 0 {
+        Ok(EngineOutcome::SetupError)
+    } else if firing_count > 0 {
         Ok(EngineOutcome::InvariantFired(firing_count))
     } else {
         Ok(EngineOutcome::Clean)
@@ -865,6 +873,27 @@ fn count_invariant_firings(result: &SimulationResult) -> u64 {
         .map(|entries| {
             entries
                 .iter()
+                .filter_map(|entry| entry.get("firings").and_then(|v| v.as_u64()))
+                .sum()
+        })
+        .unwrap_or(0)
+}
+
+fn count_error_expression_invariant_firings(result: &SimulationResult) -> u64 {
+    result
+        .summary
+        .get("expression_invariants")
+        .and_then(|v| v.as_array())
+        .map(|entries| {
+            entries
+                .iter()
+                .filter(|entry| {
+                    entry
+                        .get("severity")
+                        .and_then(|v| v.as_str())
+                        .map(|severity| severity == "error")
+                        .unwrap_or(false)
+                })
                 .filter_map(|entry| entry.get("firings").and_then(|v| v.as_u64()))
                 .sum()
         })
@@ -941,10 +970,7 @@ fn friendly_read_error(kind: &str, path: &Path, source: std::io::Error) -> anyho
             }
             _ => "Check that the path points at a readable file.",
         };
-        anyhow::anyhow!(
-            "{kind} file not found at {}\n{hint}",
-            path.display()
-        )
+        anyhow::anyhow!("{kind} file not found at {}\n{hint}", path.display())
     } else {
         anyhow::anyhow!("read {} failed: {source}", path.display())
     }

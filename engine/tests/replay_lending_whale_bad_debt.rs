@@ -38,7 +38,7 @@ use sha2::{Digest, Sha256};
 use riptide_engine::{
     adapter::load_adapter,
     harness::lending::LendingPoolConfig,
-    replay::{load_replay_bundle, run_replay},
+    replay::{load_replay_bundle, run_lending_replay},
     scenario::OracleUpdate,
     sim::litesvm::{LiteSvmBootstrapConfig, LiteSvmHarness},
     types::SimulationResult,
@@ -106,8 +106,8 @@ fn run_fixture() -> SimulationResult {
         panic!("required artifact missing");
     }
 
-    let adapter = load_adapter(&fixture.join("adapter.toml"))
-        .expect("load replay-scoped lending adapter");
+    let adapter =
+        load_adapter(&fixture.join("adapter.toml")).expect("load replay-scoped lending adapter");
     let bundle = load_replay_bundle(&fixture, &adapter).expect("load replay bundle");
 
     let bootstrap_price = OracleUpdate {
@@ -133,7 +133,7 @@ fn run_fixture() -> SimulationResult {
     .expect("bootstrap replay harness");
 
     canonicalize(
-        run_replay(&mut harness, &adapter, &bundle, "__canonical__".into())
+        run_lending_replay(&mut harness, &adapter, &bundle, "__canonical__".into())
             .expect("run replay"),
     )
 }
@@ -248,13 +248,11 @@ fn lending_whale_bad_debt_matches_expected_summary_and_is_deterministic() {
             .events
             .iter()
             .filter(|event| event.action == "liquidate")
-            .all(|event| event.tick == 4 && event.outcome == riptide_engine::types::SimOutcome::Success),
+            .all(|event| event.tick == 4
+                && event.outcome == riptide_engine::types::SimOutcome::Success),
         "every scheduled replay liquidation should succeed at tick 4",
     );
-    assert_eq!(
-        first.run_config.scenario,
-        "replay:lending-whale-bad-debt"
-    );
+    assert_eq!(first.run_config.scenario, "replay:lending-whale-bad-debt");
     let invariant_rows = first
         .summary
         .get("invariants_fired")
@@ -270,7 +268,9 @@ fn lending_whale_bad_debt_matches_expected_summary_and_is_deterministic() {
     assert_eq!(no_bad_debt["field"], "bad_debt");
     assert_eq!(no_bad_debt["op"], "==");
     assert_eq!(
-        no_bad_debt["firings"].as_u64().expect("firings is a number") as usize,
+        no_bad_debt["firings"]
+            .as_u64()
+            .expect("firings is a number") as usize,
         expected.bad_debt_invariant_firings,
         "no_bad_debt invariant firing count drifted",
     );

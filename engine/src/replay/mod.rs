@@ -6,7 +6,7 @@ pub mod trajectory;
 pub mod multi;
 
 pub use oracle_trajectory::{OracleTrajectory, OracleTrajectoryTick};
-pub use run::{load_replay_bundle, run_replay, ReplayBundle};
+pub use run::{load_replay_bundle, run_lending_replay, run_replay, ReplayBundle};
 pub use trajectory::{
     ReplayInitialState, ReplayInstruction, ReplayMetadata, ReplayTick, ReplayTrajectory,
 };

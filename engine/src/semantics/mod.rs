@@ -5,9 +5,12 @@
 //! deliberately has no I/O, no time access, no user functions, and no
 //! loops.
 
+pub mod derived;
 pub mod error;
 pub mod eval;
 pub mod expr;
+pub mod invariants;
+pub mod roles;
 
 pub use eval::Context;
 
@@ -28,6 +31,18 @@ impl Value {
             Self::U128(_) => "u128",
             Self::I128(_) => "i128",
             Self::Bool(_) => "bool",
+        }
+    }
+
+    pub fn to_json(self) -> serde_json::Value {
+        match self {
+            Self::U128(value) if value <= u64::MAX as u128 => serde_json::Value::from(value as u64),
+            Self::U128(value) => serde_json::Value::from(value.to_string()),
+            Self::I128(value) if value >= i64::MIN as i128 && value <= i64::MAX as i128 => {
+                serde_json::Value::from(value as i64)
+            }
+            Self::I128(value) => serde_json::Value::from(value.to_string()),
+            Self::Bool(value) => serde_json::Value::Bool(value),
         }
     }
 }

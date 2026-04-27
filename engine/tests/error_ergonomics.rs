@@ -149,10 +149,7 @@ triggers = []
     assert!(msg.contains("declared"), "missing actual value cue: {msg}");
     assert!(msg.contains("4"), "missing actual value: {msg}");
     assert!(msg.contains("8"), "missing required minimum: {msg}");
-    assert!(
-        msg.contains("discriminator"),
-        "missing rationale: {msg}"
-    );
+    assert!(msg.contains("discriminator"), "missing rationale: {msg}");
 }
 
 /// When the adapter points at a real IDL that declares typed fields for
@@ -222,10 +219,7 @@ triggers = []
         "missing key: {msg}"
     );
     assert!(msg.contains("24"), "missing declared value: {msg}");
-    assert!(
-        msg.contains("48"),
-        "missing expected value from IDL: {msg}"
-    );
+    assert!(msg.contains("48"), "missing expected value from IDL: {msg}");
     assert!(
         msg.contains("at least"),
         "missing declared-vs-expected phrasing: {msg}"
@@ -259,12 +253,7 @@ fn t03_invalid_persona_reference_lists_available_personas() {
         trivial_policy("cautious-yield-farmer"),
         trivial_policy("steady-lp"),
     ];
-    let err = build_agent_personas(
-        &vec!["whale".to_string()],
-        &policies,
-        3,
-    )
-    .unwrap_err();
+    let err = build_agent_personas(&vec!["whale".to_string()], &policies, 3).unwrap_err();
     let msg = match err {
         SimulationAbort::BadInput(m) => m,
         other => panic!("expected BadInput, got: {other:?}"),
@@ -290,19 +279,13 @@ fn t03_missing_adapter_file_mentions_path_and_suggests_next_step() {
     // runs through `engine_cli_e2e.rs`. Here we drive the adapter
     // path, which is the first file a user points at and thus the
     // most common failure.
-    let err = load_adapter(std::path::Path::new(
-        "/nonexistent/riptide/adapter.toml",
-    ))
-    .unwrap_err();
+    let err = load_adapter(std::path::Path::new("/nonexistent/riptide/adapter.toml")).unwrap_err();
     let msg = err.to_string();
     assert!(
         msg.contains("/nonexistent/riptide/adapter.toml"),
         "missing path: {msg}"
     );
-    assert!(
-        msg.contains("not found"),
-        "missing not-found marker: {msg}"
-    );
+    assert!(msg.contains("not found"), "missing not-found marker: {msg}");
     assert!(
         msg.contains("--adapter") || msg.contains("adapter TOML"),
         "missing next-step cue: {msg}"
@@ -344,10 +327,7 @@ triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
     let err = parse_adapter_str(toml_str, "obs.toml").unwrap_err();
     let msg = err.to_string();
     assert!(msg.contains("obs.toml"), "missing path: {msg}");
-    assert!(
-        msg.contains("triggers[0].if"),
-        "missing field key: {msg}"
-    );
+    assert!(msg.contains("triggers[0].if"), "missing field key: {msg}");
     assert!(msg.contains("player.wood"), "missing bad obs: {msg}");
     assert!(
         msg.contains("Declared observations"),
@@ -378,7 +358,10 @@ value = 1.0
     let err = parse_adapter_str(toml_str, "inv.toml").unwrap_err();
     let msg = err.to_string();
     assert!(msg.contains("inv.toml"), "missing path: {msg}");
-    assert!(msg.contains("[[invariants]][0].field"), "missing key: {msg}");
+    assert!(
+        msg.contains("[[invariants]][0].field"),
+        "missing key: {msg}"
+    );
     assert!(msg.contains("magic_metric"), "missing bad field: {msg}");
     assert!(
         msg.contains("snapshot metric") || msg.contains("tvl"),
@@ -466,6 +449,7 @@ fn t03_happy_path_lending_run_still_succeeds_with_improved_errors() {
         simulation_boundaries: vec!["t03 happy".into()],
         invariants: Vec::new(),
         scheduled_actions: Vec::new(),
+        semantics: None,
     };
     let result = run_simulation(&mut harness, &mut scenario, params).unwrap();
     assert_eq!(result.seed, 42);

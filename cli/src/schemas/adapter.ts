@@ -427,6 +427,11 @@ function validateSemantics(adapter: Adapter, path: string): void {
       `${path}: \`[semantics].class\`: UnknownSemanticClass(${escapeDiagnostic(semantics.class)}); supported semantic classes: ${JSON.stringify(SUPPORTED_SEMANTIC_CLASSES)}`
     );
   }
+  if (semantics.class === "lending.v1" && adapter.protocol !== "lending") {
+    throw new Error(
+      `${path}: \`[semantics].class\`: \`lending.v1\` semantics require \`protocol = "lending"\`; protocol \`${escapeDiagnostic(adapter.protocol)}\` has no semantics evaluator`
+    );
+  }
 
   for (const role of LENDING_V1_REQUIRED_ROLES) {
     if (!(role in semantics.roles)) {

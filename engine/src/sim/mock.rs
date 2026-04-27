@@ -260,6 +260,11 @@ impl LendingPrimitive for MockHarness {
             total_deposits: self.total_deposits,
             total_borrows: self.total_borrows,
             bad_debt: self.bad_debt,
+            ltv_bps: self.ltv_bps,
+            liquidation_threshold_bps: self.liquidation_threshold_bps,
+            liquidation_bonus_bps: self.liquidation_bonus_bps,
+            deposit_limit: self.deposit_limit,
+            borrow_limit: self.borrow_limit,
         })
     }
 

@@ -63,6 +63,11 @@ pub struct PoolState {
     pub total_deposits: u64,
     pub total_borrows: u64,
     pub bad_debt: u64,
+    pub ltv_bps: u16,
+    pub liquidation_threshold_bps: u16,
+    pub liquidation_bonus_bps: u16,
+    pub deposit_limit: u64,
+    pub borrow_limit: u64,
 }
 
 impl PoolState {
@@ -151,10 +156,7 @@ pub trait Primitive {
 
     /// Push a new oracle price into the program's pricing feed.
     /// Backends without a price feed default to a no-op.
-    fn push_oracle_price(
-        &mut self,
-        _update: &OracleUpdate,
-    ) -> Result<(), PrimitiveError> {
+    fn push_oracle_price(&mut self, _update: &OracleUpdate) -> Result<(), PrimitiveError> {
         Ok(())
     }
 
@@ -359,10 +361,7 @@ pub trait LendingPrimitive: Primitive {
     }
 
     /// Back-compat alias for `health_factor`. Prefer `health_factor` in new code.
-    fn observe_position(
-        &self,
-        agent_idx: usize,
-    ) -> Result<PositionHealth, PrimitiveError> {
+    fn observe_position(&self, agent_idx: usize) -> Result<PositionHealth, PrimitiveError> {
         self.health_factor(agent_idx)
     }
 }
@@ -389,9 +388,7 @@ pub fn dispatch_lending_action<H: LendingPrimitive + ?Sized>(
         "repay" => harness.repay(agent_idx, amount),
         "liquidate" => {
             let target_idx = target_idx.ok_or_else(|| {
-                PrimitiveError::ProgramRejected(
-                    "liquidate action missing target_idx".to_string(),
-                )
+                PrimitiveError::ProgramRejected("liquidate action missing target_idx".to_string())
             })?;
             harness.liquidate(agent_idx, target_idx, amount)
         }

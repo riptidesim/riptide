@@ -120,6 +120,10 @@ pub struct PackEmission {
 pub fn canonical_hash(result: &SimulationResult) -> String {
     let mut canonical = result.clone();
     canonical.run_config.output_path = "__canonical__".to_string();
+    canonical.summary.remove("expression_invariants");
+    for tick in &mut canonical.timeseries {
+        tick.remove("derived_observations");
+    }
     let bytes =
         serde_json::to_vec(&canonical).expect("SimulationResult is always JSON-serializable");
     let digest = Sha256::digest(&bytes);
@@ -155,9 +159,13 @@ pub fn derive_run_id(scenario: &str) -> String {
 /// callers omit that path from the manifest rather than leak an
 /// absolute path into a pack.
 pub fn to_repo_relative(root: &Path, target: &Path) -> Option<String> {
-    let abs_root = fs::canonicalize(root).ok().unwrap_or_else(|| root.to_path_buf());
+    let abs_root = fs::canonicalize(root)
+        .ok()
+        .unwrap_or_else(|| root.to_path_buf());
     let abs_target = if target.is_absolute() {
-        fs::canonicalize(target).ok().unwrap_or_else(|| target.to_path_buf())
+        fs::canonicalize(target)
+            .ok()
+            .unwrap_or_else(|| target.to_path_buf())
     } else {
         let joined = abs_root.join(target);
         fs::canonicalize(&joined).unwrap_or(joined)
@@ -185,9 +193,8 @@ pub fn emit_pack(
     outputs: &PackOutputs,
     options: &PackEmitOptions,
 ) -> Result<PackEmission> {
-    fs::create_dir_all(&options.pack_dir).with_context(|| {
-        format!("create pack dir at {}", options.pack_dir.display())
-    })?;
+    fs::create_dir_all(&options.pack_dir)
+        .with_context(|| format!("create pack dir at {}", options.pack_dir.display()))?;
     fs::create_dir_all(options.pack_dir.join("inputs"))?;
     fs::create_dir_all(options.pack_dir.join("outputs"))?;
 
@@ -327,7 +334,10 @@ fn normalize_inputs(root: &Path, inputs: &PackInputs) -> PackInputsRel {
         .adapter
         .as_ref()
         .and_then(|p| to_repo_relative(root, p));
-    out.config = inputs.config.as_ref().and_then(|p| to_repo_relative(root, p));
+    out.config = inputs
+        .config
+        .as_ref()
+        .and_then(|p| to_repo_relative(root, p));
     out.policies = inputs
         .policies
         .as_ref()
@@ -351,7 +361,10 @@ fn normalize_outputs(root: &Path, outputs: &PackOutputs) -> PackOutputsRel {
             .simulation_result
             .as_ref()
             .and_then(|p| to_repo_relative(root, p)),
-        last_run: outputs.last_run.as_ref().and_then(|p| to_repo_relative(root, p)),
+        last_run: outputs
+            .last_run
+            .as_ref()
+            .and_then(|p| to_repo_relative(root, p)),
     }
 }
 
@@ -444,7 +457,11 @@ fn build_manifest(
 }
 
 fn collect_invariant_firings(result: &SimulationResult) -> Vec<InvariantFiringRow> {
-    let rollup = match result.summary.get("invariants_fired").and_then(|v| v.as_array()) {
+    let rollup = match result
+        .summary
+        .get("invariants_fired")
+        .and_then(|v| v.as_array())
+    {
         Some(arr) => arr,
         None => return Vec::new(),
     };
@@ -457,11 +474,18 @@ fn collect_invariant_firings(result: &SimulationResult) -> Vec<InvariantFiringRo
     rollup
         .iter()
         .map(|row| {
-            let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let name = row
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let firings = row.get("firings").and_then(|v| v.as_u64()).unwrap_or(0);
             let first_tick = first_ticks.get(&name).copied();
             InvariantFiringRow {
-                field: row.get("field").and_then(|v| v.as_str()).map(str::to_string),
+                field: row
+                    .get("field")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
                 op: row.get("op").and_then(|v| v.as_str()).map(str::to_string),
                 value: row.get("value").and_then(|v| v.as_f64()),
                 name,
@@ -475,12 +499,10 @@ fn collect_invariant_firings(result: &SimulationResult) -> Vec<InvariantFiringRo
 fn write_atomic(path: &Path, body: &str) -> Result<()> {
     let tmp = path.with_extension("pack-tmp");
     {
-        let mut f = fs::File::create(&tmp)
-            .with_context(|| format!("create {}", tmp.display()))?;
+        let mut f = fs::File::create(&tmp).with_context(|| format!("create {}", tmp.display()))?;
         f.write_all(body.as_bytes())?;
     }
-    fs::rename(&tmp, path)
-        .with_context(|| format!("rename into {}", path.display()))?;
+    fs::rename(&tmp, path).with_context(|| format!("rename into {}", path.display()))?;
     Ok(())
 }
 
@@ -569,9 +591,7 @@ fn scan_pack_for_leaks(pack_dir: &Path) -> Result<()> {
             // least 4 chars, contains a dot or dash). Short matches
             // overlap too heavily with legitimate run-config / scenario
             // tokens.
-            if host.len() >= 4
-                && (host.contains('.') || host.contains('-'))
-                && body.contains(host)
+            if host.len() >= 4 && (host.contains('.') || host.contains('-')) && body.contains(host)
             {
                 bail!(
                     "pack leak: $HOSTNAME ({}) appears in {} — emission rejected",
@@ -665,6 +685,9 @@ fn walk_files(root: &Path) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::{
+        AgentFinalState, AgentStatus, RunConfig, SimulationResult, SimulationSummary, TickSnapshot,
+    };
 
     #[test]
     fn run_id_sanitizes_replay_multi_scenarios() {
@@ -678,6 +701,63 @@ mod tests {
         assert_eq!(
             derive_run_id("replay:lending-whale-bad-debt"),
             "replay-lending-whale-bad-debt"
+        );
+    }
+
+    #[test]
+    fn canonical_hash_ignores_v1_observed_semantics_surfaces() {
+        fn base_result() -> SimulationResult {
+            SimulationResult {
+                run_config: RunConfig {
+                    agents: 1,
+                    ticks: 1,
+                    scenario: "baseline".into(),
+                    seed: 1,
+                    personas: vec![],
+                    validator_url: "unused".into(),
+                    output_path: "__canonical__".into(),
+                },
+                seed: 1,
+                total_ticks: 1,
+                timeseries: vec![TickSnapshot::from([(
+                    "tick".into(),
+                    serde_json::Value::from(0),
+                )])],
+                events: vec![],
+                agents: vec![AgentFinalState {
+                    agent_id: "agent-001".into(),
+                    persona_id: "p".into(),
+                    persona_label: "p".into(),
+                    status: AgentStatus::Active,
+                    final_balance: 1.0,
+                    pnl: 0.0,
+                    total_actions: 0,
+                    triggers_activated: 0,
+                    liquidated_at_tick: None,
+                }],
+                summary: SimulationSummary::from([(
+                    "agents_active".into(),
+                    serde_json::Value::from(1),
+                )]),
+                simulation_boundaries: vec![],
+            }
+        }
+
+        let base = base_result();
+        let mut observed = base.clone();
+        observed.timeseries[0].insert(
+            "derived_observations".into(),
+            serde_json::json!({"health_factor": 2}),
+        );
+        observed.summary.insert(
+            "expression_invariants".into(),
+            serde_json::json!([{"name": "ltv_below_max", "severity": "warn", "firings": 1}]),
+        );
+
+        assert_eq!(
+            canonical_hash(&base),
+            canonical_hash(&observed),
+            "observed-only semantic v1 fields must not enter canonical hash"
         );
     }
 }

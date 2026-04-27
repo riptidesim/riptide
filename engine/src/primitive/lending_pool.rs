@@ -24,8 +24,8 @@ use crate::{
     harness::{
         lending::{LendingPoolConfig, LendingPoolState, LendingProgramClient, PositionState},
         setup::{
-            default_pool_config, default_program_so_path, load_program_bytes,
-            ORACLE_STATE_LEN, POOL_STATE_LEN, POSITION_STATE_LEN,
+            default_pool_config, default_program_so_path, load_program_bytes, ORACLE_STATE_LEN,
+            POOL_STATE_LEN, POSITION_STATE_LEN,
         },
     },
     primitive::{LendingPrimitive, PoolState, PositionHealth, PrimitiveError},
@@ -181,12 +181,8 @@ impl LiteSvmHarness {
                 signers.push(s);
             }
         }
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&payer.pubkey()),
-            &signers,
-            blockhash,
-        );
+        let tx =
+            Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &signers, blockhash);
         match self.svm.send_transaction(tx) {
             Ok(_) => Ok(()),
             Err(e) => {
@@ -294,8 +290,13 @@ impl LiteSvmHarness {
                 config.pool_config,
             ),
         ];
-        send_tx(&mut svm, &admin, create_and_init_ix, &[&admin, &oracle_kp, &pool_kp])
-            .context("oracle + pool initialization")?;
+        send_tx(
+            &mut svm,
+            &admin,
+            create_and_init_ix,
+            &[&admin, &oracle_kp, &pool_kp],
+        )
+        .context("oracle + pool initialization")?;
 
         // --- Create position accounts per agent ---
         let rent_position = svm.minimum_balance_for_rent_exemption(POSITION_STATE_LEN);
@@ -329,11 +330,9 @@ impl LiteSvmHarness {
         }
 
         let starting_oracle_price = if config.price_exponent < 0 {
-            (config.starting_price as f64)
-                / 10f64.powi(i32::from(-config.price_exponent))
+            (config.starting_price as f64) / 10f64.powi(i32::from(-config.price_exponent))
         } else {
-            (config.starting_price as f64)
-                * 10f64.powi(i32::from(config.price_exponent))
+            (config.starting_price as f64) * 10f64.powi(i32::from(config.price_exponent))
         };
 
         // select the oracle layout kind from the
@@ -466,8 +465,14 @@ impl crate::primitive::Primitive for LiteSvmHarness {
         // Largest single-tick oracle drawdown across the timeseries.
         let mut largest_drawdown: f64 = 0.0;
         for pair in timeseries.windows(2) {
-            let prev = pair[0].get("oracle_price").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let next = pair[1].get("oracle_price").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let prev = pair[0]
+                .get("oracle_price")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+            let next = pair[1]
+                .get("oracle_price")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
             if prev > 0.0 {
                 let drop = ((prev - next) / prev).max(0.0);
                 if drop > largest_drawdown {
@@ -570,14 +575,18 @@ impl LendingPrimitive for LiteSvmHarness {
             total_deposits: state.total_deposits,
             total_borrows: state.total_borrows,
             bad_debt: state.bad_debt,
+            ltv_bps: state.ltv_bps,
+            liquidation_threshold_bps: state.liquidation_threshold_bps,
+            liquidation_bonus_bps: state.liquidation_bonus_bps,
+            deposit_limit: state.deposit_limit,
+            borrow_limit: state.borrow_limit,
         })
     }
 
     fn health_factor(&self, agent_idx: usize) -> Result<PositionHealth, PrimitiveError> {
-        let key = self
-            .positions
-            .get(agent_idx)
-            .ok_or_else(|| PrimitiveError::Infra(format!("position idx {agent_idx} out of range")))?;
+        let key = self.positions.get(agent_idx).ok_or_else(|| {
+            PrimitiveError::Infra(format!("position idx {agent_idx} out of range"))
+        })?;
         let acct = self
             .svm
             .get_account(key)
@@ -652,7 +661,10 @@ mod tests {
     fn skip_if_no_so() -> bool {
         let so_path = default_program_so_path();
         if !so_path.exists() {
-            eprintln!("skipping: lending_pool.so not found at {}", so_path.display());
+            eprintln!(
+                "skipping: lending_pool.so not found at {}",
+                so_path.display()
+            );
             true
         } else {
             false
@@ -678,7 +690,9 @@ mod tests {
 
     #[test]
     fn bootstrap_creates_initialized_environment() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
 
         let config = test_config();
         let agent_count = config.agent_count;
@@ -688,16 +702,22 @@ mod tests {
         assert_eq!(harness.agents.len(), agent_count);
         assert_eq!(harness.positions.len(), agent_count);
 
-        let oracle_acct = harness.svm.get_account(&harness.oracle)
+        let oracle_acct = harness
+            .svm
+            .get_account(&harness.oracle)
             .expect("oracle account should exist");
         assert_eq!(oracle_acct.owner, harness.program_id);
 
-        let pool_acct = harness.svm.get_account(&harness.pool)
+        let pool_acct = harness
+            .svm
+            .get_account(&harness.pool)
             .expect("pool account should exist");
         assert_eq!(pool_acct.owner, harness.program_id);
 
         for (idx, pos_key) in harness.positions.iter().enumerate() {
-            let pos_acct = harness.svm.get_account(pos_key)
+            let pos_acct = harness
+                .svm
+                .get_account(pos_key)
                 .unwrap_or_else(|| panic!("position {idx} should exist"));
             assert_eq!(pos_acct.owner, harness.program_id);
         }
@@ -711,7 +731,9 @@ mod tests {
 
     #[test]
     fn bootstrap_positions_have_seeded_collateral() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
 
         let config = test_config();
         let seed_deposit = config.seed_deposit;
@@ -721,7 +743,10 @@ mod tests {
             let acct = harness.svm.get_account(pos_key).unwrap();
             let state = PositionState::try_from_slice(&acct.data)
                 .unwrap_or_else(|e| panic!("position {idx} decode: {e}"));
-            assert_eq!(state.collateral, seed_deposit, "agent {idx} collateral mismatch");
+            assert_eq!(
+                state.collateral, seed_deposit,
+                "agent {idx} collateral mismatch"
+            );
             assert_eq!(state.debt, 0);
             assert!(!state.liquidated);
         }
@@ -729,7 +754,9 @@ mod tests {
 
     #[test]
     fn bootstrap_zero_seed_deposit_skips_deposits() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
 
         let config = LiteSvmBootstrapConfig {
             agent_count: 2,
@@ -747,14 +774,18 @@ mod tests {
 
     #[test]
     fn harness_agent_count_matches_bootstrap() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
         assert_eq!(harness.agent_count(), 3);
     }
 
     #[test]
     fn harness_pool_state_returns_seeded_state() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
         let obs = harness.pool_state().unwrap();
         assert_eq!(obs.total_deposits, 150); // 3 agents * 50
@@ -764,7 +795,9 @@ mod tests {
 
     #[test]
     fn harness_health_factor_returns_seeded_state() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
         for idx in 0..3 {
             let obs = harness.health_factor(idx).unwrap();
@@ -776,7 +809,9 @@ mod tests {
 
     #[test]
     fn harness_health_factor_out_of_range_is_infra() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
         let err = harness.health_factor(999).unwrap_err();
         assert!(matches!(err, PrimitiveError::Infra(_)));
@@ -784,9 +819,14 @@ mod tests {
 
     #[test]
     fn harness_push_oracle_price() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let mut harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
-        let update = OracleUpdate { price: 200.0, exponent: 0 };
+        let update = OracleUpdate {
+            price: 200.0,
+            exponent: 0,
+        };
         harness.push_oracle_price(&update).unwrap();
 
         let acct = harness.svm.get_account(&harness.oracle).unwrap();
@@ -796,7 +836,9 @@ mod tests {
 
     #[test]
     fn harness_deposit_updates_pool_and_position() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let mut harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
         harness.deposit(0, 25).unwrap();
 
@@ -808,7 +850,9 @@ mod tests {
 
     #[test]
     fn harness_withdraw_updates_pool_and_position() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let mut harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
         harness.withdraw(0, 20).unwrap();
 
@@ -820,13 +864,16 @@ mod tests {
 
     #[test]
     fn harness_borrow_and_repay() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let mut harness = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
             agent_count: 2,
             seed_deposit: 100,
             starting_price: 100,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
 
         harness.borrow(0, 10).unwrap();
         let pool = harness.pool_state().unwrap();
@@ -843,13 +890,16 @@ mod tests {
 
     #[test]
     fn harness_borrow_over_ltv_is_program_rejected() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let mut harness = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
             agent_count: 1,
             seed_deposit: 10,
             starting_price: 100,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
 
         let err = harness.borrow(0, 999_999).unwrap_err();
         assert!(
@@ -860,13 +910,16 @@ mod tests {
 
     #[test]
     fn harness_full_lifecycle_deposit_borrow_repay_withdraw() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let mut harness = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
             agent_count: 2,
             seed_deposit: 0,
             starting_price: 100,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
 
         harness.deposit(0, 500).unwrap();
         harness.borrow(0, 10).unwrap();
@@ -883,13 +936,16 @@ mod tests {
 
     #[test]
     fn harness_withdraw_with_outstanding_debt_succeeds() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let mut harness = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
             agent_count: 1,
             seed_deposit: 1000,
             starting_price: 100,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
 
         harness.borrow(0, 10).unwrap();
         let pos = harness.health_factor(0).unwrap();
@@ -903,13 +959,16 @@ mod tests {
 
     #[test]
     fn harness_withdraw_with_debt_rejected_when_unhealthy() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let mut harness = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
             agent_count: 1,
             seed_deposit: 100,
             starting_price: 100,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
 
         harness.borrow(0, 500).unwrap();
 
@@ -924,33 +983,45 @@ mod tests {
 
     #[test]
     fn advance_tick_progresses_slot_and_blockhash() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let mut harness = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
             agent_count: 1,
             seed_deposit: 100,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
 
         let hash_before = harness.svm.latest_blockhash();
         Primitive::advance_tick(&mut harness);
         let hash_after = harness.svm.latest_blockhash();
-        assert_ne!(hash_before, hash_after, "blockhash should change after advance_tick");
+        assert_ne!(
+            hash_before, hash_after,
+            "blockhash should change after advance_tick"
+        );
         assert_eq!(harness.current_slot, 1);
     }
 
     #[test]
     fn operations_succeed_after_multiple_tick_advances() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let mut harness = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
             agent_count: 1,
             seed_deposit: 100,
             starting_price: 100,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
 
         for tick in 0..5 {
             Primitive::advance_tick(&mut harness);
-            let update = OracleUpdate { price: 100.0 + tick as f64, exponent: 0 };
+            let update = OracleUpdate {
+                price: 100.0 + tick as f64,
+                exponent: 0,
+            };
             harness.push_oracle_price(&update).unwrap();
             harness.deposit(0, 10).unwrap();
         }
@@ -962,7 +1033,9 @@ mod tests {
 
     #[test]
     fn deterministic_bootstrap_produces_same_accounts() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let h1 = LiteSvmHarness::bootstrap(test_config()).unwrap();
         let h2 = LiteSvmHarness::bootstrap(test_config()).unwrap();
 
@@ -971,10 +1044,7 @@ mod tests {
         assert_eq!(p1, p2);
 
         for i in 0..3 {
-            assert_eq!(
-                h1.health_factor(i).unwrap(),
-                h2.health_factor(i).unwrap()
-            );
+            assert_eq!(h1.health_factor(i).unwrap(), h2.health_factor(i).unwrap());
         }
     }
 
@@ -983,18 +1053,20 @@ mod tests {
     /// the real run path, not just isolated tick advances.
     #[test]
     fn same_seed_litesvm_run_is_deterministic() {
-        use std::collections::BTreeMap;
         use crate::{
             agent::policy::LENDING_RUNTIME_ACTIONS,
             scenario::BaselineScenario,
             sim::run::{run_simulation, SimulationParams},
             types::{
-                Policy, PositionSizing, PositionSizingStrategy,
-                RunConfig, SimEvent, Trigger, TriggerCondition,
+                Policy, PositionSizing, PositionSizingStrategy, RunConfig, SimEvent, Trigger,
+                TriggerCondition,
             },
         };
+        use std::collections::BTreeMap;
 
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
 
         fn make_policy() -> Policy {
             Policy {
@@ -1040,7 +1112,8 @@ mod tests {
                 seed_deposit: 50,
                 starting_price: 100,
                 ..Default::default()
-            }).unwrap();
+            })
+            .unwrap();
             let mut scenario = BaselineScenario::new(100.0, 25);
             let policies = vec![make_policy()];
             let params = SimulationParams {
@@ -1053,6 +1126,7 @@ mod tests {
                 simulation_boundaries: vec!["litesvm".into()],
                 invariants: Vec::new(),
                 scheduled_actions: Vec::new(),
+                semantics: None,
             };
             run_simulation(&mut harness, &mut scenario, params).unwrap()
         }
@@ -1061,10 +1135,16 @@ mod tests {
         let r2 = run_once(42);
 
         let event_keys = |events: &[SimEvent]| -> Vec<(u32, String, String)> {
-            events.iter().map(|e| (e.tick, e.agent_id.clone(), e.action.clone())).collect()
+            events
+                .iter()
+                .map(|e| (e.tick, e.agent_id.clone(), e.action.clone()))
+                .collect()
         };
-        assert_eq!(event_keys(&r1.events), event_keys(&r2.events),
-            "event sequences diverged across same-seed runs");
+        assert_eq!(
+            event_keys(&r1.events),
+            event_keys(&r2.events),
+            "event sequences diverged across same-seed runs"
+        );
 
         let tvls = |r: &crate::types::SimulationResult| -> Vec<Option<f64>> {
             r.timeseries
@@ -1072,8 +1152,11 @@ mod tests {
                 .map(|s| s.get("tvl").and_then(|v| v.as_f64()))
                 .collect()
         };
-        assert_eq!(tvls(&r1), tvls(&r2),
-            "timeseries TVL diverged across same-seed runs");
+        assert_eq!(
+            tvls(&r1),
+            tvls(&r2),
+            "timeseries TVL diverged across same-seed runs"
+        );
 
         let prices = |r: &crate::types::SimulationResult| -> Vec<Option<f64>> {
             r.timeseries
@@ -1081,8 +1164,11 @@ mod tests {
                 .map(|s| s.get("oracle_price").and_then(|v| v.as_f64()))
                 .collect()
         };
-        assert_eq!(prices(&r1), prices(&r2),
-            "timeseries oracle_price diverged across same-seed runs");
+        assert_eq!(
+            prices(&r1),
+            prices(&r2),
+            "timeseries oracle_price diverged across same-seed runs"
+        );
     }
 
     // --- LendingPrimitive is the dispatch path ---
@@ -1098,7 +1184,9 @@ mod tests {
     /// impls and the primitive is back to being a parallel trait.
     #[test]
     fn lending_primitive_dyn_dispatch_updates_on_chain_state() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let mut harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
         {
             let dyn_prim: &mut dyn crate::primitive::LendingPrimitive = &mut harness;
@@ -1117,7 +1205,9 @@ mod tests {
     /// `LendingPrimitive`, this would fail to compile.
     #[test]
     fn tick_loop_path_dispatches_through_lending_primitive() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         fn drive<H: Harness>(h: &mut H) -> Result<(), PrimitiveError> {
             // Each of these method calls resolves through the
             // `LendingPrimitive` trait because `Harness: LendingPrimitive`
@@ -1133,7 +1223,8 @@ mod tests {
             seed_deposit: 100,
             starting_price: 100,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
         drive(&mut harness).unwrap();
         let pool = harness.pool_state().unwrap();
         // Net effect: deposit 10, borrow 1, repay 1, withdraw 10 → same as start
@@ -1188,7 +1279,9 @@ mod tests {
 
     #[test]
     fn bootstrap_accepts_canonical_adapter() {
-        if skip_if_no_so() { return; }
+        if skip_if_no_so() {
+            return;
+        }
         let mut config = test_config();
         config.adapter = Some(sample_lending_adapter());
         let harness = LiteSvmHarness::bootstrap(config).unwrap();
@@ -1204,11 +1297,7 @@ mod tests {
         // lending actions), but the Solend-fork primitive rejects it
         // because the concrete wiring is wrong.
         let mut adapter = sample_lending_adapter();
-        adapter
-            .instructions
-            .get_mut("deposit")
-            .unwrap()
-            .action = "borrow".to_string();
+        adapter.instructions.get_mut("deposit").unwrap().action = "borrow".to_string();
 
         let mut config = test_config();
         config.adapter = Some(adapter);
@@ -1220,7 +1309,10 @@ mod tests {
             err.contains("[instructions].deposit.action"),
             "error should name the failing key: {err}"
         );
-        assert!(err.contains("borrow"), "error should include actual value: {err}");
+        assert!(
+            err.contains("borrow"),
+            "error should include actual value: {err}"
+        );
     }
 
     #[test]

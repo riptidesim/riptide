@@ -67,6 +67,16 @@ fn semantics_schema_round_trip_parses_ast_and_roles() {
 
     assert_eq!(semantics.class.as_deref(), Some("lending.v1"));
     assert!(semantics.class_ref.is_some());
+    assert_eq!(
+        semantics.derived_order,
+        vec![
+            "collateral_value",
+            "debt_value",
+            "health_factor",
+            "max_borrow_value"
+        ],
+        "loader should store a deterministic derived-observation order"
+    );
 
     let reserve = semantics.roles.get("reserve").expect("reserve role");
     assert_eq!(
@@ -120,6 +130,18 @@ fn semantics_schema_rejects_unknown_class() {
 }
 
 #[test]
+fn semantics_schema_rejects_lending_v1_on_generic_protocol() {
+    let toml = valid_semantics_toml().replace("protocol = \"lending\"", "protocol = \"generic\"");
+    let err = parse_adapter_str(&toml, "semantics.toml").unwrap_err();
+    let AdapterError::Validation { key, reason, .. } = err else {
+        panic!("expected protocol/class compatibility validation error");
+    };
+    assert_eq!(key, "[semantics].class");
+    assert!(reason.contains("protocol = \"lending\""));
+    assert!(reason.contains("no semantics evaluator"));
+}
+
+#[test]
 fn semantics_schema_rejects_malformed_expression_with_span() {
     let toml = valid_semantics_toml().replace(
         "health_factor = \"collateral_value * 10000 / debt_value\"",
@@ -138,6 +160,22 @@ fn semantics_schema_rejects_duplicate_invariant_names() {
     let toml = valid_semantics_toml().replace("ltv_below_max", "bad_debt_bound");
     let err = parse_adapter_str(&toml, "semantics.toml").unwrap_err();
     assert!(matches!(err, AdapterError::DuplicateSemanticName { .. }));
+}
+
+#[test]
+fn semantics_schema_rejects_derived_observation_cycles() {
+    let toml = valid_semantics_toml().replace(
+        r#"collateral_value = "position.collateral_amount * reserve.collateral_price / 10000"
+debt_value = "position.debt_amount"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+health_factor = "collateral_value * 10000 / debt_value""#,
+        r#"collateral_value = "health_factor + 1"
+debt_value = "position.debt_amount"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+health_factor = "collateral_value + 1""#,
+    );
+    let err = parse_adapter_str(&toml, "semantics.toml").unwrap_err();
+    assert!(matches!(err, AdapterError::DerivedObservationCycle { .. }));
 }
 
 #[test]

@@ -79,11 +79,21 @@ pub enum ObservationValue {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TriggerCondition {
-    PortfolioDrawdown { threshold: f64 },
-    UtilizationAbove { threshold: f64 },
-    PriceDropPercent { threshold: f64 },
-    ExposureAbove { threshold: f64 },
-    HealthFactorBelow { threshold: f64 },
+    PortfolioDrawdown {
+        threshold: f64,
+    },
+    UtilizationAbove {
+        threshold: f64,
+    },
+    PriceDropPercent {
+        threshold: f64,
+    },
+    ExposureAbove {
+        threshold: f64,
+    },
+    HealthFactorBelow {
+        threshold: f64,
+    },
     ObservationCompare {
         key: String,
         op: ComparisonOp,
@@ -147,6 +157,10 @@ pub struct InvariantViolation {
 /// order keeps serialization deterministic.
 pub type TickSnapshot = BTreeMap<String, Value>;
 
+/// Additive semantic observation surface. Values are JSON-native for
+/// serialization, with oversized integers encoded as strings.
+pub type DerivedObservations = BTreeMap<String, Value>;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SimEvent {
     pub tick: u32,
@@ -203,6 +217,11 @@ pub enum AgentStatus {
 /// engine-side lifecycle counters (`agents_active`, `agents_liquidated`,
 /// `agents_depleted`, `total_liquidations`) on top.
 pub type SimulationSummary = BTreeMap<String, Value>;
+
+/// Additive expression-invariant summary surface. The summary itself
+/// remains an untagged JSON map, but this alias names the v1 payload
+/// shape for callers/tests.
+pub type ExpressionInvariantsSummary = Vec<Value>;
 
 #[cfg(test)]
 mod tests {

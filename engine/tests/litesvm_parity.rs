@@ -30,10 +30,7 @@ use std::collections::BTreeMap;
 
 use riptide_engine::{
     agent::policy::LENDING_RUNTIME_ACTIONS,
-    harness::{
-        lending::LendingPoolConfig,
-        setup::default_program_so_path,
-    },
+    harness::{lending::LendingPoolConfig, setup::default_program_so_path},
     primitive::Primitive,
     scenario::{BaselineScenario, OracleUpdate},
     sim::{
@@ -42,8 +39,8 @@ use riptide_engine::{
         Harness, HarnessError, PoolObservation, PositionObservation,
     },
     types::{
-        Policy, PositionSizing, PositionSizingStrategy,
-        RunConfig, SimEvent, Trigger, TriggerCondition,
+        Policy, PositionSizing, PositionSizingStrategy, RunConfig, SimEvent, Trigger,
+        TriggerCondition,
     },
 };
 
@@ -69,7 +66,8 @@ fn skip_if_no_so() -> bool {
 fn assert_pool_no_bad_debt(pool: &PoolObservation, context: &str) {
     assert_eq!(
         pool.bad_debt, 0,
-        "{context}: unexpected bad_debt={}", pool.bad_debt,
+        "{context}: unexpected bad_debt={}",
+        pool.bad_debt,
     );
 }
 
@@ -83,7 +81,10 @@ fn assert_position_sane(pos: &PositionObservation, context: &str) {
     // Non-liquidated positions should not have negative-proxy values
     // (they're u64, so this is really just documentation).
     let _ = (pos.collateral, pos.debt);
-    eprintln!("  {context}: collateral={} debt={}", pos.collateral, pos.debt);
+    eprintln!(
+        "  {context}: collateral={} debt={}",
+        pos.collateral, pos.debt
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -92,7 +93,9 @@ fn assert_position_sane(pos: &PositionObservation, context: &str) {
 
 #[test]
 fn litesvm_full_lifecycle_with_invariants() {
-    if skip_if_no_so() { return; }
+    if skip_if_no_so() {
+        return;
+    }
 
     // Use the same pool config as the validator integration test for
     // direct comparability: LTV 70%, liquidation threshold 50%.
@@ -181,7 +184,11 @@ fn litesvm_full_lifecycle_with_invariants() {
     // => new_price < 300_000 * 10_000 / (8_000 * 5_000) = 75
     // Set price to 40 (same as the validator test).
     eprintln!("=== liquidate ===");
-    h.push_oracle_price(&OracleUpdate { price: 40.0, exponent: 0 }).unwrap();
+    h.push_oracle_price(&OracleUpdate {
+        price: 40.0,
+        exponent: 0,
+    })
+    .unwrap();
 
     // liquidation_value = 8_000 * 40 * 5_000 / 10_000 = 160_000 < 300_000 ✓
     h.liquidate(1, 0, 2_000).unwrap();
@@ -215,13 +222,16 @@ fn litesvm_full_lifecycle_with_invariants() {
 
 #[test]
 fn litesvm_deposit_invariants() {
-    if skip_if_no_so() { return; }
+    if skip_if_no_so() {
+        return;
+    }
 
     let mut h = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
         agent_count: 3,
         seed_deposit: 0,
         ..Default::default()
-    }).unwrap();
+    })
+    .unwrap();
 
     // Multiple deposits accumulate correctly.
     for i in 0..3u64 {
@@ -243,14 +253,17 @@ fn litesvm_deposit_invariants() {
 
 #[test]
 fn litesvm_borrow_invariants() {
-    if skip_if_no_so() { return; }
+    if skip_if_no_so() {
+        return;
+    }
 
     let mut h = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
         agent_count: 2,
         seed_deposit: 500,
         starting_price: 100,
         ..Default::default()
-    }).unwrap();
+    })
+    .unwrap();
 
     // Borrow within LTV for agent 0.
     h.borrow(0, 30).unwrap();
@@ -275,14 +288,17 @@ fn litesvm_borrow_invariants() {
 
 #[test]
 fn litesvm_repay_invariants() {
-    if skip_if_no_so() { return; }
+    if skip_if_no_so() {
+        return;
+    }
 
     let mut h = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
         agent_count: 1,
         seed_deposit: 1000,
         starting_price: 100,
         ..Default::default()
-    }).unwrap();
+    })
+    .unwrap();
 
     h.borrow(0, 50).unwrap();
     let pool_before = h.observe_pool().unwrap();
@@ -307,14 +323,17 @@ fn litesvm_repay_invariants() {
 
 #[test]
 fn litesvm_withdraw_invariants() {
-    if skip_if_no_so() { return; }
+    if skip_if_no_so() {
+        return;
+    }
 
     let mut h = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
         agent_count: 1,
         seed_deposit: 500,
         starting_price: 100,
         ..Default::default()
-    }).unwrap();
+    })
+    .unwrap();
 
     // Withdraw without debt — should always work.
     h.withdraw(0, 200).unwrap();
@@ -336,7 +355,9 @@ fn litesvm_withdraw_invariants() {
 
 #[test]
 fn litesvm_liquidate_invariants() {
-    if skip_if_no_so() { return; }
+    if skip_if_no_so() {
+        return;
+    }
 
     let mut h = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
         agent_count: 2,
@@ -348,7 +369,8 @@ fn litesvm_liquidate_invariants() {
             ..riptide_engine::harness::setup::default_pool_config()
         },
         ..Default::default()
-    }).unwrap();
+    })
+    .unwrap();
 
     // Setup: agent 0 deposits and borrows within healthy range.
     // With threshold=5_000: health requires collateral * price * 5_000 / 10_000 >= debt
@@ -370,7 +392,11 @@ fn litesvm_liquidate_invariants() {
 
     // Drop price to make position underwater.
     // At price=40: health_value = 10_000 * 40 * 5_000 / 10_000 = 200_000 < 400_000
-    h.push_oracle_price(&OracleUpdate { price: 40.0, exponent: 0 }).unwrap();
+    h.push_oracle_price(&OracleUpdate {
+        price: 40.0,
+        exponent: 0,
+    })
+    .unwrap();
 
     // Now liquidation should succeed.
     h.liquidate(1, 0, 2_000).unwrap();
@@ -394,7 +420,9 @@ fn litesvm_liquidate_invariants() {
 
 #[test]
 fn litesvm_deterministic_same_seed() {
-    if skip_if_no_so() { return; }
+    if skip_if_no_so() {
+        return;
+    }
 
     fn make_policy() -> Policy {
         Policy {
@@ -440,7 +468,8 @@ fn litesvm_deterministic_same_seed() {
             seed_deposit: 50,
             starting_price: 100,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
         let mut scenario = BaselineScenario::new(100.0, 25);
         let policies = vec![make_policy()];
         let params = SimulationParams {
@@ -453,6 +482,7 @@ fn litesvm_deterministic_same_seed() {
             simulation_boundaries: vec!["litesvm parity".into()],
             invariants: Vec::new(),
             scheduled_actions: Vec::new(),
+            semantics: None,
         };
         run_simulation(&mut harness, &mut scenario, params).unwrap()
     }
@@ -514,14 +544,17 @@ fn litesvm_deterministic_same_seed() {
 
 #[test]
 fn litesvm_operations_stable_across_tick_advances() {
-    if skip_if_no_so() { return; }
+    if skip_if_no_so() {
+        return;
+    }
 
     let mut h = LiteSvmHarness::bootstrap(LiteSvmBootstrapConfig {
         agent_count: 2,
         seed_deposit: 100,
         starting_price: 100,
         ..Default::default()
-    }).unwrap();
+    })
+    .unwrap();
 
     // Simulate 10 ticks with mixed operations.
     for tick in 0..10 {
@@ -529,7 +562,8 @@ fn litesvm_operations_stable_across_tick_advances() {
         h.push_oracle_price(&OracleUpdate {
             price: 100.0 + tick as f64,
             exponent: 0,
-        }).unwrap();
+        })
+        .unwrap();
 
         if tick % 2 == 0 {
             h.deposit(0, 10).unwrap();
