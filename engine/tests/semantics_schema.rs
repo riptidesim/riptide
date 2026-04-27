@@ -277,7 +277,7 @@ fn contains_terminal_control(value: &str) -> bool {
 }
 
 #[test]
-fn legacy_adapters_without_semantics_still_parse() {
+fn non_lending_legacy_adapters_without_semantics_still_parse() {
     let fixtures = [
         (
             "perpetuals.toml",
@@ -291,10 +291,6 @@ fn legacy_adapters_without_semantics_still_parse() {
         (
             "stablecoin.toml",
             include_str!("../../fixtures/adapters/stablecoin.toml"),
-        ),
-        (
-            "lending.toml",
-            include_str!("../../fixtures/adapters/lending.toml"),
         ),
     ];
 
