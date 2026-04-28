@@ -1,42 +1,37 @@
 # riptide-engine
 
-Deterministic multi-agent simulator for Solana programs. `riptide-engine` is the Rust core of [Riptide](https://github.com/riptidesim/riptide) — it boots your compiled program into LiteSVM, drives hundreds of adversarial personas against it for a configurable number of ticks, and emits a byte-stable per-tick JSON trace plus a rolled-up summary.
+Rust execution engine for [Riptide](../README.md).
 
-## What this crate is
+`riptide-engine` loads adapter TOML, run/replay config, and persona policies; boots the target Solana program into LiteSVM; executes the declared experiment; evaluates invariants; and writes deterministic simulation artifacts.
 
-- A standalone binary (`riptide-engine`) that reads an adapter TOML (describing your program's instructions, state layout, and observations), a run-config JSON (seed, agents, ticks), and a policies JSON (per-persona strategy dials), and writes a `simulation-result.json` artifact.
-- A library (`riptide_engine`) exposing the primitive trait surface (`Primitive`, `LendingPrimitive`, `AmmPrimitive`, plus the generic harness), the adapter schema, the replay framework, and the simulation tick loop.
-- A single LiteSVM-backed execution path (default feature `litesvm-backend`) that is deterministic same-seed across runs and machines.
+## What It Provides
 
-## Scope
+- A standalone `riptide-engine` binary used by the CLI.
+- A Rust library surface for adapters, primitives, replay execution, packing, and simulation loops.
+- A LiteSVM-backed runtime for deterministic, in-process execution of compiled Solana BPF programs.
+- Pack emission for reviewer handoff: manifest, summary, trace, rerun script, and canonical hash.
 
-- Protocol-agnostic: lending, perps, and AMM bundles ship in the parent repo, but the engine itself has no built-in DeFi semantics — everything is driven by the adapter TOML.
-- Three shipped adapter shapes live under `fixtures/adapters/` in the parent repo (`lending.toml`, `perpetuals.toml`, `amm.toml`).
-- Trajectory replay mode (`riptide-engine --replay-dir...`) runs declared tx-sequences tick-by-tick — see `fixtures/replays/lending-whale-bad-debt/` for the shipping example (a whale-concentrated-borrow bad-debt replay, historical inspiration: the Solend June 2022 whale-risk incident).
+## Build From Source
 
-## Usage
-
-Most users want the full Riptide experience (CLI wrapper + adapter-generation skill + scenario-proposal skill) rather than the engine in isolation. For that, see the [parent repo](https://github.com/riptidesim/riptide).
-
-> **Pre-publish notice.** `riptide-engine` is not yet published to crates.io — it lands in an upcoming release after one more cold-eyes validation pass. Until then, build from source:
->
-> ```bash
-> git clone https://github.com/riptidesim/riptide
-> cd riptide && cargo build --release -p riptide-engine
-> # binary: target/release/riptide-engine
-> ```
-
-Once published, the crates.io path will be:
+The crate is not published to crates.io yet. Build it from the monorepo:
 
 ```bash
-cargo install riptide-engine
-riptide-engine \
-  --adapter path/to/adapter.toml \
-  --config  path/to/run-config.json \
-  --policies path/to/policies.json \
-  --output  simulation-result.json
+git clone https://github.com/riptidesim/riptide
+cd riptide
+cargo build --release -p riptide-engine
 ```
 
-## License
+The binary lands at:
 
-Dual-licensed under MIT or Apache-2.0 at your option.
+```text
+target/release/riptide-engine
+```
+
+Most users should run the CLI instead of invoking the engine directly:
+
+```bash
+./install.sh
+riptide run lending/whale-shock-grid --serve
+```
+
+Read the root [README](../README.md) for the product tour and [Architecture](../docs/architecture.md) for the engine model.

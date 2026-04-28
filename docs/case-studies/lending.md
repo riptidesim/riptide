@@ -1,8 +1,8 @@
-# Hero Grid — Solend Fork, Whale × Shock Parameter Discovery
+# Whale-Shock Grid — Solend Fork Parameter Discovery
 
 > **What this is:** A parameter-boundary discovery run on a Solend fork — a 3×3 whale-share × price-shock grid with bad-debt surfaces, and the shipping example of what a Riptide outcome looks like when it lands well. **Audience:** reviewers and adopters evaluating whether Riptide's load-bearing claim holds on a real program.
 
-**Artifact:** `fixtures/scenarios/lending/hero-grid/results.json`
+**Artifact:** `fixtures/scenarios/lending/whale-shock-grid/simulation-result.json`
 **Adapter:** `fixtures/adapters/lending.toml` (sha256 `6d35cb7b…9c2c8`)
 **Whale persona:** `fixtures/personas/whale.toml` (sha256 `14e67272…2956e`)
 **Seed:** `42` · **Agents:** `20` · **Ticks:** `20` · **Scenario:** `price-shock`
@@ -124,7 +124,7 @@ slide. Do not paraphrase it in downstream touchpoints.
 
 ## Conclusion
 
-The hero grid lands three claims on disk:
+The whale-shock grid lands three claims on disk:
 
 1. **Knife edge is real.** The shock-axis transition between s30 and s40
    shows zero bad debt flipping to non-zero bad debt across all three whale
