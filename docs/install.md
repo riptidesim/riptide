@@ -2,11 +2,38 @@
 
 **Purpose:** How to install, build, upgrade, and sanity-check Riptide on Linux.
 
-**Audience:** first-time users on Linux who want `riptide` on their `$PATH` from a fresh clone, plus contributors who need the from-source recipe.
+**Audience:** first-time users on Linux who want `riptide` on their `$PATH`, plus contributors who need the from-source recipe.
 
 Linux is the supported path. macOS is not tested — steps are POSIX-ish and may work, but nothing here is validated on Darwin. Windows is explicitly out of scope.
 
-## `install.sh` — the one-command path
+## Release install — public path
+
+```bash
+curl -fsSL https://riptide.run/install | sh
+```
+
+The release installer is [`../scripts/install-release.sh`](../scripts/install-release.sh). It downloads a prebuilt GitHub Release bundle for the current platform, verifies the bundle's `.sha256`, unpacks it under `$XDG_DATA_HOME/riptide/current` (or `$HOME/.local/share/riptide/current`), and installs a small `riptide` launcher into `$HOME/.local/bin`.
+
+This path is the intended first-run install once public release assets are cut. It does **not** require Rust, Node, npm, Solana CLI, or `cargo-build-sbf` on the user's machine; the bundle carries the compiled TypeScript CLI, a pinned Node runtime, the native `riptide-engine` binary, fixtures, examples, shipped `.so` artifacts, and the generated fixture deploy keypairs required by owner-aware shipped adapters.
+
+Useful options:
+
+```bash
+curl -fsSL https://riptide.run/install | sh -s -- --version 0.6.0
+curl -fsSL https://riptide.run/install | sh -s -- --bin-dir "$HOME/bin"
+curl -fsSL https://riptide.run/install | sh -s -- --dry-run
+```
+
+Release bundles are produced by [`../scripts/package-release.sh`](../scripts/package-release.sh). The first Linux x86_64 artifact contract is:
+
+```text
+riptide-x86_64-unknown-linux-gnu.tar.gz
+riptide-x86_64-unknown-linux-gnu.tar.gz.sha256
+```
+
+Those files should be attached to the matching GitHub Release tag. The hosted `https://riptide.run/install` endpoint can serve the installer script directly from this repository.
+
+## `install.sh` — from-source path
 
 ```bash
 git clone https://github.com/riptidesim/riptide
@@ -16,7 +43,7 @@ cd riptide
 
 The script runs eight steps, each with a banner and a clear failure hint if something goes wrong. It (1) detects Rust, Cargo, Node, npm, and `cargo-build-sbf`, printing an actionable install command for anything missing; (2) builds the release engine (`cargo build --release -p riptide-engine`); (3) builds the shipped on-chain programs (`lending_pool.so`, `resource_grinder.so`, `admin_mock_oracle.so`, `stablecoin.so`) via `cargo build-sbf`; (4) `npm install --ignore-scripts`s the CLI so the npm postinstall downloader does not fetch a release binary during source installs; (5) `npm run build`s it; (6) installs a bash shim at `$HOME/.local/bin/riptide` that execs Node against the compiled CLI entry point; (7) runs a lending smoke test (`riptide run examples/configs/safe.json --adapter fixtures/adapters/lending.toml`); (8) runs a generic-adapter smoke test against `resource-grinder`.
 
-The script is idempotent — rerunning it on an unchanged tree is safe and fast (cargo and npm handle their own incremental builds, the launcher is rewritten in place). It never uses sudo; missing toolchains produce a hint, not an install attempt. If `$HOME/.local/bin` is not on your `$PATH` it warns and prints the exact `export` line to add to your shell rc.
+The source installer is idempotent — rerunning it on an unchanged tree is safe and fast (cargo and npm handle their own incremental builds, the launcher is rewritten in place). It never uses sudo; missing toolchains produce a hint, not an install attempt. If `$HOME/.local/bin` is not on your `$PATH` it warns and prints the exact `export` line to add to your shell rc.
 
 ## Docker — the pinned image
 
@@ -46,7 +73,7 @@ The engine's `env!("CARGO_MANIFEST_DIR")` bakes `/src/engine` (in Docker) or you
 
 ## Distribution posture — honest note
 
-GHCR, crates.io, and npm registries are wired up in release tooling and dry-run-verified, but not yet published. Build-from-source via `install.sh` and local `docker build` are the supported paths today. `@riptide/cli`'s postinstall binary downloader expects a GitHub Release artifact that is not yet cut, so `npm install -g` from a public registry will not work in this sprint — use `install.sh` or the Docker image instead. When a release is published this page will point at it.
+GHCR, crates.io, npm, and the release-bundle installer are wired up in repo tooling, but public release assets have not been published yet. Build-from-source via `install.sh` and local `docker build` are the supported paths today. `@riptide/cli`'s postinstall binary downloader and `scripts/install-release.sh` both expect GitHub Release artifacts that are not yet cut. When a release is published this page will point at the public install path.
 
 ## Next steps after install
 

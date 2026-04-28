@@ -199,12 +199,16 @@ That's it for the adapter — the rest of the six-layer stack (personas, scenari
 ## Quick Install
 
 ```bash
+# Public release path, once the first release is cut:
+curl -fsSL https://riptide.run/install | sh
+
+# From source:
 git clone https://github.com/riptidesim/riptide
 cd riptide
 ./install.sh
 ```
 
-Linux is the supported path (macOS / Windows are out of scope — see [`docs/install.md`](docs/install.md)). Requires Rust, Node, and `cargo-build-sbf` on your `$PATH` — the installer checks and prints install hints if anything is missing.
+Linux is the supported path (macOS / Windows are out of scope — see [`docs/install.md`](docs/install.md)). The public release installer downloads a prebuilt bundle and does not require Rust, Node, npm, or `cargo-build-sbf`. The source installer builds locally and checks for those tools before it starts.
 
 Once `riptide` is on your `$PATH`, the canonical first run is `install → doctor → init → lint → adapt → run`. `riptide doctor` confirms your toolchain + engine binary + any discovered adapters are sane before anything else runs; `riptide init` scaffolds a `.riptide/` working directory inside any Anchor repo, you fill in one stub adapter, `riptide lint` static-checks it against the JSON IDL named in `[lineage].idl_source`, `riptide adapt` smoke-tests it end-to-end against the local engine, and `riptide run` discovers every scenario you author and prints a jest-style pass/fail summary with a run verdict, confidence, and coverage classification for each scenario.
 
@@ -229,7 +233,7 @@ docker build -t riptide .
 docker run --rm riptide run lending/hero-grid/w25-s40
 ```
 
-> **Public distribution (GHCR `ghcr.io/riptidesim/riptide`, crates.io `riptide-engine`, npm `@riptide/cli`) is wired up and dry-run-verified in the repo but has not been published yet.** Until then, use the build-from-source or local-Docker paths above.
+> **Public distribution (curl installer at `riptide.run/install`, GHCR `ghcr.io/riptidesim/riptide`, crates.io `riptide-engine`, npm `@riptide/cli`) is wired up in repo tooling but has not been published yet.** Until then, use the build-from-source or local-Docker paths above.
 
 ## Getting Started
 
