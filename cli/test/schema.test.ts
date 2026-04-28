@@ -103,6 +103,26 @@ test("TickSnapshotSchema accepts derived observations", () => {
   assert.equal(parsed.success, true);
 });
 
+test("TickSnapshotSchema accepts collection observations with empty sentinels", () => {
+  const parsed = TickSnapshotSchema.safeParse({
+    tick: 0,
+    active_agents: 1,
+    derived_observations: { health_factor: 0.8 },
+    collection_observations: {
+      worst_health_factor: 0.8,
+      empty_positions: {
+        evaluation_error: [
+          {
+            type: "EmptyCollection",
+            message: "collection `empty_positions` over `positions` is empty"
+          }
+        ]
+      }
+    }
+  });
+  assert.equal(parsed.success, true);
+});
+
 test("SimulationSummarySchema accepts a well-formed lending summary", () => {
   const parsed = SimulationSummarySchema.safeParse({
     agents_active: 5,
@@ -199,6 +219,16 @@ test("SimulationResultSchema accepts top-level semantics contract", () => {
         derived_observations: { debt_value: 800 }
       }
     ],
+    replay_provenance: {
+      pack_path: "fixtures/state-pack-demo",
+      slot: 42,
+      accounts: {
+        reserve: {
+          account_pubkey: "11111111111111111111111111111111",
+          sha256_hash: "f8e793de1e562588466e818bf28e3be9c39d6ad527c0c21322359a16508043f8"
+        }
+      }
+    },
     events: [],
     agents: [],
     summary: {
@@ -216,6 +246,42 @@ test("SimulationResultSchema accepts top-level semantics contract", () => {
     simulation_boundaries: []
   });
   assert.equal(parsed.success, true);
+});
+
+test("SimulationResultSchema rejects malformed replay provenance hashes", () => {
+  const parsed = SimulationResultSchema.safeParse({
+    run_config: {
+      agents: 1,
+      ticks: 1,
+      scenario: "semantic",
+      seed: 1,
+      personas: ["semantic-lp"],
+      validator_url: "unused",
+      output_path: "out"
+    },
+    seed: 1,
+    total_ticks: 1,
+    timeseries: [{ tick: 0, active_agents: 1 }],
+    events: [],
+    agents: [],
+    summary: {
+      agents_active: 1,
+      agents_liquidated: 0,
+      agents_depleted: 0
+    },
+    replay_provenance: {
+      pack_path: "fixtures/state-pack-demo",
+      slot: 42,
+      accounts: {
+        reserve: {
+          account_pubkey: "11111111111111111111111111111111",
+          sha256_hash: "not-a-sha256"
+        }
+      }
+    },
+    simulation_boundaries: []
+  });
+  assert.equal(parsed.success, false);
 });
 
 test("SimulationSummarySchema rejects a malformed invariants_fired row", () => {

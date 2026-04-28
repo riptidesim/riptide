@@ -193,6 +193,23 @@ function lintInvariantExpressions(semantics: Semantics, findings: LintFinding[])
 }
 
 function roleFieldExists(semantics: Semantics, path: ExprPath): boolean {
+  if (
+    path.length === 3 &&
+    semantics.roles[path[0]!] !== undefined &&
+    semantics.oracles[path[0]!] !== undefined &&
+    /^\d+$/.test(path[1]!) &&
+    ["price", "confidence", "staleness"].includes(path[2]!)
+  ) {
+    return true;
+  }
+  if (
+    path.length === 2 &&
+    semantics.roles[path[0]!] !== undefined &&
+    semantics.oracles[path[0]!] !== undefined &&
+    ["weighted_price", "median_price"].includes(path[1]!)
+  ) {
+    return true;
+  }
   if (path.length !== 2) return false;
   const [role, field] = path;
   if (role === undefined || field === undefined) return false;
@@ -322,7 +339,7 @@ function lex(source: string): { ok: true; value: Token[] } | ({ ok: false } & Li
     if (/[0-9]/.test(ch)) {
       i += 1;
       while (i < source.length && /[0-9]/.test(source[i]!)) i += 1;
-      if (source[i] === ".") {
+      if (source[i] === "." && /[0-9]/.test(source[i + 1] ?? "")) {
         i += 1;
         if (i >= source.length || !/[0-9]/.test(source[i]!)) {
           return {
@@ -511,7 +528,7 @@ class ExprParser {
           span: { start: token.end, end: token.end },
         };
       }
-      if (segment.kind !== "ident") {
+      if (segment.kind !== "ident" && !(segment.kind === "number" && /^\d+$/.test(segment.text))) {
         return {
           ok: false,
           message: `unexpected token \`${segment.text}\`; expected identifier after \`.\``,

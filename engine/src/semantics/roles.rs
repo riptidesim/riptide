@@ -92,6 +92,9 @@ where
                 role: role_name.clone(),
             })?;
         for field in role.fields.keys() {
+            if is_legacy_oracle_metadata_field(source, field) {
+                continue;
+            }
             let value = value_from_source(
                 role_name,
                 source,
@@ -202,6 +205,14 @@ fn is_oracle_account(path: &str) -> bool {
     matches!(path, "oracle" | "price_oracle")
 }
 
+fn is_legacy_oracle_metadata_field(source: &SemanticSourceBinding, field: &str) -> bool {
+    matches!(source, SemanticSourceBinding::Account(path) if is_oracle_account(path))
+        && matches!(
+            field,
+            "confidence" | "confidence_bps" | "staleness" | "staleness_slots"
+        )
+}
+
 fn position_field(agent: &Agent, field: &str) -> Option<Value> {
     match field {
         "collateral_amount" | "collateral" => f64_to_u128(agent.position.collateral),
@@ -216,12 +227,34 @@ fn reserve_field(pool: &PoolState, field: &str, oracle_price: u128) -> Option<Va
         "total_deposits" | "supplied_amount" => Some(Value::U128(pool.total_deposits as u128)),
         "total_borrows" | "borrowed_amount" => Some(Value::U128(pool.total_borrows as u128)),
         "bad_debt" | "bad_debt_amount" => Some(Value::U128(pool.bad_debt as u128)),
-        "available_liquidity" => Some(Value::U128(pool.available_liquidity() as u128)),
+        "available_liquidity" | "liquidity" => {
+            Some(Value::U128(pool.available_liquidity() as u128))
+        }
         "collateral_decimals" => Some(Value::U128(0)),
         "collateral_price" => Some(Value::U128(oracle_price)),
         "max_ltv_bps" | "ltv_bps" => Some(Value::U128(pool.ltv_bps as u128)),
         "deposit_limit" => Some(Value::U128(pool.deposit_limit as u128)),
         "borrow_limit" => Some(Value::U128(pool.borrow_limit as u128)),
+        "utilization" => Some(Value::U128(ratio_percent(
+            pool.total_borrows,
+            pool.total_deposits,
+        ))),
+        "bad_debt_ratio" => Some(Value::U128(ratio_percent(
+            pool.bad_debt,
+            pool.total_borrows.max(1),
+        ))),
+        "collateral_ratio" => Some(Value::U128(ratio_percent(
+            pool.total_deposits,
+            pool.total_borrows.max(1),
+        ))),
+        "health_factor" => {
+            let threshold_adjusted = (pool.total_deposits as u128)
+                .saturating_mul(pool.liquidation_threshold_bps as u128)
+                / 10_000;
+            Some(Value::U128(
+                threshold_adjusted / u128::from(pool.total_borrows.max(1)),
+            ))
+        }
         "liquidation_threshold_bps" | "threshold_bps" => {
             Some(Value::U128(pool.liquidation_threshold_bps as u128))
         }
@@ -235,7 +268,6 @@ fn reserve_field(pool: &PoolState, field: &str, oracle_price: u128) -> Option<Va
 fn oracle_field(field: &str, oracle_price: u128) -> Option<Value> {
     match field {
         "price" => Some(Value::U128(oracle_price)),
-        "confidence" | "confidence_bps" => Some(Value::U128(0)),
         "exponent" => Some(Value::I128(0)),
         _ => None,
     }
@@ -262,15 +294,30 @@ fn f64_to_u128(value: f64) -> Option<Value> {
     }
 }
 
+fn ratio_percent(numerator: u64, denominator: u64) -> u128 {
+    if denominator == 0 {
+        0
+    } else {
+        u128::from(numerator) * 100 / u128::from(denominator)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
     use crate::{
         adapter::{
-            SemanticClassRef, SemanticFieldType, SemanticRole, SemanticSourceBinding, Semantics,
+            SemanticClassRef, SemanticExpression, SemanticFieldType, SemanticInvariant,
+            SemanticInvariantSeverity, SemanticRole, SemanticSourceBinding, Semantics,
         },
         agent::state::Agent,
+        semantics::{
+            derived::{evaluate_derived_observations, DerivedObservationError},
+            error::EvalError,
+            expr::parse,
+            invariants::{evaluate_expression_invariants, ExpressionInvariantError},
+        },
         sim::MockHarness,
         types::Policy,
     };
@@ -292,6 +339,40 @@ mod tests {
             max_exposure: 1.0,
             persona_args: BTreeMap::new(),
         }
+    }
+
+    fn expression(source: &str) -> SemanticExpression {
+        let ast = parse(source).unwrap();
+        SemanticExpression {
+            source: source.into(),
+            span: Some(ast.span),
+            ast: Some(ast),
+        }
+    }
+
+    fn invariant(name: &str, expr: &str) -> SemanticInvariant {
+        SemanticInvariant {
+            name: name.into(),
+            expr: expression(expr),
+            severity: SemanticInvariantSeverity::Warn,
+            description: None,
+        }
+    }
+
+    fn declare_legacy_oracle_metadata(semantics: &mut Semantics) {
+        let oracle = semantics.roles.get_mut("oracle").unwrap();
+        oracle
+            .fields
+            .insert("confidence".into(), SemanticFieldType::U64);
+        oracle
+            .fields
+            .insert("confidence_bps".into(), SemanticFieldType::U64);
+        oracle
+            .fields
+            .insert("staleness".into(), SemanticFieldType::U64);
+        oracle
+            .fields
+            .insert("staleness_slots".into(), SemanticFieldType::U64);
     }
 
     fn semantics(position_binding: SemanticSourceBinding) -> Semantics {
@@ -476,6 +557,88 @@ mod tests {
                 role: "position".into()
             }
         );
+    }
+
+    #[test]
+    fn legacy_oracle_metadata_declarations_are_not_bound_to_sentinel_values() {
+        let mut semantics = semantics(SemanticSourceBinding::Account("position".into()));
+        declare_legacy_oracle_metadata(&mut semantics);
+        let harness = MockHarness::new(1, 100.0);
+        let agents = vec![Agent::new("alice", policy(), 0.0)];
+
+        let context = bind_lending_v1_roles(
+            &semantics,
+            &harness,
+            &agents,
+            &snapshot(),
+            RoleBindingContext::tick_snapshot(&agents),
+        )
+        .unwrap();
+
+        assert_eq!(context.get("oracle.price"), Some(&Value::U128(100)));
+        assert!(
+            !context.contains_key("oracle.confidence")
+                && !context.contains_key("oracle.confidence_bps")
+                && !context.contains_key("oracle.staleness")
+                && !context.contains_key("oracle.staleness_slots"),
+            "legacy oracle metadata must not publish sentinel zeroes"
+        );
+    }
+
+    #[test]
+    fn legacy_oracle_metadata_derived_expression_fails_closed() {
+        let mut semantics = semantics(SemanticSourceBinding::Account("position".into()));
+        declare_legacy_oracle_metadata(&mut semantics);
+        semantics.derived.insert(
+            "confidence_ok".into(),
+            expression("oracle.confidence <= 100"),
+        );
+        semantics.derived_order = vec!["confidence_ok".into()];
+        let harness = MockHarness::new(1, 100.0);
+        let agents = vec![Agent::new("alice", policy(), 0.0)];
+        let context = bind_lending_v1_roles(
+            &semantics,
+            &harness,
+            &agents,
+            &snapshot(),
+            RoleBindingContext::tick_snapshot(&agents),
+        )
+        .unwrap();
+
+        let err = evaluate_derived_observations(&semantics, &context).unwrap_err();
+        assert!(matches!(
+            err,
+            DerivedObservationError::Evaluation {
+                name,
+                error: EvalError::MissingField { path, .. },
+            } if name == "confidence_ok" && path == "oracle.confidence"
+        ));
+    }
+
+    #[test]
+    fn legacy_oracle_metadata_expression_invariant_fails_closed() {
+        let mut semantics = semantics(SemanticSourceBinding::Account("position".into()));
+        declare_legacy_oracle_metadata(&mut semantics);
+        semantics.invariants = vec![invariant("fresh_oracle", "oracle.staleness <= 10")];
+        let harness = MockHarness::new(1, 100.0);
+        let agents = vec![Agent::new("alice", policy(), 0.0)];
+        let context = bind_lending_v1_roles(
+            &semantics,
+            &harness,
+            &agents,
+            &snapshot(),
+            RoleBindingContext::tick_snapshot(&agents),
+        )
+        .unwrap();
+
+        let err = evaluate_expression_invariants(&semantics, &context, 0).unwrap_err();
+        assert!(matches!(
+            err,
+            ExpressionInvariantError::InvariantEvaluationError {
+                name,
+                error: EvalError::MissingField { path, .. },
+            } if name == "fresh_oracle" && path == "oracle.staleness"
+        ));
     }
 }
 

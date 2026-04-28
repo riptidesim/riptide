@@ -21,6 +21,7 @@ use riptide_engine::{
     primitive::{
         build_generic_policies, generic_runtime_actions, GenericBootstrapConfig, GenericHarness,
     },
+    replay::{ReplayStateAccountProvenance, ReplayStateProvenance},
     scenario::BaselineScenario,
     sim::{
         build_agent_personas,
@@ -337,6 +338,50 @@ fn semantic_lending_fixture_is_byte_stable_same_seed() {
         .expect("semantic lending summary must include expression_invariants");
     assert_eq!(expression_rows.len(), 1);
     assert_eq!(expression_rows[0]["name"], "ltv_below_max");
+}
+
+#[test]
+fn semantics_breadth_observation_fields_are_byte_stable_when_present() {
+    let program_so = default_program_so_path();
+    if skip_if_missing(&program_so, "lending_pool.so") {
+        return;
+    }
+
+    let mut first = run_semantic_lending_fixture(42);
+    let mut second = run_semantic_lending_fixture(42);
+    for result in [&mut first, &mut second] {
+        result.timeseries[0].insert(
+            "collection_observations".into(),
+            serde_json::json!({
+                "worst_health_factor": 80,
+                "empty_positions": {
+                    "evaluation_error": [{
+                        "type": "EmptyCollection",
+                        "message": "collection `empty_positions` over `positions` is empty"
+                    }]
+                }
+            }),
+        );
+        result.replay_provenance = Some(ReplayStateProvenance {
+            pack_path: "state-pack-demo".into(),
+            slot: 123456789,
+            accounts: BTreeMap::from([(
+                "reserve".into(),
+                ReplayStateAccountProvenance {
+                    account_pubkey: "SysvarC1ock11111111111111111111111111111111".into(),
+                    account_pubkeys: vec!["SysvarC1ock11111111111111111111111111111111".into()],
+                    sha256_hash: "f8e793de1e562588466e818bf28e3be9c39d6ad527c0c21322359a16508043f8"
+                        .into(),
+                },
+            )]),
+        });
+    }
+
+    assert_eq!(
+        canonical_bytes(&first),
+        canonical_bytes(&second),
+        "collection_observations or replay_provenance serialization diverged across same-seed runs"
+    );
 }
 
 #[test]

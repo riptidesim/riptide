@@ -741,6 +741,7 @@ mod tests {
                     serde_json::Value::from(1),
                 )]),
                 semantics: None,
+                replay_provenance: None,
                 simulation_boundaries: vec![],
             }
         }

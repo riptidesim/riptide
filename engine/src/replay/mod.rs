@@ -1,5 +1,6 @@
 pub mod oracle_trajectory;
 pub mod run;
+pub mod state_import;
 pub mod trajectory;
 
 #[cfg(any(feature = "litesvm-backend", test))]
@@ -7,6 +8,10 @@ pub mod multi;
 
 pub use oracle_trajectory::{OracleTrajectory, OracleTrajectoryTick};
 pub use run::{load_replay_bundle, run_lending_replay, run_replay, ReplayBundle};
+pub use state_import::{
+    import_replay_state, ImportedReplayAccount, ReplayStateAccountProvenance, ReplayStateImport,
+    ReplayStateProvenance, StateImportError, MAINNET_RPC_NOT_IMPLEMENTED_MESSAGE,
+};
 pub use trajectory::{
     ReplayInitialState, ReplayInstruction, ReplayMetadata, ReplayTick, ReplayTrajectory,
 };

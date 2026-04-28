@@ -404,6 +404,7 @@ fn rerun_sh_rejects_shell_metacharacter_injection() {
         agents: Vec::new(),
         summary: Default::default(),
         semantics: None,
+        replay_provenance: None,
         simulation_boundaries: Vec::new(),
     };
 

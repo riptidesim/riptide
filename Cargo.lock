@@ -3358,6 +3358,7 @@ name = "riptide-engine"
 version = "0.6.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "borsh",
  "bs58",
  "clap",

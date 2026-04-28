@@ -7,6 +7,7 @@ use super::{
     error::EvalError,
     eval::{evaluate, Context},
     expr::{Expr, ExprKind},
+    oracles::{evaluate_multi_oracles, MultiOracleError},
     Value,
 };
 
@@ -15,6 +16,7 @@ pub enum DerivedObservationError {
     DerivedObservationCycle { path: Vec<String> },
     UnknownIdentifier { name: String },
     MissingParsedExpression { name: String },
+    MultiOracle { error: MultiOracleError },
     Evaluation { name: String, error: EvalError },
 }
 
@@ -33,6 +35,7 @@ impl fmt::Display for DerivedObservationError {
                     "derived observation `{name}` has no parsed expression AST"
                 )
             }
+            Self::MultiOracle { error } => write!(f, "multi-oracle evaluation failed: {error}"),
             Self::Evaluation { name, error } => {
                 write!(f, "derived observation `{name}` evaluation failed: {error}")
             }
@@ -43,6 +46,7 @@ impl fmt::Display for DerivedObservationError {
 impl std::error::Error for DerivedObservationError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::MultiOracle { error } => Some(error),
             Self::Evaluation { error, .. } => Some(error),
             _ => None,
         }
@@ -58,6 +62,7 @@ pub struct DerivedObservationResult {
 pub fn build_derived_order(
     derived: &BTreeMap<String, SemanticExpression>,
     roles: &BTreeMap<String, SemanticRole>,
+    oracle_roles: &BTreeSet<String>,
 ) -> Result<Vec<String>, DerivedObservationError> {
     let derived_names: BTreeSet<&str> = derived.keys().map(String::as_str).collect();
     let mut dependencies: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
@@ -78,7 +83,7 @@ pub fn build_derived_order(
                         name: ident.to_string(),
                     });
                 }
-            } else if !role_field_exists(roles, &path) {
+            } else if !role_field_exists(roles, oracle_roles, &path) {
                 return Err(DerivedObservationError::UnknownIdentifier {
                     name: path.join("."),
                 });
@@ -142,6 +147,12 @@ pub fn evaluate_derived_observations(
 ) -> Result<DerivedObservationResult, DerivedObservationError> {
     let mut context = role_context.clone();
     let mut observations = BTreeMap::new();
+    if !semantics.oracles.is_empty() {
+        let multi_oracle = evaluate_multi_oracles(semantics, &context)
+            .map_err(|error| DerivedObservationError::MultiOracle { error })?;
+        context = multi_oracle.context;
+        observations.extend(multi_oracle.synthetic_observations);
+    }
     let order: Vec<String> = if semantics.derived_order.is_empty() {
         semantics.derived.keys().cloned().collect()
     } else {
@@ -195,14 +206,31 @@ fn collect_identifiers(expr: &Expr, out: &mut BTreeSet<Vec<String>>) {
     }
 }
 
-fn role_field_exists(roles: &BTreeMap<String, SemanticRole>, path: &[String]) -> bool {
-    if path.len() != 2 {
-        return false;
+fn role_field_exists(
+    roles: &BTreeMap<String, SemanticRole>,
+    oracle_roles: &BTreeSet<String>,
+    path: &[String],
+) -> bool {
+    if path.len() == 3
+        && roles.contains_key(&path[0])
+        && oracle_roles.contains(&path[0])
+        && path[1].parse::<usize>().is_ok()
+        && matches!(path[2].as_str(), "price" | "confidence" | "staleness")
+    {
+        return true;
     }
-    roles
-        .get(&path[0])
-        .map(|role| role.fields.contains_key(&path[1]))
-        .unwrap_or(false)
+    if path.len() == 2
+        && roles.contains_key(&path[0])
+        && oracle_roles.contains(&path[0])
+        && matches!(path[1].as_str(), "weighted_price" | "median_price")
+    {
+        return true;
+    }
+    path.len() == 2
+        && roles
+            .get(&path[0])
+            .map(|role| role.fields.contains_key(&path[1]))
+            .unwrap_or(false)
 }
 
 fn find_cycle(graph: &BTreeMap<String, BTreeSet<String>>) -> Vec<String> {
@@ -297,7 +325,8 @@ mod tests {
             role(&["collateral_amount", "debt_amount"]),
         )]);
 
-        let order = build_derived_order(&derived, &roles).unwrap();
+        let oracle_roles = BTreeSet::new();
+        let order = build_derived_order(&derived, &roles, &oracle_roles).unwrap();
         assert_eq!(order, vec!["a_value", "z_value", "m_value"]);
     }
 
@@ -309,12 +338,33 @@ mod tests {
         ]);
         let roles = BTreeMap::new();
 
-        let err = build_derived_order(&derived, &roles).unwrap_err();
+        let oracle_roles = BTreeSet::new();
+        let err = build_derived_order(&derived, &roles, &oracle_roles).unwrap_err();
         let DerivedObservationError::DerivedObservationCycle { path } = err else {
             panic!("expected cycle");
         };
         assert!(path.contains(&"health".to_string()));
         assert!(path.contains(&"buffer".to_string()));
+    }
+
+    #[test]
+    fn topo_accepts_indexed_oracle_paths_for_declared_oracle_roles() {
+        let derived = BTreeMap::from([
+            ("first_price".into(), expression("oracle.0.price")),
+            ("weighted_value".into(), expression("oracle.weighted_price")),
+        ]);
+        let roles =
+            BTreeMap::from([("oracle".into(), role(&["price", "confidence", "staleness"]))]);
+        let oracle_roles = BTreeSet::from(["oracle".to_string()]);
+
+        let order = build_derived_order(&derived, &roles, &oracle_roles).unwrap();
+        assert_eq!(order, vec!["first_price", "weighted_value"]);
+
+        let err = build_derived_order(&derived, &roles, &BTreeSet::new()).unwrap_err();
+        assert!(matches!(
+            err,
+            DerivedObservationError::UnknownIdentifier { name } if name == "oracle.0.price"
+        ));
     }
 
     #[test]

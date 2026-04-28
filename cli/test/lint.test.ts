@@ -19,11 +19,11 @@ import path from "node:path";
 import {
   classifyLineageSourceKind,
   lintAdapter,
-  type LintReport,
 } from "../src/lint/index.js";
 import { runLint } from "../src/commands/lint.js";
 import { resolveAdapterArg } from "../src/adapter/resolve.js";
 import { renderAdapterStub } from "../src/init/index.js";
+import type { Adapter, Semantics } from "../src/schemas/adapter.js";
 
 // Minimal but realistic JSON-IDL-backed adapter + IDL pair used for the
 // isolated-unit tests. Mirrors the shape of `fixtures/idls/amm.json`
@@ -345,6 +345,88 @@ label = "insufficient_collateral"
 [personas]
 `;
 
+const VALID_PUBKEY_A = "11111111111111111111111111111111";
+const VALID_PUBKEY_B = "So11111111111111111111111111111111111111112";
+const VALID_PUBKEY_C = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+const VALID_PUBKEY_D = "SysvarC1ock11111111111111111111111111111111";
+
+const SEMANTICS_BREADTH_BASE: Semantics = {
+  class: "lending.v1",
+  roles: {
+    position: {
+      source: "instruction.deposit_or_borrow",
+      fields: {
+        collateral_amount: "u128",
+        debt_amount: "u128",
+      },
+    },
+    reserve: {
+      source: "account.reserve",
+      fields: {
+        collateral_price: "u128",
+        max_ltv_bps: "u64",
+      },
+    },
+    oracle: {
+      source: "account.oracle",
+      fields: {
+        confidence: "u128",
+        staleness: "u64",
+      },
+    },
+    liquidation_config: {
+      source: "account.reserve",
+      fields: {
+        liquidation_threshold_bps: "u64",
+      },
+    },
+  },
+  derived: {
+    collateral_value: "position.collateral_amount * reserve.collateral_price",
+    debt_value: "position.debt_amount",
+    max_borrow_value: "collateral_value * reserve.max_ltv_bps / 10000",
+    health_factor: "collateral_value / max(debt_value, 1)",
+  },
+  invariants: [],
+  extensions: {},
+  oracles: {
+    oracle: [
+      {
+        program_id: VALID_PUBKEY_A,
+        account: VALID_PUBKEY_B,
+        confidence: "oracle.confidence",
+        staleness: "oracle.staleness",
+        weight: 60,
+      },
+      {
+        program_id: VALID_PUBKEY_C,
+        account: VALID_PUBKEY_D,
+        confidence: "oracle.confidence",
+        staleness: "oracle.staleness",
+        weight: 40,
+      },
+    ],
+  },
+  collections: {
+    worst_health_factor: {
+      over: "reserves",
+      formula: "worst",
+      expr: "collateral_value / max(debt_value, 1)",
+    },
+  },
+  replay: {
+    state_source: "fixture",
+    pack_path: "state-packs/semantics-breadth-demo",
+    slot: 123456789,
+    roles: {
+      position: VALID_PUBKEY_B,
+      reserve: VALID_PUBKEY_D,
+      oracle: VALID_PUBKEY_A,
+      liquidation_config: VALID_PUBKEY_C,
+    },
+  },
+};
+
 async function setupAdapterPair(
   adapterContents: string,
   idlContents: string | null
@@ -361,6 +443,46 @@ async function setupAdapterPair(
     await writeFile(idlPath, idlContents, "utf8");
   }
   return { adapterPath, repoRoot };
+}
+
+function cloneBreadthSemantics(): Semantics {
+  return structuredClone(SEMANTICS_BREADTH_BASE);
+}
+
+function semanticsBreadthAdapter(semantics: Semantics): Adapter {
+  return {
+    protocol: "lending",
+    instructions: {
+      deposit: { action: "deposit", amount: "amount", args: {} },
+      borrow: { action: "borrow", amount: "amount", args: {} },
+      repay: { action: "repay", amount: "amount", args: {} },
+      withdraw: { action: "withdraw", amount: "amount", args: {} },
+      liquidate: { action: "liquidate", amount: "repay_amount", args: {} },
+    },
+    state_mapping: {},
+    accounts: {},
+    actions: {},
+    observations: {},
+    personas: {},
+    invariants: [],
+    oracles: [],
+    scheduled_actions: [],
+    semantics,
+    errors: [],
+  };
+}
+
+async function lintBreadthSemantics(semantics: Semantics) {
+  return lintAdapter({
+    adapter: semanticsBreadthAdapter(semantics),
+    adapterPath: "/tmp/semantics-breadth.toml",
+    adapterName: "semantics-breadth",
+    repoRoot: "/tmp",
+  });
+}
+
+function findingCodes(findings: Array<{ code: string }>): string[] {
+  return findings.map((finding) => finding.code);
 }
 
 // ---- unit: classification ----
@@ -400,6 +522,104 @@ test("classifyLineageSourceKind: Rust source → non-json", () => {
     }),
     "non-json"
   );
+});
+
+// ---- unit: semantics breadth lint ----
+
+test("lintAdapter: clean semantics breadth surface emits a named PASS", async () => {
+  const semantics = cloneBreadthSemantics();
+  semantics.derived.first_oracle_price = "oracle.0.price";
+  semantics.derived.weighted_collateral_value =
+    "position.collateral_amount * oracle.weighted_price";
+  semantics.collections.worst_health_factor!.expr = "oracle.1.price / max(debt_value, 1)";
+
+  const report = await lintBreadthSemantics(semantics);
+
+  assert.equal(report.exitCode, 0);
+  assert.ok(findingCodes(report.findings).includes("semantics-breadth-clean"));
+  assert.ok(findingCodes(report.findings).includes("lineage-missing"));
+});
+
+test("lintAdapter: semantics oracle role must exist", async () => {
+  const semantics = cloneBreadthSemantics();
+  semantics.oracles.price_feed = semantics.oracles.oracle!;
+  delete semantics.oracles.oracle;
+
+  const report = await lintBreadthSemantics(semantics);
+
+  assert.equal(report.exitCode, 2);
+  assert.ok(findingCodes(report.findings).includes("semantics-oracle-unknown-role"));
+  assert.match(
+    report.findings.find((finding) => finding.code === "semantics-oracle-unknown-role")?.message ?? "",
+    /UnknownOracleRole\(price_feed\)/
+  );
+});
+
+test("lintAdapter: semantics oracle pubkeys and positive total weights are enforced", async () => {
+  const semantics = cloneBreadthSemantics();
+  semantics.oracles.oracle![0]!.program_id = "not-a-pubkey";
+  semantics.oracles.oracle![0]!.weight = 0;
+  semantics.oracles.oracle![1]!.weight = 0;
+
+  const report = await lintBreadthSemantics(semantics);
+  const codes = findingCodes(report.findings);
+
+  assert.equal(report.exitCode, 2);
+  assert.ok(codes.includes("semantics-oracle-invalid-pubkey"));
+  assert.ok(codes.includes("semantics-oracle-zero-total-weight"));
+});
+
+test("lintAdapter: semantics collections validate over, formula, and expression syntax", async () => {
+  const semantics = cloneBreadthSemantics();
+  semantics.collections.worst_health_factor!.over = "vaults";
+  semantics.collections.worst_health_factor!.formula = "median";
+  semantics.collections.worst_health_factor!.expr = "collateral_value /";
+
+  const report = await lintBreadthSemantics(semantics);
+  const codes = findingCodes(report.findings);
+
+  assert.equal(report.exitCode, 2);
+  assert.ok(codes.includes("semantics-collection-unknown-role"));
+  assert.ok(codes.includes("semantics-collection-unknown-formula"));
+  assert.ok(codes.includes("semantics-collection-expression-parse-failed"));
+});
+
+test("lintAdapter: semantics replay validates state_source", async () => {
+  const semantics = cloneBreadthSemantics();
+  semantics.replay!.state_source = "archive";
+
+  const report = await lintBreadthSemantics(semantics);
+
+  assert.equal(report.exitCode, 2);
+  assert.ok(findingCodes(report.findings).includes("semantics-replay-unknown-state-source"));
+});
+
+test("lintAdapter: semantics replay validates relative pack_path and role bindings", async () => {
+  const semantics = cloneBreadthSemantics();
+  semantics.replay!.pack_path = "/abs/state-pack";
+  semantics.replay!.roles.ghost = VALID_PUBKEY_A;
+  semantics.replay!.roles.oracle = "abc";
+
+  const report = await lintBreadthSemantics(semantics);
+  const codes = findingCodes(report.findings);
+
+  assert.equal(report.exitCode, 2);
+  assert.ok(codes.includes("semantics-replay-invalid-pack-path"));
+  assert.ok(codes.includes("semantics-replay-unknown-role"));
+  assert.ok(codes.includes("semantics-replay-invalid-pubkey"));
+});
+
+test("lintAdapter: semantics mainnet-rpc replay is WARN, not FAIL", async () => {
+  const semantics = cloneBreadthSemantics();
+  semantics.replay!.state_source = "mainnet-rpc";
+  delete semantics.replay!.pack_path;
+
+  const report = await lintBreadthSemantics(semantics);
+  const codes = findingCodes(report.findings);
+
+  assert.equal(report.exitCode, 1);
+  assert.ok(codes.includes("semantics-replay-mainnet-rpc-not-implemented"));
+  assert.equal(report.findings.some((finding) => finding.level === "fail"), false);
 });
 
 // ---- runLint end-to-end via temp adapter pairs ----

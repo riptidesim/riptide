@@ -125,12 +125,15 @@ pub struct SimulationResult {
     pub summary: SimulationSummary,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub semantics: Option<Semantics>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replay_provenance: Option<crate::replay::ReplayStateProvenance>,
     pub simulation_boundaries: Vec<String>,
 }
 
 /// Top-level semantic contract emitted for adapters carrying a
 /// `[semantics]` block. This is adapter-load context only: the
-/// per-tick computed values stay under `timeseries[].derived_observations`.
+/// per-tick computed values stay under `timeseries[].derived_observations`
+/// and `timeseries[].collection_observations`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Semantics {
     pub class: String,
@@ -209,6 +212,9 @@ pub type TickSnapshot = BTreeMap<String, Value>;
 /// Additive semantic observation surface. Values are JSON-native for
 /// serialization, with oversized integers encoded as strings.
 pub type DerivedObservations = BTreeMap<String, Value>;
+
+/// Additive per-tick collection aggregation surface.
+pub type CollectionObservations = BTreeMap<String, Value>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SimEvent {

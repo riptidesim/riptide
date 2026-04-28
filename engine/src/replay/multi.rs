@@ -1988,6 +1988,7 @@ pub fn run_multi_replay(
         agents: agent_finals,
         summary,
         semantics: None,
+        replay_provenance: None,
         simulation_boundaries: vec![
             "Multi-component replay boots two declared components into one shared LiteSVM world."
                 .into(),

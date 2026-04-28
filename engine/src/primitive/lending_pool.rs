@@ -10,6 +10,8 @@
 //! traits. A sibling `primitive/generic.rs` handles non-lending programs
 //! driven by adapter TOML.
 
+use std::collections::BTreeMap;
+
 use anyhow::{anyhow, Context, Result};
 use borsh::BorshDeserialize;
 use litesvm::LiteSVM;
@@ -28,7 +30,9 @@ use crate::{
             POOL_STATE_LEN, POSITION_STATE_LEN,
         },
     },
-    primitive::{LendingPrimitive, PoolState, PositionHealth, PrimitiveError},
+    primitive::{
+        LendingPrimitive, PoolState, PositionHealth, PrimitiveError, SemanticOracleObservation,
+    },
     scenario::{oracle_layout_for, OracleUpdate},
 };
 
@@ -159,9 +163,74 @@ pub struct LiteSvmHarness {
     /// Defaults to `AdminMock` when the adapter declares no oracles
     /// (preserves the hero-grid determinism path).
     oracle_kind: OracleKind,
+    imported_semantic_collections: BTreeMap<String, Vec<crate::semantics::Context>>,
 }
 
 impl LiteSvmHarness {
+    /// Import a pre-authored account into the in-process bank before a run starts.
+    pub fn import_account(
+        &mut self,
+        pubkey: Pubkey,
+        account: solana_account::Account,
+    ) -> Result<()> {
+        self.import_account_for_role(None, pubkey, account)
+    }
+
+    /// Import a pre-authored account and retain decoded semantic
+    /// collection context when the role is a repeated economic object.
+    pub fn import_account_for_role(
+        &mut self,
+        role: Option<&str>,
+        pubkey: Pubkey,
+        account: solana_account::Account,
+    ) -> Result<()> {
+        if let Some(role) = role {
+            self.record_imported_semantic_context(role, &account);
+        }
+        self.svm
+            .set_account(pubkey, account)
+            .map_err(|error| anyhow!("failed to import replay account {pubkey}: {error}"))
+    }
+
+    fn record_imported_semantic_context(&mut self, role: &str, account: &solana_account::Account) {
+        if !matches!(role, "reserve" | "reserves" | "market" | "markets" | "pool") {
+            return;
+        }
+        let Ok(state) = LendingPoolState::try_from_slice(&account.data) else {
+            return;
+        };
+        let pool = PoolState {
+            total_deposits: state.total_deposits,
+            total_borrows: state.total_borrows,
+            bad_debt: state.bad_debt,
+            ltv_bps: state.ltv_bps,
+            liquidation_threshold_bps: state.liquidation_threshold_bps,
+            liquidation_bonus_bps: state.liquidation_bonus_bps,
+            deposit_limit: state.deposit_limit,
+            borrow_limit: state.borrow_limit,
+        };
+        let prefix = if role.starts_with("market") {
+            "market"
+        } else {
+            "reserve"
+        };
+        let oracle_price = f64_to_u128(self.last_oracle_price).unwrap_or(0);
+        let context = semantic_pool_context(prefix, &pool, oracle_price);
+        let collection_key = if prefix == "market" {
+            "markets"
+        } else {
+            "reserves"
+        };
+        self.imported_semantic_collections
+            .entry(collection_key.into())
+            .or_default()
+            .push(context.clone());
+        self.imported_semantic_collections
+            .entry(prefix.into())
+            .or_default()
+            .push(context);
+    }
+
     /// Submit a transaction and classify the result as a `PrimitiveError`.
     ///
     /// `InstructionError` variants (the program processed the tx and
@@ -359,6 +428,7 @@ impl LiteSvmHarness {
             current_slot: 0,
             last_oracle_price: starting_oracle_price,
             oracle_kind,
+            imported_semantic_collections: BTreeMap::new(),
         })
     }
 }
@@ -599,11 +669,166 @@ impl LendingPrimitive for LiteSvmHarness {
             liquidated: state.liquidated,
         })
     }
+
+    fn semantic_oracle_observation(
+        &self,
+        account_pubkey: &str,
+    ) -> Result<Option<SemanticOracleObservation>, PrimitiveError> {
+        let pubkey = account_pubkey.parse::<Pubkey>().map_err(|error| {
+            PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` is not a valid pubkey: {error}"
+            ))
+        })?;
+        let Some(account) = self.svm.get_account(&pubkey) else {
+            return Ok(None);
+        };
+        let decoded = oracle_layout_for(self.oracle_kind)
+            .decode_observation(&account.data)
+            .map_err(|error| {
+                PrimitiveError::Infra(format!(
+                    "semantic oracle account `{account_pubkey}` failed to decode as {:?}: {error}",
+                    self.oracle_kind
+                ))
+            })?;
+        let price = f64_to_u128(decoded.price).ok_or_else(|| {
+            PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` decoded non-finite price {}",
+                decoded.price
+            ))
+        })?;
+        let confidence = decoded.confidence.ok_or_else(|| {
+            PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` decoded as {:?}, but that layout \
+                 does not expose confidence; semantics refuses to publish a sentinel value",
+                self.oracle_kind
+            ))
+        })?;
+        let publish_slot = decoded.publish_slot.ok_or_else(|| {
+            PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` decoded as {:?}, but that layout \
+                 does not expose a publish slot; semantics cannot compute staleness",
+                self.oracle_kind
+            ))
+        })?;
+        if publish_slot > self.current_slot {
+            return Err(PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` publish_slot {publish_slot} is ahead \
+                 of LiteSVM current slot {}; semantics cannot compute staleness across slot domains",
+                self.current_slot
+            )));
+        }
+        Ok(Some(SemanticOracleObservation {
+            price,
+            confidence: u128::from(confidence),
+            staleness: self.current_slot - publish_slot,
+            exponent: i128::from(decoded.exponent),
+        }))
+    }
+
+    fn semantic_collection_contexts(
+        &self,
+        over: &str,
+    ) -> Result<Option<Vec<crate::semantics::Context>>, PrimitiveError> {
+        Ok(self
+            .imported_semantic_collections
+            .get(over)
+            .cloned()
+            .or_else(|| {
+                let plural = match over {
+                    "reserve" => Some("reserves"),
+                    "market" => Some("markets"),
+                    _ => None,
+                }?;
+                self.imported_semantic_collections.get(plural).cloned()
+            }))
+    }
 }
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+fn semantic_pool_context(
+    prefix: &str,
+    pool: &PoolState,
+    oracle_price: u128,
+) -> crate::semantics::Context {
+    use crate::semantics::Value;
+
+    let mut context = crate::semantics::Context::new();
+    let mut insert = |field: &str, value: Value| {
+        context.insert(format!("{prefix}.{field}"), value);
+    };
+    insert("total_deposits", Value::U128(pool.total_deposits as u128));
+    insert("supplied_amount", Value::U128(pool.total_deposits as u128));
+    insert("total_borrows", Value::U128(pool.total_borrows as u128));
+    insert("borrowed_amount", Value::U128(pool.total_borrows as u128));
+    insert("bad_debt", Value::U128(pool.bad_debt as u128));
+    insert("bad_debt_amount", Value::U128(pool.bad_debt as u128));
+    insert(
+        "available_liquidity",
+        Value::U128(pool.available_liquidity() as u128),
+    );
+    insert("liquidity", Value::U128(pool.available_liquidity() as u128));
+    insert("collateral_price", Value::U128(oracle_price));
+    insert("collateral_decimals", Value::U128(0));
+    insert("max_ltv_bps", Value::U128(pool.ltv_bps as u128));
+    insert("ltv_bps", Value::U128(pool.ltv_bps as u128));
+    insert(
+        "liquidation_threshold_bps",
+        Value::U128(pool.liquidation_threshold_bps as u128),
+    );
+    insert(
+        "threshold_bps",
+        Value::U128(pool.liquidation_threshold_bps as u128),
+    );
+    insert(
+        "liquidation_bonus_bps",
+        Value::U128(pool.liquidation_bonus_bps as u128),
+    );
+    insert("bonus_bps", Value::U128(pool.liquidation_bonus_bps as u128));
+    insert("deposit_limit", Value::U128(pool.deposit_limit as u128));
+    insert("borrow_limit", Value::U128(pool.borrow_limit as u128));
+    insert(
+        "utilization",
+        Value::U128(ratio_percent(pool.total_borrows, pool.total_deposits)),
+    );
+    insert(
+        "bad_debt_ratio",
+        Value::U128(ratio_percent(pool.bad_debt, pool.total_borrows.max(1))),
+    );
+    insert(
+        "collateral_ratio",
+        Value::U128(ratio_percent(
+            pool.total_deposits,
+            pool.total_borrows.max(1),
+        )),
+    );
+    let threshold_adjusted = (pool.total_deposits as u128)
+        .saturating_mul(pool.liquidation_threshold_bps as u128)
+        / 10_000;
+    insert(
+        "health_factor",
+        Value::U128(threshold_adjusted / u128::from(pool.total_borrows.max(1))),
+    );
+    context
+}
+
+fn ratio_percent(numerator: u64, denominator: u64) -> u128 {
+    if denominator == 0 {
+        0
+    } else {
+        u128::from(numerator) * 100 / u128::from(denominator)
+    }
+}
+
+fn f64_to_u128(value: f64) -> Option<u128> {
+    if value.is_finite() && value >= 0.0 && value <= u128::MAX as f64 {
+        Some(value.round() as u128)
+    } else {
+        None
+    }
+}
 
 /// Encode an `f64` as `serde_json::Value::Number`, falling back to
 /// `Null` if the value is NaN/Inf (neither can round-trip through
@@ -832,6 +1057,25 @@ mod tests {
         let acct = harness.svm.get_account(&harness.oracle).unwrap();
         let oracle = crate::scenario::OracleSnapshot::try_from_slice(&acct.data).unwrap();
         assert_eq!(oracle.price, 200);
+    }
+
+    #[test]
+    fn semantic_oracle_observation_fails_closed_without_confidence_layout() {
+        if skip_if_no_so() {
+            return;
+        }
+        let harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
+
+        let err = harness
+            .semantic_oracle_observation(&harness.oracle.to_string())
+            .unwrap_err();
+        let PrimitiveError::Infra(msg) = err else {
+            panic!("expected fail-closed infra error, got {err:?}");
+        };
+        assert!(
+            msg.contains("does not expose confidence"),
+            "semantic oracle confidence must not fall back to a sentinel zero; got: {msg}"
+        );
     }
 
     #[test]

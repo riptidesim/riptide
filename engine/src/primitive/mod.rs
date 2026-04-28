@@ -30,5 +30,5 @@ pub use generic::{
 pub use generic::{GenericBootstrapConfig, GenericHarness};
 pub use lending::{
     dispatch_lending_action, Harness, HarnessError, LendingPrimitive, PoolObservation, PoolState,
-    PositionHealth, PositionObservation, Primitive, PrimitiveError,
+    PositionHealth, PositionObservation, Primitive, PrimitiveError, SemanticOracleObservation,
 };

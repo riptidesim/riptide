@@ -19,6 +19,7 @@ import path from "node:path";
 
 import type { Adapter, AdapterLineage, AccountOwner } from "../schemas/adapter.js";
 import { lintSemantics } from "./semantics.js";
+import { lintSemanticsBreadth } from "./semantics_breadth.js";
 
 export type LintLevel = "pass" | "warn" | "fail" | "skip";
 
@@ -134,6 +135,7 @@ export async function lintAdapter(input: LintInput): Promise<LintReport> {
   const findings: LintFinding[] = [];
   const kind = classifyLineageSourceKind(adapter.lineage);
   findings.push(...lintSemantics(adapter));
+  findings.push(...lintSemanticsBreadth(adapter));
   if (findings.some((finding) => finding.level === "fail")) {
     return {
       adapterPath,

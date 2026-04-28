@@ -347,6 +347,7 @@ where
             .semantics
             .as_ref()
             .and_then(crate::types::Semantics::from_adapter),
+        replay_provenance: None,
         simulation_boundaries: vec![
             "Replay mode bypasses persona compilation and dispatches a declared instruction trajectory directly.".into(),
             "Trajectory args are supplied inline per event; generic adapters may still fall back to adapter literals for unmapped constants.".into(),
@@ -515,6 +516,7 @@ where
             .semantics
             .as_ref()
             .and_then(crate::types::Semantics::from_adapter),
+        replay_provenance: None,
         simulation_boundaries: vec![
             "Replay mode bypasses persona compilation and dispatches a declared instruction trajectory directly.".into(),
             "Trajectory args are supplied inline per event; generic adapters may still fall back to adapter literals for unmapped constants.".into(),

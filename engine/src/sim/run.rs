@@ -16,6 +16,7 @@ use crate::{
     agent::{policy::RuntimeAction, state::Agent, AgentRuntime},
     scenario::Scenario,
     semantics::{
+        collections::{evaluate_collection, CollectionEvaluationError, CollectionValueKind},
         derived::evaluate_derived_observations,
         invariants::{
             build_expression_invariants_summary, evaluate_expression_invariants,
@@ -693,6 +694,7 @@ where
         semantics: semantics
             .as_ref()
             .and_then(crate::types::Semantics::from_adapter),
+        replay_provenance: None,
         simulation_boundaries,
     })
 }
@@ -1034,6 +1036,7 @@ where
         semantics: semantics
             .as_ref()
             .and_then(crate::types::Semantics::from_adapter),
+        replay_provenance: None,
         simulation_boundaries,
     })
 }
@@ -1203,9 +1206,10 @@ where
     if let Some(semantics) =
         semantics.filter(|semantics| should_evaluate_semantics(semantics, role_binding_context))
     {
-        let role_context =
+        let mut role_context =
             bind_lending_v1_roles(semantics, harness, agents, &snapshot, role_binding_context)
                 .map_err(|e| SimulationAbort::BadInput(e.to_string()))?;
+        bind_lending_multi_oracle_accounts(semantics, harness, &mut role_context)?;
         let derived = evaluate_derived_observations(semantics, &role_context)
             .map_err(|e| SimulationAbort::BadInput(e.to_string()))?;
         snapshot.insert(
@@ -1213,9 +1217,22 @@ where
             semantic_values_to_json(&derived.observations),
         );
 
+        let mut expression_context = derived.context.clone();
+        if !semantics.collections.is_empty() {
+            let (collection_json, collection_context) = evaluate_lending_collections_for_tick(
+                semantics,
+                harness,
+                agents,
+                &snapshot,
+                &derived.context,
+            )?;
+            snapshot.insert("collection_observations".into(), collection_json);
+            expression_context = collection_context;
+        }
+
         evaluate_invariants(invariants, tick, &snapshot, violations, events);
 
-        let fires = evaluate_expression_invariants(semantics, &derived.context, tick)
+        let fires = evaluate_expression_invariants(semantics, &expression_context, tick)
             .map_err(|e| SimulationAbort::BadInput(e.to_string()))?;
         for fire in fires {
             events.push(expression_invariant_event(&fire));
@@ -1249,6 +1266,162 @@ fn semantic_values_to_json(values: &BTreeMap<String, crate::semantics::Value>) -
             .map(|(key, value)| (key.clone(), value.to_json()))
             .collect(),
     )
+}
+
+fn bind_lending_multi_oracle_accounts<H>(
+    semantics: &Semantics,
+    harness: &H,
+    context: &mut crate::semantics::Context,
+) -> Result<(), SimulationAbort>
+where
+    H: crate::primitive::LendingPrimitive + ?Sized,
+{
+    for (role, bindings) in &semantics.oracles {
+        for (index, binding) in bindings.iter().enumerate() {
+            let observation = harness
+                .semantic_oracle_observation(&binding.account)
+                .map_err(|e| SimulationAbort::Infra(e.to_string()))?
+                .ok_or_else(|| {
+                    SimulationAbort::BadInput(format!(
+                        "MissingOracleAccountBinding({role}.{index}); account {} was not found or could not be decoded for `[semantics.oracles.{role}]`",
+                        binding.account
+                    ))
+                })?;
+            context.insert(
+                format!("{role}.{index}.price"),
+                crate::semantics::Value::U128(observation.price),
+            );
+            context.insert(
+                format!("{role}.{index}.confidence"),
+                crate::semantics::Value::U128(observation.confidence),
+            );
+            context.insert(
+                format!("{role}.{index}.staleness"),
+                crate::semantics::Value::U128(u128::from(observation.staleness)),
+            );
+            context.insert(
+                format!("{role}.{index}.exponent"),
+                crate::semantics::Value::I128(observation.exponent),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn evaluate_lending_collections_for_tick<H>(
+    semantics: &Semantics,
+    harness: &H,
+    agents: &[Agent],
+    snapshot: &TickSnapshot,
+    base_context: &crate::semantics::Context,
+) -> Result<(Value, crate::semantics::Context), SimulationAbort>
+where
+    H: crate::primitive::LendingPrimitive + ?Sized,
+{
+    let mut out = serde_json::Map::new();
+    let mut expression_context = base_context.clone();
+
+    for (name, collection) in &semantics.collections {
+        let contexts = lending_collection_contexts(
+            semantics,
+            harness,
+            agents,
+            snapshot,
+            base_context,
+            &collection.over,
+        )?;
+        match evaluate_collection(
+            semantics.class.as_deref(),
+            name,
+            collection,
+            &contexts,
+            CollectionValueKind::Unknown,
+        ) {
+            Ok(evaluation) => {
+                out.insert(name.clone(), evaluation.value.to_json());
+                expression_context.insert(format!("collection.{name}"), evaluation.value);
+            }
+            Err(error @ CollectionEvaluationError::EmptyCollection { .. }) => {
+                out.insert(name.clone(), collection_error_sentinel_json(&error));
+            }
+            Err(error) => return Err(SimulationAbort::BadInput(error.to_string())),
+        }
+    }
+
+    Ok((Value::Object(out), expression_context))
+}
+
+fn lending_collection_contexts<H>(
+    semantics: &Semantics,
+    harness: &H,
+    agents: &[Agent],
+    snapshot: &TickSnapshot,
+    base_context: &crate::semantics::Context,
+    over: &str,
+) -> Result<Vec<crate::semantics::Context>, SimulationAbort>
+where
+    H: crate::primitive::LendingPrimitive + ?Sized,
+{
+    match over {
+        "reserve" | "reserves" | "market" | "markets" => {
+            if let Some(contexts) = harness
+                .semantic_collection_contexts(over)
+                .map_err(|e| SimulationAbort::Infra(e.to_string()))?
+            {
+                return contexts
+                    .into_iter()
+                    .map(|context| {
+                        let mut merged = base_context.clone();
+                        merged.extend(context);
+                        evaluate_derived_observations(semantics, &merged)
+                            .map(|derived| derived.context)
+                            .map_err(|e| SimulationAbort::BadInput(e.to_string()))
+                    })
+                    .collect();
+            }
+            Ok(vec![base_context.clone()])
+        }
+        "position" | "positions" => {
+            let mut contexts = Vec::new();
+            for idx in 0..agents.len() {
+                let mut role_context = match bind_lending_v1_roles(
+                    semantics,
+                    harness,
+                    agents,
+                    snapshot,
+                    RoleBindingContext::new(None, Some(idx)),
+                ) {
+                    Ok(context) => context,
+                    Err(_) => continue,
+                };
+                bind_lending_multi_oracle_accounts(semantics, harness, &mut role_context)?;
+                let derived = evaluate_derived_observations(semantics, &role_context)
+                    .map_err(|e| SimulationAbort::BadInput(e.to_string()))?;
+                contexts.push(derived.context);
+            }
+            Ok(contexts)
+        }
+        _ => Ok(Vec::new()),
+    }
+}
+
+fn collection_error_sentinel_json(error: &CollectionEvaluationError) -> Value {
+    let error_type = match error {
+        CollectionEvaluationError::EmptyCollection { .. } => "EmptyCollection",
+        CollectionEvaluationError::UnknownFormula { .. } => "UnknownFormula",
+        CollectionEvaluationError::MissingParsedExpression { .. } => "MissingParsedExpression",
+        CollectionEvaluationError::Evaluation { .. } => "Evaluation",
+        CollectionEvaluationError::TypeMismatch { .. } => "TypeMismatch",
+        CollectionEvaluationError::IntegerOverflow { .. } => "IntegerOverflow",
+        CollectionEvaluationError::WorstDirection { .. } => "WorstDirection",
+    };
+    Value::Object(serde_json::Map::from_iter([(
+        "evaluation_error".into(),
+        Value::Array(vec![Value::Object(serde_json::Map::from_iter([
+            ("type".into(), Value::from(error_type)),
+            ("message".into(), Value::from(error.to_string())),
+        ]))]),
+    )]))
 }
 
 fn expression_invariant_event(fire: &ExpressionInvariantFire) -> SimEvent {

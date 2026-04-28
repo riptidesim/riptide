@@ -90,6 +90,17 @@ export const SimEventSchema = z.object({
 const JsonPrimitiveSchema = z.union([z.number(), z.boolean(), z.string(), z.null()]);
 
 export const DerivedObservationsSchema = z.record(z.string(), JsonPrimitiveSchema);
+export const CollectionObservationErrorSchema = z.object({
+  type: z.string().min(1),
+  message: z.string().min(1)
+});
+export const CollectionObservationValueSchema = z.union([
+  JsonPrimitiveSchema,
+  z.object({
+    evaluation_error: z.array(CollectionObservationErrorSchema).min(1)
+  })
+]);
+export const CollectionObservationsSchema = z.record(z.string(), CollectionObservationValueSchema);
 
 // `TickSnapshot` is a primitive-agnostic key/value map. The engine-side
 // type is `BTreeMap<String, serde_json::Value>`, so on the CLI side we
@@ -104,7 +115,7 @@ function isNonNegativeInteger(value: unknown): value is number {
 export const TickSnapshotSchema = z
   .record(
     z.string(),
-    z.union([JsonPrimitiveSchema, DerivedObservationsSchema])
+    z.union([JsonPrimitiveSchema, DerivedObservationsSchema, CollectionObservationsSchema])
   )
   .refine((entry) => isNonNegativeInteger(entry.tick), {
     message: "tick snapshot `tick` must be a nonnegative integer"
@@ -177,6 +188,18 @@ export const SemanticsSchema = z.object({
   derived_observation_definitions: z.array(DerivedObservationDefinitionSchema)
 });
 
+export const ReplayAccountProvenanceSchema = z.object({
+  account_pubkey: z.string().min(1),
+  account_pubkeys: z.array(z.string().min(1)).optional(),
+  sha256_hash: z.string().regex(/^[a-f0-9]{64}$/)
+});
+
+export const ReplayProvenanceSchema = z.object({
+  pack_path: z.string().min(1),
+  slot: z.number().int().nonnegative(),
+  accounts: z.record(z.string(), ReplayAccountProvenanceSchema)
+});
+
 // `SimulationSummary` is a primitive-agnostic key/value map. Lending
 // runs emit `final_tvl`/`final_utilization`/`total_liquidations`/
 // `total_bad_debt`/`largest_single_tick_drawdown`; generic runs emit
@@ -223,6 +246,7 @@ export const SimulationResultSchema = z.object({
   agents: z.array(AgentFinalStateSchema),
   summary: SimulationSummarySchema,
   semantics: SemanticsSchema.optional(),
+  replay_provenance: ReplayProvenanceSchema.optional(),
   simulation_boundaries: z.array(z.string())
 });
 
@@ -238,6 +262,7 @@ export type SimulationResult = z.infer<typeof SimulationResultSchema>;
 export type InvariantFiredRow = z.infer<typeof InvariantFiredRowSchema>;
 export type ExpressionInvariantRow = z.infer<typeof ExpressionInvariantRowSchema>;
 export type Semantics = z.infer<typeof SemanticsSchema>;
+export type ReplayProvenance = z.infer<typeof ReplayProvenanceSchema>;
 
 export function validatePolicy(input: unknown): Policy {
   return PolicySchema.parse(input);

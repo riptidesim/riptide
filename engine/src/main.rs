@@ -29,7 +29,9 @@ use riptide_engine::{
     primitive::{
         build_generic_policies, generic_runtime_actions, GenericBootstrapConfig, GenericHarness,
     },
-    replay::{load_replay_bundle, run_lending_replay, run_replay},
+    replay::{
+        import_replay_state, load_replay_bundle, run_lending_replay, run_replay, ReplayStateImport,
+    },
     scenario::{
         load_presets_dir, BaselineScenario, OracleUpdate, PresetSpec, PriceShockScenario, Scenario,
         ScenarioKind,
@@ -516,6 +518,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
 
             let policies = build_generic_policies(&adapter, |warning| eprintln!("warn: {warning}"))
                 .map_err(|e| anyhow::anyhow!("compile generic adapter personas: {e:#}"))?;
+            let replay_import = load_adapter_replay_state(&adapter, cli.adapter.as_deref())?;
             let agent_personas =
                 build_agent_personas(&run_config.personas, &policies, run_config.agents as usize)
                     .map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -547,6 +550,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 harness.program_id,
                 harness.agents.len(),
             );
+            apply_generic_replay_state(&mut harness, replay_import.as_ref())?;
 
             let params = SimulationParams {
                 run_config: &run_config,
@@ -568,10 +572,17 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
             };
 
             eprintln!("running tick loop ...");
-            run_generic_simulation(&mut harness, scenario.as_mut(), params)
-                .map_err(|e| anyhow::anyhow!("{e}"))?
+            let mut result = run_generic_simulation(&mut harness, scenario.as_mut(), params)
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            result.replay_provenance = replay_import.map(|import| import.provenance);
+            result
         }
         adapter => {
+            let replay_import = adapter
+                .as_ref()
+                .map(|adapter| load_adapter_replay_state(adapter, cli.adapter.as_deref()))
+                .transpose()?
+                .flatten();
             let program_so = cli.program_so.unwrap_or_else(default_program_so_path);
             if !program_so.exists() {
                 anyhow::bail!(
@@ -616,6 +627,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 harness.agents.len(),
                 seed_amount,
             );
+            apply_lending_replay_state(&mut harness, replay_import.as_ref())?;
 
             let agent_personas = build_agent_personas(
                 &run_config.personas,
@@ -643,8 +655,10 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
             };
 
             eprintln!("running tick loop ...");
-            run_simulation(&mut harness, scenario.as_mut(), params)
-                .map_err(|e| anyhow::anyhow!("{e}"))?
+            let mut result = run_simulation(&mut harness, scenario.as_mut(), params)
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            result.replay_provenance = replay_import.map(|import| import.provenance);
+            result
         }
     };
 
@@ -665,6 +679,60 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
     } else {
         Ok(EngineOutcome::Clean)
     }
+}
+
+fn load_adapter_replay_state(
+    adapter: &riptide_engine::adapter::Adapter,
+    adapter_path: Option<&Path>,
+) -> anyhow::Result<Option<ReplayStateImport>> {
+    let Some(replay) = adapter
+        .semantics
+        .as_ref()
+        .and_then(|semantics| semantics.replay.as_ref())
+    else {
+        return Ok(None);
+    };
+    let base_dir = adapter_path
+        .and_then(Path::parent)
+        .unwrap_or_else(|| Path::new("."));
+    import_replay_state(replay, base_dir)
+        .map(Some)
+        .map_err(|e| anyhow::anyhow!("{e}"))
+}
+
+fn apply_generic_replay_state(
+    harness: &mut GenericHarness,
+    import: Option<&ReplayStateImport>,
+) -> anyhow::Result<()> {
+    let Some(import) = import else {
+        return Ok(());
+    };
+    for accounts in import.accounts.values() {
+        for account in accounts {
+            harness
+                .svm_mut()
+                .set_account(account.pubkey, account.account.clone())
+                .map_err(|e| {
+                    anyhow::anyhow!("failed to import replay account {}: {e}", account.pubkey)
+                })?;
+        }
+    }
+    Ok(())
+}
+
+fn apply_lending_replay_state(
+    harness: &mut LiteSvmHarness,
+    import: Option<&ReplayStateImport>,
+) -> anyhow::Result<()> {
+    let Some(import) = import else {
+        return Ok(());
+    };
+    for (role, accounts) in &import.accounts {
+        for account in accounts {
+            harness.import_account_for_role(Some(role), account.pubkey, account.account.clone())?;
+        }
+    }
+    Ok(())
 }
 
 fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
@@ -717,6 +785,7 @@ fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
     let bundle = load_replay_bundle(&trajectory_dir, &adapter)
         .map_err(|e| anyhow::anyhow!("load replay bundle: {e:#}"))?;
     let actor_count = bundle.actor_ids.len();
+    let replay_import = load_adapter_replay_state(&adapter, Some(adapter_path.as_path()))?;
 
     eprintln!(
         "riptide-engine replay: adapter={} trajectory={} actors={} ticks={}",
@@ -726,7 +795,7 @@ fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
         bundle.total_ticks,
     );
 
-    let result = match adapter.protocol {
+    let mut result = match adapter.protocol {
         Protocol::Generic => {
             let program_so = cli.program_so.unwrap_or_else(|| {
                 PathBuf::from(
@@ -751,6 +820,7 @@ fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
                 adapter: adapter.clone(),
             })
             .map_err(|e| anyhow::anyhow!("LiteSVM generic replay bootstrap failed: {e:#}"))?;
+            apply_generic_replay_state(&mut harness, replay_import.as_ref())?;
             run_replay(
                 &mut harness,
                 &adapter,
@@ -792,6 +862,7 @@ fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
                 adapter: Some(adapter.clone()),
             })
             .map_err(|e| anyhow::anyhow!("LiteSVM replay bootstrap failed: {e:#}"))?;
+            apply_lending_replay_state(&mut harness, replay_import.as_ref())?;
             run_lending_replay(
                 &mut harness,
                 &adapter,
@@ -801,6 +872,7 @@ fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
             .map_err(|e| anyhow::anyhow!("{e}"))?
         }
     };
+    result.replay_provenance = replay_import.map(|import| import.provenance);
 
     write_result(&cli.output, &result)?;
     eprintln!("wrote {}", cli.output.display());

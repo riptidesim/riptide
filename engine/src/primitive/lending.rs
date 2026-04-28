@@ -70,6 +70,14 @@ pub struct PoolState {
     pub borrow_limit: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SemanticOracleObservation {
+    pub price: u128,
+    pub confidence: u128,
+    pub staleness: u64,
+    pub exponent: i128,
+}
+
 impl PoolState {
     pub fn utilization(&self) -> f64 {
         if self.total_deposits == 0 {
@@ -346,6 +354,25 @@ pub trait LendingPrimitive: Primitive {
     /// liquidated). The caller composes these with the current
     /// oracle price to derive the actual health factor.
     fn health_factor(&self, agent_idx: usize) -> Result<PositionHealth, PrimitiveError>;
+
+    /// Resolve a semantics-declared oracle account into the fields
+    /// exposed as `<role>.<index>.<field>` during derived evaluation.
+    fn semantic_oracle_observation(
+        &self,
+        _account_pubkey: &str,
+    ) -> Result<Option<SemanticOracleObservation>, PrimitiveError> {
+        Ok(None)
+    }
+
+    /// Return already-materialized contexts for repeated semantic
+    /// roles such as reserves or markets. Backends that only expose a
+    /// single reserve return `None` and keep the legacy single-context path.
+    fn semantic_collection_contexts(
+        &self,
+        _over: &str,
+    ) -> Result<Option<Vec<crate::semantics::Context>>, PrimitiveError> {
+        Ok(None)
+    }
 
     // --- legacy name-compat aliases ---
     //

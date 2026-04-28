@@ -162,7 +162,10 @@ fn lex(source: &str) -> Result<Vec<Token>, ExprError> {
             while i < bytes.len() && bytes[i].is_ascii_digit() {
                 i += 1;
             }
-            if i < bytes.len() && bytes[i] == b'.' {
+            if i < bytes.len()
+                && bytes[i] == b'.'
+                && matches!(bytes.get(i + 1), Some(next) if next.is_ascii_digit())
+            {
                 i += 1;
                 if i == bytes.len() || !bytes[i].is_ascii_digit() {
                     let end = i;
@@ -541,6 +544,12 @@ impl Parser {
                             end = ident.span.end;
                             path.push(segment);
                         }
+                        TokenKind::Number(segment)
+                            if segment.bytes().all(|byte| byte.is_ascii_digit()) =>
+                        {
+                            end = ident.span.end;
+                            path.push(segment);
+                        }
                         found => {
                             return Err(ExprError::new(
                                 ident.span,
@@ -791,6 +800,12 @@ mod tests {
         assert_eq!(expr.span, Span::new(0, 38));
         assert!(expr.to_string().contains("reserve.collateral_amount"));
         assert!(expr.to_string().contains("debt_value"));
+    }
+
+    #[test]
+    fn parses_numeric_identifier_segments_after_dots() {
+        let expr = parse("oracle.0.price + oracle.1.confidence").unwrap();
+        assert_eq!(expr.to_string(), "(oracle.0.price + oracle.1.confidence)");
     }
 
     #[test]

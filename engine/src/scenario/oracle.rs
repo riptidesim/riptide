@@ -45,6 +45,14 @@ impl OracleUpdate {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct OracleObservation {
+    pub price: f64,
+    pub exponent: i8,
+    pub confidence: Option<u64>,
+    pub publish_slot: Option<u64>,
+}
+
 pub fn decode_oracle(bytes: &[u8]) -> Result<OracleSnapshot> {
     OracleSnapshot::try_from_slice(bytes).map_err(|error| anyhow!(error))
 }
@@ -76,6 +84,19 @@ pub trait OracleLayout: Send + Sync {
     /// Decode account bytes back into a normalized update for
     /// verification / invariant checks.
     fn decode(&self, bytes: &[u8]) -> Result<OracleUpdate>;
+    /// Decode the full semantic observation surface when the layout
+    /// exposes it. Layouts without native confidence or publish-slot
+    /// fields return `None` for those values so semantic callers can
+    /// fail closed instead of inventing sentinel values.
+    fn decode_observation(&self, bytes: &[u8]) -> Result<OracleObservation> {
+        let update = self.decode(bytes)?;
+        Ok(OracleObservation {
+            price: update.price,
+            exponent: update.exponent,
+            confidence: None,
+            publish_slot: None,
+        })
+    }
 }
 
 /// Resolve the layout implementation for a declared oracle kind.
@@ -225,56 +246,70 @@ impl OracleLayout for PythMockOracleLayout {
     }
 
     fn decode(&self, bytes: &[u8]) -> Result<OracleUpdate> {
-        if bytes.len() < PYTH_ACCOUNT_SIZE {
-            return Err(anyhow!(
-                "pyth layout decode: expected at least {PYTH_ACCOUNT_SIZE} bytes, got {}",
-                bytes.len()
-            ));
-        }
-        // Integrity checks — a program reader (`pyth-sdk-solana`) also
-        // runs these, so it's useful to fail loudly locally if a
-        // caller hands us foreign bytes.
-        let magic = read_u32_le(bytes, PYTH_OFFSET_MAGIC);
-        if magic != PYTH_MAGIC {
-            return Err(anyhow!(
-                "pyth layout decode: magic mismatch (got 0x{magic:08x}, expected 0x{PYTH_MAGIC:08x})"
-            ));
-        }
-        let ver = read_u32_le(bytes, PYTH_OFFSET_VER);
-        if ver != PYTH_VERSION {
-            return Err(anyhow!(
-                "pyth layout decode: version mismatch (got {ver}, expected {PYTH_VERSION})"
-            ));
-        }
-        let atype = read_u32_le(bytes, PYTH_OFFSET_ATYPE);
-        if atype != PYTH_ATYPE_PRICE {
-            return Err(anyhow!(
-                "pyth layout decode: account type is {atype}, expected Price ({PYTH_ATYPE_PRICE})"
-            ));
-        }
-        let expo = read_i32_le(bytes, PYTH_OFFSET_EXPO);
-        let agg_price = read_i64_le(bytes, PYTH_OFFSET_AGG_PRICE);
-        // bails on invalid expo widths — Pyth expo is i32 but
-        // our `OracleUpdate.exponent` is i8 (admin-mock historical).
-        // Narrow and bail on overflow so a caller that accidentally
-        // writes a weird expo fails loudly rather than silently wraps.
-        let narrow_expo: i8 = i8::try_from(expo).map_err(|_| {
-            anyhow!("pyth layout decode: expo {expo} out of i8 range (admin-mock mirror)")
-        })?;
-        let price = if narrow_expo < 0 {
-            let scale = 10f64.powi(i32::from(-narrow_expo));
-            agg_price as f64 / scale
-        } else if narrow_expo > 0 {
-            let scale = 10f64.powi(i32::from(narrow_expo));
-            agg_price as f64 * scale
-        } else {
-            agg_price as f64
-        };
+        let observation = decode_pyth_observation(bytes)?;
         Ok(OracleUpdate {
-            price,
-            exponent: narrow_expo,
+            price: observation.price,
+            exponent: observation.exponent,
         })
     }
+
+    fn decode_observation(&self, bytes: &[u8]) -> Result<OracleObservation> {
+        decode_pyth_observation(bytes)
+    }
+}
+
+fn decode_pyth_observation(bytes: &[u8]) -> Result<OracleObservation> {
+    if bytes.len() < PYTH_ACCOUNT_SIZE {
+        return Err(anyhow!(
+            "pyth layout decode: expected at least {PYTH_ACCOUNT_SIZE} bytes, got {}",
+            bytes.len()
+        ));
+    }
+    // Integrity checks — a program reader (`pyth-sdk-solana`) also
+    // runs these, so it's useful to fail loudly locally if a
+    // caller hands us foreign bytes.
+    let magic = read_u32_le(bytes, PYTH_OFFSET_MAGIC);
+    if magic != PYTH_MAGIC {
+        return Err(anyhow!(
+            "pyth layout decode: magic mismatch (got 0x{magic:08x}, expected 0x{PYTH_MAGIC:08x})"
+        ));
+    }
+    let ver = read_u32_le(bytes, PYTH_OFFSET_VER);
+    if ver != PYTH_VERSION {
+        return Err(anyhow!(
+            "pyth layout decode: version mismatch (got {ver}, expected {PYTH_VERSION})"
+        ));
+    }
+    let atype = read_u32_le(bytes, PYTH_OFFSET_ATYPE);
+    if atype != PYTH_ATYPE_PRICE {
+        return Err(anyhow!(
+            "pyth layout decode: account type is {atype}, expected Price ({PYTH_ATYPE_PRICE})"
+        ));
+    }
+    let expo = read_i32_le(bytes, PYTH_OFFSET_EXPO);
+    let agg_price = read_i64_le(bytes, PYTH_OFFSET_AGG_PRICE);
+    // bails on invalid expo widths — Pyth expo is i32 but
+    // our `OracleUpdate.exponent` is i8 (admin-mock historical).
+    // Narrow and bail on overflow so a caller that accidentally
+    // writes a weird expo fails loudly rather than silently wraps.
+    let narrow_expo: i8 = i8::try_from(expo).map_err(|_| {
+        anyhow!("pyth layout decode: expo {expo} out of i8 range (admin-mock mirror)")
+    })?;
+    let price = if narrow_expo < 0 {
+        let scale = 10f64.powi(i32::from(-narrow_expo));
+        agg_price as f64 / scale
+    } else if narrow_expo > 0 {
+        let scale = 10f64.powi(i32::from(narrow_expo));
+        agg_price as f64 * scale
+    } else {
+        agg_price as f64
+    };
+    Ok(OracleObservation {
+        price,
+        exponent: narrow_expo,
+        confidence: Some(read_u64_le(bytes, PYTH_OFFSET_AGG_CONF)),
+        publish_slot: Some(read_u64_le(bytes, PYTH_OFFSET_AGG_PUB_SLOT)),
+    })
 }
 
 fn write_u32_le(buf: &mut [u8], offset: usize, value: u32) {
@@ -303,6 +338,10 @@ fn read_i32_le(buf: &[u8], offset: usize) -> i32 {
 
 fn read_i64_le(buf: &[u8], offset: usize) -> i64 {
     i64::from_le_bytes(buf[offset..offset + 8].try_into().unwrap())
+}
+
+fn read_u64_le(buf: &[u8], offset: usize) -> u64 {
+    u64::from_le_bytes(buf[offset..offset + 8].try_into().unwrap())
 }
 
 #[cfg(test)]
@@ -373,5 +412,39 @@ mod tests {
         };
 
         assert_eq!(update.as_u64(), 123);
+    }
+
+    #[test]
+    fn admin_mock_observation_marks_confidence_and_publish_slot_unknown() {
+        let layout = AdminMockOracleLayout;
+        let update = OracleUpdate {
+            price: 42.0,
+            exponent: 0,
+        };
+        let bytes = layout.encode([9; 32], &update).unwrap();
+        let observation = layout.decode_observation(&bytes).unwrap();
+
+        assert_eq!(observation.price, 42.0);
+        assert_eq!(observation.exponent, 0);
+        assert_eq!(observation.confidence, None);
+        assert_eq!(observation.publish_slot, None);
+    }
+
+    #[test]
+    fn pyth_observation_decodes_agg_confidence_and_publish_slot() {
+        let layout = PythMockOracleLayout;
+        let update = OracleUpdate {
+            price: 123.45,
+            exponent: -2,
+        };
+        let mut bytes = layout.encode([0; 32], &update).unwrap();
+        write_u64_le(&mut bytes, PYTH_OFFSET_AGG_CONF, 42);
+        write_u64_le(&mut bytes, PYTH_OFFSET_AGG_PUB_SLOT, 7);
+
+        let observation = layout.decode_observation(&bytes).unwrap();
+        assert_eq!(observation.price, 123.45);
+        assert_eq!(observation.exponent, -2);
+        assert_eq!(observation.confidence, Some(42));
+        assert_eq!(observation.publish_slot, Some(7));
     }
 }

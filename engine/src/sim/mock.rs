@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 
 use crate::primitive::{
     dispatch_lending_action, HarnessError, LendingPrimitive, PoolState, PositionHealth, Primitive,
-    PrimitiveError,
+    PrimitiveError, SemanticOracleObservation,
 };
 use crate::scenario::OracleUpdate;
 
@@ -45,6 +45,12 @@ pub struct MockHarness {
     /// Tests use this to assert primitive-level side effects beyond the
     /// engine-emitted event stream.
     scheduled_action_calls: BTreeMap<String, u32>,
+    /// Per-account semantic oracle observations used by semantics
+    /// runtime tests. The production LiteSVM harness resolves these
+    /// from account data; the mock path keeps them explicit.
+    semantic_oracles: BTreeMap<String, SemanticOracleObservation>,
+    /// Optional repeated-role contexts used by collection runtime tests.
+    semantic_collections: BTreeMap<String, Vec<crate::semantics::Context>>,
 }
 
 impl MockHarness {
@@ -64,6 +70,8 @@ impl MockHarness {
             positions: vec![MockPosition::default(); agent_count],
             scripted_infra_failures: Vec::new(),
             scheduled_action_calls: BTreeMap::new(),
+            semantic_oracles: BTreeMap::new(),
+            semantic_collections: BTreeMap::new(),
         }
     }
 
@@ -96,6 +104,25 @@ impl MockHarness {
 
     pub fn with_liquidation_bonus(mut self, bonus_bps: u16) -> Self {
         self.liquidation_bonus_bps = bonus_bps;
+        self
+    }
+
+    pub fn with_semantic_oracle(
+        mut self,
+        account_pubkey: impl Into<String>,
+        observation: SemanticOracleObservation,
+    ) -> Self {
+        self.semantic_oracles
+            .insert(account_pubkey.into(), observation);
+        self
+    }
+
+    pub fn with_semantic_collection_contexts(
+        mut self,
+        over: impl Into<String>,
+        contexts: Vec<crate::semantics::Context>,
+    ) -> Self {
+        self.semantic_collections.insert(over.into(), contexts);
         self
     }
 
@@ -277,6 +304,20 @@ impl LendingPrimitive for MockHarness {
             debt: p.debt,
             liquidated: p.liquidated,
         })
+    }
+
+    fn semantic_oracle_observation(
+        &self,
+        account_pubkey: &str,
+    ) -> Result<Option<SemanticOracleObservation>, PrimitiveError> {
+        Ok(self.semantic_oracles.get(account_pubkey).copied())
+    }
+
+    fn semantic_collection_contexts(
+        &self,
+        over: &str,
+    ) -> Result<Option<Vec<crate::semantics::Context>>, PrimitiveError> {
+        Ok(self.semantic_collections.get(over).cloned())
     }
 
     fn deposit(&mut self, agent_idx: usize, amount: u64) -> Result<(), HarnessError> {

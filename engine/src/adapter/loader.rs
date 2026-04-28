@@ -683,33 +683,43 @@ fn validate_semantics(adapter: &mut Adapter, path: &str) -> Result<(), AdapterEr
         expression.ast = Some(ast);
     }
 
-    semantics.derived_order =
-        build_derived_order(&semantics.derived, &semantics.roles).map_err(|error| match error {
-            DerivedObservationError::DerivedObservationCycle { path: cycle } => {
-                AdapterError::DerivedObservationCycle {
-                    path: path.to_string(),
-                    key: "[semantics.derived]".into(),
-                    cycle,
-                }
-            }
-            DerivedObservationError::UnknownIdentifier { name } => {
-                AdapterError::UnknownSemanticIdentifier {
-                    path: path.to_string(),
-                    key: "[semantics.derived]".into(),
-                    name,
-                }
-            }
-            DerivedObservationError::MissingParsedExpression { name } => AdapterError::Validation {
+    let oracle_roles = semantics.oracles.keys().cloned().collect();
+    semantics.derived_order = build_derived_order(
+        &semantics.derived,
+        &semantics.roles,
+        &oracle_roles,
+    )
+    .map_err(|error| match error {
+        DerivedObservationError::DerivedObservationCycle { path: cycle } => {
+            AdapterError::DerivedObservationCycle {
                 path: path.to_string(),
-                key: format!("[semantics.derived].{name}"),
-                reason: "derived observation expression was not parsed before topo sort".into(),
-            },
-            DerivedObservationError::Evaluation { name, error } => AdapterError::Validation {
+                key: "[semantics.derived]".into(),
+                cycle,
+            }
+        }
+        DerivedObservationError::UnknownIdentifier { name } => {
+            AdapterError::UnknownSemanticIdentifier {
                 path: path.to_string(),
-                key: format!("[semantics.derived].{name}"),
-                reason: format!("unexpected load-time evaluation error: {error}"),
-            },
-        })?;
+                key: "[semantics.derived]".into(),
+                name,
+            }
+        }
+        DerivedObservationError::MissingParsedExpression { name } => AdapterError::Validation {
+            path: path.to_string(),
+            key: format!("[semantics.derived].{name}"),
+            reason: "derived observation expression was not parsed before topo sort".into(),
+        },
+        DerivedObservationError::Evaluation { name, error } => AdapterError::Validation {
+            path: path.to_string(),
+            key: format!("[semantics.derived].{name}"),
+            reason: format!("unexpected load-time evaluation error: {error}"),
+        },
+        DerivedObservationError::MultiOracle { error } => AdapterError::Validation {
+            path: path.to_string(),
+            key: "[semantics.oracles]".into(),
+            reason: format!("unexpected load-time multi-oracle evaluation error: {error}"),
+        },
+    })?;
 
     let mut invariant_names = BTreeSet::new();
     for (idx, invariant) in semantics.invariants.iter_mut().enumerate() {

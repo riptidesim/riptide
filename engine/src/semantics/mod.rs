@@ -5,12 +5,14 @@
 //! deliberately has no I/O, no time access, no user functions, and no
 //! loops.
 
+pub mod collections;
 pub mod derived;
 pub mod error;
 pub mod errors;
 pub mod eval;
 pub mod expr;
 pub mod invariants;
+pub mod oracles;
 pub mod parser;
 pub mod roles;
 pub mod types;
