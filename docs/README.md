@@ -1,18 +1,31 @@
-# Riptide docs
+# Riptide Docs
 
-**Who this is for:** adopters evaluating Riptide, adapter authors wiring a program in, and reviewers tracing the load-bearing claims back to artifacts on disk.
+Use this directory when the root [README](../README.md) gives you the shape and you need the operating details.
 
-**How to navigate:** start with `vision.md` if you want to know *why* Riptide exists and what the stance is. Read `architecture.md` if you want to know *how* the engine is assembled. Read `install.md` if you want to run it locally. Read the case study if you want to see the claim land on a real program.
+## First Pass
 
-## Contents
+| Read | Use it for |
+| --- | --- |
+| [Install](install.md) | Release path, source install, Docker, manual rebuilds, and upgrade notes. |
+| [Architecture](architecture.md) | Understand the adapter/persona/scenario stack, LiteSVM runtime, determinism, and dashboard artifacts. |
+| [Vision](vision.md) | Understand the lab-not-oracle stance, what Riptide claims, and what it explicitly does not claim. |
+| [Solend-fork case study](case-studies/lending.md) | See the whale-share × price-shock grid that anchors the main product story. |
 
-- [`vision.md`](vision.md) — why Riptide exists, who it's for, and the lab-not-oracle stance.
-- [`architecture.md`](architecture.md) — the six-layer stack and the LiteSVM determinism model.
-- [`install.md`](install.md) — install, build, and upgrade paths; links to `TOOLCHAIN.md` at the repo root.
-- [`pack.md`](pack.md) — reviewer-ready evidence pack shape emitted on every `riptide run` and `riptide replay`.
-- [`ci-handoff.md`](ci-handoff.md) — cold-start GitHub Actions recipe for rerunning a committed proof and asserting its canonical hash; downstream-adoption template.
-- [`adapter-lineage.md`](adapter-lineage.md) — optional `[lineage]` block on adapter TOMLs + the `riptide lineage` inspection command; authored declaration of IDL source, inferred assumptions, and unsupported fields.
-- [`case-studies/lending.md`](case-studies/lending.md) — the 3×3 whale × shock hero grid on a Solend fork; the shipping outcome demo.
-- [`assets/`](assets/) — screenshots and images referenced from the README and docs.
+## Reviewer And CI
 
-Top-level `VISION.md`, `CONTRIBUTING.md`, and `TOOLCHAIN.md` live at the repo root on purpose — they surface at the repo landing page, not inside this tree.
+| Read | Use it for |
+| --- | --- |
+| [Evidence packs](pack.md) | Learn the `.riptide/pack/<run-id>/` shape emitted by `riptide run` and `riptide replay`. |
+| [Reviewer command](reviewer.md) | Validate a pack with `riptide review` without rerunning the engine. |
+| [CI handoff](ci-handoff.md) | Pin a replay proof in GitHub Actions with a canonical hash. |
+| [Adapter lineage](adapter-lineage.md) | Record and inspect adapter provenance, inferred assumptions, unsupported fields, and JSON IDL lint coverage. |
+
+## Supporting Material
+
+| Path | Contents |
+| --- | --- |
+| [Benchmarks](benchmarks/agent-scaling.md) | Agent-scaling results and reproducibility notes. |
+| [Assets](assets/) | Screenshots used by the README and docs. |
+| [Toolchain](../TOOLCHAIN.md) | Rust, Node, Solana CLI, SBF, and platform-tool pins. |
+
+Top-level files such as [VISION.md](../VISION.md) and [TOOLCHAIN.md](../TOOLCHAIN.md) stay at the repo root so GitHub surfaces them on the project landing page.

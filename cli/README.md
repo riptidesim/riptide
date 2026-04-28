@@ -1,45 +1,39 @@
 # @riptide/cli
 
-Riptide is a **deterministic multi-agent simulator for Solana programs**. Point it at your program's IDL + a handful of persona TOMLs and it runs hundreds of adversarial users against your code in LiteSVM, emitting a byte-stable per-tick JSON trace plus a rolled-up summary.
+Node.js command-line front end for [Riptide](../README.md).
 
-This npm package is the Node.js CLI front-end. On install it fetches a prebuilt native `riptide-engine` binary for your platform from the main repo's GitHub Releases and verifies it against a shipped sha256 (pattern: esbuild / @swc/core).
+The CLI handles the user-facing workflow around the Rust engine: project initialization, adapter linting, scenario discovery, replay orchestration, dashboard serving, and reviewer-pack validation.
 
 ## Install
 
-> **Pre-publish notice.** `@riptide/cli` is not yet published to the public npm registry — it lands in an upcoming release after one more cold-eyes validation pass. Until then, install from the monorepo:
->
-> ```bash
-> git clone https://github.com/riptidesim/riptide
-> cd riptide &&./install.sh
-> ```
+The public npm package is not published yet. Use the monorepo installer for now:
 
-Once published, the registry path will be:
+```bash
+git clone https://github.com/riptidesim/riptide
+cd riptide
+./install.sh
+```
+
+After publication, the intended package path is:
 
 ```bash
 npm install -g @riptide/cli
 riptide --help
 ```
 
-Supported platforms at first publish: Linux x86_64. macOS and Windows prebuilts ship in a later release; those platforms can build from the monorepo source today or use the repo's `Dockerfile`.
+First supported published target: Linux x86_64. macOS and Windows can use source builds or the repo Dockerfile until prebuilts ship.
 
-## Usage
+## Commands
 
-```bash
-# Run a scenario
-riptide run path/to/run-config.json
+| Command | Purpose |
+| --- | --- |
+| `riptide doctor` | Static environment and adapter health check. |
+| `riptide init` | Scaffold `.riptide/` in the current repo. |
+| `riptide list` | List discovered scenarios. |
+| `riptide run [pattern-or-path]` | Run all scenarios, a filtered set, or one JSON config. |
+| `riptide replay <config>` | Replay a declared trajectory. |
+| `riptide lint <adapter>` | Validate a JSON-IDL-backed adapter. |
+| `riptide lineage <adapter>` | Print adapter provenance and assumptions. |
+| `riptide review <pack>` | Validate an evidence pack without running the engine. |
 
-# Generate an adapter from an IDL (via the riptide-adapt Claude Code skill)
-riptide adapt --adapter path/to/adapter.toml
-
-# Validate a proposal catalog from the riptide-scenarios skill
-riptide scenarios --validate path/to/scenario-dir
-
-# Replay a real on-chain trajectory tick-by-tick
-riptide replay path/to/config.json
-```
-
-See the [main Riptide repo](https://github.com/riptidesim/riptide) for the full tour, the Solend-fork case study, and the two Claude Code skills (`riptide-adapt`, `riptide-scenarios`).
-
-## License
-
-Dual-licensed under MIT or Apache-2.0 at your option.
+Most users should start from the root [README](../README.md) and [Install guide](../docs/install.md).

@@ -1,45 +1,46 @@
-# Riptide — Vision
+# Riptide Vision
 
-**Audience:** Solana program devs, auditors, and researchers deciding whether Riptide fits their workflow. If you already have Riptide running and want the quickstart, go back to the [`README`](README.md).
+Riptide exists to make economic safety claims reproducible.
 
-## Lab, not oracle
+Every Solana protocol lives in a region defined by market conditions, user behavior, oracle paths, liquidity, leverage, and protocol parameters. Unit tests check points. Audits reason about code. Riptide maps regions by running declared experiments against the real compiled program.
 
-Riptide is a lab, not an oracle. The dev picks the experiment — Riptide does not tell you what's wrong with your program. Riptide runs the experiment deterministically: same seed in, same bytes out, every time, so the grid you're reading is reproducible from the adapter TOML and the persona TOML alone. And nobody is claiming this catches bugs on its own. The grid maps a parameter region; the dev draws the conclusions. A cell that comes back with bad debt is not a bug report — it is a point in parameter space where the program's math lost headroom, and the dev is the one who decides whether that point matters.
+## Lab, Not Oracle
 
-## Two paths in
+Riptide is a lab, not an oracle.
 
-Two ways to use Riptide: write your own experiments if you already know what you're testing for, or let the `riptide-scenarios` skill propose a starter catalog based on your program. Both run deterministically against your real code and surface the knife edges. Zero setup inside Claude Code.
+The developer chooses the experiment: adapter, personas, scenario, seed, ticks, and invariants. Riptide runs that experiment deterministically and records what happened. A red cell in a grid is not a bug report by itself; it is a reproducible point in parameter space where the declared invariant failed or the observed metric moved into a dangerous range.
 
-- **Path A — write your own experiments.** If you already know what you're testing for, author a run-config + policies + adapter TOML directly. The safe-vs-risky lending demo (`examples/run-demo.sh`) and the non-DeFi resource-grinder demo are the canonical examples.
-- **Path B — let the skill propose a starter catalog.** Install the `riptide-scenarios` Claude Code skill ([`skills/riptide-scenarios/SKILL.md`](skills/riptide-scenarios/SKILL.md)), invoke it inside any Claude Code session on your adapter + IDL, and it classifies plausible failure modes for your program and proposes 3–5 ranked starter experiments (whale concentration, shock cascades, utilization stress, persona-mix instability, oracle lag, price manipulation, liquidation cascades, impermanent-loss spikes). The skill writes run-configs to `fixtures/scenarios/<adapter>/<experiment>/` and does **not** autorun — the dev picks what to run.
+The value is not "Riptide says this protocol is unsafe." The value is "any reviewer can rerun this exact experiment and get the same bytes."
 
-The shipping example of Path A at scale is the Solend-fork case study: a 3×3 whale × shock parameter-boundary discovery run on the Solend fork. See [`docs/case-studies/lending.md`](docs/case-studies/lending.md) for the full report and the load-bearing claim: *Riptide maps the danger region; Solend's actual parameters sit inside it.*
+## Who It Is For
 
-## The six-layer stack
+- **Protocol teams** choosing launch parameters, liquidation settings, oracle assumptions, queue limits, or risk caps.
+- **Auditors and security researchers** turning economic concerns into rerunnable artifacts.
+- **Risk reviewers** who need more than a screenshot and less than a full custom simulator.
+- **Builders with non-DeFi economies** who still have shared state under pressure: games, markets, auctions, reward loops, and resource systems.
 
-Every Riptide bundle layers six declarative surfaces on top of your program:
+## The Operating Model
 
-1. **Adapter** — one TOML file declaring your program, its actions, its observations, and its invariants.
-2. **Personas** — TOML files describing agent behavior with a trigger DSL (`player.gold < 100 → craft`).
-3. **Scenarios** — engine shocks (oracle trajectories, scheduled actions) mounted from declarative TOML presets.
-4. **Parameters** — run-config knobs that sweep over the dimensions that matter (whale share, shock magnitude, trade size, leverage, depositor concentration).
-5. **Failure-mode taxonomy** — categories like `whale_concentration`, `margin_cascade_from_oracle_shock`, `price_manipulation_via_swap`, `impermanent_loss_spike`. The `riptide-scenarios` skill matches your adapter's shape against this taxonomy.
-6. **Invariants** — machine-checkable properties (`no_bad_debt`, `reserve_a > 0`, `k == reserve_a * reserve_b` within tolerance) declared inline in the adapter. The engine exits non-zero when any invariant fires, so invariants double as CI gates.
+Riptide keeps the experiment in plain files:
 
-Three shipping bundles — **lending** (Solend fork), **perps** (perps-lite), and **AMM** (constant-product x*y=k) — exercise every layer end-to-end.
+1. **Adapter**: how to call and observe the program.
+2. **Personas**: how agents behave.
+3. **Scenario**: what market or system pressure is applied.
+4. **Parameters**: which dimensions are swept.
+5. **Invariants**: what must stay true.
+6. **Evidence pack**: what a reviewer can rerun.
 
-## Runtime posture — LiteSVM by default
+The engine runs those files against the real BPF program in LiteSVM and emits deterministic artifacts: JSON results, dashboard data, markdown traces, and canonical hashes.
 
-The engine runs on **LiteSVM** (in-process SVM). For the same `100 agents × 180 ticks` workload, LiteSVM completes in **0.898s** end-to-end; `solana-test-validator` with `--bpf-program` preload and warm caches takes **901.461s** (measured 2026-04-12). That is roughly a **~900x speedup**, entirely from RPC and confirmation overhead removal — both paths execute the same `lending_pool.so` BPF program logic.
+## What Riptide Is Not
 
-LiteSVM does not model full validator behavior (gossip, vote, PoH). The speedup is infrastructure overhead removal, not a program-level optimization. `solana-test-validator` is still the correct environment for validator-level parity checks, and the parity test at `engine/tests/lending_integration.rs` stays gated on `RIPTIDE_RUN_VALIDATOR_TESTS=1` as the diagnostic reference path. LiteSVM is the default runtime; the validator path is diagnostic only.
+- Not a validator replacement: LiteSVM does not model gossip, voting, PoH, or consensus behavior.
+- Not an audit replacement: it produces evidence for declared simulations, not a security certification.
+- Not a fuzzer: it runs bounded experiments you declare instead of generating arbitrary inputs.
+- Not a prediction engine: it maps modeled regions; it does not forecast mainnet.
 
-## Determinism
+## Where To Read Next
 
-Same seed = same result, byte-for-byte, across the lending, perps, AMM, and generic fixtures. The `e2e_determinism` integration test enforces this on every run, and replay mode extends the same guarantee to historical trajectories.
-
-## Deeper docs
-
-- [`docs/vision.md`](docs/vision.md) — extended stance, what Riptide is explicitly not, adversarial-review posture.
-- [`docs/architecture.md`](docs/architecture.md) — the six-layer stack, LiteSVM caveats, adapter pipeline.
-- [`docs/install.md`](docs/install.md) — hands-on setup, Docker, from-source, upgrade path.
+- [README](README.md) for the project tour and quick start.
+- [Architecture](docs/architecture.md) for the engine model and determinism contract.
+- [Solend-fork case study](docs/case-studies/lending.md) for the canonical parameter-region example.
