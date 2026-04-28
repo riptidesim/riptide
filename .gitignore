@@ -21,6 +21,7 @@
 .riptide/run-collection.json
 .riptide/runs/
 .riptide/pack/
+fixtures/replays/*/.riptide/pack/
 
 # Replay engine build artifacts — re-generated on every `riptide replay` run
 fixtures/replays/*/riptide-output/
