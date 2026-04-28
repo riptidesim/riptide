@@ -345,6 +345,64 @@ fn semantics_collection_tick_path_materializes_multiple_reserve_contexts() {
     }));
 }
 
+#[test]
+fn semantics_collection_empty_runtime_collection_does_not_abort_expression_invariant() {
+    let adapter = parse_adapter_str(
+        RUNTIME_RESERVES_DEMO,
+        "collection-runtime-empty-reserves-demo.toml",
+    )
+    .unwrap();
+    let cfg = RunConfig {
+        agents: 1,
+        ticks: 0,
+        scenario: "baseline".into(),
+        seed: 21,
+        personas: vec!["collector".into()],
+        validator_url: "unused".into(),
+        output_path: "unused".into(),
+    };
+    let policy = Policy {
+        persona_id: "collector".into(),
+        persona_label: "collector".into(),
+        action_rate_multiplier: 1.0,
+        risk_tolerance: 0.5,
+        action_weights: BTreeMap::new(),
+        triggers: Vec::new(),
+        position_sizing: PositionSizing {
+            strategy: PositionSizingStrategy::Fixed,
+            params: BTreeMap::new(),
+        },
+        max_exposure: 1.0,
+        persona_args: BTreeMap::new(),
+    };
+    let mut harness =
+        MockHarness::new(1, 100.0).with_semantic_collection_contexts("reserves", Vec::new());
+    let mut scenario = riptide_engine::scenario::BaselineScenario::new(100.0, 0);
+    let params = SimulationParams {
+        run_config: &cfg,
+        policies: vec![policy],
+        agent_personas: vec![0],
+        available_actions: LENDING_RUNTIME_ACTIONS.to_vec(),
+        starting_balance: 10_000.0,
+        starting_price: 100.0,
+        simulation_boundaries: vec!["empty collection semantics runtime".into()],
+        invariants: adapter.invariants.clone(),
+        scheduled_actions: Vec::new(),
+        semantics: adapter.semantics.clone(),
+        errors: Vec::new(),
+    };
+
+    let result = run_simulation(&mut harness, &mut scenario, params).unwrap();
+    let sentinel = &result.timeseries[0]["collection_observations"]["worst_health_factor"];
+    assert_eq!(sentinel["evaluation_error"][0]["type"], "EmptyCollection");
+    let fire = result
+        .events
+        .iter()
+        .find(|event| event.action == "expression_invariant_fire:runtime_collection_health_guard")
+        .expect("empty collection sentinel should keep expression invariant evaluation alive");
+    assert_eq!(fire.params["observed"]["collection.worst_health_factor"], 0);
+}
+
 fn reserve_context(
     liquidity: u128,
     health_factor: u128,

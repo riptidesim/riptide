@@ -316,6 +316,18 @@ function lintRelativePath(findings: LintFinding[], subject: string, value: strin
       `path \`${value}\` must be relative to the adapter or replay fixture root.`,
       "Replace the absolute path with a relative replay pack path."
     );
+    return;
+  }
+
+  const pathSegments = value.split(/[\\/]+/u);
+  if (pathSegments.some((segment) => segment === "." || segment === "..")) {
+    fail(
+      findings,
+      "semantics-replay-invalid-pack-path",
+      subject,
+      `path \`${value}\` must be normalized and free of path traversal components.`,
+      "Use a relative replay pack path containing only normal path components."
+    );
   }
 }
 

@@ -1368,6 +1368,12 @@ where
             }
             Err(error @ CollectionEvaluationError::EmptyCollection { .. }) => {
                 out.insert(name.clone(), collection_error_sentinel_json(&error));
+                if let CollectionEvaluationError::EmptyCollection { sentinel, .. } = &error {
+                    expression_context.insert(
+                        format!("collection.{name}"),
+                        sentinel.value_kind.empty_sentinel_value(),
+                    );
+                }
             }
             Err(error) => return Err(SimulationAbort::BadInput(error.to_string())),
         }

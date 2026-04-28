@@ -609,6 +609,17 @@ test("lintAdapter: semantics replay validates relative pack_path and role bindin
   assert.ok(codes.includes("semantics-replay-invalid-pubkey"));
 });
 
+test("lintAdapter: semantics replay rejects path traversal in pack_path", async () => {
+  const semantics = cloneBreadthSemantics();
+  semantics.replay!.pack_path = "../escape";
+
+  const report = await lintBreadthSemantics(semantics);
+  const codes = findingCodes(report.findings);
+
+  assert.equal(report.exitCode, 2);
+  assert.ok(codes.includes("semantics-replay-invalid-pack-path"));
+});
+
 test("lintAdapter: semantics mainnet-rpc replay is WARN, not FAIL", async () => {
   const semantics = cloneBreadthSemantics();
   semantics.replay!.state_source = "mainnet-rpc";

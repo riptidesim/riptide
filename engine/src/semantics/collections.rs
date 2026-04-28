@@ -33,6 +33,14 @@ impl CollectionValueKind {
         }
     }
 
+    pub fn empty_sentinel_value(self) -> Value {
+        match self {
+            Self::U128 | Self::Unknown => Value::U128(0),
+            Self::I128 => Value::I128(0),
+            Self::Bool => Value::Bool(false),
+        }
+    }
+
     pub fn from_value(value: Value) -> Self {
         match value {
             Value::U128(_) => Self::U128,
