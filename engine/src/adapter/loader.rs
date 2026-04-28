@@ -106,6 +106,11 @@ pub enum AdapterError {
         key: String,
         formula: String,
     },
+    UnknownCollectionRole {
+        path: String,
+        key: String,
+        role: String,
+    },
     CollectionExpressionParse {
         path: String,
         key: String,
@@ -256,6 +261,13 @@ impl fmt::Display for AdapterError {
                 escape_diagnostic(key),
                 escape_diagnostic(formula)
             ),
+            Self::UnknownCollectionRole { path, key, role } => write!(
+                f,
+                "{}: `{}`: UnknownCollectionRole({}); `over` must reference a declared semantic role, or one of `reserves`, `markets`, `positions` whose singular role is declared",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(role)
+            ),
             Self::CollectionExpressionParse { path, key, source } => write!(
                 f,
                 "{}: `{}`: CollectionExpressionParse: {}",
@@ -327,6 +339,7 @@ impl std::error::Error for AdapterError {
             | Self::MultiOracleArityMismatch { .. }
             | Self::MultiOracleWeightsAllZero { .. }
             | Self::UnknownCollectionFormula { .. }
+            | Self::UnknownCollectionRole { .. }
             | Self::UnknownReplayStateSource { .. }
             | Self::MainnetRpcNotImplemented { .. }
             | Self::MissingReplayPackPath { .. } => None,
@@ -805,6 +818,13 @@ fn validate_semantics_collections(
             &format!("[semantics.collections].{name}.over"),
             &collection.over,
         )?;
+        if !is_known_collection_over(&semantics.roles, &collection.over) {
+            return Err(AdapterError::UnknownCollectionRole {
+                path: path.to_string(),
+                key: format!("[semantics.collections].{name}.over"),
+                role: collection.over.clone(),
+            });
+        }
         let formula = CollectionFormula::parse(&collection.formula).ok_or_else(|| {
             AdapterError::UnknownCollectionFormula {
                 path: path.to_string(),
@@ -824,6 +844,28 @@ fn validate_semantics_collections(
         collection.expr_ast = Some(ast);
     }
     Ok(())
+}
+
+fn is_known_collection_over(
+    roles: &std::collections::BTreeMap<String, crate::adapter::schema::SemanticRole>,
+    over: &str,
+) -> bool {
+    if roles.contains_key(over) {
+        return true;
+    }
+    let Some(singular) = collection_plural_alias(over) else {
+        return false;
+    };
+    roles.contains_key(singular)
+}
+
+fn collection_plural_alias(over: &str) -> Option<&'static str> {
+    match over {
+        "reserves" => Some("reserve"),
+        "markets" => Some("market"),
+        "positions" => Some("position"),
+        _ => None,
+    }
 }
 
 fn validate_semantics_replay(

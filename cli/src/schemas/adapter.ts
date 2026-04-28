@@ -564,6 +564,11 @@ function validateSemantics(adapter: Adapter, path: string): void {
   for (const [name, collection] of Object.entries(semantics.collections)) {
     checkSemanticName(path, `[semantics.collections].${name}`, name);
     checkSemanticName(path, `[semantics.collections].${name}.over`, collection.over);
+    if (!isKnownCollectionOver(semantics, collection.over)) {
+      throw new Error(
+        `${path}: \`[semantics.collections].${escapeDiagnostic(name)}.over\`: UnknownCollectionRole(${escapeDiagnostic(collection.over)}); \`over\` must reference a declared semantic role, or one of \`reserves\`, \`markets\`, \`positions\` whose singular role is declared`
+      );
+    }
     if (!COLLECTION_FORMULAS.includes(collection.formula as (typeof COLLECTION_FORMULAS)[number])) {
       throw new Error(
         `${path}: \`[semantics.collections].${escapeDiagnostic(name)}.formula\`: UnknownCollectionFormula(${escapeDiagnostic(collection.formula)}); expected one of \`sum\`, \`min\`, \`max\`, \`worst\``
@@ -600,6 +605,25 @@ function validateSemantics(adapter: Adapter, path: string): void {
       }
       validatePubkeyString(path, `[semantics.replay.roles].${role}`, "account pubkey", account);
     }
+  }
+}
+
+function isKnownCollectionOver(semantics: Semantics, over: string): boolean {
+  if (over in semantics.roles) return true;
+  const singular = collectionPluralAlias(over);
+  return singular !== null && singular in semantics.roles;
+}
+
+function collectionPluralAlias(over: string): string | null {
+  switch (over) {
+    case "reserves":
+      return "reserve";
+    case "markets":
+      return "market";
+    case "positions":
+      return "position";
+    default:
+      return null;
   }
 }
 
@@ -642,9 +666,10 @@ function checkSemanticName(path: string, key: string, value: string): void {
 }
 
 function validatePubkeyString(path: string, key: string, label: string, value: string): void {
-  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) {
+  const reason = base58PubkeyError(value);
+  if (reason !== null) {
     throw new Error(
-      `${path}: \`${escapeDiagnostic(key)}\`: ${label} \`${escapeDiagnostic(value)}\` is not a valid base58-encoded 32-byte pubkey`
+      `${path}: \`${escapeDiagnostic(key)}\`: ${label} \`${escapeDiagnostic(value)}\` is not a valid base58-encoded 32-byte pubkey: ${reason}`
     );
   }
 }

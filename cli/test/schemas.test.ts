@@ -75,6 +75,14 @@ test("schemas: malformed semantics breadth blocks have typed diagnostics", async
   assert.throws(
     () =>
       validateAdapter(
+        TOML.parse(raw.replace("over = \"reserves\"", "over = \"vaults\"")),
+        "bad-collection-role.toml"
+      ),
+    /UnknownCollectionRole/
+  );
+  assert.throws(
+    () =>
+      validateAdapter(
         TOML.parse(raw.replace("state_source = \"fixture\"", "state_source = \"archive\"")),
         "bad-replay-source.toml"
       ),
@@ -95,5 +103,18 @@ test("schemas: malformed semantics breadth blocks have typed diagnostics", async
         "zero-weights.toml"
       ),
     /MultiOracleWeightsAllZero/
+  );
+  assert.throws(
+    () =>
+      validateAdapter(
+        TOML.parse(
+          raw.replace(
+            'program_id = "11111111111111111111111111111111"',
+            'program_id = "22222222222222222222222222222222"'
+          )
+        ),
+        "bad-pubkey.toml"
+      ),
+    /decoded to .* bytes/
   );
 });

@@ -84,6 +84,13 @@ fn semantics_breadth_parser_rejects_unknown_collection_formula() {
 }
 
 #[test]
+fn semantics_breadth_parser_rejects_unknown_collection_role() {
+    let toml = DEMO.replace("over = \"reserves\"", "over = \"vaults\"");
+    let err = parse_adapter_str(&toml, "semantics-bad-collection-role.toml").unwrap_err();
+    assert!(matches!(err, AdapterError::UnknownCollectionRole { .. }));
+}
+
+#[test]
 fn semantics_breadth_parser_rejects_collection_expression_parse_error() {
     let toml = DEMO.replace(
         "expr = \"collateral_value / max(debt_value, 1)\"",
@@ -94,6 +101,20 @@ fn semantics_breadth_parser_rejects_collection_expression_parse_error() {
         err,
         AdapterError::CollectionExpressionParse { .. }
     ));
+}
+
+#[test]
+fn semantics_breadth_parser_rejects_invalid_oracle_pubkey() {
+    let toml = DEMO.replace(
+        "program_id = \"11111111111111111111111111111111\"",
+        "program_id = \"22222222222222222222222222222222\"",
+    );
+    let err = parse_adapter_str(&toml, "semantics-bad-pubkey.toml").unwrap_err();
+    let AdapterError::Validation { key, reason, .. } = err else {
+        panic!("expected pubkey validation error");
+    };
+    assert!(key.contains("program_id"));
+    assert!(reason.contains("base58-encoded 32-byte pubkey"));
 }
 
 #[test]
