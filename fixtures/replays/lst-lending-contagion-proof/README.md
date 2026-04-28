@@ -212,6 +212,6 @@ exact canonicalization.
   geometry is tuned so the bridged oracle crosses the lending
   liquidation-threshold boundary cleanly.
 
-Evidence of this kind is **simulation evidence**, not audit signoff.
+Evidence of this kind is **simulation evidence** with explicit boundaries.
 It belongs in design reviews, stress-testing rounds, and deployment
 gates — not in lieu of an audit.

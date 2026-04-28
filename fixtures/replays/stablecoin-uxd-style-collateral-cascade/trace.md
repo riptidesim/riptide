@@ -1,6 +1,6 @@
 # Technical trace — `replay:stablecoin-uxd-style-collateral-cascade`
 
-> Simulation evidence — not audit signoff.
+> Simulation evidence with explicit boundaries.
 
 - **Adapter:** `fixtures/replays/stablecoin-uxd-style-collateral-cascade/adapter.toml`
 - **Kind:** `replay`
@@ -59,4 +59,4 @@ Scope: invariant firings, bridge firings, scheduled actions, oracle writes.
 | 6 | `pool.effective_collateral_ratio_bps` | 5333.0 |
 | 6 | `pool.pending_redemption_count` | 3.0 |
 
-_Simulation evidence — not audit signoff._
+_Simulation evidence with explicit boundaries._

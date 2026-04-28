@@ -1,6 +1,6 @@
 # Run summary — `replay:liquid-staking-depeg-redemption-run`
 
-> Simulation evidence — not audit signoff.
+> Simulation evidence with explicit boundaries.
 
 - **Adapter:** `fixtures/replays/liquid-staking-depeg-redemption-run/adapter.toml`
 - **Scenario:** `replay` · `replay:liquid-staking-depeg-redemption-run` · ticks=6 · agents=6
@@ -9,4 +9,4 @@
 - **Invariants:** 2 declared · 7 firing(s) — `no_slash_during_healthy_run`×4 (tick 3), `no_queue_formation`×3 (tick 4)
 - **Machine-readable index:** `manifest.json` · trace in `trace.md` · rerun recipe in `rerun.sh`
 
-_Simulation evidence — not audit signoff._
+_Simulation evidence with explicit boundaries._

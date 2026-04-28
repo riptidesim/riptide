@@ -1,6 +1,6 @@
 # Run summary — `replay:lending-whale-bad-debt`
 
-> Simulation evidence — not audit signoff.
+> Simulation evidence with explicit boundaries.
 
 - **Adapter:** `fixtures/replays/lending-whale-bad-debt/adapter.toml`
 - **Scenario:** `replay` · `replay:lending-whale-bad-debt` · ticks=4 · agents=10
@@ -9,4 +9,4 @@
 - **Invariants:** 1 declared · 1 firing(s) — `no_bad_debt`×1 (tick 4)
 - **Machine-readable index:** `manifest.json` · trace in `trace.md` · rerun recipe in `rerun.sh`
 
-_Simulation evidence — not audit signoff._
+_Simulation evidence with explicit boundaries._

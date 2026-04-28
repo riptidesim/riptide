@@ -156,7 +156,7 @@ R1.2 depeg claim.
 
 ## Honesty framing
 
-Simulation evidence is not audit signoff. This fixture proves the
+Simulation evidence has explicit boundaries. This fixture proves the
 in-program accounting is internally consistent under a
 pro-rata-senior queue model; it does not certify that any real LST
 protocol models slashes the same way. Production LSTs (Kelp / rsETH

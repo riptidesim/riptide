@@ -25,7 +25,7 @@ geometry against the shipped `liquid-staking` bundle. It is NOT:
 It IS a discrete, rerunnable, machine-checkable pressure replay of a
 **single-program** depeg + queue-formation geometry that can be shown
 to auditors, engineers, and launch-stage founders as *simulation
-evidence* — distinct from audit signoff.
+evidence* — distinct from broad review result.
 
 ## Load-bearing claim
 
@@ -162,7 +162,7 @@ README for the full write-up.
 
 ## Honesty framing
 
-Simulation evidence is not audit signoff. A rerunnable invariant
+Simulation evidence has explicit boundaries. A rerunnable invariant
 firing at a named tick is stronger than a hand-waved "stress test",
 but weaker than a formal proof or a mainnet post-mortem. Treat this
 artifact as a starting point for a conversation with an auditor or

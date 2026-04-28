@@ -1,6 +1,6 @@
 # Technical trace — `replay:lending-whale-bad-debt`
 
-> Simulation evidence — not audit signoff.
+> Simulation evidence with explicit boundaries.
 
 - **Adapter:** `fixtures/replays/lending-whale-bad-debt/adapter.toml`
 - **Kind:** `replay`
@@ -27,4 +27,4 @@ Scope: invariant firings, bridge firings, scheduled actions, oracle writes.
 | Tick | Key | Value |
 |-----:|-----|------:|
 
-_Simulation evidence — not audit signoff._
+_Simulation evidence with explicit boundaries._

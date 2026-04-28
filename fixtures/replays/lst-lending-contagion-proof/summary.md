@@ -1,6 +1,6 @@
 # Run summary — `replay:multi:lst-lending-contagion-proof-upstream`
 
-> Simulation evidence — not audit signoff.
+> Simulation evidence with explicit boundaries.
 
 - **Adapter:** `multi-component replay (liquid_staking × lending)`
 - **Scenario:** `replay-multi` · `replay:multi:lst-lending-contagion-proof-upstream` · ticks=4 · agents=16
@@ -9,4 +9,4 @@
 - **Invariants:** 3 declared · 3 firing(s) — `liquid_staking:no_slash_during_healthy_run`×2 (tick 3), `lending:no_bad_debt`×1 (tick 4)
 - **Machine-readable index:** `manifest.json` · trace in `trace.md` · rerun recipe in `rerun.sh`
 
-_Simulation evidence — not audit signoff._
+_Simulation evidence with explicit boundaries._

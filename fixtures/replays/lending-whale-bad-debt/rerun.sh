@@ -1,7 +1,7 @@
 #!/bin/sh
 # Riptide — reviewer-ready rerun recipe.
 #
-# Simulation evidence — not audit signoff.
+# Simulation evidence with explicit boundaries.
 # Regenerates the accompanying simulation-result.json from committed inputs.
 # Expects to be run from this file's directory or anywhere; it cds to the pack
 # root and then executes the documented invocation. POSIX sh only — no bashisms.

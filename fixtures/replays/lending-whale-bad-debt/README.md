@@ -110,7 +110,7 @@ cargo test -p riptide-engine --release --features litesvm-backend \
 
 ## Honesty framing
 
-Simulation evidence is not audit signoff. A rerunnable invariant
+Simulation evidence has explicit boundaries. A rerunnable invariant
 firing at a named tick on a minimal fork is stronger than a
 hand-waved "stress test", but weaker than a formal proof or a
 mainnet post-mortem. The fixture names the *shape* of the failure

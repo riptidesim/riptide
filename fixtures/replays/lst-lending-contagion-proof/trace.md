@@ -1,6 +1,6 @@
 # Technical trace — `replay:multi:lst-lending-contagion-proof-upstream`
 
-> Simulation evidence — not audit signoff.
+> Simulation evidence with explicit boundaries.
 
 - **Adapter:** `multi-component replay (liquid_staking × lending)`
 - **Kind:** `replay-multi`
@@ -39,4 +39,4 @@ Scope: invariant firings, bridge firings, scheduled actions, oracle writes.
 | 4 | `lending.pool.bad_debt` | 3600.0 |
 | 4 | `liquid_staking.pool.cumulative_slashed` | 4000.0 |
 
-_Simulation evidence — not audit signoff._
+_Simulation evidence with explicit boundaries._
