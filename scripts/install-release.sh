@@ -7,6 +7,7 @@
 # This installs prebuilt release bundles. It deliberately does not build
 # from source and does not require Rust, npm, or cargo-build-sbf on the
 # end-user machine. Keep ./install.sh as the source-checkout installer.
+# Windows uses scripts/install-release.ps1 instead.
 
 set -eu
 
@@ -97,8 +98,14 @@ detect_target() {
     Linux:x86_64|Linux:amd64)
       printf '%s\n' "x86_64-unknown-linux-gnu"
       ;;
+    Darwin:x86_64|Darwin:amd64)
+      printf '%s\n' "x86_64-apple-darwin"
+      ;;
+    Darwin:arm64|Darwin:aarch64)
+      printf '%s\n' "aarch64-apple-darwin"
+      ;;
     *)
-      die "no prebuilt Riptide release bundle for $os/$arch yet. Supported: Linux x86_64. Use the source installer: git clone https://github.com/$REPO && cd riptide && ./install.sh"
+      die "no prebuilt Riptide release bundle for $os/$arch yet. Supported: Linux x86_64, macOS x86_64, macOS arm64. Windows uses: irm https://riptide.run/install.ps1 | iex"
       ;;
   esac
 }

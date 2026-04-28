@@ -192,7 +192,7 @@ STABLECOIN_SO_PATH="$REPO_ROOT/programs/stablecoin/target/deploy/stablecoin.so"
 
 # ---------- Step 4: npm install ----------
 banner "installing CLI dependencies (npm install --ignore-scripts)"
-# Source installs build the engine locally in Step 2. The CLI's
+# Repository builds build the engine locally in Step 2. The CLI's
 # postinstall hook is only for published npm installs, where it fetches
 # a prebuilt engine from GitHub Releases. Skip it here so pre-release
 # source checkouts do not try to download a not-yet-cut release asset.

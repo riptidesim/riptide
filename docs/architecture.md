@@ -168,7 +168,7 @@ an authored declaration, not a machine-verified coverage claim.
 ## Further reading
 
 - [`vision.md`](vision.md) — why this shape, what's in scope, what isn't.
-- [`install.md`](install.md) — the install, Docker, and from-source paths.
+- [`install.md`](install.md) — the installer, Docker, and repository build paths.
 - [`pack.md`](pack.md) — the reviewer-ready evidence pack shape.
 - [`ci-handoff.md`](ci-handoff.md) — the cold-start CI handoff recipe and downstream template.
 - [`adapter-lineage.md`](adapter-lineage.md) — the optional `[lineage]` block and the `riptide lineage` inspection command.

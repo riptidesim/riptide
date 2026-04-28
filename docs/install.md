@@ -1,16 +1,24 @@
 # Install
 
-**Supported path:** Linux. macOS may work from source but is not validated. Windows is out of scope today.
+**Supported path:** use the hosted installer for Linux x86_64, macOS Intel/Apple Silicon, or Windows x64.
 
-Riptide currently installs from a source checkout or a local Docker build. The public release installer, GHCR image, crates.io package, and npm package are prepared in repo tooling but not published yet.
+The hosted installer downloads a prebuilt bundle for the current platform. A repository checkout and local Docker build are available for Riptide development or unreleased changes.
 
 ## Release Install
+
+Linux and macOS:
 
 ```bash
 curl -fsSL https://riptide.run/install | sh
 ```
 
-This is the intended public path once the first GitHub Release assets are cut. The installer script lives at [`../scripts/install-release.sh`](../scripts/install-release.sh): it downloads a prebuilt bundle for the current platform, verifies the bundle `.sha256`, unpacks it under `$XDG_DATA_HOME/riptide/current` or `$HOME/.local/share/riptide/current`, and writes a `riptide` launcher to `$HOME/.local/bin`.
+Windows PowerShell:
+
+```powershell
+irm https://riptide.run/install.ps1 | iex
+```
+
+The POSIX installer script lives at [`../scripts/install-release.sh`](../scripts/install-release.sh), and the Windows installer lives at [`../scripts/install-release.ps1`](../scripts/install-release.ps1). They download a prebuilt bundle for the current platform, verify the bundle `.sha256`, unpack it under the user's local app/data directory, and write a `riptide` launcher to the configured bin directory.
 
 The release bundle does not require Rust, Node.js, npm, Solana CLI, or `cargo-build-sbf` on the user's machine. It carries the compiled TypeScript CLI, pinned Node runtime, native `riptide-engine` binary, fixtures, examples, shipped `.so` artifacts, and generated fixture deploy keypairs required by owner-aware shipped adapters.
 
@@ -22,18 +30,24 @@ curl -fsSL https://riptide.run/install | sh -s -- --bin-dir "$HOME/bin"
 curl -fsSL https://riptide.run/install | sh -s -- --dry-run
 ```
 
-Release bundles are produced by [`../scripts/package-release.sh`](../scripts/package-release.sh). The first Linux x86_64 artifact contract is:
+Release bundles are produced by [`../scripts/package-release.sh`](../scripts/package-release.sh). The release artifact contract is:
 
 ```text
 riptide-x86_64-unknown-linux-gnu.tar.gz
 riptide-x86_64-unknown-linux-gnu.tar.gz.sha256
+riptide-x86_64-apple-darwin.tar.gz
+riptide-x86_64-apple-darwin.tar.gz.sha256
+riptide-aarch64-apple-darwin.tar.gz
+riptide-aarch64-apple-darwin.tar.gz.sha256
+riptide-x86_64-pc-windows-msvc.zip
+riptide-x86_64-pc-windows-msvc.zip.sha256
 ```
 
-Those files should be attached to the matching GitHub Release tag. Until that happens, use the source install or Docker path below.
+Those files must be attached to the matching GitHub Release tag for the hosted command to install that version. Use the repository checkout or Docker path below for unreleased changes.
 
 ## Prerequisites
 
-Required on your `PATH` for source installs:
+Required on your `PATH` for repository builds:
 
 - Rust and Cargo
 - Node.js and npm
@@ -41,7 +55,7 @@ Required on your `PATH` for source installs:
 
 The pinned versions live in [TOOLCHAIN.md](../TOOLCHAIN.md). `./install.sh` checks for the tools and prints fix-it hints if any are missing; it does not install toolchains or run `sudo`.
 
-## Source Install
+## Build From Repository
 
 ```bash
 git clone https://github.com/riptidesim/riptide
@@ -137,16 +151,29 @@ When [TOOLCHAIN.md](../TOOLCHAIN.md) changes, update the host toolchain first, t
 
 ## Distribution Status
 
-The intended future paths are:
+Hosted installer paths:
+
+Linux and macOS:
 
 ```bash
 curl -fsSL https://riptide.run/install | sh
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://riptide.run/install.ps1 | iex
+```
+
+Package and image paths:
+
+```bash
 npm install -g @riptide/cli
 cargo install riptide-engine
 docker pull ghcr.io/riptidesim/riptide
 ```
 
-Those public artifacts are not live yet. Until a release is cut, avoid the curl installer and `npm install -g @riptide/cli`; both expect GitHub Release assets that do not exist yet.
+The curl and PowerShell commands expect matching GitHub Release assets for the requested version. GHCR, crates.io, and npm publication remain separate distribution paths.
 
 ## Further Reading
 

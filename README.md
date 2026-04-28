@@ -60,19 +60,30 @@ Shipping bundles cover lending, perpetuals, AMMs, liquid staking, stablecoins, a
 
 ## Get Started
 
-Linux is the supported path today. The public release installer is wired in repo tooling for the first release bundle; until release assets are published, use the source checkout or local Docker path.
+Use the hosted installer for the shortest path. It downloads a prebuilt bundle
+for Linux x86_64, macOS Intel/Apple Silicon, or Windows x64.
 
 ```bash
-# Public release path, once the first release is cut:
+# Install on Linux or macOS:
 curl -fsSL https://riptide.run/install | sh
+```
 
-# Source install today:
+```powershell
+# Install on Windows PowerShell:
+irm https://riptide.run/install.ps1 | iex
+```
+
+```bash
+# Build from repository when developing Riptide itself:
 git clone https://github.com/riptidesim/riptide
 cd riptide
 ./install.sh
 ```
 
-The release installer downloads a prebuilt bundle and does not require Rust, Node.js, npm, Solana CLI, or `cargo-build-sbf`. The source installer builds the Rust engine, TypeScript CLI, shipped SBF programs used by the smoke tests, and a `riptide` launcher under `$HOME/.local/bin`.
+The hosted installer does not require Rust, Node.js, npm, Solana CLI, or
+`cargo-build-sbf`. The repository installer builds the Rust engine, TypeScript
+CLI, shipped SBF programs used by the smoke tests, and a `riptide` launcher
+under `$HOME/.local/bin`.
 
 ```bash
 riptide doctor
@@ -87,7 +98,10 @@ docker run --rm riptide run lending/whale-shock-grid
 ```
 
 > [!NOTE]
-> Public distribution, including the `riptide.run/install` curl installer, GHCR, crates.io, and npm packages, is prepared but not published yet. Until release assets are cut, use `./install.sh` or the local Docker build. See [Install](docs/install.md) for the full setup and upgrade path.
+> The hosted installer expects matching GitHub Release assets for the requested
+> version. If you are testing unreleased changes, use `./install.sh` from a
+> checkout or the local Docker build. See [Install](docs/install.md) for the
+> full setup and upgrade path.
 
 ## Wire Your Program
 
@@ -184,7 +198,7 @@ Read [Evidence packs](docs/pack.md) and [CI handoff](docs/ci-handoff.md) for the
 
 | Start here | When you need... |
 | --- | --- |
-| [Install](docs/install.md) | Supported setup, Docker, from-source commands, and upgrades. |
+| [Install](docs/install.md) | Supported setup, Docker, repository build commands, and upgrades. |
 | [Architecture](docs/architecture.md) | The six-layer model, LiteSVM caveats, determinism, and adapter pipeline. |
 | [Vision](docs/vision.md) | The lab-not-oracle stance and what Riptide explicitly does not claim. |
 | [Solend-fork case study](docs/case-studies/lending.md) | The whale-share × shock grid and the load-bearing example. |

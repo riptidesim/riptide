@@ -6,7 +6,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 
 | Read | Use it for |
 | --- | --- |
-| [Install](install.md) | Release path, source install, Docker, manual rebuilds, and upgrade notes. |
+| [Install](install.md) | Hosted installer, repository build path, Docker, manual rebuilds, and upgrade notes. |
 | [Architecture](architecture.md) | Understand the adapter/persona/scenario stack, LiteSVM runtime, determinism, and dashboard artifacts. |
 | [Vision](vision.md) | Understand the lab-not-oracle stance, what Riptide claims, and what it explicitly does not claim. |
 | [Solend-fork case study](case-studies/lending.md) | See the whale-share × price-shock grid that anchors the main product story. |

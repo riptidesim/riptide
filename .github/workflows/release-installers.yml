@@ -1,0 +1,43 @@
+name: Release installer smoke
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/release-installers.yml"
+      - "README.md"
+      - "docs/install.md"
+      - "scripts/install-release.sh"
+      - "scripts/install-release.ps1"
+      - "scripts/package-release.sh"
+      - "scripts/test-release-installers.sh"
+  workflow_dispatch:
+
+jobs:
+  posix:
+    name: POSIX installer scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh -n scripts/install-release.sh
+      - run: bash -n scripts/package-release.sh
+      - run: bash -n scripts/test-release-installers.sh
+      - run: bash scripts/test-release-installers.sh
+
+  windows:
+    name: Windows installer dry-run
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell installer
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("scripts/install-release.ps1", [ref]$null, [ref]$errors) > $null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List | Out-String | Write-Error
+            exit 1
+          }
+      - name: Dry-run PowerShell installer
+        shell: pwsh
+        run: |
+          ./scripts/install-release.ps1 -DryRun -ReleaseBaseUrl "https://example.test/releases"

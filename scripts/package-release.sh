@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Build the release tarball consumed by scripts/install-release.sh.
+# Build the release archive consumed by scripts/install-release.sh and
+# scripts/install-release.ps1.
 #
 # Output contract for each supported target:
 #   dist/riptide-<target-triple>.tar.gz
 #   dist/riptide-<target-triple>.tar.gz.sha256
+#   dist/riptide-<target-triple>.zip
+#   dist/riptide-<target-triple>.zip.sha256
 #
-# The tarball includes a bundled Node runtime, the compiled TypeScript
+# The archive includes a bundled Node runtime, the compiled TypeScript
 # CLI with production npm dependencies, the native engine, shipped
 # fixtures/examples, and the shipped program .so files plus their
 # fixture deploy keypairs. End users who install this bundle do not need
@@ -19,7 +22,7 @@ cd "$ROOT"
 OUT_DIR="${RIPTIDE_RELEASE_OUT_DIR:-$ROOT/dist}"
 TARGET="${RIPTIDE_TARGET:-x86_64-unknown-linux-gnu}"
 NODE_VERSION="${RIPTIDE_NODE_VERSION:-24.11.1}"
-NODE_SHA256="${RIPTIDE_NODE_SHA256:-60e3b0a8500819514aca603487c254298cd776de0698d3cd08f11dba5b8289a8}"
+NODE_SHA256="${RIPTIDE_NODE_SHA256:-}"
 SKIP_BUILDS=0
 SKIP_SBF=0
 
@@ -31,6 +34,9 @@ Usage:
 Options:
   --target <triple>   Target triple. Currently supported:
                       x86_64-unknown-linux-gnu
+                      x86_64-apple-darwin
+                      aarch64-apple-darwin
+                      x86_64-pc-windows-msvc
   --out-dir <dir>     Output directory. Defaults to ./dist.
   --skip-builds       Reuse existing engine/CLI build outputs.
   --skip-sbf          Reuse existing shipped program .so files.
@@ -69,11 +75,43 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-if [ "$TARGET" != "x86_64-unknown-linux-gnu" ]; then
-  echo "unsupported target: $TARGET" >&2
-  echo "supported targets: x86_64-unknown-linux-gnu" >&2
-  exit 1
-fi
+case "$TARGET" in
+  x86_64-unknown-linux-gnu)
+    NODE_PLATFORM="linux-x64"
+    DEFAULT_NODE_SHA256="60e3b0a8500819514aca603487c254298cd776de0698d3cd08f11dba5b8289a8"
+    NODE_ARCHIVE_EXT="tar.xz"
+    RELEASE_ARCHIVE_EXT="tar.gz"
+    ENGINE_BIN="riptide-engine"
+    ;;
+  x86_64-apple-darwin)
+    NODE_PLATFORM="darwin-x64"
+    DEFAULT_NODE_SHA256="3793aa4aa52eb1f464d7848cd4e254880d9abca989c7cdc79a32c51bfeec1806"
+    NODE_ARCHIVE_EXT="tar.xz"
+    RELEASE_ARCHIVE_EXT="tar.gz"
+    ENGINE_BIN="riptide-engine"
+    ;;
+  aarch64-apple-darwin)
+    NODE_PLATFORM="darwin-arm64"
+    DEFAULT_NODE_SHA256="064b017da9efd6b5d2bd0fadd56d3b8a50fcb369af3ccf91102c7a07a6cf4deb"
+    NODE_ARCHIVE_EXT="tar.xz"
+    RELEASE_ARCHIVE_EXT="tar.gz"
+    ENGINE_BIN="riptide-engine"
+    ;;
+  x86_64-pc-windows-msvc)
+    NODE_PLATFORM="win-x64"
+    DEFAULT_NODE_SHA256="5355ae6d7c49eddcfde7d34ac3486820600a831bf81dc3bdca5c8db6a9bb0e76"
+    NODE_ARCHIVE_EXT="zip"
+    RELEASE_ARCHIVE_EXT="zip"
+    ENGINE_BIN="riptide-engine.exe"
+    ;;
+  *)
+    echo "unsupported target: $TARGET" >&2
+    echo "supported targets: x86_64-unknown-linux-gnu, x86_64-apple-darwin, aarch64-apple-darwin, x86_64-pc-windows-msvc" >&2
+    exit 1
+    ;;
+esac
+
+NODE_SHA256="${NODE_SHA256:-$DEFAULT_NODE_SHA256}"
 
 require() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -85,15 +123,84 @@ require() {
 require node
 require npm
 require cargo
+require rustc
 require curl
 require tar
-require sha256sum
+if [ "$NODE_ARCHIVE_EXT" = "zip" ]; then
+  require unzip
+fi
+if [ "$RELEASE_ARCHIVE_EXT" = "zip" ]; then
+  require zip
+fi
+
+verify_sha256() {
+  local expected="$1"
+  local file="$2"
+  local actual
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "$file" | awk '{ print $1 }')"
+    [ "$expected" = "$actual" ] || {
+      echo "sha256 mismatch for $file: expected $expected, got $actual" >&2
+      exit 1
+    }
+    return
+  fi
+
+  if command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "$file" | awk '{ print $1 }')"
+    [ "$expected" = "$actual" ] || {
+      echo "sha256 mismatch for $file: expected $expected, got $actual" >&2
+      exit 1
+    }
+    return
+  fi
+
+  echo "required tool not found on PATH: sha256sum or shasum" >&2
+  exit 1
+}
+
+write_sha256_file() {
+  local file="$1"
+  local output="$2"
+  local name
+  local actual
+
+  name="$(basename "$file")"
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "$file" | awk '{ print $1 }')"
+    printf '%s  %s\n' "$actual" "$name" > "$output"
+    return
+  fi
+
+  if command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "$file" | awk '{ print $1 }')"
+    printf '%s  %s\n' "$actual" "$name" > "$output"
+    return
+  fi
+
+  echo "required tool not found on PATH: sha256sum or shasum" >&2
+  exit 1
+}
 
 version="$(node -e "const fs=require('fs'); process.stdout.write(JSON.parse(fs.readFileSync('cli/package.json','utf8')).version)")"
 engine_version="$(awk -F' = ' '$1 == "version" { gsub(/"/, "", $2); print $2; exit }' engine/Cargo.toml)"
 if [ "$version" != "$engine_version" ]; then
   echo "version mismatch: cli/package.json=$version engine/Cargo.toml=$engine_version" >&2
   exit 1
+fi
+
+host_target="$(rustc -vV | awk '/^host: / { host=$2 } END { print host }')"
+[ -n "$host_target" ] || {
+  echo "could not detect rustc host target" >&2
+  exit 1
+}
+cargo_target_args=()
+engine_release_dir="$ROOT/target/release"
+if [ "$TARGET" != "$host_target" ]; then
+  cargo_target_args=(--target "$TARGET")
+  engine_release_dir="$ROOT/target/$TARGET/release"
 fi
 
 build_program_so() {
@@ -124,14 +231,21 @@ build_program_so() {
 }
 
 if [ "$SKIP_BUILDS" -eq 0 ]; then
-  cargo build --release -p riptide-engine
+  cargo build --release -p riptide-engine "${cargo_target_args[@]}"
   (cd cli && npm ci --no-audit --no-fund --ignore-scripts && npm run build)
 fi
 
-[ -x "$ROOT/target/release/riptide-engine" ] || {
-  echo "missing target/release/riptide-engine" >&2
-  exit 1
-}
+if [ "$TARGET" = "x86_64-pc-windows-msvc" ]; then
+  [ -f "$engine_release_dir/$ENGINE_BIN" ] || {
+    echo "missing $engine_release_dir/$ENGINE_BIN" >&2
+    exit 1
+  }
+else
+  [ -x "$engine_release_dir/$ENGINE_BIN" ] || {
+    echo "missing $engine_release_dir/$ENGINE_BIN" >&2
+    exit 1
+  }
+fi
 [ -f "$ROOT/cli/dist/src/index.js" ] || {
   echo "missing cli/dist/src/index.js" >&2
   exit 1
@@ -152,20 +266,30 @@ bundle_name="riptide-$version-$TARGET"
 bundle="$OUT_DIR/stage/$bundle_name"
 mkdir -p "$bundle/bin" "$bundle/target/release" "$bundle/cli" "$bundle/node"
 
-cp "$ROOT/target/release/riptide-engine" "$bundle/target/release/riptide-engine"
-cp "$ROOT/target/release/riptide-engine" "$bundle/bin/riptide-engine"
-chmod +x "$bundle/target/release/riptide-engine" "$bundle/bin/riptide-engine"
+cp "$engine_release_dir/$ENGINE_BIN" "$bundle/target/release/$ENGINE_BIN"
+cp "$engine_release_dir/$ENGINE_BIN" "$bundle/bin/$ENGINE_BIN"
+chmod +x "$bundle/target/release/$ENGINE_BIN" "$bundle/bin/$ENGINE_BIN"
 
-node_platform="linux-x64"
-node_tar="node-v$NODE_VERSION-$node_platform.tar.xz"
-node_url="https://nodejs.org/dist/v$NODE_VERSION/$node_tar"
+node_archive="node-v$NODE_VERSION-$NODE_PLATFORM.$NODE_ARCHIVE_EXT"
+node_url="https://nodejs.org/dist/v$NODE_VERSION/$node_archive"
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/riptide-release"
 mkdir -p "$cache_dir"
-if [ ! -f "$cache_dir/$node_tar" ]; then
-  curl -fsSL "$node_url" -o "$cache_dir/$node_tar"
+if [ ! -f "$cache_dir/$node_archive" ]; then
+  curl -fsSL "$node_url" -o "$cache_dir/$node_archive"
 fi
-echo "$NODE_SHA256  $cache_dir/$node_tar" | sha256sum -c -
-tar -xJf "$cache_dir/$node_tar" -C "$bundle/node" --strip-components=1
+verify_sha256 "$NODE_SHA256" "$cache_dir/$node_archive"
+if [ "$NODE_ARCHIVE_EXT" = "zip" ]; then
+  unzip -q "$cache_dir/$node_archive" -d "$bundle/node"
+  node_root="$(find "$bundle/node" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  [ -n "$node_root" ] || {
+    echo "node archive did not extract a root directory" >&2
+    exit 1
+  }
+  cp -R "$node_root/." "$bundle/node/"
+  rm -rf "$node_root"
+else
+  tar -xJf "$cache_dir/$node_archive" -C "$bundle/node" --strip-components=1
+fi
 
 cp "$ROOT/cli/package.json" "$bundle/cli/package.json"
 cp "$ROOT/cli/npm-shrinkwrap.json" "$bundle/cli/npm-shrinkwrap.json"
@@ -174,7 +298,7 @@ cp "$ROOT/cli/LICENSE-MIT" "$bundle/cli/LICENSE-MIT"
 cp "$ROOT/cli/LICENSE-APACHE" "$bundle/cli/LICENSE-APACHE"
 cp -R "$ROOT/cli/dist" "$bundle/cli/dist"
 cp -R "$ROOT/cli/assets" "$bundle/cli/assets"
-(cd "$bundle/cli" && "$bundle/node/bin/npm" ci --omit=dev --no-audit --no-fund --ignore-scripts)
+(cd "$bundle/cli" && npm ci --omit=dev --no-audit --no-fund --ignore-scripts)
 
 copy_program_artifact() {
   local prog_dir="$1"
@@ -208,9 +332,22 @@ cp "$ROOT/TOOLCHAIN.md" "$bundle/TOOLCHAIN.md"
 cp "$ROOT/LICENSE" "$bundle/LICENSE"
 
 mkdir -p "$bundle/.riptide"
-ln -s ../fixtures/scenarios "$bundle/.riptide/scenarios"
+if [ "$TARGET" = "x86_64-pc-windows-msvc" ]; then
+  cp -R "$bundle/fixtures/scenarios" "$bundle/.riptide/scenarios"
+else
+  ln -s ../fixtures/scenarios "$bundle/.riptide/scenarios"
+fi
 
-cat > "$bundle/bin/riptide" <<'EOF'
+if [ "$TARGET" = "x86_64-pc-windows-msvc" ]; then
+  cat > "$bundle/bin/riptide.cmd" <<'EOF'
+@echo off
+setlocal
+set "ROOT=%~dp0.."
+if not defined RIPTIDE_ENGINE_BIN set "RIPTIDE_ENGINE_BIN=%ROOT%\bin\riptide-engine.exe"
+"%ROOT%\node\node.exe" "%ROOT%\cli\dist\src\index.js" %*
+EOF
+else
+  cat > "$bundle/bin/riptide" <<'EOF'
 #!/usr/bin/env sh
 set -eu
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
@@ -218,12 +355,17 @@ ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 export RIPTIDE_ENGINE_BIN
 exec "$ROOT/node/bin/node" "$ROOT/cli/dist/src/index.js" "$@"
 EOF
-chmod +x "$bundle/bin/riptide"
+  chmod +x "$bundle/bin/riptide"
+fi
 
-asset="riptide-$TARGET.tar.gz"
+asset="riptide-$TARGET.$RELEASE_ARCHIVE_EXT"
 mkdir -p "$OUT_DIR"
-tar -czf "$OUT_DIR/$asset" -C "$OUT_DIR/stage" "$bundle_name"
-(cd "$OUT_DIR" && sha256sum "$asset" > "$asset.sha256")
+if [ "$RELEASE_ARCHIVE_EXT" = "zip" ]; then
+  (cd "$OUT_DIR/stage" && zip -qr "$OUT_DIR/$asset" "$bundle_name")
+else
+  tar -czf "$OUT_DIR/$asset" -C "$OUT_DIR/stage" "$bundle_name"
+fi
+write_sha256_file "$OUT_DIR/$asset" "$OUT_DIR/$asset.sha256"
 
 echo "release bundle written:"
 echo "  $OUT_DIR/$asset"
