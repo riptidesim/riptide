@@ -335,6 +335,9 @@ mod tests {
             ]),
             invariants: Vec::new(),
             extensions: BTreeMap::new(),
+            oracles: BTreeMap::new(),
+            collections: BTreeMap::new(),
+            replay: None,
             class_ref: None,
             derived_order: Vec::new(),
         };

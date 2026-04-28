@@ -41,8 +41,9 @@ pub use errors::{
 pub use loader::{load_adapter, parse_adapter_str, AdapterError};
 pub use schema::{
     AccountDefinition, AccountKind, AccountOwner, ActionDefinition, Adapter, AdapterLineage,
-    ArgLiteral, InstructionMapping, Invariant, InvariantOp, ObservationDefinition, ObservationType,
-    OracleDefinition, OracleKind, PersonaDefinition, PersonaTriggerDefinition, Protocol,
+    ArgLiteral, CollectionDef, CollectionFormula, InstructionMapping, Invariant, InvariantOp,
+    ObservationDefinition, ObservationType, OracleBinding, OracleDefinition, OracleKind,
+    PersonaDefinition, PersonaTriggerDefinition, Protocol, ReplayBlock, ReplayStateSource,
     ScheduledAction, SemanticClassRef, SemanticExpression, SemanticFieldType, SemanticInvariant,
     SemanticInvariantSeverity, SemanticRole, SemanticSourceBinding, Semantics, ACTION_NAMES,
     LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS, ORACLE_KINDS,

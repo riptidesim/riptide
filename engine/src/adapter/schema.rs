@@ -11,6 +11,9 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::adapter::errors::ProgramErrorEntry;
+pub use crate::semantics::types::{
+    CollectionDef, CollectionFormula, OracleBinding, ReplayBlock, ReplayStateSource,
+};
 use crate::semantics::{error::Span, expr::Expr};
 
 /// The protocol class this adapter describes. Selects which primitive
@@ -354,6 +357,12 @@ pub struct Semantics {
     pub invariants: Vec<SemanticInvariant>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub extensions: BTreeMap<String, toml::Value>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub oracles: BTreeMap<String, Vec<OracleBinding>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub collections: BTreeMap<String, CollectionDef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replay: Option<ReplayBlock>,
     #[serde(skip)]
     pub class_ref: Option<SemanticClassRef>,
     #[serde(skip)]

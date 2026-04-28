@@ -340,6 +340,9 @@ mod tests {
             derived: BTreeMap::new(),
             invariants: Vec::new(),
             extensions: BTreeMap::new(),
+            oracles: BTreeMap::new(),
+            collections: BTreeMap::new(),
+            replay: None,
             class_ref: Some(SemanticClassRef::LendingV1),
             derived_order: Vec::new(),
         }

@@ -9,9 +9,10 @@ use std::{collections::BTreeSet, fmt, path::Path, str::FromStr};
 use solana_sdk::pubkey::Pubkey;
 
 use crate::adapter::schema::{
-    is_valid_semantic_class, AccountKind, Adapter, Protocol, SemanticClassRef,
-    SemanticSourceBinding, LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS,
-    LENDING_V1_REQUIRED_ROLES, ORACLE_KINDS, SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
+    is_valid_semantic_class, AccountKind, Adapter, CollectionFormula, Protocol, ReplayStateSource,
+    SemanticClassRef, SemanticSourceBinding, LENDING_ACTIONS, LENDING_OBSERVATIONS,
+    LENDING_SNAPSHOT_METRICS, LENDING_V1_REQUIRED_ROLES, ORACLE_KINDS, SEMANTIC_CLASS_RE,
+    SUPPORTED_SEMANTIC_CLASSES,
 };
 use crate::adapter::{errors::ErrorRegistryValidation, validate_error_entries};
 use crate::semantics::derived::{build_derived_order, DerivedObservationError};
@@ -82,6 +83,46 @@ pub enum AdapterError {
         path: String,
         key: String,
         name: String,
+    },
+    UnknownOracleRole {
+        path: String,
+        key: String,
+        role: String,
+    },
+    MultiOracleArityMismatch {
+        path: String,
+        key: String,
+        role: String,
+        expected: usize,
+        found: usize,
+    },
+    MultiOracleWeightsAllZero {
+        path: String,
+        key: String,
+        role: String,
+    },
+    UnknownCollectionFormula {
+        path: String,
+        key: String,
+        formula: String,
+    },
+    CollectionExpressionParse {
+        path: String,
+        key: String,
+        source: crate::semantics::error::ExprError,
+    },
+    UnknownReplayStateSource {
+        path: String,
+        key: String,
+        state_source: String,
+    },
+    MainnetRpcNotImplemented {
+        path: String,
+        key: String,
+    },
+    MissingReplayPackPath {
+        path: String,
+        key: String,
     },
 }
 
@@ -178,6 +219,73 @@ impl fmt::Display for AdapterError {
                 escape_diagnostic(key),
                 escape_diagnostic(name)
             ),
+            Self::UnknownOracleRole { path, key, role } => {
+                let role = escape_diagnostic(role);
+                write!(
+                    f,
+                    "{}: `{}`: UnknownOracleRole({}); declare `[semantics.roles.{role}]` before binding `[semantics.oracles.{role}]`",
+                    escape_diagnostic(path),
+                    escape_diagnostic(key),
+                    role
+                )
+            }
+            Self::MultiOracleArityMismatch {
+                path,
+                key,
+                role,
+                expected,
+                found,
+            } => write!(
+                f,
+                "{}: `{}`: MultiOracleArityMismatch(role={}); expected {expected} weight entries to match the oracle binding count, found {found}",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(role)
+            ),
+            Self::MultiOracleWeightsAllZero { path, key, role } => write!(
+                f,
+                "{}: `{}`: MultiOracleWeightsAllZero(role={}); weighted oracle bindings must have a positive total weight",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(role)
+            ),
+            Self::UnknownCollectionFormula { path, key, formula } => write!(
+                f,
+                "{}: `{}`: UnknownCollectionFormula({}); expected one of `sum`, `min`, `max`, `worst`",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(formula)
+            ),
+            Self::CollectionExpressionParse { path, key, source } => write!(
+                f,
+                "{}: `{}`: CollectionExpressionParse: {}",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(&source.to_string())
+            ),
+            Self::UnknownReplayStateSource {
+                path,
+                key,
+                state_source,
+            } => write!(
+                f,
+                "{}: `{}`: UnknownReplayStateSource({}); expected `fixture` or `mainnet-rpc`",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(state_source)
+            ),
+            Self::MainnetRpcNotImplemented { path, key } => write!(
+                f,
+                "{}: `{}`: MainnetRpcNotImplemented; mainnet-rpc state import is not implemented in v1; export your accounts to a fixture pack via `riptide pack-state` (planned Sprint 23+)",
+                escape_diagnostic(path),
+                escape_diagnostic(key)
+            ),
+            Self::MissingReplayPackPath { path, key } => write!(
+                f,
+                "{}: `{}`: MissingReplayPackPath; fixture replay state import requires `pack_path = \"<relative-path>\"`",
+                escape_diagnostic(path),
+                escape_diagnostic(key)
+            ),
         }
     }
 }
@@ -204,7 +312,8 @@ impl std::error::Error for AdapterError {
         match self {
             Self::Io { source, .. } => Some(source),
             Self::Parse { source, .. } => Some(source),
-            Self::MalformedSemanticExpression { source, .. } => Some(source),
+            Self::MalformedSemanticExpression { source, .. }
+            | Self::CollectionExpressionParse { source, .. } => Some(source),
             Self::Validation { .. } => None,
             Self::MissingSemanticClass { .. }
             | Self::MalformedSemanticClass { .. }
@@ -213,7 +322,14 @@ impl std::error::Error for AdapterError {
             | Self::UnknownSemanticSourceBinding { .. }
             | Self::MissingRequiredSemanticRole { .. }
             | Self::DerivedObservationCycle { .. }
-            | Self::UnknownSemanticIdentifier { .. } => None,
+            | Self::UnknownSemanticIdentifier { .. }
+            | Self::UnknownOracleRole { .. }
+            | Self::MultiOracleArityMismatch { .. }
+            | Self::MultiOracleWeightsAllZero { .. }
+            | Self::UnknownCollectionFormula { .. }
+            | Self::UnknownReplayStateSource { .. }
+            | Self::MainnetRpcNotImplemented { .. }
+            | Self::MissingReplayPackPath { .. } => None,
         }
     }
 }
@@ -611,6 +727,164 @@ fn validate_semantics(adapter: &mut Adapter, path: &str) -> Result<(), AdapterEr
         invariant.expr.ast = Some(ast);
     }
 
+    validate_semantics_oracles(semantics, path)?;
+    validate_semantics_collections(semantics, path)?;
+    validate_semantics_replay(semantics, path)?;
+
+    Ok(())
+}
+
+fn validate_semantics_oracles(
+    semantics: &mut crate::adapter::schema::Semantics,
+    path: &str,
+) -> Result<(), AdapterError> {
+    for (role, bindings) in semantics.oracles.iter() {
+        check_semantic_name(path, &format!("[semantics.oracles].{role}"), role)?;
+        if !semantics.roles.contains_key(role) {
+            return Err(AdapterError::UnknownOracleRole {
+                path: path.to_string(),
+                key: format!("[semantics.oracles].{role}"),
+                role: role.to_string(),
+            });
+        }
+        if bindings.is_empty() {
+            return Err(AdapterError::MultiOracleArityMismatch {
+                path: path.to_string(),
+                key: format!("[semantics.oracles].{role}"),
+                role: role.to_string(),
+                expected: 1,
+                found: 0,
+            });
+        }
+        let mut weight_count = 0usize;
+        let mut weight_sum = 0u128;
+        for (idx, binding) in bindings.iter().enumerate() {
+            let key = format!("[[semantics.oracles.{role}]][{idx}]");
+            validate_pubkey_string(
+                path,
+                &format!("{key}.program_id"),
+                "program_id",
+                &binding.program_id,
+            )?;
+            validate_pubkey_string(path, &format!("{key}.account"), "account", &binding.account)?;
+            check_ident(path, &format!("{key}.confidence"), &binding.confidence)?;
+            check_ident(path, &format!("{key}.staleness"), &binding.staleness)?;
+            if let Some(weight) = binding.weight {
+                weight_count += 1;
+                weight_sum = weight_sum.saturating_add(weight as u128);
+            }
+        }
+        if weight_count > 0 && weight_count != bindings.len() {
+            return Err(AdapterError::MultiOracleArityMismatch {
+                path: path.to_string(),
+                key: format!("[semantics.oracles].{role}.weight"),
+                role: role.to_string(),
+                expected: bindings.len(),
+                found: weight_count,
+            });
+        }
+        if weight_count > 0 && weight_sum == 0 {
+            return Err(AdapterError::MultiOracleWeightsAllZero {
+                path: path.to_string(),
+                key: format!("[semantics.oracles].{role}.weight"),
+                role: role.to_string(),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_semantics_collections(
+    semantics: &mut crate::adapter::schema::Semantics,
+    path: &str,
+) -> Result<(), AdapterError> {
+    for (name, collection) in semantics.collections.iter_mut() {
+        check_semantic_name(path, &format!("[semantics.collections].{name}"), name)?;
+        check_semantic_name(
+            path,
+            &format!("[semantics.collections].{name}.over"),
+            &collection.over,
+        )?;
+        let formula = CollectionFormula::parse(&collection.formula).ok_or_else(|| {
+            AdapterError::UnknownCollectionFormula {
+                path: path.to_string(),
+                key: format!("[semantics.collections].{name}.formula"),
+                formula: collection.formula.clone(),
+            }
+        })?;
+        let ast = parse_semantic_expr(&collection.expr).map_err(|source| {
+            AdapterError::CollectionExpressionParse {
+                path: path.to_string(),
+                key: format!("[semantics.collections].{name}.expr"),
+                source,
+            }
+        })?;
+        collection.formula_ref = Some(formula);
+        collection.expr_span = Some(ast.span);
+        collection.expr_ast = Some(ast);
+    }
+    Ok(())
+}
+
+fn validate_semantics_replay(
+    semantics: &mut crate::adapter::schema::Semantics,
+    path: &str,
+) -> Result<(), AdapterError> {
+    let Some(replay) = semantics.replay.as_mut() else {
+        return Ok(());
+    };
+    let state_source =
+        replay
+            .state_source
+            .as_deref()
+            .ok_or_else(|| AdapterError::UnknownReplayStateSource {
+                path: path.to_string(),
+                key: "[semantics.replay].state_source".into(),
+                state_source: "<missing>".into(),
+            })?;
+    let source_ref = ReplayStateSource::parse(state_source).ok_or_else(|| {
+        AdapterError::UnknownReplayStateSource {
+            path: path.to_string(),
+            key: "[semantics.replay].state_source".into(),
+            state_source: state_source.to_string(),
+        }
+    })?;
+    replay.state_source_ref = Some(source_ref);
+
+    if matches!(source_ref, ReplayStateSource::Fixture) {
+        let pack_path = replay
+            .pack_path
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| AdapterError::MissingReplayPackPath {
+                path: path.to_string(),
+                key: "[semantics.replay].pack_path".into(),
+            })?;
+        validate_relative_path(path, "[semantics.replay].pack_path", pack_path)?;
+    } else if let Some(pack_path) = replay.pack_path.as_deref() {
+        validate_relative_path(path, "[semantics.replay].pack_path", pack_path)?;
+    }
+
+    for (role, account) in &replay.roles {
+        check_semantic_name(path, &format!("[semantics.replay.roles].{role}"), role)?;
+        if !semantics.roles.contains_key(role) {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[semantics.replay.roles].{role}"),
+                reason: format!(
+                    "replay role `{}` references no `[semantics.roles.{role}]` entry",
+                    escape_diagnostic(role)
+                ),
+            });
+        }
+        validate_pubkey_string(
+            path,
+            &format!("[semantics.replay.roles].{role}"),
+            "account pubkey",
+            account,
+        )?;
+    }
+
     Ok(())
 }
 
@@ -769,6 +1043,58 @@ fn check_label(path: &str, key: &str, value: &str) -> Result<(), AdapterError> {
             ),
         })
     }
+}
+
+fn validate_pubkey_string(
+    path: &str,
+    key: &str,
+    label: &str,
+    value: &str,
+) -> Result<(), AdapterError> {
+    if value.trim().is_empty() {
+        return Err(AdapterError::Validation {
+            path: path.to_string(),
+            key: key.to_string(),
+            reason: format!("{label} must be a non-empty base58-encoded 32-byte pubkey"),
+        });
+    }
+    Pubkey::from_str(value).map_err(|error| AdapterError::Validation {
+        path: path.to_string(),
+        key: key.to_string(),
+        reason: format!(
+            "{label} `{}` is not a valid base58-encoded 32-byte pubkey: {error}",
+            escape_diagnostic(value)
+        ),
+    })?;
+    Ok(())
+}
+
+fn validate_relative_path(path: &str, key: &str, value: &str) -> Result<(), AdapterError> {
+    if value.trim().is_empty() || is_unsafe_path_text(value) {
+        return Err(AdapterError::Validation {
+            path: path.to_string(),
+            key: key.to_string(),
+            reason: format!(
+                "path `{}` must be non-empty and free of control characters",
+                escape_diagnostic(value)
+            ),
+        });
+    }
+    if Path::new(value).is_absolute() {
+        return Err(AdapterError::Validation {
+            path: path.to_string(),
+            key: key.to_string(),
+            reason: format!(
+                "path `{}` must be relative to the adapter or replay fixture root",
+                escape_diagnostic(value)
+            ),
+        });
+    }
+    Ok(())
+}
+
+fn is_unsafe_path_text(value: &str) -> bool {
+    value.chars().any(is_terminal_control)
 }
 
 /// Lineage prose is reviewer-facing documentation — inferred

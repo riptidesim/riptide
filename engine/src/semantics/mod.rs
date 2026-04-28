@@ -7,10 +7,13 @@
 
 pub mod derived;
 pub mod error;
+pub mod errors;
 pub mod eval;
 pub mod expr;
 pub mod invariants;
+pub mod parser;
 pub mod roles;
+pub mod types;
 
 pub use eval::Context;
 

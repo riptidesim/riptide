@@ -217,6 +217,9 @@ mod tests {
                 ),
             ],
             extensions: BTreeMap::new(),
+            oracles: BTreeMap::new(),
+            collections: BTreeMap::new(),
+            replay: None,
             class_ref: None,
             derived_order: Vec::new(),
         };
@@ -246,6 +249,9 @@ mod tests {
                 SemanticInvariantSeverity::Error,
             )],
             extensions: BTreeMap::new(),
+            oracles: BTreeMap::new(),
+            collections: BTreeMap::new(),
+            replay: None,
             class_ref: None,
             derived_order: Vec::new(),
         };
@@ -270,6 +276,9 @@ mod tests {
                 SemanticInvariantSeverity::Error,
             )],
             extensions: BTreeMap::new(),
+            oracles: BTreeMap::new(),
+            collections: BTreeMap::new(),
+            replay: None,
             class_ref: None,
             derived_order: Vec::new(),
         };

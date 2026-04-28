@@ -34,6 +34,8 @@ export const LENDING_V1_REQUIRED_ROLES = [
   "oracle",
   "liquidation_config",
 ] as const;
+export const COLLECTION_FORMULAS = ["sum", "min", "max", "worst"] as const;
+export const REPLAY_STATE_SOURCES = ["fixture", "mainnet-rpc"] as const;
 
 export const ProtocolSchema = z.enum(["lending", "generic"]);
 export type Protocol = z.infer<typeof ProtocolSchema>;
@@ -178,12 +180,39 @@ export const SemanticInvariantSchema = z.object({
 }).strict();
 export type SemanticInvariant = z.infer<typeof SemanticInvariantSchema>;
 
+export const OracleBindingSchema = z.object({
+  program_id: z.string().min(1),
+  account: z.string().min(1),
+  confidence: z.string().min(1),
+  staleness: z.string().min(1),
+  weight: z.number().int().nonnegative().optional(),
+}).strict();
+export type OracleBinding = z.infer<typeof OracleBindingSchema>;
+
+export const CollectionDefSchema = z.object({
+  over: z.string().min(1),
+  formula: z.string().min(1),
+  expr: z.string().min(1),
+}).strict();
+export type CollectionDef = z.infer<typeof CollectionDefSchema>;
+
+export const ReplayBlockSchema = z.object({
+  state_source: z.string().min(1).optional(),
+  pack_path: z.string().min(1).optional(),
+  slot: z.number().int().nonnegative().optional(),
+  roles: z.record(z.string(), z.string().min(1)).default({}),
+}).strict();
+export type ReplayBlock = z.infer<typeof ReplayBlockSchema>;
+
 export const SemanticsSchema = z.object({
   class: z.string().min(1).optional(),
   roles: z.record(z.string(), SemanticRoleSchema).default({}),
   derived: z.record(z.string(), z.string().min(1)).default({}),
   invariants: z.array(SemanticInvariantSchema).default([]),
   extensions: z.record(z.string(), z.unknown()).default({}),
+  oracles: z.record(z.string(), z.array(OracleBindingSchema)).default({}),
+  collections: z.record(z.string(), CollectionDefSchema).default({}),
+  replay: ReplayBlockSchema.optional(),
 }).strict();
 export type Semantics = z.infer<typeof SemanticsSchema>;
 
@@ -494,6 +523,84 @@ function validateSemantics(adapter: Adapter, path: string): void {
       checkLabel(path, `[[semantics.invariants]][${idx}].description`, invariant.description);
     }
   });
+
+  for (const [role, bindings] of Object.entries(semantics.oracles)) {
+    checkSemanticName(path, `[semantics.oracles].${role}`, role);
+    if (!(role in semantics.roles)) {
+      throw new Error(
+        `${path}: \`[semantics.oracles].${escapeDiagnostic(role)}\`: UnknownOracleRole(${escapeDiagnostic(role)}); declare \`[semantics.roles.${escapeDiagnostic(role)}]\` before binding \`[semantics.oracles.${escapeDiagnostic(role)}]\``
+      );
+    }
+    if (bindings.length === 0) {
+      throw new Error(
+        `${path}: \`[semantics.oracles].${escapeDiagnostic(role)}\`: MultiOracleArityMismatch(role=${escapeDiagnostic(role)}); expected at least 1 oracle binding, found 0`
+      );
+    }
+    let weightCount = 0;
+    let weightSum = 0;
+    bindings.forEach((binding, idx) => {
+      const key = `[[semantics.oracles.${role}]][${idx}]`;
+      validatePubkeyString(path, `${key}.program_id`, "program_id", binding.program_id);
+      validatePubkeyString(path, `${key}.account`, "account", binding.account);
+      checkIdentifier(path, `${key}.confidence`, binding.confidence);
+      checkIdentifier(path, `${key}.staleness`, binding.staleness);
+      if (binding.weight !== undefined) {
+        weightCount += 1;
+        weightSum += binding.weight;
+      }
+    });
+    if (weightCount > 0 && weightCount !== bindings.length) {
+      throw new Error(
+        `${path}: \`[semantics.oracles].${escapeDiagnostic(role)}.weight\`: MultiOracleArityMismatch(role=${escapeDiagnostic(role)}); expected ${bindings.length} weight entries to match the oracle binding count, found ${weightCount}`
+      );
+    }
+    if (weightCount > 0 && weightSum === 0) {
+      throw new Error(
+        `${path}: \`[semantics.oracles].${escapeDiagnostic(role)}.weight\`: MultiOracleWeightsAllZero(role=${escapeDiagnostic(role)}); weighted oracle bindings must have a positive total weight`
+      );
+    }
+  }
+
+  for (const [name, collection] of Object.entries(semantics.collections)) {
+    checkSemanticName(path, `[semantics.collections].${name}`, name);
+    checkSemanticName(path, `[semantics.collections].${name}.over`, collection.over);
+    if (!COLLECTION_FORMULAS.includes(collection.formula as (typeof COLLECTION_FORMULAS)[number])) {
+      throw new Error(
+        `${path}: \`[semantics.collections].${escapeDiagnostic(name)}.formula\`: UnknownCollectionFormula(${escapeDiagnostic(collection.formula)}); expected one of \`sum\`, \`min\`, \`max\`, \`worst\``
+      );
+    }
+  }
+
+  if (semantics.replay !== undefined) {
+    const replay = semantics.replay;
+    if (
+      replay.state_source === undefined ||
+      !REPLAY_STATE_SOURCES.includes(replay.state_source as (typeof REPLAY_STATE_SOURCES)[number])
+    ) {
+      throw new Error(
+        `${path}: \`[semantics.replay].state_source\`: UnknownReplayStateSource(${escapeDiagnostic(replay.state_source ?? "<missing>")}); expected \`fixture\` or \`mainnet-rpc\``
+      );
+    }
+    if (replay.state_source === "fixture") {
+      if (replay.pack_path === undefined || replay.pack_path.trim().length === 0) {
+        throw new Error(
+          `${path}: \`[semantics.replay].pack_path\`: MissingReplayPackPath; fixture replay state import requires \`pack_path = "<relative-path>"\``
+        );
+      }
+      validateRelativePath(path, "[semantics.replay].pack_path", replay.pack_path);
+    } else if (replay.pack_path !== undefined) {
+      validateRelativePath(path, "[semantics.replay].pack_path", replay.pack_path);
+    }
+    for (const [role, account] of Object.entries(replay.roles)) {
+      checkSemanticName(path, `[semantics.replay.roles].${role}`, role);
+      if (!(role in semantics.roles)) {
+        throw new Error(
+          `${path}: \`[semantics.replay.roles].${escapeDiagnostic(role)}\`: replay role \`${escapeDiagnostic(role)}\` references no \`[semantics.roles.${escapeDiagnostic(role)}]\` entry`
+        );
+      }
+      validatePubkeyString(path, `[semantics.replay.roles].${role}`, "account pubkey", account);
+    }
+  }
 }
 
 function validateSemanticSource(path: string, key: string, source: string): void {
@@ -530,6 +637,27 @@ function checkSemanticName(path: string, key: string, value: string): void {
   if (!/^[a-z][a-z0-9_]*$/.test(value)) {
     throw new Error(
       `${path}: \`${escapeDiagnostic(key)}\`: semantic name \`${escapeDiagnostic(value)}\` must match \`[a-z][a-z0-9_]*\``
+    );
+  }
+}
+
+function validatePubkeyString(path: string, key: string, label: string, value: string): void {
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) {
+    throw new Error(
+      `${path}: \`${escapeDiagnostic(key)}\`: ${label} \`${escapeDiagnostic(value)}\` is not a valid base58-encoded 32-byte pubkey`
+    );
+  }
+}
+
+function validateRelativePath(path: string, key: string, value: string): void {
+  if (value.trim().length === 0 || /[\u0000-\u001f\u007f-\u009f]/u.test(value)) {
+    throw new Error(
+      `${path}: \`${escapeDiagnostic(key)}\`: path \`${escapeDiagnostic(value)}\` must be non-empty and free of control characters`
+    );
+  }
+  if (value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value)) {
+    throw new Error(
+      `${path}: \`${escapeDiagnostic(key)}\`: path \`${escapeDiagnostic(value)}\` must be relative to the adapter or replay fixture root`
     );
   }
 }

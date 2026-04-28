@@ -61,6 +61,8 @@ const BASE_SEMANTICS: Semantics = {
     },
   ],
   extensions: {},
+  oracles: {},
+  collections: {},
 };
 
 const STUB_PASS: SmokeTestResult = {
