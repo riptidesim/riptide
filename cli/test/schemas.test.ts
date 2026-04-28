@@ -41,7 +41,13 @@ test("schemas: adapter schema accepts mainnet-rpc replay at parse time", async (
 
 test("schemas: legacy semantics adapter keeps new breadth fields empty", async () => {
   const raw = await readToml("fixtures/adapters/lending.toml");
-  const adapter = validateAdapter(raw, "fixtures/adapters/lending.toml");
+  const legacy = structuredClone(raw) as {
+    semantics?: { oracles?: unknown; collections?: unknown; replay?: unknown };
+  };
+  delete legacy.semantics?.oracles;
+  delete legacy.semantics?.collections;
+  delete legacy.semantics?.replay;
+  const adapter = validateAdapter(legacy, "fixtures/adapters/lending.toml");
   const semantics = adapter.semantics;
 
   assert.ok(semantics);
