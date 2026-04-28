@@ -36,6 +36,15 @@ use crate::{
     scenario::{oracle_layout_for, OracleUpdate},
 };
 
+const LENDING_PROGRAM_PUBKEY: &str = "CwvZXfji8FDrzbKnBozHWJ4PkKULYwDvn7UrYCiBDXvu";
+const LENDING_SEMANTIC_ORACLE_PUBKEY: &str = "29By8wxvCwsogbbTvFDRWKMpydxYe94RhUSPY17y5MEn";
+const LENDING_SEMANTIC_ORACLE_KEYPAIR_BYTES: [u8; 64] = [
+    172, 167, 149, 52, 245, 185, 48, 33, 181, 247, 103, 129, 197, 165, 147, 162, 159, 58, 185, 166,
+    84, 239, 49, 84, 12, 140, 0, 182, 101, 111, 112, 174, 16, 244, 188, 29, 44, 234, 204, 35, 47,
+    22, 206, 5, 183, 244, 231, 99, 86, 117, 54, 111, 37, 7, 233, 69, 107, 197, 62, 115, 22, 190,
+    225, 79,
+];
+
 /// Configuration for bootstrapping a LiteSVM-backed Solend-fork primitive.
 pub struct LiteSvmBootstrapConfig {
     /// Path to the compiled `lending_pool.so` artifact.
@@ -309,7 +318,7 @@ impl LiteSvmHarness {
             .with_lamports(base_lamports);
 
         // --- Load the lending program ---
-        let program_id = Pubkey::new_unique();
+        let program_id = lending_program_pubkey()?;
         svm.add_program(program_id, &program_bytes)
             .map_err(|e| anyhow!("failed to load lending program into LiteSVM: {e}"))?;
 
@@ -325,7 +334,7 @@ impl LiteSvmHarness {
         }
 
         // --- Create oracle + pool accounts and initialize via program ---
-        let oracle_kp = Keypair::new();
+        let oracle_kp = lending_semantic_oracle_keypair()?;
         let pool_kp = Keypair::new();
 
         let rent_oracle = svm.minimum_balance_for_rent_exemption(ORACLE_STATE_LEN);
@@ -670,6 +679,21 @@ impl LendingPrimitive for LiteSvmHarness {
         })
     }
 
+    fn semantic_oracle_account_owner(
+        &self,
+        account_pubkey: &str,
+    ) -> Result<Option<String>, PrimitiveError> {
+        let pubkey = account_pubkey.parse::<Pubkey>().map_err(|error| {
+            PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` is not a valid pubkey: {error}"
+            ))
+        })?;
+        Ok(self
+            .svm
+            .get_account(&pubkey)
+            .map(|account| account.owner.to_string()))
+    }
+
     fn semantic_oracle_observation(
         &self,
         account_pubkey: &str,
@@ -696,31 +720,46 @@ impl LendingPrimitive for LiteSvmHarness {
                 decoded.price
             ))
         })?;
-        let confidence = decoded.confidence.ok_or_else(|| {
-            PrimitiveError::Infra(format!(
-                "semantic oracle account `{account_pubkey}` decoded as {:?}, but that layout \
-                 does not expose confidence; semantics refuses to publish a sentinel value",
-                self.oracle_kind
-            ))
-        })?;
-        let publish_slot = decoded.publish_slot.ok_or_else(|| {
-            PrimitiveError::Infra(format!(
-                "semantic oracle account `{account_pubkey}` decoded as {:?}, but that layout \
-                 does not expose a publish slot; semantics cannot compute staleness",
-                self.oracle_kind
-            ))
-        })?;
-        if publish_slot > self.current_slot {
-            return Err(PrimitiveError::Infra(format!(
-                "semantic oracle account `{account_pubkey}` publish_slot {publish_slot} is ahead \
-                 of LiteSVM current slot {}; semantics cannot compute staleness across slot domains",
-                self.current_slot
-            )));
-        }
+        let (confidence, staleness) = match self.oracle_kind {
+            OracleKind::AdminMock => {
+                // The lending adapter's multi-oracle demo intentionally reuses
+                // the admin-mock oracle as a local stand-in. Its account layout
+                // has no market confidence or publish slot, so expose exact
+                // local-test metadata rather than claiming live oracle semantics.
+                (0, 0)
+            }
+            OracleKind::Pyth => {
+                let confidence = decoded.confidence.ok_or_else(|| {
+                    PrimitiveError::Infra(format!(
+                        "semantic oracle account `{account_pubkey}` decoded as {:?}, but that \
+                         layout does not expose confidence; semantics refuses to publish a \
+                         sentinel value",
+                        self.oracle_kind
+                    ))
+                })?;
+                let publish_slot = decoded.publish_slot.ok_or_else(|| {
+                    PrimitiveError::Infra(format!(
+                        "semantic oracle account `{account_pubkey}` decoded as {:?}, but that \
+                         layout does not expose a publish slot; semantics cannot compute \
+                         staleness",
+                        self.oracle_kind
+                    ))
+                })?;
+                if publish_slot > self.current_slot {
+                    return Err(PrimitiveError::Infra(format!(
+                        "semantic oracle account `{account_pubkey}` publish_slot {publish_slot} \
+                         is ahead of LiteSVM current slot {}; semantics cannot compute staleness \
+                         across slot domains",
+                        self.current_slot
+                    )));
+                }
+                (u128::from(confidence), self.current_slot - publish_slot)
+            }
+        };
         Ok(Some(SemanticOracleObservation {
             price,
-            confidence: u128::from(confidence),
-            staleness: self.current_slot - publish_slot,
+            confidence,
+            staleness,
             exponent: i128::from(decoded.exponent),
         }))
     }
@@ -747,6 +786,23 @@ impl LendingPrimitive for LiteSvmHarness {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+fn lending_program_pubkey() -> Result<Pubkey> {
+    LENDING_PROGRAM_PUBKEY
+        .parse::<Pubkey>()
+        .context("lending program pubkey")
+}
+
+fn lending_semantic_oracle_keypair() -> Result<Keypair> {
+    let keypair = Keypair::try_from(&LENDING_SEMANTIC_ORACLE_KEYPAIR_BYTES[..])
+        .context("lending semantic oracle keypair bytes")?;
+    if keypair.pubkey().to_string() != LENDING_SEMANTIC_ORACLE_PUBKEY {
+        return Err(anyhow!(
+            "lending semantic oracle keypair drifted from {LENDING_SEMANTIC_ORACLE_PUBKEY}"
+        ));
+    }
+    Ok(keypair)
+}
 
 fn semantic_pool_context(
     prefix: &str,
@@ -1060,21 +1116,36 @@ mod tests {
     }
 
     #[test]
-    fn semantic_oracle_observation_fails_closed_without_confidence_layout() {
+    fn semantic_oracle_observation_exposes_admin_mock_stand_in_metadata() {
         if skip_if_no_so() {
             return;
         }
         let harness = LiteSvmHarness::bootstrap(test_config()).unwrap();
 
-        let err = harness
+        let observation = harness
             .semantic_oracle_observation(&harness.oracle.to_string())
-            .unwrap_err();
-        let PrimitiveError::Infra(msg) = err else {
-            panic!("expected fail-closed infra error, got {err:?}");
-        };
-        assert!(
-            msg.contains("does not expose confidence"),
-            "semantic oracle confidence must not fall back to a sentinel zero; got: {msg}"
+            .unwrap()
+            .expect("admin-mock oracle observation");
+        assert_eq!(observation.price, 100);
+        assert_eq!(observation.confidence, 0);
+        assert_eq!(observation.staleness, 0);
+        assert_eq!(observation.exponent, 0);
+    }
+
+    #[test]
+    fn lending_semantic_oracle_pubkey_is_adapter_stable() {
+        let oracle_kp = lending_semantic_oracle_keypair().unwrap();
+        assert_eq!(
+            oracle_kp.pubkey().to_string(),
+            LENDING_SEMANTIC_ORACLE_PUBKEY
+        );
+    }
+
+    #[test]
+    fn lending_program_pubkey_is_adapter_stable() {
+        assert_eq!(
+            lending_program_pubkey().unwrap().to_string(),
+            LENDING_PROGRAM_PUBKEY
         );
     }
 

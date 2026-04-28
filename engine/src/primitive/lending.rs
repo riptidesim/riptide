@@ -355,6 +355,16 @@ pub trait LendingPrimitive: Primitive {
     /// oracle price to derive the actual health factor.
     fn health_factor(&self, agent_idx: usize) -> Result<PositionHealth, PrimitiveError>;
 
+    /// Resolve the owner program for a semantics-declared oracle
+    /// account. Runtime binding treats `OracleBinding.program_id` as
+    /// authoritative and rejects owner mismatches before decoding values.
+    fn semantic_oracle_account_owner(
+        &self,
+        _account_pubkey: &str,
+    ) -> Result<Option<String>, PrimitiveError> {
+        Ok(None)
+    }
+
     /// Resolve a semantics-declared oracle account into the fields
     /// exposed as `<role>.<index>.<field>` during derived evaluation.
     fn semantic_oracle_observation(

@@ -12,6 +12,8 @@ use riptide_engine::{
 const DEMO: &str = include_str!("fixtures/multi-oracle-demo.toml");
 const ORACLE_A: &str = "So11111111111111111111111111111111111111112";
 const ORACLE_B: &str = "SysvarC1ock11111111111111111111111111111111";
+const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
+const SPL_TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 
 #[test]
 fn semantics_multi_oracle_derived_inputs_and_weighted_synthetic_are_available() {
@@ -133,6 +135,7 @@ fn semantics_multi_oracle_tick_path_reads_declared_accounts_by_index() {
                 exponent: 0,
             },
         )
+        .with_semantic_oracle_owner(ORACLE_A, SYSTEM_PROGRAM_ID)
         .with_semantic_oracle(
             ORACLE_B,
             SemanticOracleObservation {
@@ -141,7 +144,8 @@ fn semantics_multi_oracle_tick_path_reads_declared_accounts_by_index() {
                 staleness: 3,
                 exponent: 0,
             },
-        );
+        )
+        .with_semantic_oracle_owner(ORACLE_B, SPL_TOKEN_PROGRAM_ID);
     let mut scenario = riptide_engine::scenario::BaselineScenario::new(100.0, 0);
     let params = SimulationParams {
         run_config: &cfg,
@@ -167,6 +171,71 @@ fn semantics_multi_oracle_tick_path_reads_declared_accounts_by_index() {
     assert_eq!(derived["second_oracle_price"].as_u64(), Some(120));
     assert_eq!(derived["first_oracle_confidence"].as_u64(), Some(5));
     assert_eq!(derived["first_oracle_staleness"].as_u64(), Some(2));
+}
+
+#[test]
+fn semantics_multi_oracle_tick_path_rejects_wrong_valid_program_id() {
+    let toml = DEMO.replacen(
+        "program_id = \"11111111111111111111111111111111\"",
+        "program_id = \"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA\"",
+        1,
+    );
+    let adapter = parse_adapter_str(&toml, "multi-oracle-wrong-owner-demo.toml").unwrap();
+    let cfg = RunConfig {
+        agents: 1,
+        ticks: 0,
+        scenario: "baseline".into(),
+        seed: 21,
+        personas: vec!["oracle-reader".into()],
+        validator_url: "unused".into(),
+        output_path: "unused".into(),
+    };
+    let policy = Policy {
+        persona_id: "oracle-reader".into(),
+        persona_label: "oracle-reader".into(),
+        action_rate_multiplier: 1.0,
+        risk_tolerance: 0.5,
+        action_weights: BTreeMap::new(),
+        triggers: Vec::new(),
+        position_sizing: PositionSizing {
+            strategy: PositionSizingStrategy::Fixed,
+            params: BTreeMap::new(),
+        },
+        max_exposure: 1.0,
+        persona_args: BTreeMap::new(),
+    };
+    let mut harness = MockHarness::new(1, 100.0)
+        .with_semantic_oracle(
+            ORACLE_A,
+            SemanticOracleObservation {
+                price: 80,
+                confidence: 5,
+                staleness: 2,
+                exponent: 0,
+            },
+        )
+        .with_semantic_oracle_owner(ORACLE_A, SYSTEM_PROGRAM_ID);
+    let mut scenario = riptide_engine::scenario::BaselineScenario::new(100.0, 0);
+    let params = SimulationParams {
+        run_config: &cfg,
+        policies: vec![policy],
+        agent_personas: vec![0],
+        available_actions: LENDING_RUNTIME_ACTIONS.to_vec(),
+        starting_balance: 10_000.0,
+        starting_price: 100.0,
+        simulation_boundaries: vec!["multi-oracle semantics runtime".into()],
+        invariants: adapter.invariants.clone(),
+        scheduled_actions: Vec::new(),
+        semantics: adapter.semantics.clone(),
+        errors: Vec::new(),
+    };
+
+    let err = run_simulation(&mut harness, &mut scenario, params).unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("OracleProgramIdMismatch(oracle.0)"),
+        "wrong-but-valid oracle program_id must be load-bearing; got: {msg}"
+    );
 }
 
 #[test]

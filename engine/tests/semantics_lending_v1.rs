@@ -8,6 +8,7 @@ use std::{
 use riptide_engine::{
     adapter::{load_adapter, parse_adapter_str, Adapter},
     agent::{policy::LENDING_RUNTIME_ACTIONS, state::Agent},
+    primitive::SemanticOracleObservation,
     replay::{load_replay_bundle, run_lending_replay},
     scenario::{BaselineScenario, PriceShockScenario},
     semantics::{
@@ -22,6 +23,9 @@ use riptide_engine::{
         Trigger, TriggerCondition,
     },
 };
+
+const LENDING_SEMANTIC_ORACLE_PUBKEY: &str = "29By8wxvCwsogbbTvFDRWKMpydxYe94RhUSPY17y5MEn";
+const LENDING_PROGRAM_PUBKEY: &str = "CwvZXfji8FDrzbKnBozHWJ4PkKULYwDvn7UrYCiBDXvu";
 
 fn semantic_lending_toml() -> &'static str {
     r#"
@@ -145,6 +149,15 @@ fn monorepo_root() -> PathBuf {
         .parent()
         .expect("engine crate has a parent directory")
         .to_path_buf()
+}
+
+fn shipping_usdc_oracle_observation() -> SemanticOracleObservation {
+    SemanticOracleObservation {
+        price: 100,
+        confidence: 0,
+        staleness: 0,
+        exponent: 0,
+    }
 }
 
 fn policy() -> Policy {
@@ -277,7 +290,13 @@ fn migrated_lending_adapter_runs_semantics_end_to_end() {
         .as_ref()
         .expect("shipping lending adapter opts into semantics");
     assert_eq!(semantics.class.as_deref(), Some("lending.v1"));
-    for role in ["position", "reserve", "oracle", "liquidation_config"] {
+    for role in [
+        "position",
+        "reserve",
+        "oracle",
+        "usdc",
+        "liquidation_config",
+    ] {
         assert!(
             semantics.roles.contains_key(role),
             "missing required role {role}"
@@ -294,7 +313,22 @@ fn migrated_lending_adapter_runs_semantics_end_to_end() {
             "missing required derived observation {derived}"
         );
     }
-    assert_eq!(semantics.invariants.len(), 2);
+    assert_eq!(semantics.invariants.len(), 3);
+    assert_eq!(
+        semantics.oracles.get("usdc").map(Vec::len),
+        Some(2),
+        "shipping lending adapter should exercise two usdc oracle bindings"
+    );
+    assert!(semantics
+        .oracles
+        .get("usdc")
+        .expect("usdc bindings")
+        .iter()
+        .all(|binding| binding.program_id == LENDING_PROGRAM_PUBKEY));
+    assert!(
+        semantics.collections.contains_key("worst_health_factor"),
+        "shipping lending adapter should exercise the collection evaluator"
+    );
     assert!(semantics
         .invariants
         .iter()
@@ -310,7 +344,7 @@ fn migrated_lending_adapter_runs_semantics_end_to_end() {
     let agents = vec![alice, bob];
     let snapshot: TickSnapshot =
         BTreeMap::from([("oracle_price".into(), serde_json::Value::from(100_u64))]);
-    let role_context = bind_lending_v1_roles(
+    let mut role_context = bind_lending_v1_roles(
         semantics,
         &harness,
         &agents,
@@ -327,9 +361,18 @@ fn migrated_lending_adapter_runs_semantics_end_to_end() {
         role_context.get("position.debt_amount"),
         Some(&SemanticValue::U128(800))
     );
+    for index in 0..2 {
+        role_context.insert(format!("usdc.{index}.price"), SemanticValue::U128(100));
+        role_context.insert(format!("usdc.{index}.confidence"), SemanticValue::U128(0));
+        role_context.insert(format!("usdc.{index}.staleness"), SemanticValue::U128(0));
+    }
 
     let derived = evaluate_derived_observations(semantics, &role_context)
         .expect("evaluate migrated adapter derived observations");
+    assert_eq!(
+        derived.observations.get("usdc.median_price"),
+        Some(&SemanticValue::U128(100))
+    );
     assert_eq!(
         derived.observations.get("collateral_value"),
         Some(&SemanticValue::U128(1_000))
@@ -351,7 +394,12 @@ fn migrated_lending_adapter_runs_semantics_end_to_end() {
         Some(&SemanticValue::U128(1))
     );
 
-    let fires = evaluate_expression_invariants(semantics, &derived.context, 0)
+    let mut expression_context = derived.context.clone();
+    expression_context.insert(
+        "collection.worst_health_factor".into(),
+        SemanticValue::U128(2),
+    );
+    let fires = evaluate_expression_invariants(semantics, &expression_context, 0)
         .expect("evaluate migrated adapter expression invariants");
     assert_eq!(fires.len(), 1);
     assert_eq!(fires[0].name, "ltv_below_max");
@@ -455,7 +503,13 @@ fn migrated_lending_adapter_binds_liquidation_semantics_to_borrower_target() {
         max_exposure: 0.1,
         persona_args: BTreeMap::new(),
     };
-    let mut harness = MockHarness::new(2, 100.0).with_risk_params(7_000, 8_000);
+    let mut harness = MockHarness::new(2, 100.0)
+        .with_risk_params(7_000, 8_000)
+        .with_semantic_oracle(
+            LENDING_SEMANTIC_ORACLE_PUBKEY,
+            shipping_usdc_oracle_observation(),
+        )
+        .with_semantic_oracle_owner(LENDING_SEMANTIC_ORACLE_PUBKEY, LENDING_PROGRAM_PUBKEY);
     harness.seed_position(0, 10, 900);
     let mut scenario = PriceShockScenario::new(100.0, 0, 1, 0.5);
     let params = SimulationParams {

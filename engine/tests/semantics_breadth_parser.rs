@@ -132,18 +132,19 @@ fn semantics_breadth_parser_rejects_missing_fixture_pack_path() {
 }
 
 #[test]
-fn semantics_breadth_parser_keeps_legacy_semantics_shape_additive() {
+fn semantics_breadth_parser_accepts_shipping_lending_phase3_shape() {
     let adapter = parse_adapter_str(LEGACY_LENDING, "fixtures/adapters/lending.toml").unwrap();
     let reparsed = parse_adapter_str(LEGACY_LENDING, "fixtures/adapters/lending.toml").unwrap();
     assert_eq!(adapter, reparsed);
 
-    let semantics = adapter.semantics.expect("legacy lending semantics");
-    assert!(semantics.oracles.is_empty());
-    assert!(semantics.collections.is_empty());
+    let semantics = adapter.semantics.expect("shipping lending semantics");
+    let usdc = semantics.oracles.get("usdc").expect("usdc oracle bindings");
+    assert_eq!(usdc.len(), 2);
+    assert!(semantics.collections.contains_key("worst_health_factor"));
     assert!(semantics.replay.is_none());
 
     let serialized = toml::to_string(&semantics).expect("serialize semantics");
-    assert!(!serialized.contains("oracles"));
-    assert!(!serialized.contains("collections"));
+    assert!(serialized.contains("oracles"));
+    assert!(serialized.contains("collections"));
     assert!(!serialized.contains("replay"));
 }

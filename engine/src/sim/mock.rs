@@ -49,6 +49,7 @@ pub struct MockHarness {
     /// runtime tests. The production LiteSVM harness resolves these
     /// from account data; the mock path keeps them explicit.
     semantic_oracles: BTreeMap<String, SemanticOracleObservation>,
+    semantic_oracle_owners: BTreeMap<String, String>,
     /// Optional repeated-role contexts used by collection runtime tests.
     semantic_collections: BTreeMap<String, Vec<crate::semantics::Context>>,
 }
@@ -71,6 +72,7 @@ impl MockHarness {
             scripted_infra_failures: Vec::new(),
             scheduled_action_calls: BTreeMap::new(),
             semantic_oracles: BTreeMap::new(),
+            semantic_oracle_owners: BTreeMap::new(),
             semantic_collections: BTreeMap::new(),
         }
     }
@@ -112,8 +114,21 @@ impl MockHarness {
         account_pubkey: impl Into<String>,
         observation: SemanticOracleObservation,
     ) -> Self {
+        let account_pubkey = account_pubkey.into();
         self.semantic_oracles
-            .insert(account_pubkey.into(), observation);
+            .insert(account_pubkey.clone(), observation);
+        self.semantic_oracle_owners
+            .insert(account_pubkey, "11111111111111111111111111111111".into());
+        self
+    }
+
+    pub fn with_semantic_oracle_owner(
+        mut self,
+        account_pubkey: impl Into<String>,
+        owner_program_id: impl Into<String>,
+    ) -> Self {
+        self.semantic_oracle_owners
+            .insert(account_pubkey.into(), owner_program_id.into());
         self
     }
 
@@ -304,6 +319,13 @@ impl LendingPrimitive for MockHarness {
             debt: p.debt,
             liquidated: p.liquidated,
         })
+    }
+
+    fn semantic_oracle_account_owner(
+        &self,
+        account_pubkey: &str,
+    ) -> Result<Option<String>, PrimitiveError> {
+        Ok(self.semantic_oracle_owners.get(account_pubkey).cloned())
     }
 
     fn semantic_oracle_observation(

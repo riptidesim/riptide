@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 
 use rand::{rngs::StdRng, SeedableRng};
 use serde_json::Value;
+use solana_sdk::pubkey::Pubkey;
 
 use super::harness::{Harness, HarnessError, PositionObservation};
 use crate::{
@@ -1278,6 +1279,30 @@ where
 {
     for (role, bindings) in &semantics.oracles {
         for (index, binding) in bindings.iter().enumerate() {
+            let expected_owner = binding.program_id.parse::<Pubkey>().map_err(|error| {
+                SimulationAbort::BadInput(format!(
+                    "InvalidOracleProgramId({role}.{index}); program_id `{}` is not a valid \
+                     pubkey: {error}",
+                    binding.program_id
+                ))
+            })?;
+            let actual_owner = harness
+                .semantic_oracle_account_owner(&binding.account)
+                .map_err(|e| SimulationAbort::Infra(e.to_string()))?
+                .ok_or_else(|| {
+                    SimulationAbort::BadInput(format!(
+                        "MissingOracleAccountBinding({role}.{index}); account {} was not found \
+                         for `[semantics.oracles.{role}]`",
+                        binding.account
+                    ))
+                })?;
+            if actual_owner != expected_owner.to_string() {
+                return Err(SimulationAbort::BadInput(format!(
+                    "OracleProgramIdMismatch({role}.{index}); account {} is owned by {}, but \
+                     `[semantics.oracles.{role}]` declares program_id {}",
+                    binding.account, actual_owner, expected_owner
+                )));
+            }
             let observation = harness
                 .semantic_oracle_observation(&binding.account)
                 .map_err(|e| SimulationAbort::Infra(e.to_string()))?

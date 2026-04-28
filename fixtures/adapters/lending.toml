@@ -56,6 +56,12 @@ source = "account.oracle"
 fields.price = "u128"
 fields.confidence = "u128"
 
+[semantics.roles.usdc]
+source = "account.oracle"
+fields.price = "u128"
+fields.confidence = "u128"
+fields.staleness = "u64"
+
 [semantics.roles.liquidation_config]
 source = "account.reserve"
 fields.liquidation_threshold_bps = "u64"
@@ -66,6 +72,25 @@ debt_value = "position.debt_amount"
 max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
 liquidation_threshold_value = "collateral_value * liquidation_config.liquidation_threshold_bps / 10000"
 health_factor = "liquidation_threshold_value / max(debt_value, 1)"
+
+[semantics.collections.worst_health_factor]
+over = "reserves"
+formula = "worst"
+expr = "collateral_value / max(debt_value, 1)"
+
+[[semantics.oracles.usdc]]
+program_id = "CwvZXfji8FDrzbKnBozHWJ4PkKULYwDvn7UrYCiBDXvu"
+account = "29By8wxvCwsogbbTvFDRWKMpydxYe94RhUSPY17y5MEn"
+confidence = "usdc.confidence"
+staleness = "usdc.staleness"
+
+# Stand-in: reuse the same admin-mock USDC account until a second
+# oracle feed is wired for this adapter.
+[[semantics.oracles.usdc]]
+program_id = "CwvZXfji8FDrzbKnBozHWJ4PkKULYwDvn7UrYCiBDXvu"
+account = "29By8wxvCwsogbbTvFDRWKMpydxYe94RhUSPY17y5MEn"
+confidence = "usdc.confidence"
+staleness = "usdc.staleness"
 
 [[semantics.invariants]]
 name = "bad_debt_bound"
@@ -78,6 +103,12 @@ name = "ltv_below_max"
 expr = "debt_value <= max_borrow_value"
 severity = "warn"
 description = "Position debt must not exceed max-borrow value"
+
+[[semantics.invariants]]
+name = "collection_worst_health_factor"
+expr = "collection.worst_health_factor > 1.0"
+severity = "warn"
+description = "Worst observed reserve health factor should remain above 1.0"
 
 [[errors]]
 code = 0
