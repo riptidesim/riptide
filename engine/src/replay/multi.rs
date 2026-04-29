@@ -856,8 +856,15 @@ fn bootstrap_generic_component(
         generic_airdrop(svm, &agent.pubkey(), per_identity_lamports)?;
     }
 
-    let (agent_accounts, shared_accounts, oracle_binding) =
-        bootstrap_generic_accounts(svm, adapter, agent_count, &program_id, &admin.pubkey())?;
+    let agent_pubkeys: Vec<Pubkey> = agents.iter().map(|agent| agent.pubkey()).collect();
+    let (agent_accounts, shared_accounts, oracle_binding) = bootstrap_generic_accounts(
+        svm,
+        adapter,
+        agent_count,
+        &program_id,
+        &admin.pubkey(),
+        &agent_pubkeys,
+    )?;
 
     Ok(GenericComponent {
         program_id,

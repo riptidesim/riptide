@@ -68,6 +68,8 @@ pub struct GenericInstructionAccount {
     pub signer: bool,
     #[serde(default)]
     pub writable: bool,
+    #[serde(default)]
+    pub address: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
@@ -80,12 +82,25 @@ pub struct GenericArg {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 pub struct GenericAccountType {
     pub name: String,
+    #[serde(default)]
+    pub discriminator: Option<Vec<u8>>,
+    #[serde(default)]
     pub fields: Vec<GenericField>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 pub struct GenericDefinedType {
     pub name: String,
+    #[serde(default)]
+    pub fields: Vec<GenericField>,
+    #[serde(default, rename = "type")]
+    pub type_def: Option<GenericTypeDefinition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+pub struct GenericTypeDefinition {
+    pub kind: String,
+    #[serde(default)]
     pub fields: Vec<GenericField>,
 }
 
@@ -101,17 +116,39 @@ pub struct GenericField {
 pub enum GenericTypeRef {
     Primitive(String),
     Vec { vec: Box<GenericTypeRef> },
-    Defined { defined: String },
+    Defined { defined: GenericDefinedRef },
+    Option { option: Box<GenericTypeRef> },
+    Array { array: (Box<GenericTypeRef>, usize) },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(untagged)]
+pub enum GenericDefinedRef {
+    Name(String),
+    Object { name: String },
+}
+
+impl GenericDefinedRef {
+    fn as_str(&self) -> &str {
+        match self {
+            Self::Name(name) | Self::Object { name } => name,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum GenericValue {
     Int(i64),
     UInt(u64),
+    I128(i128),
+    U128(u128),
     Bool(bool),
     Pubkey(String),
+    String(String),
     Struct(BTreeMap<String, GenericValue>),
     Vec(Vec<GenericValue>),
+    Bytes(Vec<u8>),
+    Option(Option<Box<GenericValue>>),
 }
 
 pub fn parse_generic_idl_str(raw: &str) -> Result<GenericIdl> {
@@ -190,10 +227,20 @@ pub fn observe_account_state(
     let account_type = idl
         .accounts
         .iter()
-        .find(|candidate| candidate.name == account_name)
+        .find(|candidate| idl_name_matches(&candidate.name, account_name))
         .ok_or_else(|| anyhow!("generic IDL missing account type `{account_name}`"))?;
+    let fields = account_fields(idl, account_type)
+        .ok_or_else(|| anyhow!("generic IDL account `{account_name}` has no decodable fields"))?;
     let mut cursor = ByteCursor::new(bytes);
-    let value = decode_struct(idl, &account_type.fields, &mut cursor)
+    if let Some(discriminator) = account_type.discriminator.as_ref() {
+        cursor.skip(discriminator.len()).with_context(|| {
+            format!(
+                "decode account `{account_name}`: account data shorter than {}-byte discriminator",
+                discriminator.len()
+            )
+        })?;
+    }
+    let value = decode_struct(idl, fields, &mut cursor)
         .with_context(|| format!("decode account `{account_name}`"))?;
 
     let mut observations = BTreeMap::new();
@@ -216,6 +263,47 @@ pub fn observe_account_state(
     }
 
     Ok(observations)
+}
+
+fn account_fields<'a>(
+    idl: &'a GenericIdl,
+    account: &'a GenericAccountType,
+) -> Option<&'a [GenericField]> {
+    if !account.fields.is_empty() {
+        return Some(&account.fields);
+    }
+    let defined = idl
+        .types
+        .iter()
+        .find(|candidate| idl_name_matches(&candidate.name, &account.name))?;
+    Some(defined.fields())
+}
+
+fn idl_name_matches(idl_name: &str, adapter_name: &str) -> bool {
+    idl_name == adapter_name
+        || idl_name.eq_ignore_ascii_case(adapter_name)
+        || normalize_idl_name(idl_name) == normalize_idl_name(adapter_name)
+}
+
+fn normalize_idl_name(value: &str) -> String {
+    value
+        .chars()
+        .filter(|ch| *ch != '_' && *ch != '-')
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+impl GenericDefinedType {
+    fn fields(&self) -> &[GenericField] {
+        if !self.fields.is_empty() {
+            &self.fields
+        } else {
+            self.type_def
+                .as_ref()
+                .map(|type_def| type_def.fields.as_slice())
+                .unwrap_or(&[])
+        }
+    }
 }
 
 pub struct GenericInstructionBuilder<'a> {
@@ -721,17 +809,44 @@ fn decode_value(
     cursor: &mut ByteCursor<'_>,
 ) -> Result<GenericValue> {
     match ty {
+        GenericTypeRef::Primitive(name) if name == "u8" => {
+            Ok(GenericValue::UInt(u64::from(cursor.read_u8()?)))
+        }
+        GenericTypeRef::Primitive(name) if name == "u16" => {
+            Ok(GenericValue::UInt(u64::from(cursor.read_u16()?)))
+        }
+        GenericTypeRef::Primitive(name) if name == "u32" => {
+            Ok(GenericValue::UInt(u64::from(cursor.read_u32()?)))
+        }
         GenericTypeRef::Primitive(name) if name == "u64" => {
             Ok(GenericValue::UInt(cursor.read_u64()?))
         }
+        GenericTypeRef::Primitive(name) if name == "u128" => {
+            Ok(GenericValue::U128(cursor.read_u128()?))
+        }
+        GenericTypeRef::Primitive(name) if name == "i8" => {
+            Ok(GenericValue::Int(i64::from(cursor.read_i8()?)))
+        }
+        GenericTypeRef::Primitive(name) if name == "i16" => {
+            Ok(GenericValue::Int(i64::from(cursor.read_i16()?)))
+        }
+        GenericTypeRef::Primitive(name) if name == "i32" => {
+            Ok(GenericValue::Int(i64::from(cursor.read_i32()?)))
+        }
         GenericTypeRef::Primitive(name) if name == "i64" => {
             Ok(GenericValue::Int(cursor.read_i64()?))
+        }
+        GenericTypeRef::Primitive(name) if name == "i128" => {
+            Ok(GenericValue::I128(cursor.read_i128()?))
         }
         GenericTypeRef::Primitive(name) if name == "bool" => {
             Ok(GenericValue::Bool(cursor.read_bool()?))
         }
         GenericTypeRef::Primitive(name) if name == "pubkey" => {
             Ok(GenericValue::Pubkey(cursor.read_pubkey()?))
+        }
+        GenericTypeRef::Primitive(name) if name == "string" => {
+            Ok(GenericValue::String(cursor.read_string()?))
         }
         GenericTypeRef::Vec { vec } => {
             let len = cursor.read_u32()? as usize;
@@ -742,12 +857,34 @@ fn decode_value(
             Ok(GenericValue::Vec(items))
         }
         GenericTypeRef::Defined { defined } => {
+            let defined = defined.as_str();
             let defined_type = idl
                 .types
                 .iter()
-                .find(|candidate| candidate.name == *defined)
+                .find(|candidate| candidate.name == defined)
                 .ok_or_else(|| anyhow!("generic IDL missing defined type `{defined}`"))?;
-            decode_struct(idl, &defined_type.fields, cursor)
+            decode_struct(idl, defined_type.fields(), cursor)
+        }
+        GenericTypeRef::Option { option } => {
+            let tag = cursor.read_u8()?;
+            match tag {
+                0 => Ok(GenericValue::Option(None)),
+                1 => Ok(GenericValue::Option(Some(Box::new(decode_value(
+                    idl, option, cursor,
+                )?)))),
+                other => bail!("invalid option tag `{other}`"),
+            }
+        }
+        GenericTypeRef::Array { array } => {
+            let (item_ty, len) = array;
+            if matches!(&**item_ty, GenericTypeRef::Primitive(name) if name == "u8") {
+                return Ok(GenericValue::Bytes(cursor.read_vec(*len)?));
+            }
+            let mut items = Vec::with_capacity(*len);
+            for _ in 0..*len {
+                items.push(decode_value(idl, item_ty, cursor)?);
+            }
+            Ok(GenericValue::Vec(items))
         }
         other => bail!("unsupported generic field type `{other:?}`"),
     }
@@ -768,8 +905,20 @@ impl GenericValue {
     fn to_observation(&self, expected: ObservationType) -> Result<ObservationValue> {
         match (self, expected) {
             (GenericValue::Int(value), ObservationType::Int) => Ok(ObservationValue::Int(*value)),
+            (GenericValue::I128(value), ObservationType::Int) => {
+                let narrowed = i64::try_from(*value).map_err(|_| {
+                    anyhow!("generic i128 observation value `{value}` does not fit i64")
+                })?;
+                Ok(ObservationValue::Int(narrowed))
+            }
             (GenericValue::UInt(value), ObservationType::UInt) => {
                 Ok(ObservationValue::UInt(*value))
+            }
+            (GenericValue::U128(value), ObservationType::UInt) => {
+                let narrowed = u64::try_from(*value).map_err(|_| {
+                    anyhow!("generic u128 observation value `{value}` does not fit u64")
+                })?;
+                Ok(ObservationValue::UInt(narrowed))
             }
             (GenericValue::Bool(value), ObservationType::Bool) => {
                 Ok(ObservationValue::Bool(*value))
@@ -831,6 +980,31 @@ impl<'a> ByteCursor<'a> {
         Ok(chunk)
     }
 
+    fn skip(&mut self, len: usize) -> Result<()> {
+        if self.offset + len > self.bytes.len() {
+            bail!("unexpected end of account data");
+        }
+        self.offset += len;
+        Ok(())
+    }
+
+    fn read_vec(&mut self, len: usize) -> Result<Vec<u8>> {
+        if self.offset + len > self.bytes.len() {
+            bail!("unexpected end of account data");
+        }
+        let out = self.bytes[self.offset..self.offset + len].to_vec();
+        self.offset += len;
+        Ok(out)
+    }
+
+    fn read_u8(&mut self) -> Result<u8> {
+        Ok(self.read_exact::<1>()?[0])
+    }
+
+    fn read_u16(&mut self) -> Result<u16> {
+        Ok(u16::from_le_bytes(self.read_exact()?))
+    }
+
     fn read_u32(&mut self) -> Result<u32> {
         Ok(u32::from_le_bytes(self.read_exact()?))
     }
@@ -839,8 +1013,28 @@ impl<'a> ByteCursor<'a> {
         Ok(u64::from_le_bytes(self.read_exact()?))
     }
 
+    fn read_u128(&mut self) -> Result<u128> {
+        Ok(u128::from_le_bytes(self.read_exact()?))
+    }
+
+    fn read_i8(&mut self) -> Result<i8> {
+        Ok(i8::from_le_bytes(self.read_exact()?))
+    }
+
+    fn read_i16(&mut self) -> Result<i16> {
+        Ok(i16::from_le_bytes(self.read_exact()?))
+    }
+
+    fn read_i32(&mut self) -> Result<i32> {
+        Ok(i32::from_le_bytes(self.read_exact()?))
+    }
+
     fn read_i64(&mut self) -> Result<i64> {
         Ok(i64::from_le_bytes(self.read_exact()?))
+    }
+
+    fn read_i128(&mut self) -> Result<i128> {
+        Ok(i128::from_le_bytes(self.read_exact()?))
     }
 
     fn read_bool(&mut self) -> Result<bool> {
@@ -849,6 +1043,12 @@ impl<'a> ByteCursor<'a> {
 
     fn read_pubkey(&mut self) -> Result<String> {
         Ok(bs58::encode(self.read_exact::<32>()?).into_string())
+    }
+
+    fn read_string(&mut self) -> Result<String> {
+        let len = self.read_u32()? as usize;
+        let bytes = self.read_vec(len)?;
+        String::from_utf8(bytes).context("decode borsh string")
     }
 }
 
@@ -920,12 +1120,14 @@ impl GenericHarness {
             generic_airdrop(&mut svm, &agent.pubkey(), per_identity_lamports)?;
         }
 
+        let agent_pubkeys: Vec<Pubkey> = agents.iter().map(|agent| agent.pubkey()).collect();
         let (agent_accounts, shared_accounts, oracle_binding) = bootstrap_generic_accounts(
             &mut svm,
             &config.adapter,
             config.agent_count,
             &program_id,
             &admin.pubkey(),
+            &agent_pubkeys,
         )?;
 
         Ok(Self {
@@ -988,8 +1190,82 @@ impl GenericHarness {
         self.svm.get_account(pubkey)
     }
 
+    /// Bind replay/bootstrap-imported accounts into the same name
+    /// registry instruction dispatch uses. This lets a fixture pack
+    /// provide `reserve`, `obligation`, `price_update_v2`, etc. at
+    /// concrete pubkeys instead of forcing every imported account to
+    /// have been generated by the generic bootstrap.
+    pub fn bind_imported_account(&mut self, name: &str, pubkeys: Vec<Pubkey>) -> Result<()> {
+        if pubkeys.is_empty() {
+            bail!("cannot bind imported account `{name}`: no pubkeys supplied");
+        }
+        let definition = self.adapter.accounts.get(name).ok_or_else(|| {
+            anyhow!(
+                "cannot bind undeclared imported account `{name}` into generic dispatch. \
+                 Replay/state-pack roles must name an adapter-declared `[accounts.{name}]` \
+                 binding; imported accounts may hydrate declared bindings but may not create \
+                 new dispatch aliases."
+            )
+        })?;
+        match definition.kind {
+            AccountKind::Agent => {
+                if pubkeys.len() != self.agents.len() {
+                    bail!(
+                        "cannot bind imported agent account `{name}`: got {} account(s), \
+                         expected {} (one per simulated agent)",
+                        pubkeys.len(),
+                        self.agents.len()
+                    );
+                }
+                if let Some(existing) = self.agent_accounts.get(name) {
+                    if existing != &pubkeys {
+                        bail!(
+                            "cannot override declared agent account binding `{name}` from \
+                             replay import: adapter/bootstrap resolved {:?}, import supplied {:?}",
+                            existing,
+                            pubkeys
+                        );
+                    }
+                } else {
+                    self.agent_accounts.insert(name.to_string(), pubkeys);
+                }
+            }
+            AccountKind::Shared => {
+                if pubkeys.len() != 1 {
+                    bail!(
+                        "cannot bind imported shared account `{name}`: got {} accounts, \
+                         expected exactly one",
+                        pubkeys.len()
+                    );
+                }
+                if is_well_known_readonly_account(definition.address.as_deref(), &pubkeys[0]) {
+                    bail!(
+                        "cannot import replay account `{name}` at well-known readonly address {}; \
+                         program/sysvar accounts are resolved from adapter literals and may not be \
+                         hydrated from fixture state",
+                        pubkeys[0]
+                    );
+                }
+                if let Some(existing) = self.shared_accounts.get(name) {
+                    if *existing != pubkeys[0] {
+                        bail!(
+                            "cannot override declared shared account binding `{name}` from \
+                             replay import: adapter/bootstrap resolved {}, import supplied {}",
+                            existing,
+                            pubkeys[0]
+                        );
+                    }
+                } else {
+                    self.shared_accounts.insert(name.to_string(), pubkeys[0]);
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn resolve_account_meta(
         &self,
+        instruction_name: &str,
         agent_idx: usize,
         account: &GenericInstructionAccount,
     ) -> Result<AccountMeta> {
@@ -1003,19 +1279,48 @@ impl GenericHarness {
             })?
         } else if let Some(pubkey) = self.shared_accounts.get(&account.name) {
             *pubkey
-        } else if account.signer {
-            if account.name.eq_ignore_ascii_case("admin") {
-                self.admin.pubkey()
-            } else {
-                self.agents
-                    .get(agent_idx)
-                    .ok_or_else(|| anyhow!("generic agent signer index {agent_idx} out of range"))?
-                    .pubkey()
-            }
+        } else if let Some(address) = account.address.as_deref() {
+            literal_or_well_known_pubkey(address).with_context(|| {
+                format!(
+                    "generic instruction `{instruction_name}` account `{}` declares IDL \
+                     address `{address}` but it could not be resolved",
+                    account.name
+                )
+            })?
+        } else if let Ok(pubkey) = well_known_pubkey(&account.name) {
+            pubkey
+        } else if account.signer && account.name.eq_ignore_ascii_case("admin") {
+            self.admin.pubkey()
+        } else if account.signer && is_agent_authority_signer_name(&account.name) {
+            self.agents
+                .get(agent_idx)
+                .ok_or_else(|| anyhow!("generic agent signer index {agent_idx} out of range"))?
+                .pubkey()
         } else {
+            let mut known: Vec<String> = self
+                .agent_accounts
+                .keys()
+                .chain(self.shared_accounts.keys())
+                .cloned()
+                .collect();
+            known.push("admin".into());
+            known.push("authority".into());
+            known.push("agent".into());
+            known.push("agent_authority".into());
+            known.push("owner".into());
+            known.sort();
+            known.dedup();
             bail!(
-                "generic instruction account `{}` is not declared under `[accounts]` and is not a recognized signer account",
-                account.name
+                "MissingGenericAccountBinding(instruction={instruction_name}, account={}); \
+                 IDL requires signer={} writable={}, but `{}` is not declared under \
+                 `[accounts]`, not a recognized signer (`admin`, `authority`, `agent`, \
+                 `agent_authority`, or `owner`), and not a well-known program/sysvar account. \
+                 Known bindings/signers: {:?}.",
+                account.name,
+                account.signer,
+                account.writable,
+                account.name,
+                known,
             );
         };
 
@@ -1023,6 +1328,14 @@ impl GenericHarness {
             AccountMeta::new(pubkey, account.signer)
         } else {
             AccountMeta::new_readonly(pubkey, account.signer)
+        })
+    }
+
+    fn oracle_kind_for_pubkey(&self, pubkey: &Pubkey) -> Option<OracleKind> {
+        self.adapter.oracles.iter().find_map(|oracle| {
+            let account_name = oracle.account.as_deref()?;
+            let bound = self.shared_accounts.get(account_name)?;
+            (*bound == *pubkey).then_some(oracle.kind)
         })
     }
 
@@ -1233,7 +1546,7 @@ impl crate::primitive::Primitive for GenericHarness {
         let accounts = instruction
             .accounts
             .iter()
-            .map(|account| self.resolve_account_meta(agent_idx, account))
+            .map(|account| self.resolve_account_meta(&instruction.name, agent_idx, account))
             .collect::<Result<Vec<_>>>()
             .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
         let payer = self
@@ -1268,7 +1581,7 @@ impl crate::primitive::Primitive for GenericHarness {
         let accounts = instruction
             .accounts
             .iter()
-            .map(|account| self.resolve_account_meta(agent_idx, account))
+            .map(|account| self.resolve_account_meta(&instruction.name, agent_idx, account))
             .collect::<Result<Vec<_>>>()
             .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
         let payer = self
@@ -1334,6 +1647,90 @@ impl crate::primitive::Primitive for GenericHarness {
         }
 
         Ok(observed)
+    }
+
+    fn semantic_oracle_account_owner(
+        &self,
+        account_pubkey: &str,
+    ) -> Result<Option<String>, crate::primitive::PrimitiveError> {
+        let pubkey = account_pubkey.parse::<Pubkey>().map_err(|error| {
+            crate::primitive::PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` is not a valid pubkey: {error}"
+            ))
+        })?;
+        Ok(self
+            .svm
+            .get_account(&pubkey)
+            .map(|account| account.owner.to_string()))
+    }
+
+    fn semantic_oracle_observation(
+        &self,
+        account_pubkey: &str,
+    ) -> Result<Option<crate::primitive::SemanticOracleObservation>, crate::primitive::PrimitiveError>
+    {
+        let pubkey = account_pubkey.parse::<Pubkey>().map_err(|error| {
+            crate::primitive::PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` is not a valid pubkey: {error}"
+            ))
+        })?;
+        let Some(account) = self.svm.get_account(&pubkey) else {
+            return Ok(None);
+        };
+        let kind = self.oracle_kind_for_pubkey(&pubkey).ok_or_else(|| {
+            crate::primitive::PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` exists but no generic `[[oracles]]` \
+                 binding resolves to that pubkey. Declare a generic `[[oracles]]` entry whose \
+                 `account` names the shared account for this semantic oracle."
+            ))
+        })?;
+        let decoded =
+            oracle_layout_for(kind)
+                .decode_observation(&account.data)
+                .map_err(|error| {
+                    crate::primitive::PrimitiveError::Infra(format!(
+                        "semantic oracle account `{account_pubkey}` failed to decode as {kind:?}: {error}"
+                    ))
+                })?;
+        let price = f64_to_u128_generic(decoded.price).ok_or_else(|| {
+            crate::primitive::PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` decoded non-finite price {}",
+                decoded.price
+            ))
+        })?;
+        let (confidence, staleness) = match kind {
+            OracleKind::AdminMock => (0, 0),
+            OracleKind::Pyth => {
+                let confidence = decoded.confidence.ok_or_else(|| {
+                    crate::primitive::PrimitiveError::Infra(format!(
+                        "semantic oracle account `{account_pubkey}` decoded as {kind:?}, but that \
+                         layout does not expose confidence; semantics refuses to publish a \
+                         sentinel value"
+                    ))
+                })?;
+                let publish_slot = decoded.publish_slot.ok_or_else(|| {
+                    crate::primitive::PrimitiveError::Infra(format!(
+                        "semantic oracle account `{account_pubkey}` decoded as {kind:?}, but that \
+                         layout does not expose a publish slot; semantics cannot compute staleness"
+                    ))
+                })?;
+                if publish_slot > self.current_slot {
+                    return Err(crate::primitive::PrimitiveError::Infra(format!(
+                        "semantic oracle account `{account_pubkey}` publish_slot {publish_slot} \
+                         is ahead of LiteSVM current slot {}; semantics cannot compute staleness \
+                         across slot domains",
+                        self.current_slot
+                    )));
+                }
+                (u128::from(confidence), self.current_slot - publish_slot)
+            }
+        };
+        Ok(Some(crate::primitive::SemanticOracleObservation {
+            price,
+            confidence,
+            staleness,
+            exponent: i128::from(decoded.exponent),
+        }))
     }
 
     fn snapshot_metrics(
@@ -1494,6 +1891,15 @@ fn json_f64_gen(value: f64) -> serde_json::Value {
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
+fn f64_to_u128_generic(value: f64) -> Option<u128> {
+    if value.is_finite() && value >= 0.0 && value <= u128::MAX as f64 {
+        Some(value.round() as u128)
+    } else {
+        None
+    }
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
 pub(crate) fn load_generic_program_bytes(path: &Path) -> Result<Vec<u8>> {
     if !path.exists() {
         bail!(
@@ -1518,6 +1924,7 @@ pub(crate) fn bootstrap_generic_accounts(
     agent_count: usize,
     program_id: &Pubkey,
     admin: &Pubkey,
+    agent_signers: &[Pubkey],
 ) -> Result<(
     BTreeMap<String, Vec<Pubkey>>,
     BTreeMap<String, Pubkey>,
@@ -1558,19 +1965,20 @@ pub(crate) fn bootstrap_generic_accounts(
         None => None,
     };
 
-    let mut agent_accounts = BTreeMap::new();
-    let mut shared_accounts = BTreeMap::new();
+    let (agent_accounts, shared_accounts) =
+        resolve_generic_account_pubkeys(adapter, agent_count, program_id, admin, agent_signers)?;
 
     for (account_name, definition) in &adapter.accounts {
         let lamports = svm.minimum_balance_for_rent_exemption(definition.space);
         match definition.kind {
             AccountKind::Agent => {
                 let owner = *program_id;
-                let mut pubkeys = Vec::with_capacity(agent_count);
-                for _ in 0..agent_count {
-                    let pubkey = Pubkey::new_unique();
+                let pubkeys = agent_accounts.get(account_name).ok_or_else(|| {
+                    anyhow!("bootstrap invariant: agent account `{account_name}` was not resolved")
+                })?;
+                for pubkey in pubkeys {
                     svm.set_account(
-                        pubkey,
+                        *pubkey,
                         Account {
                             lamports,
                             data: vec![0u8; definition.space],
@@ -1583,13 +1991,16 @@ pub(crate) fn bootstrap_generic_accounts(
                             "create generic agent account `{account_name}` for {pubkey}: {error}"
                         )
                     })?;
-                    pubkeys.push(pubkey);
                 }
-                agent_accounts.insert(account_name.clone(), pubkeys);
             }
             AccountKind::Shared => {
+                let pubkey = *shared_accounts.get(account_name).ok_or_else(|| {
+                    anyhow!("bootstrap invariant: shared account `{account_name}` was not resolved")
+                })?;
+                if is_well_known_readonly_account(definition.address.as_deref(), &pubkey) {
+                    continue;
+                }
                 let owner = resolve_shared_account_owner(account_name, definition, program_id)?;
-                let pubkey = Pubkey::new_unique();
                 let is_oracle = oracle_binding
                     .as_ref()
                     .is_some_and(|binding| binding.account_name == *account_name);
@@ -1637,7 +2048,6 @@ pub(crate) fn bootstrap_generic_accounts(
                 .map_err(|error| {
                     anyhow!("create generic shared account `{account_name}` for {pubkey}: {error}")
                 })?;
-                shared_accounts.insert(account_name.clone(), pubkey);
             }
         }
     }
@@ -1647,6 +2057,356 @@ pub(crate) fn bootstrap_generic_accounts(
         kind: binding.kind,
     });
     Ok((agent_accounts, shared_accounts, runtime_binding))
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn resolve_generic_account_pubkeys(
+    adapter: &Adapter,
+    agent_count: usize,
+    program_id: &Pubkey,
+    admin: &Pubkey,
+    agent_signers: &[Pubkey],
+) -> Result<(BTreeMap<String, Vec<Pubkey>>, BTreeMap<String, Pubkey>)> {
+    if agent_signers.len() != agent_count {
+        bail!(
+            "generic account resolution expected {agent_count} agent signer pubkeys, got {}",
+            agent_signers.len()
+        );
+    }
+    let mut agent_accounts: BTreeMap<String, Vec<Pubkey>> = BTreeMap::new();
+    let mut shared_accounts: BTreeMap<String, Pubkey> = BTreeMap::new();
+    let mut pending: std::collections::BTreeSet<String> =
+        adapter.accounts.keys().cloned().collect();
+
+    while !pending.is_empty() {
+        let mut progressed = false;
+        let names: Vec<String> = pending.iter().cloned().collect();
+        for account_name in names {
+            let definition = adapter
+                .accounts
+                .get(&account_name)
+                .expect("pending account came from adapter.accounts");
+            match definition.kind {
+                AccountKind::Shared => {
+                    let Some(pubkey) = resolve_shared_account_pubkey(
+                        &account_name,
+                        definition,
+                        program_id,
+                        admin,
+                        agent_signers,
+                        &agent_accounts,
+                        &shared_accounts,
+                    )?
+                    else {
+                        continue;
+                    };
+                    shared_accounts.insert(account_name.clone(), pubkey);
+                }
+                AccountKind::Agent => {
+                    let Some(pubkeys) = resolve_agent_account_pubkeys(
+                        &account_name,
+                        definition,
+                        agent_count,
+                        program_id,
+                        admin,
+                        agent_signers,
+                        &agent_accounts,
+                        &shared_accounts,
+                    )?
+                    else {
+                        continue;
+                    };
+                    agent_accounts.insert(account_name.clone(), pubkeys);
+                }
+            }
+            pending.remove(&account_name);
+            progressed = true;
+        }
+
+        if !progressed {
+            let unresolved: Vec<String> = pending.into_iter().collect();
+            bail!(
+                "generic account PDA bindings could not be resolved; unresolved accounts: \
+                 {unresolved:?}. Check for cyclic `account:<name>` PDA seeds or references \
+                 to accounts that are not declared before they are needed."
+            );
+        }
+    }
+
+    Ok((agent_accounts, shared_accounts))
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn resolve_shared_account_pubkey(
+    account_name: &str,
+    definition: &AccountDefinition,
+    program_id: &Pubkey,
+    admin: &Pubkey,
+    agent_signers: &[Pubkey],
+    agent_accounts: &BTreeMap<String, Vec<Pubkey>>,
+    shared_accounts: &BTreeMap<String, Pubkey>,
+) -> Result<Option<Pubkey>> {
+    if let Some(address) = definition.address.as_deref() {
+        return literal_or_well_known_pubkey(address)
+            .map(Some)
+            .with_context(|| format!("resolve address for shared account `{account_name}`"));
+    }
+    if let Some(pda) = definition.pda.as_ref() {
+        return resolve_pda_pubkey(
+            account_name,
+            pda,
+            None,
+            program_id,
+            admin,
+            agent_signers,
+            agent_accounts,
+            shared_accounts,
+        );
+    }
+    Ok(Some(Pubkey::new_unique()))
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn resolve_agent_account_pubkeys(
+    account_name: &str,
+    definition: &AccountDefinition,
+    agent_count: usize,
+    program_id: &Pubkey,
+    admin: &Pubkey,
+    agent_signers: &[Pubkey],
+    agent_accounts: &BTreeMap<String, Vec<Pubkey>>,
+    shared_accounts: &BTreeMap<String, Pubkey>,
+) -> Result<Option<Vec<Pubkey>>> {
+    if definition.address.is_some() {
+        bail!(
+            "agent account `{account_name}` declares a literal `address`; literal addresses \
+             are shared by definition. Use `kind = \"shared\"` or declare a per-agent PDA."
+        );
+    }
+    let Some(pda) = definition.pda.as_ref() else {
+        return Ok(Some(
+            (0..agent_count).map(|_| Pubkey::new_unique()).collect(),
+        ));
+    };
+    let mut pubkeys = Vec::with_capacity(agent_count);
+    for agent_idx in 0..agent_count {
+        let Some(pubkey) = resolve_pda_pubkey(
+            account_name,
+            pda,
+            Some(agent_idx),
+            program_id,
+            admin,
+            agent_signers,
+            agent_accounts,
+            shared_accounts,
+        )?
+        else {
+            return Ok(None);
+        };
+        pubkeys.push(pubkey);
+    }
+    Ok(Some(pubkeys))
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn resolve_pda_pubkey(
+    account_name: &str,
+    pda: &crate::adapter::PdaDefinition,
+    agent_idx: Option<usize>,
+    program_id: &Pubkey,
+    admin: &Pubkey,
+    agent_signers: &[Pubkey],
+    agent_accounts: &BTreeMap<String, Vec<Pubkey>>,
+    shared_accounts: &BTreeMap<String, Pubkey>,
+) -> Result<Option<Pubkey>> {
+    let mut seeds: Vec<Vec<u8>> = Vec::with_capacity(pda.seeds.len());
+    for seed in &pda.seeds {
+        let Some(bytes) = resolve_pda_seed(
+            account_name,
+            seed,
+            agent_idx,
+            program_id,
+            admin,
+            agent_signers,
+            agent_accounts,
+            shared_accounts,
+        )?
+        else {
+            return Ok(None);
+        };
+        if bytes.len() > 32 {
+            bail!(
+                "PDA seed `{seed}` for account `{account_name}` is {} bytes; Solana PDA \
+                 seeds must be at most 32 bytes",
+                bytes.len()
+            );
+        }
+        seeds.push(bytes);
+    }
+    let program = match pda.program.as_deref() {
+        Some(value) => resolve_pda_program(value, program_id)?,
+        None => *program_id,
+    };
+    let seed_refs: Vec<&[u8]> = seeds.iter().map(Vec::as_slice).collect();
+    let (pubkey, _) = Pubkey::find_program_address(&seed_refs, &program);
+    Ok(Some(pubkey))
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn resolve_pda_seed(
+    account_name: &str,
+    seed: &str,
+    agent_idx: Option<usize>,
+    program_id: &Pubkey,
+    admin: &Pubkey,
+    agent_signers: &[Pubkey],
+    agent_accounts: &BTreeMap<String, Vec<Pubkey>>,
+    shared_accounts: &BTreeMap<String, Pubkey>,
+) -> Result<Option<Vec<u8>>> {
+    let Some((kind, value)) = seed.split_once(':') else {
+        bail!("PDA seed `{seed}` for account `{account_name}` is missing a prefix");
+    };
+    match kind {
+        "literal" => Ok(Some(value.as_bytes().to_vec())),
+        "pubkey" => Ok(Some(
+            Pubkey::from_str(value)
+                .with_context(|| {
+                    format!("PDA seed `{seed}` for account `{account_name}` is not a pubkey")
+                })?
+                .to_bytes()
+                .to_vec(),
+        )),
+        "program" => Ok(Some(
+            resolve_pda_program(value, program_id)?.to_bytes().to_vec(),
+        )),
+        "signer" => match value {
+            "admin" => Ok(Some(admin.to_bytes().to_vec())),
+            "agent" => {
+                let Some(idx) = agent_idx else {
+                    bail!(
+                        "PDA seed `signer:agent` cannot be used for shared account \
+                         `{account_name}`; only agent-scoped accounts have an agent signer"
+                    );
+                };
+                let signer = agent_signers.get(idx).ok_or_else(|| {
+                    anyhow!(
+                        "PDA seed `signer:agent` for account `{account_name}` references \
+                         agent index {idx}, but only {} signer pubkeys exist",
+                        agent_signers.len()
+                    )
+                })?;
+                Ok(Some(signer.to_bytes().to_vec()))
+            }
+            _ => bail!("unsupported PDA signer seed `{seed}` for account `{account_name}`"),
+        },
+        "account" => {
+            if let Some(pubkey) = literal_or_well_known_pubkey(value).ok() {
+                return Ok(Some(pubkey.to_bytes().to_vec()));
+            }
+            if let Some(pubkey) = shared_accounts.get(value) {
+                return Ok(Some(pubkey.to_bytes().to_vec()));
+            }
+            if let Some(pubkeys) = agent_accounts.get(value) {
+                let Some(idx) = agent_idx else {
+                    bail!(
+                        "PDA seed `account:{value}` for shared account `{account_name}` \
+                         references agent-scoped account `{value}`"
+                    );
+                };
+                let pubkey = pubkeys.get(idx).ok_or_else(|| {
+                    anyhow!(
+                        "PDA seed `account:{value}` for account `{account_name}` references \
+                         agent index {idx}, but `{value}` only has {} accounts",
+                        pubkeys.len()
+                    )
+                })?;
+                return Ok(Some(pubkey.to_bytes().to_vec()));
+            }
+            Ok(None)
+        }
+        _ => bail!("unsupported PDA seed `{seed}` for account `{account_name}`"),
+    }
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn resolve_pda_program(value: &str, program_id: &Pubkey) -> Result<Pubkey> {
+    if value == "self" {
+        return Ok(*program_id);
+    }
+    literal_or_well_known_pubkey(value)
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn is_agent_authority_signer_name(value: &str) -> bool {
+    value.eq_ignore_ascii_case("authority")
+        || value.eq_ignore_ascii_case("agent")
+        || value.eq_ignore_ascii_case("agent_authority")
+        || value.eq_ignore_ascii_case("owner")
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn is_well_known_readonly_account(address: Option<&str>, pubkey: &Pubkey) -> bool {
+    if address
+        .and_then(|value| well_known_pubkey(value).ok())
+        .is_some_and(|known| known == *pubkey)
+    {
+        return true;
+    }
+
+    well_known_readonly_pubkey_strings()
+        .iter()
+        .filter_map(|value| Pubkey::from_str(value).ok())
+        .any(|known| known == *pubkey)
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn literal_or_well_known_pubkey(value: &str) -> Result<Pubkey> {
+    if let Ok(pubkey) = well_known_pubkey(value) {
+        return Ok(pubkey);
+    }
+    Pubkey::from_str(value).with_context(|| {
+        format!("`{value}` is neither a well-known account alias nor a base58 pubkey")
+    })
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn well_known_pubkey(value: &str) -> Result<Pubkey> {
+    let pubkey = match value {
+        "system" | "system_program" => well_known_readonly_pubkey_strings()[0],
+        "spl_token" | "token" | "token_program" => well_known_readonly_pubkey_strings()[1],
+        "spl_token_2022" | "token_2022" | "token_2022_program" => {
+            well_known_readonly_pubkey_strings()[2]
+        }
+        "associated_token" | "associated_token_program" | "ata" => {
+            well_known_readonly_pubkey_strings()[3]
+        }
+        "rent" | "rent_sysvar" | "sysvar_rent" => well_known_readonly_pubkey_strings()[4],
+        "clock" | "clock_sysvar" | "sysvar_clock" => well_known_readonly_pubkey_strings()[5],
+        "instructions_sysvar" | "sysvar_instructions" => well_known_readonly_pubkey_strings()[6],
+        "slot_hashes" | "slot_hashes_sysvar" | "sysvar_slot_hashes" => {
+            well_known_readonly_pubkey_strings()[7]
+        }
+        "stake_history" | "stake_history_sysvar" | "sysvar_stake_history" => {
+            well_known_readonly_pubkey_strings()[8]
+        }
+        _ => bail!("unknown well-known account alias `{value}`"),
+    };
+    Pubkey::from_str(pubkey).with_context(|| format!("parse well-known pubkey `{value}`"))
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn well_known_readonly_pubkey_strings() -> [&'static str; 9] {
+    [
+        "11111111111111111111111111111111",
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "TokenzQdBNbLqP5VEhdkAS6EPFNH4QFMM8erqD8J1x",
+        "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+        "SysvarRent111111111111111111111111111111111",
+        "SysvarC1ock11111111111111111111111111111111",
+        "Sysvar1nstructions1111111111111111111111111",
+        "SysvarS1otHashes111111111111111111111111111",
+        "SysvarStakeHistory1111111111111111111111111",
+    ]
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
@@ -1808,6 +2568,65 @@ triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
         .unwrap()
     }
 
+    fn anchor_binding_adapter() -> Adapter {
+        parse_adapter_str(
+            r#"
+protocol = "generic"
+program_so = "target/deploy/anchor_fixture.so"
+idl_path = "target/idl/anchor_fixture.json"
+
+[accounts.market]
+kind = "shared"
+space = 64
+pda = { seeds = ["literal:market"] }
+
+[accounts.reserve]
+kind = "shared"
+space = 128
+pda = { seeds = ["literal:reserve", "account:market"] }
+
+[accounts.obligation]
+kind = "agent"
+space = 128
+pda = { seeds = ["literal:obligation", "signer:agent", "account:market"] }
+
+[accounts.system_program]
+kind = "shared"
+space = 8
+address = "11111111111111111111111111111111"
+
+[accounts.token_program]
+kind = "shared"
+space = 8
+address = "spl_token"
+
+[accounts.associated_token_program]
+kind = "shared"
+space = 8
+address = "associated_token_program"
+
+[instructions]
+anchor_style = { action = "noop" }
+
+[state_mapping]
+"market.bump" = "market.bump"
+
+[actions.noop]
+takes = []
+
+[observations]
+"market.bump" = "uint"
+
+[personas.passive]
+action_rate_multiplier = 0.0
+action_weights = { noop = 0.0 }
+triggers = []
+"#,
+            "anchor-binding.toml",
+        )
+        .unwrap()
+    }
+
     #[test]
     fn action_dispatch_builds_instruction_data_from_synthetic_idl() {
         let idl = parse_generic_idl_str(SYNTHETIC_IDL).unwrap();
@@ -1904,5 +2723,244 @@ triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
         assert!(warnings
             .iter()
             .any(|warning| warning.contains("missing action weight for `craft`")));
+    }
+
+    #[test]
+    fn account_binding_resolves_well_known_programs_and_agent_pdas_for_dispatch() {
+        let adapter = anchor_binding_adapter();
+        let program_id = Pubkey::new_unique();
+        let admin = Keypair::new();
+        let agents = vec![Keypair::new(), Keypair::new()];
+        let agent_pubkeys: Vec<Pubkey> = agents.iter().map(|agent| agent.pubkey()).collect();
+        let (agent_accounts, shared_accounts) = resolve_generic_account_pubkeys(
+            &adapter,
+            agents.len(),
+            &program_id,
+            &admin.pubkey(),
+            &agent_pubkeys,
+        )
+        .unwrap();
+
+        let expected_market = Pubkey::find_program_address(&[b"market"], &program_id).0;
+        let expected_reserve =
+            Pubkey::find_program_address(&[b"reserve", expected_market.as_ref()], &program_id).0;
+        assert_eq!(shared_accounts["market"], expected_market);
+        assert_eq!(shared_accounts["reserve"], expected_reserve);
+        assert_ne!(
+            agent_accounts["obligation"][0],
+            agent_accounts["obligation"][1]
+        );
+
+        let instruction = GenericInstruction {
+            name: "anchor_style".into(),
+            discriminator: vec![1, 2, 3, 4, 5, 6, 7, 8],
+            accounts: vec![
+                GenericInstructionAccount {
+                    name: "authority".into(),
+                    signer: true,
+                    writable: true,
+                    address: None,
+                },
+                GenericInstructionAccount {
+                    name: "market".into(),
+                    signer: false,
+                    writable: false,
+                    address: None,
+                },
+                GenericInstructionAccount {
+                    name: "obligation".into(),
+                    signer: false,
+                    writable: true,
+                    address: None,
+                },
+                GenericInstructionAccount {
+                    name: "system_program".into(),
+                    signer: false,
+                    writable: false,
+                    address: Some("11111111111111111111111111111111".into()),
+                },
+                GenericInstructionAccount {
+                    name: "token_program".into(),
+                    signer: false,
+                    writable: false,
+                    address: None,
+                },
+                GenericInstructionAccount {
+                    name: "associated_token_program".into(),
+                    signer: false,
+                    writable: false,
+                    address: Some("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL".into()),
+                },
+            ],
+            args: Vec::new(),
+        };
+        let harness = GenericHarness {
+            svm: LiteSVM::new().with_builtins().with_sysvars(),
+            program_id,
+            admin,
+            agents,
+            adapter,
+            idl: GenericIdl {
+                instructions: vec![instruction.clone()],
+                accounts: Vec::new(),
+                types: Vec::new(),
+            },
+            agent_accounts,
+            shared_accounts,
+            oracle_binding: None,
+            current_slot: 0,
+        };
+        let metas = instruction
+            .accounts
+            .iter()
+            .map(|account| harness.resolve_account_meta("anchor_style", 0, account))
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+
+        assert_eq!(metas[0].pubkey, harness.agents[0].pubkey());
+        assert!(metas[0].is_signer);
+        assert_eq!(metas[1].pubkey, expected_market);
+        assert_eq!(metas[2].pubkey, harness.agent_accounts["obligation"][0]);
+        assert_eq!(
+            metas[3].pubkey,
+            Pubkey::from_str("11111111111111111111111111111111").unwrap()
+        );
+        assert_eq!(
+            metas[4].pubkey,
+            Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").unwrap()
+        );
+        assert_eq!(
+            metas[5].pubkey,
+            Pubkey::from_str("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL").unwrap()
+        );
+    }
+
+    #[test]
+    fn imported_accounts_cannot_override_or_create_dispatch_bindings() {
+        let adapter = anchor_binding_adapter();
+        let program_id = Pubkey::new_unique();
+        let admin = Keypair::new();
+        let agents = vec![Keypair::new(), Keypair::new()];
+        let agent_pubkeys: Vec<Pubkey> = agents.iter().map(|agent| agent.pubkey()).collect();
+        let (agent_accounts, shared_accounts) = resolve_generic_account_pubkeys(
+            &adapter,
+            agents.len(),
+            &program_id,
+            &admin.pubkey(),
+            &agent_pubkeys,
+        )
+        .unwrap();
+        let expected_market = shared_accounts["market"];
+        let expected_obligations = agent_accounts["obligation"].clone();
+        let system_program = shared_accounts["system_program"];
+        let mut harness = GenericHarness {
+            svm: LiteSVM::new().with_builtins().with_sysvars(),
+            program_id,
+            admin,
+            agents,
+            adapter,
+            idl: GenericIdl {
+                instructions: Vec::new(),
+                accounts: Vec::new(),
+                types: Vec::new(),
+            },
+            agent_accounts,
+            shared_accounts,
+            oracle_binding: None,
+            current_slot: 0,
+        };
+
+        let err = harness
+            .bind_imported_account("undeclared_price", vec![Pubkey::new_unique()])
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("cannot bind undeclared imported account"));
+
+        let err = harness
+            .bind_imported_account("market", vec![Pubkey::new_unique()])
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("cannot override declared shared account binding"));
+        assert_eq!(harness.shared_accounts["market"], expected_market);
+
+        harness
+            .bind_imported_account("market", vec![expected_market])
+            .expect("fixture may hydrate the already-declared PDA binding");
+
+        let mut wrong_obligations = expected_obligations.clone();
+        wrong_obligations[0] = Pubkey::new_unique();
+        let err = harness
+            .bind_imported_account("obligation", wrong_obligations)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("cannot override declared agent account binding"));
+        assert_eq!(harness.agent_accounts["obligation"], expected_obligations);
+
+        let err = harness
+            .bind_imported_account("system_program", vec![system_program])
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("well-known readonly address"));
+    }
+
+    #[test]
+    fn missing_anchor_account_binding_names_the_instruction_account() {
+        let adapter = anchor_binding_adapter();
+        let program_id = Pubkey::new_unique();
+        let admin = Keypair::new();
+        let agents = vec![Keypair::new()];
+        let agent_pubkeys: Vec<Pubkey> = agents.iter().map(|agent| agent.pubkey()).collect();
+        let (agent_accounts, shared_accounts) = resolve_generic_account_pubkeys(
+            &adapter,
+            agents.len(),
+            &program_id,
+            &admin.pubkey(),
+            &agent_pubkeys,
+        )
+        .unwrap();
+        let harness = GenericHarness {
+            svm: LiteSVM::new().with_builtins().with_sysvars(),
+            program_id,
+            admin,
+            agents,
+            adapter,
+            idl: GenericIdl {
+                instructions: Vec::new(),
+                accounts: Vec::new(),
+                types: Vec::new(),
+            },
+            agent_accounts,
+            shared_accounts,
+            oracle_binding: None,
+            current_slot: 0,
+        };
+        let missing = GenericInstructionAccount {
+            name: "price_update_v2".into(),
+            signer: false,
+            writable: false,
+            address: None,
+        };
+        let err = harness
+            .resolve_account_meta("refresh_reserve", 0, &missing)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("MissingGenericAccountBinding"));
+        assert!(err.contains("instruction=refresh_reserve"));
+        assert!(err.contains("account=price_update_v2"));
+
+        let missing_signer = GenericInstructionAccount {
+            name: "market_authority".into(),
+            signer: true,
+            writable: true,
+            address: None,
+        };
+        let err = harness
+            .resolve_account_meta("initialize_reserve", 0, &missing_signer)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("MissingGenericAccountBinding"));
+        assert!(err.contains("instruction=initialize_reserve"));
+        assert!(err.contains("account=market_authority"));
+        assert!(err.contains("signer=true"));
     }
 }

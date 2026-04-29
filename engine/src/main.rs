@@ -708,7 +708,11 @@ fn apply_generic_replay_state(
     let Some(import) = import else {
         return Ok(());
     };
-    for accounts in import.accounts.values() {
+    for (role, accounts) in &import.accounts {
+        let pubkeys: Vec<_> = accounts.iter().map(|account| account.pubkey).collect();
+        harness
+            .bind_imported_account(role, pubkeys)
+            .map_err(|e| anyhow::anyhow!("failed to bind imported replay role `{role}`: {e:#}"))?;
         for account in accounts {
             harness
                 .svm_mut()
