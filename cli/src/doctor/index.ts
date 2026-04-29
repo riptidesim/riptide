@@ -35,7 +35,7 @@ import {
 import { loadAdapter } from "../adapter/resolve.js";
 import { lintAdapter } from "../lint/index.js";
 import { deriveRepoRoot } from "../commands/lint.js";
-import type { Adapter } from "../schemas/adapter.js";
+import { resolveAdapterRuntime, type Adapter } from "../schemas/adapter.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -470,12 +470,12 @@ interface RuntimePathFailure {
  * existing file on disk, plus the `<.so>`-sibling keypair the engine
  * needs at bootstrap time.
  *
- * Returns `null` when all checks pass (or the adapter is lending so
- * this contract doesn't apply). Returns the first failure otherwise —
+ * Returns `null` when all checks pass (or the inferred runtime is
+ * lending so this contract doesn't apply). Returns the first failure otherwise —
  * doctor only needs one reason to fail, with a concrete next-step hint.
  */
 function checkGenericRuntimePaths(adapter: Adapter, adapterPath: string): RuntimePathFailure | null {
-  if (adapter.protocol !== "generic") return null;
+  if (resolveAdapterRuntime(adapter) !== "generic") return null;
 
   const adapterDir = path.dirname(adapterPath);
   const resolveRel = (raw: string): string =>

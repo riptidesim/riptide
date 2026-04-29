@@ -1,5 +1,6 @@
 use riptide_engine::adapter::{
-    parse_adapter_str, AdapterError, SemanticInvariantSeverity, SemanticSourceBinding,
+    parse_adapter_str, AdapterError, Protocol, SemanticClassRef, SemanticInvariantSeverity,
+    SemanticSourceBinding,
 };
 
 fn valid_semantics_toml() -> &'static str {
@@ -57,6 +58,77 @@ description = "Position must not be underwater"
 [[semantics.invariants]]
 name = "ltv_below_max"
 expr = "debt_value <= max_borrow_value"
+"#
+}
+
+fn valid_generic_semantics_toml() -> &'static str {
+    r#"
+protocol = "generic"
+program_so = "target/deploy/lending.so"
+idl_path = "target/idl/lending.json"
+
+[accounts.position]
+kind = "agent"
+space = 128
+
+[accounts.reserve]
+kind = "shared"
+space = 256
+
+[accounts.oracle]
+kind = "shared"
+space = 128
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"position.collateral_amount" = "position.collateral_amount"
+"position.debt_amount" = "position.debt_amount"
+"reserve.collateral_price" = "reserve.collateral_price"
+"reserve.max_ltv_bps" = "reserve.max_ltv_bps"
+"oracle.price" = "oracle.price"
+
+[actions.deposit]
+takes = ["amount"]
+
+[observations]
+"position.collateral_amount" = "uint"
+"position.debt_amount" = "uint"
+"reserve.collateral_price" = "uint"
+"reserve.max_ltv_bps" = "uint"
+"oracle.price" = "uint"
+
+[personas.depositor]
+action_rate_multiplier = 1.0
+action_weights = { deposit = 1.0 }
+
+[semantics]
+class = "lending.v1"
+
+[semantics.roles.position]
+source = "instruction.deposit"
+fields.collateral_amount = "u128"
+fields.debt_amount = "u128"
+
+[semantics.roles.reserve]
+source = "account.reserve"
+fields.collateral_price = "u128"
+fields.max_ltv_bps = "u64"
+
+[semantics.roles.oracle]
+source = "account.oracle"
+fields.price = "u128"
+
+[semantics.roles.liquidation_config]
+source = "account.reserve"
+fields.liquidation_threshold_bps = "u64"
+
+[semantics.derived]
+collateral_value = "position.collateral_amount * reserve.collateral_price / 10000"
+debt_value = "position.debt_amount"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+health_factor = "collateral_value * 10000 / max(debt_value, 1)"
 "#
 }
 
@@ -130,15 +202,21 @@ fn semantics_schema_rejects_unknown_class() {
 }
 
 #[test]
-fn semantics_schema_rejects_lending_v1_on_generic_protocol() {
-    let toml = valid_semantics_toml().replace("protocol = \"lending\"", "protocol = \"generic\"");
-    let err = parse_adapter_str(&toml, "semantics.toml").unwrap_err();
-    let AdapterError::Validation { key, reason, .. } = err else {
-        panic!("expected protocol/class compatibility validation error");
-    };
-    assert_eq!(key, "[semantics].class");
-    assert!(reason.contains("protocol = \"lending\""));
-    assert!(reason.contains("no semantics evaluator"));
+fn semantics_schema_accepts_lending_v1_on_generic_sbf_runtime() {
+    let adapter = parse_adapter_str(valid_generic_semantics_toml(), "generic-semantics.toml")
+        .expect("generic SBF/IDL adapter may declare lending.v1 semantics");
+
+    assert_eq!(adapter.protocol, Some(Protocol::Generic));
+    assert!(matches!(adapter.runtime(), Protocol::Generic));
+    assert_eq!(
+        adapter.program_so.as_deref(),
+        Some("target/deploy/lending.so")
+    );
+    assert_eq!(adapter.idl_path.as_deref(), Some("target/idl/lending.json"));
+
+    let semantics = adapter.semantics.expect("semantics present");
+    assert_eq!(semantics.class.as_deref(), Some("lending.v1"));
+    assert_eq!(semantics.class_ref, Some(SemanticClassRef::LendingV1));
 }
 
 #[test]

@@ -5,7 +5,7 @@
 //! 2. Load run config + policies JSON, plus an optional adapter TOML.
 //! 3. Bootstrap an in-process LiteSVM environment against either the
 //! native lending primitive (Solend fork) or the `GenericPrimitive`
-//! path, selected by the adapter's `protocol` field.
+//! path, selected by adapter runtime inference.
 //! 4. Construct the appropriate harness and call the matching
 //! `run_simulation` / `run_generic_simulation` entry point.
 //! 5. Write the `SimulationResult` JSON to `--output`.
@@ -380,7 +380,8 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
     // `LendingPrimitive` on LiteSVM.
     //
     // When `--adapter` is present, the loader validates the TOML and
-    // the `protocol` field picks the primitive impl. The adapter's
+    // infers the runtime from `program_so` + `idl_path`, falling back
+    // to the legacy `protocol` hint. The adapter's
     // `[instructions]` and `[state_mapping]` are load-bearing — they
     // are threaded into `LiteSvmBootstrapConfig` and the primitive
     // validates them against its own wiring at bootstrap time. A
@@ -389,7 +390,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
     // state is touched.
     let adapter = if let Some(adapter_path) = cli.adapter.as_ref() {
         let loaded = load_adapter(adapter_path).map_err(|e| anyhow::anyhow!("{e}"))?;
-        match loaded.protocol {
+        match loaded.runtime() {
             Protocol::Lending => {
                 eprintln!(
                     "adapter: {} (lending, {} instructions, {} state mappings)",
@@ -415,7 +416,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
         None
     };
     let generic_mode = matches!(
-        adapter.as_ref().map(|adapter| adapter.protocol),
+        adapter.as_ref().map(|adapter| adapter.runtime()),
         Some(Protocol::Generic)
     );
     if !generic_mode && loaded_policies.is_empty() {
@@ -507,10 +508,10 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(20_000.0);
     let result = match adapter {
-        Some(adapter) if matches!(adapter.protocol, Protocol::Generic) => {
+        Some(adapter) if matches!(adapter.runtime(), Protocol::Generic) => {
             if !loaded_policies.is_empty() {
                 eprintln!(
-                    "warn: ignoring {} external policies from {} because protocol=`generic` uses inline adapter personas",
+                    "warn: ignoring {} external policies from {} because the generic runtime uses inline adapter personas",
                     loaded_policies.len(),
                     cli.policies.display()
                 );
@@ -546,7 +547,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
             })
             .map_err(|e| anyhow::anyhow!("LiteSVM generic bootstrap failed: {e:#}"))?;
             eprintln!(
-                "LiteSVM ready: program={}, agents={}, protocol=generic",
+                "LiteSVM ready: program={}, agents={}, runtime=generic",
                 harness.program_id,
                 harness.agents.len(),
             );
@@ -795,7 +796,7 @@ fn run_replay_command(cli: ReplayCli) -> anyhow::Result<EngineOutcome> {
         bundle.total_ticks,
     );
 
-    let mut result = match adapter.protocol {
+    let mut result = match adapter.runtime() {
         Protocol::Generic => {
             let program_so = cli.program_so.unwrap_or_else(|| {
                 PathBuf::from(

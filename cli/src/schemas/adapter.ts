@@ -37,8 +37,40 @@ export const LENDING_V1_REQUIRED_ROLES = [
 export const COLLECTION_FORMULAS = ["sum", "min", "max", "worst"] as const;
 export const REPLAY_STATE_SOURCES = ["fixture", "mainnet-rpc"] as const;
 
+// Backcompat runtime hint: `generic` means the SBF/IDL runtime backed by
+// `program_so` + `idl_path`; `lending` means the bundled lending
+// harness. Economic interpretation lives in `[semantics].class`.
 export const ProtocolSchema = z.enum(["lending", "generic"]);
 export type Protocol = z.infer<typeof ProtocolSchema>;
+
+export function adapterDeclaresSbfIdlRuntime(
+  adapter: Pick<Adapter, "program_so" | "idl_path">
+): boolean {
+  return hasNonEmptyRuntimePath(adapter.program_so) && hasNonEmptyRuntimePath(adapter.idl_path);
+}
+
+export function inferAdapterRuntime(
+  adapter: Pick<Adapter, "protocol" | "program_so" | "idl_path">
+): Protocol | undefined {
+  if (adapterDeclaresSbfIdlRuntime(adapter)) return "generic";
+  return adapter.protocol;
+}
+
+export function resolveAdapterRuntime(
+  adapter: Pick<Adapter, "protocol" | "program_so" | "idl_path">
+): Protocol {
+  const runtime = inferAdapterRuntime(adapter);
+  if (runtime === undefined) {
+    throw new Error(
+      "adapter runtime could not be resolved; declare `program_so` + `idl_path` or set `protocol` as a backcompat runtime hint"
+    );
+  }
+  return runtime;
+}
+
+function hasNonEmptyRuntimePath(value: string | undefined): boolean {
+  return value !== undefined && value.trim().length > 0;
+}
 
 // literal-bound IDL args for multi-arg dispatch.
 // Accepts natural TOML primitives: numbers (integer literals, no
@@ -238,7 +270,7 @@ export const AdapterLineageSchema = z.object({
 export type AdapterLineage = z.infer<typeof AdapterLineageSchema>;
 
 export const AdapterSchema = z.object({
-  protocol: ProtocolSchema,
+  protocol: ProtocolSchema.optional(),
   instructions: z.record(z.string(), InstructionMappingSchema),
   state_mapping: z.record(z.string(), z.string()),
   program_so: z.string().min(1).optional(),
@@ -428,16 +460,25 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
   validateErrors(adapter, path);
   validateAccountOwners(adapter, path);
 
-  if (adapter.protocol === "lending") {
+  const runtime = validateRuntimeSelection(adapter, path);
+  if (runtime === "lending") {
     validateLending(adapter, path);
   } else {
     validateGeneric(adapter, path);
   }
 
-  validateOracles(adapter, path);
-  validateScheduledActions(adapter, path);
+  validateOracles(adapter, path, runtime);
+  validateScheduledActions(adapter, path, runtime);
 
   return adapter;
+}
+
+function validateRuntimeSelection(adapter: Adapter, path: string): Protocol {
+  const runtime = inferAdapterRuntime(adapter);
+  if (runtime !== undefined) return runtime;
+  throw new Error(
+    `${path}: \`protocol\`: missing runtime selection; declare \`program_so\` + \`idl_path\` for the generic SBF/IDL runtime, or set \`protocol = "lending"\` / \`protocol = "generic"\` as a backcompat runtime hint`
+  );
 }
 
 function validateErrors(adapter: Adapter, path: string): void {
@@ -465,7 +506,7 @@ function validateSemantics(adapter: Adapter, path: string): void {
 
   if (semantics.class === undefined) {
     throw new Error(
-      `${path}: \`[semantics].class\`: MissingSemanticClass(class); \`[semantics]\` blocks must declare \`class = "lending.v1"\``
+      `${path}: \`[semantics].class\`: MissingSemanticClass(class); \`[semantics]\` blocks must declare an economic class such as \`class = "lending.v1"\``
     );
   }
   if (!SEMANTIC_CLASS_RE.test(semantics.class)) {
@@ -478,12 +519,6 @@ function validateSemantics(adapter: Adapter, path: string): void {
       `${path}: \`[semantics].class\`: UnknownSemanticClass(${escapeDiagnostic(semantics.class)}); supported semantic classes: ${JSON.stringify(SUPPORTED_SEMANTIC_CLASSES)}`
     );
   }
-  if (semantics.class === "lending.v1" && adapter.protocol !== "lending") {
-    throw new Error(
-      `${path}: \`[semantics].class\`: \`lending.v1\` semantics require \`protocol = "lending"\`; protocol \`${escapeDiagnostic(adapter.protocol)}\` has no semantics evaluator`
-    );
-  }
-
   for (const role of LENDING_V1_REQUIRED_ROLES) {
     if (!(role in semantics.roles)) {
       throw new Error(
@@ -808,7 +843,7 @@ function base58PubkeyError(s: string): string | null {
   return null;
 }
 
-function validateOracles(adapter: Adapter, path: string): void {
+function validateOracles(adapter: Adapter, path: string, runtime: Protocol): void {
   const seen = new Set<string>();
   adapter.oracles.forEach((oracle, idx) => {
     const nameKey = `[[oracles]][${idx}].name`;
@@ -819,7 +854,7 @@ function validateOracles(adapter: Adapter, path: string): void {
       );
     }
     seen.add(oracle.name);
-    if (adapter.protocol === "generic" && oracle.account !== undefined) {
+    if (runtime === "generic" && oracle.account !== undefined) {
       if (!(oracle.account in adapter.accounts)) {
         throw new Error(
           `${path}: \`[[oracles]][${idx}].account\`: unknown account \`${oracle.account}\`; declare it under \`[accounts]\``
@@ -829,7 +864,7 @@ function validateOracles(adapter: Adapter, path: string): void {
   });
 }
 
-function validateScheduledActions(adapter: Adapter, path: string): void {
+function validateScheduledActions(adapter: Adapter, path: string, runtime: Protocol): void {
   adapter.scheduled_actions.forEach((sa, idx) => {
     const instrKey = `[[scheduled_actions]][${idx}].instruction`;
     if (!isSafeAdapterIdentifier(sa.instruction)) rejectIdentifier(path, instrKey, sa.instruction);
@@ -849,7 +884,7 @@ function validateScheduledActions(adapter: Adapter, path: string): void {
     sa.accounts.forEach((account, accIdx) => {
       const key = `[[scheduled_actions]][${idx}].accounts[${accIdx}]`;
       if (!isSafeAdapterIdentifier(account)) rejectIdentifier(path, key, account);
-      if (adapter.protocol === "generic" && !(account in adapter.accounts)) {
+      if (runtime === "generic" && !(account in adapter.accounts)) {
         throw new Error(
           `${path}: \`${key}\`: unknown account \`${account}\`; declare it under \`[accounts]\``
         );

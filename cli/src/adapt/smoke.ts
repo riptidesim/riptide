@@ -7,7 +7,7 @@
 // job: verify an adapter that the Claude Code skill's in-session agent
 // just generated round-trips cleanly against the local engine.
 //
-// We pick the matching sample run-config for the primitive class
+// We pick the matching sample run-config for the inferred runtime
 // (lending vs generic), shrink it to a tiny run (5 agents · 2 ticks ·
 // baseline), and run the engine. If the engine exits 0 and the output
 // JSON contains at least one observation value that differs from an
@@ -19,7 +19,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-import type { Adapter } from "../schemas/adapter.js";
+import { resolveAdapterRuntime, type Adapter } from "../schemas/adapter.js";
 
 export interface SmokeTestOptions {
   adapterPath: string;
@@ -130,7 +130,7 @@ function pickFixtures(options: SmokeTestOptions): {
   runConfig: Record<string, unknown>;
   policies: unknown;
 } {
-  const protocol = options.adapter.protocol;
+  const protocol = resolveAdapterRuntime(options.adapter);
 
   if (protocol === "lending") {
     return {

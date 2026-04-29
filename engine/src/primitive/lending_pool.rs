@@ -1576,7 +1576,7 @@ mod tests {
             state_mapping.insert(path.to_string(), obs.to_string());
         }
         crate::adapter::Adapter {
-            protocol: crate::adapter::Protocol::Lending,
+            protocol: Some(crate::adapter::Protocol::Lending),
             program_so: None,
             idl_path: None,
             accounts: BTreeMap::new(),

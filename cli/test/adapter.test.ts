@@ -21,6 +21,7 @@ import {
   LENDING_ACTIONS,
   LENDING_OBSERVATIONS,
   SEMANTIC_CLASS_RE_SOURCE,
+  resolveAdapterRuntime,
   validateAdapter,
 } from "../src/schemas/adapter.js";
 
@@ -208,6 +209,47 @@ function minimalLendingAdapterWithSemantics(overrides: Record<string, unknown> =
   };
 }
 
+function minimalGenericAdapterWithLendingSemantics(): unknown {
+  const lending = minimalLendingAdapterWithSemantics() as any;
+  return {
+    protocol: "generic",
+    program_so: "target/deploy/lending.so",
+    idl_path: "target/idl/lending.json",
+    accounts: {
+      position: { kind: "agent", space: 128 },
+      reserve: { kind: "shared", space: 256 },
+      oracle: { kind: "shared", space: 128 },
+    },
+    instructions: {
+      deposit: { action: "deposit", amount: "amount" },
+    },
+    state_mapping: {
+      "position.collateral_amount": "position.collateral_amount",
+      "position.debt_amount": "position.debt_amount",
+      "reserve.collateral_price": "reserve.collateral_price",
+      "reserve.max_ltv_bps": "reserve.max_ltv_bps",
+      "oracle.price": "oracle.price",
+    },
+    actions: {
+      deposit: { takes: ["amount"] },
+    },
+    observations: {
+      "position.collateral_amount": "uint",
+      "position.debt_amount": "uint",
+      "reserve.collateral_price": "uint",
+      "reserve.max_ltv_bps": "uint",
+      "oracle.price": "uint",
+    },
+    personas: {
+      depositor: {
+        action_rate_multiplier: 1,
+        action_weights: { deposit: 1 },
+      },
+    },
+    semantics: lending.semantics,
+  };
+}
+
 test("AdapterSchema accepts semantics block and defaults invariant severity", () => {
   const adapter = validateAdapter(minimalLendingAdapterWithSemantics(), "semantics.toml");
 
@@ -216,13 +258,46 @@ test("AdapterSchema accepts semantics block and defaults invariant severity", ()
   assert.equal(adapter.semantics?.invariants[1]?.severity, "error");
 });
 
-test("AdapterSchema rejects lending semantics on generic protocol", () => {
+test("AdapterSchema accepts generic SBF/IDL runtime with lending.v1 economic semantics", () => {
+  const adapter = validateAdapter(
+    minimalGenericAdapterWithLendingSemantics(),
+    "generic-lending.toml"
+  );
+
+  assert.equal(adapter.protocol, "generic");
+  assert.equal(adapter.program_so, "target/deploy/lending.so");
+  assert.equal(adapter.idl_path, "target/idl/lending.json");
+  assert.equal(adapter.semantics?.class, "lending.v1");
+});
+
+test("AdapterSchema infers generic runtime from program_so and idl_path when protocol is omitted", () => {
+  const raw = minimalGenericAdapterWithLendingSemantics() as any;
+  delete raw.protocol;
+
+  const adapter = validateAdapter(raw, "generic-lending.toml");
+
+  assert.equal(adapter.protocol, undefined);
+  assert.equal(resolveAdapterRuntime(adapter), "generic");
+  assert.equal(adapter.semantics?.class, "lending.v1");
+});
+
+test("AdapterSchema lets program artifacts override the protocol backcompat hint", () => {
+  const raw = minimalGenericAdapterWithLendingSemantics() as any;
+  raw.protocol = "lending";
+
+  const adapter = validateAdapter(raw, "generic-lending.toml");
+
+  assert.equal(adapter.protocol, "lending");
+  assert.equal(resolveAdapterRuntime(adapter), "generic");
+});
+
+test("AdapterSchema rejects adapters with neither runtime artifacts nor protocol hint", () => {
   const raw = minimalLendingAdapterWithSemantics() as any;
-  raw.protocol = "generic";
+  delete raw.protocol;
 
   assert.throws(
-    () => validateAdapter(raw, "semantics.toml"),
-    /protocol = "lending".*no semantics evaluator/
+    () => validateAdapter(raw, "missing-runtime.toml"),
+    /missing runtime selection/
   );
 });
 

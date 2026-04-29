@@ -833,7 +833,7 @@ mod tests {
 
     fn make_adapter(actions: &[(&str, &[&str])]) -> Adapter {
         let mut adapter = Adapter {
-            protocol: Protocol::Generic,
+            protocol: Some(Protocol::Generic),
             program_so: None,
             idl_path: None,
             accounts: Default::default(),

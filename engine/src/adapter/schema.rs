@@ -16,8 +16,10 @@ pub use crate::semantics::types::{
 };
 use crate::semantics::{error::Span, expr::Expr};
 
-/// The protocol class this adapter describes. Selects which primitive
-/// impl the engine boots at runtime.
+/// Backcompat runtime hint this adapter describes. `Generic` uses the
+/// SBF/IDL runtime backed by `program_so` + `idl_path`; `Lending` uses
+/// the bundled lending harness. Economic interpretation lives in
+/// `[semantics].class`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Protocol {
@@ -236,9 +238,12 @@ pub struct PersonaDefinition {
 /// file instead of relying on field declaration order here.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Adapter {
-    /// Which primitive impl to boot. Selects at runtime from the adapter
-    /// file instead of a compile-time switch.
-    pub protocol: Protocol,
+    /// Optional backcompat runtime hint. This is deliberately separate
+    /// from the economic semantic class declared in `[semantics].class`.
+    /// When `program_so` + `idl_path` are present, the SBF/IDL runtime
+    /// is inferred regardless of this hint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protocol: Option<Protocol>,
 
     /// Optional path to the program artifact. Generic adapters use this to
     /// point the engine at a non-lending `.so` without extra CLI flags.
@@ -323,6 +328,30 @@ pub struct Adapter {
     /// continues to parse byte-for-byte.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lineage: Option<AdapterLineage>,
+}
+
+impl Adapter {
+    pub fn declares_sbf_idl_runtime(&self) -> bool {
+        has_non_empty_runtime_path(self.program_so.as_deref())
+            && has_non_empty_runtime_path(self.idl_path.as_deref())
+    }
+
+    pub fn inferred_runtime(&self) -> Option<Protocol> {
+        if self.declares_sbf_idl_runtime() {
+            Some(Protocol::Generic)
+        } else {
+            self.protocol
+        }
+    }
+
+    pub fn runtime(&self) -> Protocol {
+        self.inferred_runtime()
+            .expect("adapter runtime selection should be validated before runtime dispatch")
+    }
+}
+
+fn has_non_empty_runtime_path(value: Option<&str>) -> bool {
+    value.is_some_and(|value| !value.trim().is_empty())
 }
 
 // ---------------------------------------------------------------------------

@@ -7,7 +7,7 @@ import TOML from "toml";
 import { z } from "zod";
 
 import { RunConfigSchema, type RunConfig } from "./compiler/schema.js";
-import { validateAdapter } from "./schemas/adapter.js";
+import { resolveAdapterRuntime, validateAdapter } from "./schemas/adapter.js";
 
 export const SimulateOptionsSchema = RunConfigSchema.extend({
   llm_url: z.string().url().optional(),
@@ -83,7 +83,7 @@ export function buildSimulateOptions(raw: Record<string, unknown>): { config: Si
       );
     }
     // Throws on validation failure. Message includes file + key.
-    adapterProtocol = validateAdapter(parsedToml, adapterPath).protocol;
+    adapterProtocol = resolveAdapterRuntime(validateAdapter(parsedToml, adapterPath));
   }
 
   const parsed = SimulateOptionsSchema.parse({

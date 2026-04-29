@@ -137,6 +137,19 @@ test("semantics lint: clean migrated lending adapter exits 0", async () => {
   assert.match(out, /Verdict: PASS/);
 });
 
+test("semantics lint: generic SBF/IDL runtime can declare lending.v1 economic class", () => {
+  const adapter = baseAdapter();
+  adapter.protocol = "generic";
+  adapter.program_so = "target/deploy/lending.so";
+  adapter.idl_path = "target/idl/lending.json";
+
+  const findings = lintSemantics(adapter);
+
+  assert.equal(findings[0]?.code, "semantics-clean");
+  assert.ok(findings.every((finding) => finding.level !== "fail"));
+  assert.match(findings[0]?.message ?? "", /economic semantic class/);
+});
+
 test("semantics lint: missing required role fails with next step", () => {
   const semantics = cloneSemantics();
   delete semantics.roles.oracle;

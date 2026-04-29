@@ -1,9 +1,10 @@
 //! Adapter format.
 //!
-//! An **adapter** is a TOML file that tells the engine which primitive
-//! impl to boot and how its on-chain wiring maps to the engine's tick
-//! loop. The engine boots from the adapter instead of a hardcoded
-//! compile-time switch.
+//! An **adapter** is a TOML file that tells the engine how to infer the
+//! runtime and how its on-chain wiring maps to the engine's tick loop.
+//! `program_so` + `idl_path` select the generic SBF/IDL runtime, while
+//! `protocol` remains a backcompat hint for adapters that do not declare
+//! program artifacts.
 //!
 //! ## Schema (v0)
 //!

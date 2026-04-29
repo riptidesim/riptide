@@ -520,7 +520,7 @@ impl MultiComponentHarness {
             let starting_price = bundle.starting_price;
             let total_ticks = bundle.total_ticks;
             let actor_ids = bundle.actor_ids.clone();
-            let runtime = match adapter.protocol {
+            let runtime = match adapter.runtime() {
                 Protocol::Generic => ComponentRuntime::Generic(bootstrap_generic_component(
                     &mut svm,
                     base_path,

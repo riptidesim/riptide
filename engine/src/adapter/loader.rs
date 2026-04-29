@@ -165,7 +165,7 @@ impl fmt::Display for AdapterError {
             }
             Self::MissingSemanticClass { path, key } => write!(
                 f,
-                "{}: `{}`: MissingSemanticClass(class); `[semantics]` blocks must declare `class = \"lending.v1\"`",
+                "{}: `{}`: MissingSemanticClass(class); `[semantics]` blocks must declare an economic class such as `class = \"lending.v1\"`",
                 escape_diagnostic(path),
                 escape_diagnostic(key)
             ),
@@ -371,7 +371,7 @@ pub fn load_adapter(path: &Path) -> Result<Adapter, AdapterError> {
 /// typed. Only runs for generic adapters (the lending primitive has its
 /// own `.so` discovery path in `harness::setup`).
 fn validate_resolved_paths(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
-    if !matches!(adapter.protocol, Protocol::Generic) {
+    if !matches!(adapter.runtime(), Protocol::Generic) {
         return Ok(());
     }
     if let Some(program_so) = adapter.program_so.as_deref() {
@@ -561,10 +561,19 @@ fn validate(adapter: &mut Adapter, path: &str) -> Result<(), AdapterError> {
     validate_errors(adapter, path)?;
     validate_lineage(adapter, path)?;
     validate_semantics(adapter, path)?;
-    match adapter.protocol {
+    let runtime = validate_runtime_selection(adapter, path)?;
+    match runtime {
         Protocol::Lending => validate_lending(adapter, path),
         Protocol::Generic => validate_generic(adapter, path),
     }
+}
+
+fn validate_runtime_selection(adapter: &Adapter, path: &str) -> Result<Protocol, AdapterError> {
+    adapter.inferred_runtime().ok_or_else(|| AdapterError::Validation {
+        path: path.to_string(),
+        key: "protocol".into(),
+        reason: "missing runtime selection; declare `program_so` + `idl_path` for the generic SBF/IDL runtime, or set `protocol = \"lending\"` / `protocol = \"generic\"` as a backcompat runtime hint".into(),
+    })
 }
 
 fn validate_errors(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
@@ -623,19 +632,6 @@ fn validate_semantics(adapter: &mut Adapter, path: &str) -> Result<(), AdapterEr
             path: path.to_string(),
             key: "[semantics].class".into(),
             name: class.to_string(),
-        });
-    }
-    if adapter.protocol != Protocol::Lending {
-        let protocol = match adapter.protocol {
-            Protocol::Lending => "lending",
-            Protocol::Generic => "generic",
-        };
-        return Err(AdapterError::Validation {
-            path: path.to_string(),
-            key: "[semantics].class".into(),
-            reason: format!(
-                "`lending.v1` semantics require `protocol = \"lending\"`; protocol `{protocol}` has no semantics evaluator"
-            ),
         });
     }
     semantics.class_ref = Some(SemanticClassRef::LendingV1);
@@ -1259,7 +1255,7 @@ fn validate_identifiers(adapter: &Adapter, path: &str) -> Result<(), AdapterErro
 }
 
 fn resolve_generic_paths(adapter: &mut Adapter, adapter_path: &Path) {
-    if !matches!(adapter.protocol, Protocol::Generic) {
+    if !matches!(adapter.runtime(), Protocol::Generic) {
         return;
     }
 
@@ -1833,7 +1829,7 @@ fn validate_oracles(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
                 ),
             });
         }
-        if matches!(adapter.protocol, Protocol::Generic) {
+        if matches!(adapter.runtime(), Protocol::Generic) {
             let Some(account) = oracle.account.as_deref() else {
                 return Err(AdapterError::Validation {
                     path: path.to_string(),
@@ -1922,7 +1918,7 @@ fn validate_scheduled_actions(adapter: &Adapter, path: &str) -> Result<(), Adapt
         for (acc_idx, account) in sa.accounts.iter().enumerate() {
             let key = format!("[[scheduled_actions]][{idx}].accounts[{acc_idx}]");
             check_ident(path, &key, account)?;
-            if matches!(adapter.protocol, Protocol::Generic)
+            if matches!(adapter.runtime(), Protocol::Generic)
                 && !adapter.accounts.contains_key(account)
             {
                 let mut declared: Vec<&str> = adapter.accounts.keys().map(String::as_str).collect();
@@ -2102,10 +2098,47 @@ triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
 "#
     }
 
+    fn sample_generic_lending_v1_toml() -> String {
+        format!(
+            "{}{}",
+            sample_generic_toml(),
+            r#"
+
+[semantics]
+class = "lending.v1"
+
+[semantics.roles.position]
+source = "account.player"
+fields.collateral_amount = "u128"
+fields.debt_amount = "u128"
+
+[semantics.roles.reserve]
+source = "account.marketplace"
+fields.collateral_price = "u128"
+fields.max_ltv_bps = "u64"
+
+[semantics.roles.oracle]
+source = "account.marketplace"
+fields.price = "u128"
+
+[semantics.roles.liquidation_config]
+source = "account.marketplace"
+fields.liquidation_threshold_bps = "u64"
+
+[semantics.derived]
+collateral_value = "position.collateral_amount * reserve.collateral_price"
+debt_value = "position.debt_amount"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+health_factor = "collateral_value / max(debt_value, 1)"
+"#
+        )
+    }
+
     #[test]
     fn parses_lending_adapter() {
         let adapter = parse_adapter_str(sample_lending_toml(), "test.toml").unwrap();
-        assert!(matches!(adapter.protocol, Protocol::Lending));
+        assert_eq!(adapter.protocol, Some(Protocol::Lending));
+        assert!(matches!(adapter.runtime(), Protocol::Lending));
         assert_eq!(adapter.instructions.len(), 5);
         assert_eq!(
             adapter.instructions.get("deposit"),
@@ -2199,13 +2232,66 @@ protocol = "lending"
     #[test]
     fn parses_generic_adapter() {
         let adapter = parse_adapter_str(sample_generic_toml(), "generic.toml").unwrap();
-        assert!(matches!(adapter.protocol, Protocol::Generic));
+        assert_eq!(adapter.protocol, Some(Protocol::Generic));
+        assert!(matches!(adapter.runtime(), Protocol::Generic));
         assert_eq!(adapter.accounts.len(), 2);
         assert_eq!(adapter.actions.len(), 3);
         assert_eq!(
             adapter.observations["player.gold"].kind(),
             ObservationType::UInt
         );
+    }
+
+    #[test]
+    fn parses_generic_adapter_with_lending_v1_semantic_class() {
+        let adapter =
+            parse_adapter_str(&sample_generic_lending_v1_toml(), "generic-lending.toml").unwrap();
+        assert!(matches!(adapter.runtime(), Protocol::Generic));
+        assert_eq!(
+            adapter.program_so.as_deref(),
+            Some("programs/resource_grinder/target/deploy/resource_grinder.so")
+        );
+
+        let semantics = adapter.semantics.expect("semantics present");
+        assert_eq!(semantics.class.as_deref(), Some("lending.v1"));
+        assert_eq!(semantics.class_ref, Some(SemanticClassRef::LendingV1));
+        assert!(semantics
+            .derived_order
+            .iter()
+            .any(|name| name == "health_factor"));
+    }
+
+    #[test]
+    fn infers_generic_runtime_from_program_so_and_idl_without_protocol_hint() {
+        let toml = sample_generic_lending_v1_toml().replace("protocol = \"generic\"\n", "");
+        let adapter = parse_adapter_str(&toml, "generic-lending.toml").unwrap();
+
+        assert_eq!(adapter.protocol, None);
+        assert!(matches!(adapter.runtime(), Protocol::Generic));
+        assert_eq!(
+            adapter.semantics.unwrap().class_ref,
+            Some(SemanticClassRef::LendingV1)
+        );
+    }
+
+    #[test]
+    fn program_artifacts_override_protocol_backcompat_hint() {
+        let toml = sample_generic_lending_v1_toml()
+            .replace("protocol = \"generic\"", "protocol = \"lending\"");
+        let adapter = parse_adapter_str(&toml, "generic-lending.toml").unwrap();
+
+        assert_eq!(adapter.protocol, Some(Protocol::Lending));
+        assert!(matches!(adapter.runtime(), Protocol::Generic));
+    }
+
+    #[test]
+    fn rejects_missing_runtime_artifacts_and_protocol_hint() {
+        let toml = sample_lending_toml().replace("protocol = \"lending\"\n", "");
+        let err = parse_adapter_str(&toml, "missing-runtime.toml").unwrap_err();
+        let msg = err.to_string();
+
+        assert!(msg.contains("protocol"), "got: {msg}");
+        assert!(msg.contains("missing runtime selection"), "got: {msg}");
     }
 
     #[test]
@@ -2333,7 +2419,8 @@ protocol = "lending"
         // Sanity: the shipped resource-grinder adapter must still pass
         // identifier validation.
         let adapter = parse_adapter_str(sample_generic_toml(), "generic.toml").unwrap();
-        assert!(matches!(adapter.protocol, Protocol::Generic));
+        assert_eq!(adapter.protocol, Some(Protocol::Generic));
+        assert!(matches!(adapter.runtime(), Protocol::Generic));
     }
 
     #[test]
@@ -2547,7 +2634,8 @@ kind = "admin-mock"
             .join("lending.toml");
         let adapter =
             load_adapter(&fixture).unwrap_or_else(|e| panic!("fixture adapter should load: {e}"));
-        assert!(matches!(adapter.protocol, Protocol::Lending));
+        assert_eq!(adapter.protocol, Some(Protocol::Lending));
+        assert!(matches!(adapter.runtime(), Protocol::Lending));
         for action in LENDING_ACTIONS {
             let has_action = adapter
                 .instructions

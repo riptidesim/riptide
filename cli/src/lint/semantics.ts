@@ -36,7 +36,7 @@ export function lintSemantics(adapter: Adapter): LintFinding[] {
       code: "semantics-clean",
       subject: `[semantics].class = "${semantics.class ?? "(missing)"}"`,
       message:
-        "semantic class, required lending.v1 roles, required derived observations, expressions, and derived dependency graph are valid.",
+        "economic semantic class, required lending.v1 roles, required derived observations, expressions, and derived dependency graph are valid; runtime remains selected by program_so + idl_path or the protocol backcompat hint.",
     });
   }
 
@@ -53,7 +53,7 @@ function lintSemanticClass(
       findings,
       "semantics-missing-class",
       "[semantics].class",
-      'MissingSemanticClass(class); `[semantics]` blocks must declare `class = "lending.v1"`.',
+      'MissingSemanticClass(class); `[semantics]` blocks must declare an economic class such as `class = "lending.v1"`.',
       'Add `class = "lending.v1"` under `[semantics]`.'
     );
     return;
@@ -77,15 +77,6 @@ function lintSemanticClass(
       'Use `class = "lending.v1"` or defer this adapter until its semantic class is implemented.'
     );
     return;
-  }
-  if (semantics.class === "lending.v1" && adapter.protocol !== "lending") {
-    fail(
-      findings,
-      "semantics-class-protocol-mismatch",
-      "[semantics].class",
-      `\`lending.v1\` semantics require \`protocol = "lending"\`; protocol \`${adapter.protocol}\` has no semantics evaluator.`,
-      'Change `protocol` to `lending` or remove the `[semantics]` block.'
-    );
   }
 }
 
