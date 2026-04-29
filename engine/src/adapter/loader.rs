@@ -1672,12 +1672,204 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
         }
     }
 
+    validate_account_bindings(adapter, path)?;
     validate_account_owners(adapter, path)?;
     validate_invariants_generic(adapter, path)?;
     validate_oracles(adapter, path)?;
     validate_scheduled_actions(adapter, path)?;
 
     Ok(())
+}
+
+fn validate_account_bindings(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
+    for (account_name, account) in &adapter.accounts {
+        if account.address.is_some() && account.pda.is_some() {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[accounts].{account_name}"),
+                reason: format!(
+                    "account `{account_name}` declares both `address` and `pda`; choose a \
+                     literal/well-known address OR a deterministic PDA binding"
+                ),
+            });
+        }
+
+        if let Some(address) = account.address.as_deref() {
+            if !matches!(account.kind, AccountKind::Shared) {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[accounts].{account_name}.address"),
+                    reason: format!(
+                        "account `{account_name}` declares a literal `address` but \
+                         `kind = \"agent\"`. Literal addresses are shared by definition; \
+                         use `kind = \"shared\"` or declare a per-agent `pda`."
+                    ),
+                });
+            }
+            validate_account_address(path, &format!("[accounts].{account_name}.address"), address)?;
+        }
+
+        if let Some(pda) = account.pda.as_ref() {
+            if pda.seeds.is_empty() {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[accounts].{account_name}.pda.seeds"),
+                    reason: format!(
+                        "account `{account_name}` declares `pda` but no seeds. Add at least \
+                         one `literal:...`, `account:...`, `signer:...`, `program:...`, \
+                         or `pubkey:...` seed."
+                    ),
+                });
+            }
+            for (seed_idx, seed) in pda.seeds.iter().enumerate() {
+                validate_pda_seed(
+                    adapter,
+                    path,
+                    &format!("[accounts].{account_name}.pda.seeds[{seed_idx}]"),
+                    seed,
+                )?;
+            }
+            if let Some(program) = pda.program.as_deref() {
+                validate_pda_program(
+                    path,
+                    &format!("[accounts].{account_name}.pda.program"),
+                    program,
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_account_address(path: &str, key: &str, value: &str) -> Result<(), AdapterError> {
+    if value.trim().is_empty() || is_unsafe_path_text(value) {
+        return Err(AdapterError::Validation {
+            path: path.to_string(),
+            key: key.to_string(),
+            reason: "account address must be a non-empty well-known alias or base58 pubkey".into(),
+        });
+    }
+    if is_well_known_account_alias(value) {
+        return Ok(());
+    }
+    validate_pubkey_string(path, key, "account address", value)
+}
+
+fn validate_pda_seed(
+    adapter: &Adapter,
+    path: &str,
+    key: &str,
+    seed: &str,
+) -> Result<(), AdapterError> {
+    if seed.trim().is_empty() || is_unsafe_path_text(seed) {
+        return Err(AdapterError::Validation {
+            path: path.to_string(),
+            key: key.to_string(),
+            reason: "PDA seed must be non-empty and free of control characters".into(),
+        });
+    }
+    let Some((kind, value)) = seed.split_once(':') else {
+        return Err(AdapterError::Validation {
+            path: path.to_string(),
+            key: key.to_string(),
+            reason: format!(
+                "PDA seed `{}` must use one of `literal:<bytes>`, `account:<name>`, \
+                 `signer:agent`, `signer:admin`, `program:<alias-or-self>`, or \
+                 `pubkey:<base58>`",
+                escape_diagnostic(seed)
+            ),
+        });
+    };
+    match kind {
+        "literal" => {
+            if value.is_empty() {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: key.to_string(),
+                    reason: "literal PDA seed cannot be empty".into(),
+                });
+            }
+        }
+        "account" => {
+            check_ident(path, key, value)?;
+            if !adapter.accounts.contains_key(value) && !is_well_known_account_alias(value) {
+                let mut declared: Vec<&str> = adapter.accounts.keys().map(String::as_str).collect();
+                declared.sort_unstable();
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: key.to_string(),
+                    reason: format!(
+                        "PDA seed `account:{value}` references no `[accounts.{value}]` binding \
+                         and is not a well-known program/sysvar alias. Declared accounts: {declared:?}."
+                    ),
+                });
+            }
+        }
+        "signer" => match value {
+            "agent" | "admin" => {}
+            _ => {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: key.to_string(),
+                    reason: format!(
+                        "PDA signer seed `{value}` is not supported; expected `signer:agent` \
+                         or `signer:admin`"
+                    ),
+                });
+            }
+        },
+        "program" => validate_pda_program(path, key, value)?,
+        "pubkey" => validate_pubkey_string(path, key, "PDA seed pubkey", value)?,
+        _ => {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: key.to_string(),
+                reason: format!(
+                    "unknown PDA seed prefix `{kind}`; expected `literal`, `account`, \
+                     `signer`, `program`, or `pubkey`"
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_pda_program(path: &str, key: &str, value: &str) -> Result<(), AdapterError> {
+    if value == "self" || is_well_known_account_alias(value) {
+        return Ok(());
+    }
+    validate_pubkey_string(path, key, "PDA program", value)
+}
+
+fn is_well_known_account_alias(value: &str) -> bool {
+    matches!(
+        value,
+        "system"
+            | "system_program"
+            | "spl_token"
+            | "token"
+            | "token_program"
+            | "spl_token_2022"
+            | "token_2022"
+            | "token_2022_program"
+            | "associated_token"
+            | "associated_token_program"
+            | "ata"
+            | "rent"
+            | "rent_sysvar"
+            | "sysvar_rent"
+            | "clock"
+            | "clock_sysvar"
+            | "sysvar_clock"
+            | "instructions_sysvar"
+            | "sysvar_instructions"
+            | "slot_hashes"
+            | "slot_hashes_sysvar"
+            | "sysvar_slot_hashes"
+            | "stake_history"
+            | "stake_history_sysvar"
+            | "sysvar_stake_history"
+    )
 }
 
 /// Validate the optional external-owner metadata on generic accounts.

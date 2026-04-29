@@ -76,11 +76,35 @@ pub enum AccountKind {
 pub struct AccountDefinition {
     pub kind: AccountKind,
     pub space: usize,
+    /// Optional deterministic address binding. Accepts either a
+    /// well-known alias such as `system_program`, `spl_token`,
+    /// `associated_token_program`, `clock_sysvar`, or a literal
+    /// base58 pubkey. When present on a shared account, bootstrap
+    /// binds this adapter name to that address instead of generating a
+    /// fresh key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
+    /// Optional PDA binding. Seeds are explicit strings with a small
+    /// prefix DSL:
+    /// `literal:<bytes>`, `account:<name>`, `signer:agent`,
+    /// `signer:admin`, `program:<alias-or-self>`, or
+    /// `pubkey:<base58>`. `program` defaults to `self`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pda: Option<PdaDefinition>,
     /// Optional external-owner metadata. When set, the generic harness
     /// creates the account with this owner instead of the simulated
     /// program id. Only valid on `kind = "shared"` accounts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner: Option<AccountOwner>,
+}
+
+/// Minimal deterministic PDA declaration for generic account bindings.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PdaDefinition {
+    pub seeds: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub program: Option<String>,
 }
 
 /// External-owner metadata for a generic adapter account. Exactly one

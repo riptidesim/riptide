@@ -97,6 +97,12 @@ export type InstructionMapping = z.infer<typeof InstructionMappingSchema>;
 
 export const AccountKindSchema = z.enum(["agent", "shared"]);
 
+export const PdaDefinitionSchema = z.object({
+  seeds: z.array(z.string().min(1)),
+  program: z.string().min(1).optional(),
+}).strict();
+export type PdaDefinition = z.infer<typeof PdaDefinitionSchema>;
+
 // Optional external-owner metadata for `kind = "shared"` accounts.
 // Mirrors `engine/src/adapter/schema.rs::AccountOwner`. Exactly one of
 // `program_so` or `pubkey` is expected at the engine side; the CLI
@@ -112,6 +118,8 @@ export type AccountOwner = z.infer<typeof AccountOwnerSchema>;
 export const AccountDefinitionSchema = z.object({
   kind: AccountKindSchema,
   space: z.number().int().positive(),
+  address: z.string().min(1).optional(),
+  pda: PdaDefinitionSchema.optional(),
   owner: AccountOwnerSchema.optional(),
 });
 
@@ -458,6 +466,7 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
   validateLineage(adapter, path);
   validateSemantics(adapter, path);
   validateErrors(adapter, path);
+  validateAccountBindings(adapter, path);
   validateAccountOwners(adapter, path);
 
   const runtime = validateRuntimeSelection(adapter, path);
@@ -737,6 +746,130 @@ function validateLineage(adapter: Adapter, path: string): void {
   lineage.unsupported_fields.forEach((entry, idx) => {
     checkLineageText(path, `[lineage].unsupported_fields[${idx}]`, entry);
   });
+}
+
+function validateAccountBindings(adapter: Adapter, path: string): void {
+  for (const [name, account] of Object.entries(adapter.accounts)) {
+    if (account.address !== undefined && account.pda !== undefined) {
+      throw new Error(
+        `${path}: \`[accounts].${name}\`: account \`${name}\` declares both \`address\` and \`pda\`; choose a literal/well-known address OR a deterministic PDA binding`
+      );
+    }
+
+    if (account.address !== undefined) {
+      if (account.kind !== "shared") {
+        throw new Error(
+          `${path}: \`[accounts].${name}.address\`: account \`${name}\` declares a literal \`address\` but \`kind = "agent"\`. Literal addresses are shared by definition; use \`kind = "shared"\` or declare a per-agent \`pda\`.`
+        );
+      }
+      validateAccountAddress(path, `[accounts].${name}.address`, account.address);
+    }
+
+    if (account.pda !== undefined) {
+      if (account.pda.seeds.length === 0) {
+        throw new Error(
+          `${path}: \`[accounts].${name}.pda.seeds\`: account \`${name}\` declares \`pda\` but no seeds. Add at least one \`literal:...\`, \`account:...\`, \`signer:...\`, \`program:...\`, or \`pubkey:...\` seed.`
+        );
+      }
+      account.pda.seeds.forEach((seed, idx) => {
+        validatePdaSeed(adapter, path, `[accounts].${name}.pda.seeds[${idx}]`, seed);
+      });
+      if (account.pda.program !== undefined) {
+        validatePdaProgram(path, `[accounts].${name}.pda.program`, account.pda.program);
+      }
+    }
+  }
+}
+
+function validateAccountAddress(path: string, key: string, value: string): void {
+  if (value.trim().length === 0 || /[\u0000-\u001f\u007f-\u009f]/u.test(value)) {
+    throw new Error(
+      `${path}: \`${key}\`: account address must be a non-empty well-known alias or base58 pubkey`
+    );
+  }
+  if (isWellKnownAccountAlias(value)) return;
+  validatePubkeyString(path, key, "account address", value);
+}
+
+function validatePdaSeed(adapter: Adapter, path: string, key: string, seed: string): void {
+  if (seed.trim().length === 0 || /[\u0000-\u001f\u007f-\u009f]/u.test(seed)) {
+    throw new Error(`${path}: \`${key}\`: PDA seed must be non-empty and free of control characters`);
+  }
+  const sep = seed.indexOf(":");
+  if (sep <= 0) {
+    throw new Error(
+      `${path}: \`${key}\`: PDA seed \`${escapeDiagnostic(seed)}\` must use one of \`literal:<bytes>\`, \`account:<name>\`, \`signer:agent\`, \`signer:admin\`, \`program:<alias-or-self>\`, or \`pubkey:<base58>\``
+    );
+  }
+  const kind = seed.slice(0, sep);
+  const value = seed.slice(sep + 1);
+  switch (kind) {
+    case "literal":
+      if (value.length === 0) {
+        throw new Error(`${path}: \`${key}\`: literal PDA seed cannot be empty`);
+      }
+      return;
+    case "account":
+      checkIdentifier(path, key, value);
+      if (!(value in adapter.accounts) && !isWellKnownAccountAlias(value)) {
+        throw new Error(
+          `${path}: \`${key}\`: PDA seed \`account:${value}\` references no \`[accounts.${value}]\` binding and is not a well-known program/sysvar alias. Declared accounts: ${JSON.stringify(Object.keys(adapter.accounts).sort())}.`
+        );
+      }
+      return;
+    case "signer":
+      if (value !== "agent" && value !== "admin") {
+        throw new Error(
+          `${path}: \`${key}\`: PDA signer seed \`${value}\` is not supported; expected \`signer:agent\` or \`signer:admin\``
+        );
+      }
+      return;
+    case "program":
+      validatePdaProgram(path, key, value);
+      return;
+    case "pubkey":
+      validatePubkeyString(path, key, "PDA seed pubkey", value);
+      return;
+    default:
+      throw new Error(
+        `${path}: \`${key}\`: unknown PDA seed prefix \`${kind}\`; expected \`literal\`, \`account\`, \`signer\`, \`program\`, or \`pubkey\``
+      );
+  }
+}
+
+function validatePdaProgram(path: string, key: string, value: string): void {
+  if (value === "self" || isWellKnownAccountAlias(value)) return;
+  validatePubkeyString(path, key, "PDA program", value);
+}
+
+function isWellKnownAccountAlias(value: string): boolean {
+  return [
+    "system",
+    "system_program",
+    "spl_token",
+    "token",
+    "token_program",
+    "spl_token_2022",
+    "token_2022",
+    "token_2022_program",
+    "associated_token",
+    "associated_token_program",
+    "ata",
+    "rent",
+    "rent_sysvar",
+    "sysvar_rent",
+    "clock",
+    "clock_sysvar",
+    "sysvar_clock",
+    "instructions_sysvar",
+    "sysvar_instructions",
+    "slot_hashes",
+    "slot_hashes_sysvar",
+    "sysvar_slot_hashes",
+    "stake_history",
+    "stake_history_sysvar",
+    "sysvar_stake_history",
+  ].includes(value);
 }
 
 // Mirrors `engine/src/adapter/loader.rs::validate_account_owners`:
