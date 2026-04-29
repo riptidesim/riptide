@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    adapter::{SemanticClassRef, SemanticSourceBinding, Semantics},
+    adapter::{SemanticClassRef, SemanticFieldType, SemanticSourceBinding, Semantics},
     agent::state::Agent,
     primitive::{LendingPrimitive, PoolState},
     types::{AgentStatus, TickSnapshot},
@@ -11,8 +11,29 @@ use super::{eval::Context, Value};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RoleBindingError {
-    MissingRoleBinding { role: String },
-    MissingRoleField { role: String, field: String },
+    MissingRoleBinding {
+        role: String,
+    },
+    MissingRoleField {
+        role: String,
+        field: String,
+    },
+    MissingSemanticInput {
+        role: String,
+        field: String,
+        candidates: Vec<String>,
+    },
+    SemanticInputTypeMismatch {
+        role: String,
+        field: String,
+        expected: SemanticFieldType,
+        found: String,
+    },
+    UnsupportedSemanticFieldType {
+        role: String,
+        field: String,
+        field_type: SemanticFieldType,
+    },
     UnsupportedSemanticClass,
 }
 
@@ -23,6 +44,34 @@ impl fmt::Display for RoleBindingError {
             Self::MissingRoleField { role, field } => {
                 write!(f, "missing semantic role field `{role}.{field}`")
             }
+            Self::MissingSemanticInput {
+                role,
+                field,
+                candidates,
+            } => write!(
+                f,
+                "MissingSemanticInput({role}.{field}); none of the generic observation keys \
+                 {:?} were present in the tick snapshot",
+                candidates
+            ),
+            Self::SemanticInputTypeMismatch {
+                role,
+                field,
+                expected,
+                found,
+            } => write!(
+                f,
+                "SemanticInputTypeMismatch({role}.{field}); expected {expected}, found {found}"
+            ),
+            Self::UnsupportedSemanticFieldType {
+                role,
+                field,
+                field_type,
+            } => write!(
+                f,
+                "UnsupportedSemanticFieldType({role}.{field}); generic semantic evaluation \
+                 cannot bind field type {field_type}"
+            ),
             Self::UnsupportedSemanticClass => {
                 write!(
                     f,
@@ -108,6 +157,108 @@ where
         }
     }
     Ok(context)
+}
+
+pub fn bind_generic_lending_v1_roles(
+    semantics: &Semantics,
+    snapshot: &TickSnapshot,
+    binding_context: RoleBindingContext<'_>,
+) -> Result<Context, RoleBindingError> {
+    if semantics.class_ref != Some(SemanticClassRef::LendingV1) {
+        return Err(RoleBindingError::UnsupportedSemanticClass);
+    }
+
+    let mut context = Context::new();
+    for (role_name, role) in &semantics.roles {
+        let source = role
+            .binding
+            .as_ref()
+            .ok_or_else(|| RoleBindingError::MissingRoleBinding {
+                role: role_name.clone(),
+            })?;
+        if let SemanticSourceBinding::Instruction(instruction) = source {
+            if !instruction_source_matches(instruction, binding_context.current_instruction) {
+                return Err(RoleBindingError::MissingRoleBinding {
+                    role: role_name.clone(),
+                });
+            }
+        }
+        for (field, field_type) in &role.fields {
+            let candidates = generic_semantic_candidates(role_name, source, field);
+            let Some((_, json_value)) = candidates
+                .iter()
+                .find_map(|candidate| snapshot.get(candidate).map(|value| (candidate, value)))
+            else {
+                return Err(RoleBindingError::MissingSemanticInput {
+                    role: role_name.clone(),
+                    field: field.clone(),
+                    candidates,
+                });
+            };
+            let value = semantic_value_from_json(role_name, field, *field_type, json_value)?;
+            context.insert(format!("{role_name}.{field}"), value);
+        }
+    }
+
+    Ok(context)
+}
+
+fn generic_semantic_candidates(
+    role_name: &str,
+    source: &SemanticSourceBinding,
+    field: &str,
+) -> Vec<String> {
+    let mut candidates = vec![format!("{role_name}.{field}")];
+    match source {
+        SemanticSourceBinding::Account(path) => {
+            candidates.push(format!("{path}.{field}"));
+        }
+        SemanticSourceBinding::Instruction(instruction) => {
+            candidates.push(format!("{instruction}.{field}"));
+        }
+    }
+    candidates.sort();
+    candidates.dedup();
+    candidates
+}
+
+fn semantic_value_from_json(
+    role: &str,
+    field: &str,
+    field_type: SemanticFieldType,
+    json_value: &serde_json::Value,
+) -> Result<Value, RoleBindingError> {
+    match field_type {
+        SemanticFieldType::U64 | SemanticFieldType::U128 => json_number_to_u128(json_value)
+            .map(Value::U128)
+            .ok_or_else(|| RoleBindingError::SemanticInputTypeMismatch {
+                role: role.to_string(),
+                field: field.to_string(),
+                expected: field_type,
+                found: json_kind(json_value).into(),
+            }),
+        SemanticFieldType::I64 | SemanticFieldType::I128 => json_number_to_i128(json_value)
+            .map(Value::I128)
+            .ok_or_else(|| RoleBindingError::SemanticInputTypeMismatch {
+                role: role.to_string(),
+                field: field.to_string(),
+                expected: field_type,
+                found: json_kind(json_value).into(),
+            }),
+        SemanticFieldType::Bool => json_value.as_bool().map(Value::Bool).ok_or_else(|| {
+            RoleBindingError::SemanticInputTypeMismatch {
+                role: role.to_string(),
+                field: field.to_string(),
+                expected: field_type,
+                found: json_kind(json_value).into(),
+            }
+        }),
+        SemanticFieldType::Pubkey => Err(RoleBindingError::UnsupportedSemanticFieldType {
+            role: role.to_string(),
+            field: field.to_string(),
+            field_type,
+        }),
+    }
 }
 
 fn value_from_source(
@@ -654,5 +805,31 @@ fn json_number_to_u128(value: &serde_json::Value) -> Option<u128> {
         Some(value.round() as u128)
     } else {
         None
+    }
+}
+
+fn json_number_to_i128(value: &serde_json::Value) -> Option<i128> {
+    if let Some(value) = value.as_i64() {
+        return Some(value as i128);
+    }
+    if let Some(value) = value.as_u64() {
+        return Some(value as i128);
+    }
+    let value = value.as_f64()?;
+    if value.is_finite() && value >= i128::MIN as f64 && value <= i128::MAX as f64 {
+        Some(value.round() as i128)
+    } else {
+        None
+    }
+}
+
+fn json_kind(value: &serde_json::Value) -> &'static str {
+    match value {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "bool",
+        serde_json::Value::Number(_) => "number",
+        serde_json::Value::String(_) => "string",
+        serde_json::Value::Array(_) => "array",
+        serde_json::Value::Object(_) => "object",
     }
 }

@@ -23,7 +23,7 @@ use crate::{
             build_expression_invariants_summary, evaluate_expression_invariants,
             ExpressionInvariantFire,
         },
-        roles::{bind_lending_v1_roles, RoleBindingContext},
+        roles::{bind_generic_lending_v1_roles, bind_lending_v1_roles, RoleBindingContext},
     },
     types::{
         AgentStatus, InvariantViolation, Policy, ProgramErrorInfo, RunConfig, SimEvent, SimOutcome,
@@ -861,6 +861,7 @@ where
     }
 
     let mut invariant_violations: Vec<InvariantViolation> = Vec::new();
+    let mut expression_invariant_fires: Vec<ExpressionInvariantFire> = Vec::new();
 
     let mut master_rng = StdRng::seed_from_u64(run_config.seed);
 
@@ -886,21 +887,24 @@ where
 
     // tick 0 baseline. Adapter-declared metrics only; the generic
     // path no longer synthesizes zero-valued lending columns.
-    record_tick_snapshot(
+    record_generic_tick_snapshot(
         harness,
         0,
         &agents,
         &invariants,
+        semantics.as_ref(),
+        RoleBindingContext::tick_snapshot(&agents),
         &mut invariant_violations,
+        &mut expression_invariant_fires,
         &mut events,
         std::iter::empty::<(String, Value)>(),
         &mut timeseries,
-    )
-    .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+    )?;
     let _ = starting_price;
 
     for tick in 1..=run_config.ticks {
         eprintln!("TICK {tick}/{}", run_config.ticks);
+        let mut last_role_binding_instruction: Option<(String, usize)> = None;
 
         harness.advance_tick();
 
@@ -971,6 +975,9 @@ where
             if matches!(outcome, SimOutcome::Success) {
                 agents[idx].total_actions += 1;
             }
+            if !matches!(outcome, SimOutcome::Skipped) && !matches!(action, RuntimeAction::NoOp) {
+                last_role_binding_instruction = Some((action.as_str().to_string(), idx));
+            }
 
             let mut params_map: BTreeMap<String, Value> = BTreeMap::new();
             params_map.insert("amount".into(), Value::from(amount));
@@ -993,17 +1000,25 @@ where
             });
         }
 
-        record_tick_snapshot(
+        let role_binding_context = last_role_binding_instruction
+            .as_ref()
+            .map(|(instruction, agent_idx)| {
+                RoleBindingContext::new(Some(instruction.as_str()), Some(*agent_idx))
+            })
+            .unwrap_or_else(|| RoleBindingContext::tick_snapshot(&agents));
+        record_generic_tick_snapshot(
             harness,
             tick,
             &agents,
             &invariants,
+            semantics.as_ref(),
+            role_binding_context,
             &mut invariant_violations,
+            &mut expression_invariant_fires,
             &mut events,
             std::iter::empty::<(String, Value)>(),
             &mut timeseries,
-        )
-        .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+        )?;
         let _ = oracle_price;
 
         last_executed_tick = tick;
@@ -1023,6 +1038,12 @@ where
         summary.insert(
             "invariants_fired".into(),
             build_invariants_summary(&invariants, &invariant_violations),
+        );
+    }
+    if let Some(semantics) = semantics.as_ref() {
+        summary.insert(
+            "expression_invariants".into(),
+            build_expression_invariants_summary(&semantics.invariants, &expression_invariant_fires),
         );
     }
 
@@ -1181,6 +1202,67 @@ where
     Ok(())
 }
 
+pub(crate) fn record_generic_tick_snapshot<H, I>(
+    harness: &H,
+    tick: u32,
+    agents: &[Agent],
+    invariants: &[Invariant],
+    semantics: Option<&Semantics>,
+    role_binding_context: RoleBindingContext<'_>,
+    violations: &mut Vec<InvariantViolation>,
+    expression_fires: &mut Vec<ExpressionInvariantFire>,
+    events: &mut Vec<SimEvent>,
+    extra_metrics: I,
+    timeseries: &mut Vec<TickSnapshot>,
+) -> Result<(), SimulationAbort>
+where
+    H: crate::primitive::Primitive + ?Sized,
+    I: IntoIterator<Item = (String, Value)>,
+{
+    let mut snapshot =
+        build_snapshot(harness, tick, agents).map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+    for (key, value) in extra_metrics {
+        snapshot.insert(key, value);
+    }
+
+    if let Some(semantics) =
+        semantics.filter(|semantics| should_evaluate_semantics(semantics, role_binding_context))
+    {
+        let mut role_context =
+            bind_generic_lending_v1_roles(semantics, &snapshot, role_binding_context)
+                .map_err(|e| SimulationAbort::BadInput(e.to_string()))?;
+        bind_lending_multi_oracle_accounts(semantics, harness, &mut role_context)?;
+        let derived = evaluate_derived_observations(semantics, &role_context)
+            .map_err(|e| SimulationAbort::BadInput(e.to_string()))?;
+        snapshot.insert(
+            "derived_observations".into(),
+            semantic_values_to_json(&derived.observations),
+        );
+
+        let mut expression_context = derived.context.clone();
+        if !semantics.collections.is_empty() {
+            let (collection_json, collection_context) =
+                evaluate_generic_collections_for_tick(semantics, &derived.context)?;
+            snapshot.insert("collection_observations".into(), collection_json);
+            expression_context = collection_context;
+        }
+
+        evaluate_invariants(invariants, tick, &snapshot, violations, events);
+
+        let fires = evaluate_expression_invariants(semantics, &expression_context, tick)
+            .map_err(|e| SimulationAbort::BadInput(e.to_string()))?;
+        for fire in fires {
+            events.push(expression_invariant_event(&fire));
+            expression_fires.push(fire);
+        }
+    } else {
+        evaluate_invariants(invariants, tick, &snapshot, violations, events);
+    }
+
+    timeseries.push(snapshot);
+    Ok(())
+}
+
 pub(crate) fn record_lending_tick_snapshot<H, I>(
     harness: &H,
     tick: u32,
@@ -1275,7 +1357,7 @@ fn bind_lending_multi_oracle_accounts<H>(
     context: &mut crate::semantics::Context,
 ) -> Result<(), SimulationAbort>
 where
-    H: crate::primitive::LendingPrimitive + ?Sized,
+    H: crate::primitive::Primitive + ?Sized,
 {
     for (role, bindings) in &semantics.oracles {
         for (index, binding) in bindings.iter().enumerate() {
@@ -1331,6 +1413,41 @@ where
         }
     }
     Ok(())
+}
+
+fn evaluate_generic_collections_for_tick(
+    semantics: &Semantics,
+    base_context: &crate::semantics::Context,
+) -> Result<(Value, crate::semantics::Context), SimulationAbort> {
+    let mut out = serde_json::Map::new();
+    let mut expression_context = base_context.clone();
+
+    for (name, collection) in &semantics.collections {
+        match evaluate_collection(
+            semantics.class.as_deref(),
+            name,
+            collection,
+            &[base_context.clone()],
+            CollectionValueKind::Unknown,
+        ) {
+            Ok(evaluation) => {
+                out.insert(name.clone(), evaluation.value.to_json());
+                expression_context.insert(format!("collection.{name}"), evaluation.value);
+            }
+            Err(error @ CollectionEvaluationError::EmptyCollection { .. }) => {
+                out.insert(name.clone(), collection_error_sentinel_json(&error));
+                if let CollectionEvaluationError::EmptyCollection { sentinel, .. } = &error {
+                    expression_context.insert(
+                        format!("collection.{name}"),
+                        sentinel.value_kind.empty_sentinel_value(),
+                    );
+                }
+            }
+            Err(error) => return Err(SimulationAbort::BadInput(error.to_string())),
+        }
+    }
+
+    Ok((Value::Object(out), expression_context))
 }
 
 fn evaluate_lending_collections_for_tick<H>(
@@ -1618,6 +1735,8 @@ mod tests {
 
     use super::*;
     use crate::{
+        adapter::loader::parse_adapter_str,
+        primitive::{Primitive, PrimitiveError, SemanticOracleObservation},
         scenario::BaselineScenario,
         sim::mock::MockHarness,
         types::{PositionSizing, PositionSizingStrategy, Trigger, TriggerCondition},
@@ -1677,6 +1796,252 @@ mod tests {
             invariants: Vec::new(),
             scheduled_actions: Vec::new(),
             semantics: None,
+            errors: Vec::new(),
+        }
+    }
+
+    struct GenericSemanticMock {
+        agents: usize,
+        metrics: BTreeMap<String, Value>,
+        semantic_oracle_owners: BTreeMap<String, String>,
+        semantic_oracles: BTreeMap<String, SemanticOracleObservation>,
+    }
+
+    impl Primitive for GenericSemanticMock {
+        fn agent_count(&self) -> usize {
+            self.agents
+        }
+
+        fn execute_action(
+            &mut self,
+            _agent_idx: usize,
+            _action: &str,
+            _amount: u64,
+            _target_idx: Option<usize>,
+        ) -> Result<(), PrimitiveError> {
+            Ok(())
+        }
+
+        fn snapshot_metrics(&self) -> Result<BTreeMap<String, Value>, PrimitiveError> {
+            Ok(self.metrics.clone())
+        }
+
+        fn semantic_oracle_account_owner(
+            &self,
+            account_pubkey: &str,
+        ) -> Result<Option<String>, PrimitiveError> {
+            Ok(self.semantic_oracle_owners.get(account_pubkey).cloned())
+        }
+
+        fn semantic_oracle_observation(
+            &self,
+            account_pubkey: &str,
+        ) -> Result<Option<SemanticOracleObservation>, PrimitiveError> {
+            Ok(self.semantic_oracles.get(account_pubkey).copied())
+        }
+
+        fn summarize_metrics(
+            &self,
+            _timeseries: &[TickSnapshot],
+        ) -> Result<BTreeMap<String, Value>, PrimitiveError> {
+            Ok(BTreeMap::new())
+        }
+    }
+
+    fn generic_lending_semantics_toml() -> &'static str {
+        r#"
+protocol = "generic"
+program_so = "target/deploy/synthetic_lending.so"
+idl_path = "target/idl/synthetic_lending.json"
+
+[accounts.position]
+kind = "agent"
+space = 64
+
+[accounts.reserve]
+kind = "shared"
+space = 128
+
+[accounts.oracle]
+kind = "shared"
+space = 64
+
+[instructions]
+noop = { action = "noop" }
+
+[state_mapping]
+"position.collateral_amount" = "position.collateral_amount"
+"position.debt_amount" = "position.debt_amount"
+"reserve.collateral_price" = "reserve.collateral_price"
+"reserve.max_ltv_bps" = "reserve.max_ltv_bps"
+"reserve.liquidation_threshold_bps" = "reserve.liquidation_threshold_bps"
+"oracle.price" = "oracle.price"
+
+[actions.noop]
+takes = []
+
+[observations]
+"position.collateral_amount" = "uint"
+"position.debt_amount" = "uint"
+"reserve.collateral_price" = "uint"
+"reserve.max_ltv_bps" = "uint"
+"reserve.liquidation_threshold_bps" = "uint"
+"oracle.price" = "uint"
+
+[personas.passive]
+action_rate_multiplier = 0.0
+action_weights = { noop = 0.0 }
+triggers = []
+
+[semantics]
+class = "lending.v1"
+
+[semantics.roles.position]
+source = "account.position"
+fields.collateral_amount = "u128"
+fields.debt_amount = "u128"
+
+[semantics.roles.reserve]
+source = "account.reserve"
+fields.collateral_price = "u128"
+fields.max_ltv_bps = "u64"
+
+[semantics.roles.oracle]
+source = "account.oracle"
+fields.price = "u128"
+
+[semantics.roles.liquidation_config]
+source = "account.reserve"
+fields.liquidation_threshold_bps = "u64"
+
+[semantics.derived]
+collateral_value = "position.collateral_amount * oracle.price"
+debt_value = "position.debt_amount"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+health_factor = "collateral_value / max(debt_value, 1)"
+
+[[semantics.invariants]]
+name = "ltv_below_max"
+expr = "debt_value <= max_borrow_value"
+severity = "warn"
+"#
+    }
+
+    fn generic_lending_semantics_with_oracles_toml() -> &'static str {
+        r#"
+protocol = "generic"
+program_so = "target/deploy/synthetic_lending.so"
+idl_path = "target/idl/synthetic_lending.json"
+
+[accounts.position]
+kind = "agent"
+space = 64
+
+[accounts.reserve]
+kind = "shared"
+space = 128
+
+[accounts.oracle]
+kind = "shared"
+space = 64
+
+[instructions]
+noop = { action = "noop" }
+
+[state_mapping]
+"position.collateral_amount" = "position.collateral_amount"
+"position.debt_amount" = "position.debt_amount"
+"reserve.collateral_price" = "reserve.collateral_price"
+"reserve.max_ltv_bps" = "reserve.max_ltv_bps"
+"reserve.liquidation_threshold_bps" = "reserve.liquidation_threshold_bps"
+"oracle.price" = "oracle.price"
+
+[actions.noop]
+takes = []
+
+[observations]
+"position.collateral_amount" = "uint"
+"position.debt_amount" = "uint"
+"reserve.collateral_price" = "uint"
+"reserve.max_ltv_bps" = "uint"
+"reserve.liquidation_threshold_bps" = "uint"
+"oracle.price" = "uint"
+
+[personas.passive]
+action_rate_multiplier = 0.0
+action_weights = { noop = 0.0 }
+triggers = []
+
+[semantics]
+class = "lending.v1"
+
+[semantics.roles.position]
+source = "account.position"
+fields.collateral_amount = "u128"
+fields.debt_amount = "u128"
+
+[semantics.roles.reserve]
+source = "account.reserve"
+fields.collateral_price = "u128"
+fields.max_ltv_bps = "u64"
+
+[semantics.roles.oracle]
+source = "account.oracle"
+fields.price = "u128"
+
+[semantics.roles.liquidation_config]
+source = "account.reserve"
+fields.liquidation_threshold_bps = "u64"
+
+[semantics.derived]
+oracle_median_price = "oracle.median_price"
+oracle_first_confidence = "oracle.0.confidence"
+collateral_value = "position.collateral_amount * oracle.median_price"
+debt_value = "position.debt_amount"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+health_factor = "collateral_value / max(debt_value, 1)"
+
+[[semantics.oracles.oracle]]
+program_id = "11111111111111111111111111111111"
+account = "So11111111111111111111111111111111111111112"
+confidence = "confidence"
+staleness = "staleness"
+
+[[semantics.invariants]]
+name = "ltv_below_max"
+expr = "debt_value <= max_borrow_value"
+severity = "warn"
+"#
+    }
+
+    fn generic_semantic_params<'a>(
+        cfg: &'a RunConfig,
+        semantics: Option<Semantics>,
+    ) -> SimulationParams<'a> {
+        SimulationParams {
+            run_config: cfg,
+            policies: vec![Policy {
+                persona_id: "passive".into(),
+                persona_label: "passive".into(),
+                action_rate_multiplier: 0.0,
+                risk_tolerance: 0.5,
+                action_weights: BTreeMap::new(),
+                triggers: Vec::new(),
+                position_sizing: PositionSizing {
+                    strategy: PositionSizingStrategy::Fixed,
+                    params: BTreeMap::from([("amount".into(), 0.0)]),
+                },
+                max_exposure: 1.0,
+                persona_args: BTreeMap::new(),
+            }],
+            agent_personas: vec![0],
+            available_actions: Vec::new(),
+            starting_balance: 0.0,
+            starting_price: 1.0,
+            simulation_boundaries: vec!["generic lending semantics test".into()],
+            invariants: Vec::new(),
+            scheduled_actions: Vec::new(),
+            semantics,
             errors: Vec::new(),
         }
     }
@@ -1762,6 +2127,152 @@ mod tests {
         let policies = vec![tight_policy("a"), tight_policy("b")];
         let mapping = build_agent_personas(&[], &policies, 4).unwrap();
         assert_eq!(mapping, vec![0, 1, 0, 1]);
+    }
+
+    #[test]
+    fn generic_lending_semantics_emit_derived_and_expression_summary() {
+        let adapter = parse_adapter_str(
+            generic_lending_semantics_toml(),
+            "generic-lending-semantics.toml",
+        )
+        .unwrap();
+        let cfg = basic_config(11, 1, 1);
+        let mut harness = GenericSemanticMock {
+            agents: 1,
+            metrics: BTreeMap::from([
+                ("position.collateral_amount".into(), Value::from(10)),
+                ("position.debt_amount".into(), Value::from(120)),
+                ("reserve.collateral_price".into(), Value::from(1)),
+                ("reserve.max_ltv_bps".into(), Value::from(5_000)),
+                (
+                    "reserve.liquidation_threshold_bps".into(),
+                    Value::from(8_000),
+                ),
+                ("oracle.price".into(), Value::from(10)),
+                // Bare columns are ambiguous and must not satisfy
+                // role-qualified semantic inputs.
+                ("max_ltv_bps".into(), Value::from(5_000)),
+            ]),
+            semantic_oracle_owners: BTreeMap::new(),
+            semantic_oracles: BTreeMap::new(),
+        };
+        let mut scenario = BaselineScenario::new(1.0, 0);
+        let result = run_generic_simulation(
+            &mut harness,
+            &mut scenario,
+            generic_semantic_params(&cfg, adapter.semantics.clone()),
+        )
+        .unwrap();
+
+        assert_eq!(result.semantics.as_ref().unwrap().class, "lending.v1");
+        let derived = result.timeseries[0]
+            .get("derived_observations")
+            .and_then(|value| value.as_object())
+            .expect("generic semantic tick should emit derived observations");
+        assert_eq!(derived.get("collateral_value"), Some(&Value::from(100)));
+        assert_eq!(derived.get("debt_value"), Some(&Value::from(120)));
+        let expression_rows = result.summary["expression_invariants"]
+            .as_array()
+            .expect("generic semantic summary should emit expression invariant rows");
+        assert_eq!(expression_rows[0]["name"], "ltv_below_max");
+        assert_eq!(expression_rows[0]["firing_count"], Value::from(2));
+        assert!(result
+            .events
+            .iter()
+            .any(|event| event.action == "expression_invariant_fire:ltv_below_max"));
+    }
+
+    #[test]
+    fn generic_lending_semantics_materializes_semantic_oracle_accounts() {
+        let adapter = parse_adapter_str(
+            generic_lending_semantics_with_oracles_toml(),
+            "generic-lending-oracle-semantics.toml",
+        )
+        .unwrap();
+        let cfg = basic_config(13, 0, 1);
+        let oracle_account = "So11111111111111111111111111111111111111112";
+        let mut harness = GenericSemanticMock {
+            agents: 1,
+            metrics: BTreeMap::from([
+                ("position.collateral_amount".into(), Value::from(10)),
+                ("position.debt_amount".into(), Value::from(120)),
+                ("reserve.collateral_price".into(), Value::from(1)),
+                ("reserve.max_ltv_bps".into(), Value::from(5_000)),
+                (
+                    "reserve.liquidation_threshold_bps".into(),
+                    Value::from(8_000),
+                ),
+                ("oracle.price".into(), Value::from(10)),
+            ]),
+            semantic_oracle_owners: BTreeMap::from([(
+                oracle_account.into(),
+                "11111111111111111111111111111111".into(),
+            )]),
+            semantic_oracles: BTreeMap::from([(
+                oracle_account.into(),
+                SemanticOracleObservation {
+                    price: 21,
+                    confidence: 5,
+                    staleness: 2,
+                    exponent: 0,
+                },
+            )]),
+        };
+        let mut scenario = BaselineScenario::new(1.0, 0);
+        let result = run_generic_simulation(
+            &mut harness,
+            &mut scenario,
+            generic_semantic_params(&cfg, adapter.semantics.clone()),
+        )
+        .unwrap();
+
+        let derived = result.timeseries[0]
+            .get("derived_observations")
+            .and_then(|value| value.as_object())
+            .expect("generic semantic tick should emit derived observations");
+        assert_eq!(derived.get("oracle.median_price"), Some(&Value::from(21)));
+        assert_eq!(derived.get("oracle_median_price"), Some(&Value::from(21)));
+        assert_eq!(
+            derived.get("oracle_first_confidence"),
+            Some(&Value::from(5))
+        );
+        assert_eq!(derived.get("collateral_value"), Some(&Value::from(210)));
+    }
+
+    #[test]
+    fn generic_lending_semantics_fail_loudly_on_missing_inputs() {
+        let adapter = parse_adapter_str(
+            generic_lending_semantics_toml(),
+            "generic-lending-semantics.toml",
+        )
+        .unwrap();
+        let cfg = basic_config(12, 0, 1);
+        let mut harness = GenericSemanticMock {
+            agents: 1,
+            metrics: BTreeMap::from([
+                ("position.collateral_amount".into(), Value::from(10)),
+                ("position.debt_amount".into(), Value::from(120)),
+                ("reserve.collateral_price".into(), Value::from(1)),
+                (
+                    "reserve.liquidation_threshold_bps".into(),
+                    Value::from(8_000),
+                ),
+                ("oracle.price".into(), Value::from(10)),
+            ]),
+            semantic_oracle_owners: BTreeMap::new(),
+            semantic_oracles: BTreeMap::new(),
+        };
+        let mut scenario = BaselineScenario::new(1.0, 0);
+        let err = run_generic_simulation(
+            &mut harness,
+            &mut scenario,
+            generic_semantic_params(&cfg, adapter.semantics.clone()),
+        )
+        .unwrap_err();
+
+        let msg = err.to_string();
+        assert!(msg.contains("MissingSemanticInput(reserve.max_ltv_bps)"));
+        assert!(msg.contains("reserve.max_ltv_bps"));
     }
 
     #[test]
