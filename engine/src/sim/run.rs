@@ -1398,18 +1398,38 @@ where
                 format!("{role}.{index}.price"),
                 crate::semantics::Value::U128(observation.price),
             );
+            if index == 0 {
+                context
+                    .entry(format!("{role}.price"))
+                    .or_insert(crate::semantics::Value::U128(observation.price));
+            }
             context.insert(
                 format!("{role}.{index}.confidence"),
                 crate::semantics::Value::U128(observation.confidence),
             );
+            if index == 0 {
+                context
+                    .entry(format!("{role}.confidence"))
+                    .or_insert(crate::semantics::Value::U128(observation.confidence));
+            }
             context.insert(
                 format!("{role}.{index}.staleness"),
                 crate::semantics::Value::U128(u128::from(observation.staleness)),
             );
+            if index == 0 {
+                context.entry(format!("{role}.staleness")).or_insert(
+                    crate::semantics::Value::U128(u128::from(observation.staleness)),
+                );
+            }
             context.insert(
                 format!("{role}.{index}.exponent"),
                 crate::semantics::Value::I128(observation.exponent),
             );
+            if index == 0 {
+                context
+                    .entry(format!("{role}.exponent"))
+                    .or_insert(crate::semantics::Value::I128(observation.exponent));
+            }
         }
     }
     Ok(())

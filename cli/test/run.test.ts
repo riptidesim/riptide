@@ -386,6 +386,113 @@ test("runScenarios: writes .riptide/last-run.json with v1 schema", async () => {
   assert.equal(parsed.partial_abort, false);
 });
 
+test("runScenarios: adapter semantic invariants count as declared inventory", async () => {
+  const root = await tmpRoot("run-semantic-inventory");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  const adapterFile = path.join(root, "adapter.toml");
+  await writeFile(
+    adapterFile,
+    `protocol = "generic"
+program_so = "./program.so"
+idl_path = "./idl.json"
+
+[accounts.position]
+kind = "shared"
+space = 8
+
+[instructions.deposit]
+action = "deposit"
+amount = "amount"
+
+[state_mapping]
+"position.health_factor" = "position.health_factor"
+
+[actions.deposit]
+label = "Deposit"
+takes = ["amount"]
+
+[observations]
+"position.health_factor" = "uint"
+
+[personas.baseline]
+label = "Baseline"
+action_rate_multiplier = 1.0
+action_weights = { deposit = 1.0 }
+triggers = []
+
+[semantics]
+class = "lending.v1"
+
+[semantics.roles.position]
+source = "account.position"
+fields.health_factor = "u64"
+
+[semantics.roles.reserve]
+source = "account.position"
+fields.available_liquidity = "u64"
+
+[semantics.roles.oracle]
+source = "account.position"
+fields.price = "i64"
+
+[semantics.roles.liquidation_config]
+source = "account.position"
+fields.close_factor_bps = "u64"
+
+[[semantics.invariants]]
+name = "health_factor_above_one"
+expr = "health_factor >= 1"
+severity = "warn"
+`,
+    "utf8"
+  );
+  const scenarios: ResolvedScenario[] = [
+    { name: "baseline", runConfigPath: path.join(root, "baseline.json") }
+  ];
+  const semanticResult = baseSimulationResult({
+    summary: {
+      agents_active: 1,
+      agents_liquidated: 0,
+      agents_depleted: 0,
+      invariants_fired: null,
+      expression_invariants: [
+        {
+          name: "health_factor_above_one",
+          expr: "health_factor >= 1",
+          severity: "warn",
+          first_tick: null,
+          firing_count: 0,
+          observed: []
+        }
+      ]
+    }
+  });
+  const semanticRunOne = async (): Promise<RunOneResult> => ({
+    kind: "pass",
+    wallClockS: 0.1,
+    artifactsDir: "/tmp/unused",
+    result: semanticResult
+  });
+
+  await runScenarios({
+    scenarios,
+    cwd: root,
+    adapterOverride: adapterFile,
+    runOne: semanticRunOne,
+    handleSignals: false
+  });
+
+  const raw = await readFile(lastRunPath(root), "utf8");
+  const parsed = JSON.parse(raw);
+  const check = parsed.scenarios[0].interpretation.coverage_checks.find(
+    (entry: { name: string }) => entry.name === "invariant_inventory"
+  );
+  assert.equal(check.status, "pass");
+  assert.equal(check.detail, "1 declared invariant row present");
+  assert.doesNotMatch(check.detail, /no invariants/);
+  assert.equal(parsed.scenarios[0].interpretation.verdict, "no-failure-observed");
+});
+
 test("runScenarios: errored scenario records 'error' status + partialAbort flag", async () => {
   const root = await tmpRoot("run-error");
   await mkdir(path.join(root, ".riptide"), { recursive: true });

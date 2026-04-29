@@ -1262,30 +1262,50 @@ fn resolve_generic_paths(adapter: &mut Adapter, adapter_path: &Path) {
     let Some(parent) = adapter_path.parent() else {
         return;
     };
+    let user_repo_root = user_repo_root_for_riptide_adapter(adapter_path);
 
     if let Some(program_so) = adapter.program_so.as_mut() {
-        *program_so = resolve_relative_to(parent, program_so);
+        *program_so = resolve_runtime_path(parent, user_repo_root.as_deref(), program_so);
     }
     if let Some(idl_path) = adapter.idl_path.as_mut() {
-        *idl_path = resolve_relative_to(parent, idl_path);
+        *idl_path = resolve_runtime_path(parent, user_repo_root.as_deref(), idl_path);
     }
     for account in adapter.accounts.values_mut() {
         let Some(owner) = account.owner.as_mut() else {
             continue;
         };
         if let Some(program_so) = owner.program_so.as_mut() {
-            *program_so = resolve_relative_to(parent, program_so);
+            *program_so = resolve_runtime_path(parent, user_repo_root.as_deref(), program_so);
         }
     }
 }
 
-fn resolve_relative_to(base: &Path, raw: &str) -> String {
+fn resolve_runtime_path(adapter_dir: &Path, user_repo_root: Option<&Path>, raw: &str) -> String {
     let path = Path::new(raw);
     if path.is_absolute() {
         raw.to_string()
     } else {
-        base.join(path).display().to_string()
+        let adapter_relative = adapter_dir.join(path);
+        if adapter_relative.exists() {
+            return adapter_relative.display().to_string();
+        }
+        if let Some(root) = user_repo_root {
+            return root.join(path).display().to_string();
+        }
+        adapter_relative.display().to_string()
     }
+}
+
+fn user_repo_root_for_riptide_adapter(adapter_path: &Path) -> Option<std::path::PathBuf> {
+    let adapter_dir = adapter_path.parent()?;
+    if adapter_dir.file_name()? != "adapters" {
+        return None;
+    }
+    let riptide_dir = adapter_dir.parent()?;
+    if riptide_dir.file_name()? != ".riptide" {
+        return None;
+    }
+    riptide_dir.parent().map(Path::to_path_buf)
 }
 
 fn validate_lending(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
@@ -1874,7 +1894,6 @@ fn is_well_known_account_alias(value: &str) -> bool {
 
 /// Validate the optional external-owner metadata on generic accounts.
 ///
-/// - `kind = "agent"` accounts cannot opt into external ownership.
 /// - Exactly one of `owner.program_so` / `owner.pubkey` must be set;
 ///   declaring both is ambiguous, declaring neither is an empty block.
 /// - Literal pubkeys must be base58-decodable to a 32-byte key.
@@ -1886,18 +1905,6 @@ fn validate_account_owners(adapter: &Adapter, path: &str) -> Result<(), AdapterE
         let Some(owner) = account.owner.as_ref() else {
             continue;
         };
-        if matches!(account.kind, AccountKind::Agent) {
-            return Err(AdapterError::Validation {
-                path: path.to_string(),
-                key: format!("[accounts].{account_name}.owner"),
-                reason: format!(
-                    "account `{account_name}` declares external `owner` but `kind = \"agent\"`. \
-                     External ownership is only valid for `kind = \"shared\"` accounts; \
-                     agent-scoped accounts stay program-owned. Either remove the `owner` block \
-                     or change the account's `kind` to `shared`."
-                ),
-            });
-        }
         match (owner.program_so.as_deref(), owner.pubkey.as_deref()) {
             (Some(_), Some(_)) => {
                 return Err(AdapterError::Validation {
@@ -2498,6 +2505,35 @@ protocol = "lending"
     }
 
     #[test]
+    fn resolves_user_riptide_runtime_paths_from_repo_root() {
+        let adapter_path =
+            std::path::PathBuf::from("/__riptide_missing__/demo/.riptide/adapters/lending.toml");
+        let adapter_dir = adapter_path.parent().unwrap();
+        let root = user_repo_root_for_riptide_adapter(&adapter_path);
+        assert_eq!(
+            root.as_deref(),
+            Some(std::path::Path::new("/__riptide_missing__/demo"))
+        );
+        assert_eq!(
+            resolve_runtime_path(adapter_dir, root.as_deref(), "target/deploy/lending.so"),
+            "/__riptide_missing__/demo/target/deploy/lending.so"
+        );
+    }
+
+    #[test]
+    fn leaves_fixture_runtime_paths_adapter_relative() {
+        let adapter_path =
+            std::path::PathBuf::from("/__riptide_missing__/demo/fixtures/adapters/amm.toml");
+        let adapter_dir = adapter_path.parent().unwrap();
+        let root = user_repo_root_for_riptide_adapter(&adapter_path);
+        assert!(root.is_none());
+        assert_eq!(
+            resolve_runtime_path(adapter_dir, root.as_deref(), "../idls/amm.json"),
+            "/__riptide_missing__/demo/fixtures/adapters/../idls/amm.json"
+        );
+    }
+
+    #[test]
     fn rejects_unknown_generic_action_reference() {
         let toml_str = sample_generic_toml().replace(
             "mine = { action = \"mine\" }",
@@ -2674,15 +2710,21 @@ exponent = 0
     }
 
     #[test]
-    fn rejects_agent_account_with_external_owner() {
+    fn parses_agent_account_with_external_owner() {
         let toml_str = sample_generic_toml().replace(
             "[accounts.player]\nkind = \"agent\"\nspace = 32",
             "[accounts.player]\nkind = \"agent\"\nspace = 32\nowner = { pubkey = \"FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH\" }",
         );
-        let err = parse_adapter_str(&toml_str, "owner.toml").unwrap_err();
-        let msg = err.to_string();
-        assert!(msg.contains("[accounts].player.owner"), "got: {msg}");
-        assert!(msg.contains("kind = \"agent\""), "got: {msg}");
+        let adapter = parse_adapter_str(&toml_str, "owner.toml").unwrap();
+        let owner = adapter
+            .accounts
+            .get("player")
+            .and_then(|account| account.owner.as_ref())
+            .expect("agent owner should parse");
+        assert_eq!(
+            owner.pubkey.as_deref(),
+            Some("FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH")
+        );
     }
 
     #[test]

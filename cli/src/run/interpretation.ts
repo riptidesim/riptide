@@ -264,7 +264,7 @@ function checkInvariantInventory(
   result: SimulationResult,
   invariantObservation: InvariantObservation
 ): CoverageCheck {
-  const rows = invariantRows(result);
+  const rows = invariantInventoryRows(result);
   const declared = input.declaredInvariants;
 
   if (declared !== undefined) {
@@ -322,6 +322,10 @@ function checkInvariantInventory(
   };
 }
 
+function invariantInventoryRows(result: SimulationResult): Array<{ name: string }> {
+  return [...invariantRows(result), ...expressionInvariantRows(result)];
+}
+
 function checkAgentRoster(result: SimulationResult): CoverageCheck {
   const summaryAgents = summaryAgentCount(result);
   if (isReplayRun(result)) {
@@ -347,6 +351,15 @@ function checkAgentRoster(result: SimulationResult): CoverageCheck {
   }
 
   if (result.run_config.personas.length === 0) {
+    if (result.agents.length > 0 && result.events.some((event) => isScenarioEvent(result, event))) {
+      return {
+        name: "agent_roster",
+        status: "pass",
+        detail:
+          `${result.agents.length} final agent${result.agents.length === 1 ? "" : "s"} ` +
+          "using inline adapter personas"
+      };
+    }
     return {
       name: "agent_roster",
       status: "fail",

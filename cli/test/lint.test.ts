@@ -87,6 +87,7 @@ idl_source = "${idlRelPath}"
 generator = "hand-authored"
 unsupported_fields = [
   "instruction \`initialize_pool\` — admin setup",
+  "account \`pool.total_deposits\` — externally owned agent account smoke field",
   "account \`pool.is_initialized\` — bootstrap metadata",
   "account \`pool.fee_bps\` — config, not persona-observable",
 ]
@@ -1279,6 +1280,7 @@ triggers = []
 idl_source = "fixtures/idls/simple.json"
 unsupported_fields = [
   "instruction \`initialize_pool\` — admin setup",
+  "account \`pool.total_deposits\` — externally owned agent account smoke field",
   "account \`pool.is_initialized\` — bootstrap metadata",
   "account \`pool.fee_bps\` — config, not persona-observable",
 ]
@@ -1303,7 +1305,7 @@ unsupported_fields = [
   assert.doesNotMatch(out, / FAIL {2}\[/);
 });
 
-test("runLint: agent account with owner block is rejected at validation", async () => {
+test("runLint: agent account with valid owner pubkey is accepted and skipped from IDL cross-check", async () => {
   const adapterToml = `protocol = "generic"
 program_so = "./mini.so"
 idl_path = "fixtures/idls/simple.json"
@@ -1311,7 +1313,7 @@ idl_path = "fixtures/idls/simple.json"
 [accounts.pool]
 kind = "agent"
 space = 64
-owner = { program_so = "./sibling.so" }
+owner = { pubkey = "11111111111111111111111111111111" }
 
 [instructions]
 deposit = { action = "deposit", amount = "amount" }
@@ -1334,21 +1336,28 @@ triggers = []
 
 [lineage]
 idl_source = "fixtures/idls/simple.json"
+unsupported_fields = [
+  "instruction \`initialize_pool\` — admin setup",
+  "account \`pool.total_deposits\` — externally owned agent account smoke field",
+  "account \`pool.is_initialized\` — bootstrap metadata",
+  "account \`pool.fee_bps\` — config, not persona-observable",
+]
 `;
   const { adapterPath, repoRoot } = await setupAdapterPair(adapterToml, SIMPLE_IDL);
-  let err = "";
+  let out = "";
   const exit = await runLint(
     adapterPath,
     {},
     {
       repoRoot,
-      stdoutWrite: () => {},
-      stderrWrite: (c) => { err += c; },
+      stdoutWrite: (c) => { out += c; },
+      stderrWrite: () => {},
       color: false,
     }
   );
-  assert.equal(exit, 2);
-  assert.match(err, /`kind = "agent"`/);
+  assert.equal(exit, 0, `expected PASS on agent external owner, got exit=${exit}. stdout:\n${out}`);
+  assert.match(out, /Verdict: PASS/);
+  assert.doesNotMatch(out, / FAIL {2}\[/);
 });
 
 // ---- coverage report sanity ----

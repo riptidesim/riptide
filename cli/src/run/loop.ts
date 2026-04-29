@@ -548,7 +548,11 @@ function declaredInvariantNames(adapterPath: string | undefined): string[] | und
     const raw = readFileSync(adapterPath, "utf8");
     const parsed = TOML.parse(raw);
     const adapter = validateAdapter(parsed, adapterPath);
-    return adapter.invariants.map((inv, idx) => inv.name ?? `inv_${idx}`);
+    const names = [
+      ...adapter.invariants.map((inv, idx) => inv.name ?? `inv_${idx}`),
+      ...(adapter.semantics?.invariants.map((inv) => inv.name) ?? [])
+    ];
+    return [...new Set(names)];
   } catch {
     return undefined;
   }

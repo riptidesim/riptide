@@ -154,6 +154,10 @@ function pickFixtures(options: SmokeTestOptions): {
   // Shrink for smoke-speed.
   genericRun.agents = 3;
   genericRun.ticks = 2;
+  // Generic adapters declare their own persona roster inline. Leave
+  // the run-config persona list empty so the engine round-robins those
+  // adapter personas instead of forcing the bundled generic-demo ids.
+  genericRun.personas = [];
 
   return {
     runConfig: genericRun,
@@ -224,15 +228,9 @@ export function findObservationDelta(output: unknown): string | null {
     ) {
       const firstObj = first as Record<string, unknown>;
       const lastObj = last as Record<string, unknown>;
-      for (const key of Object.keys(firstObj)) {
-        if (key === "tick") {
-          continue;
-        }
-        const a = firstObj[key];
-        const b = lastObj[key];
-        if (isNumericLike(a) && isNumericLike(b) && a !== b) {
-          return `timeseries field \`${key}\` changed: ${a} → ${b}`;
-        }
+      const delta = findNumericDelta(firstObj, lastObj);
+      if (delta !== null) {
+        return delta;
       }
     }
   }
@@ -271,12 +269,44 @@ function isWriteAction(action: string): boolean {
   if (
     action === "trigger_activated" ||
     action === "noop" ||
+    action === "no_op" ||
     action === "skipped" ||
-    action === "tick"
+    action === "tick" ||
+    action.startsWith("expression_invariant_fire:") ||
+    action.startsWith("invariant_violation:")
   ) {
     return false;
   }
   return true;
+}
+
+function findNumericDelta(
+  first: Record<string, unknown>,
+  last: Record<string, unknown>,
+  prefix = ""
+): string | null {
+  for (const key of Object.keys(first)) {
+    if (key === "tick") {
+      continue;
+    }
+    const pathKey = prefix.length > 0 ? `${prefix}.${key}` : key;
+    const a = first[key];
+    const b = last[key];
+    if (isNumericLike(a) && isNumericLike(b) && a !== b) {
+      return `timeseries field \`${pathKey}\` changed: ${a} → ${b}`;
+    }
+    if (isPlainObject(a) && isPlainObject(b)) {
+      const nested = findNumericDelta(a, b, pathKey);
+      if (nested !== null) {
+        return nested;
+      }
+    }
+  }
+  return null;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function isNumericLike(value: unknown): value is number {

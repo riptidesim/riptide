@@ -189,6 +189,9 @@ pub fn bind_generic_lending_v1_roles(
                 .iter()
                 .find_map(|candidate| snapshot.get(candidate).map(|value| (candidate, value)))
             else {
+                if semantics.oracles.contains_key(role_name) && is_oracle_runtime_field(field) {
+                    continue;
+                }
                 return Err(RoleBindingError::MissingSemanticInput {
                     role: role_name.clone(),
                     field: field.clone(),
@@ -201,6 +204,10 @@ pub fn bind_generic_lending_v1_roles(
     }
 
     Ok(context)
+}
+
+fn is_oracle_runtime_field(field: &str) -> bool {
+    matches!(field, "price" | "confidence" | "staleness" | "exponent")
 }
 
 fn generic_semantic_candidates(

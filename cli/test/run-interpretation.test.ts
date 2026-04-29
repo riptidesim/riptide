@@ -175,6 +175,19 @@ test("classifies clean exercised runs as no failure observed", () => {
   assertNoForbiddenInterpretationText(interpretation);
 });
 
+test("accepts inline adapter personas when the result has agents and events", () => {
+  const baseline = baseResult();
+  const result = baseResult({
+    run_config: { ...baseline.run_config, personas: [] }
+  });
+  const interpretation = interpret(baseRecord(), result);
+
+  assert.equal(interpretation.verdict, "no-failure-observed");
+  assert.equal(interpretation.coverage, "exercised");
+  assert.equal(checkStatus(interpretation, "agent_roster"), "pass");
+  assertNoForbiddenInterpretationText(interpretation);
+});
+
 test("warn expression invariant fires do not change verdict and report semantics coverage", () => {
   const result = baseResult({
     timeseries: [
@@ -312,6 +325,41 @@ test("classifies declared-but-missing invariant rows as inconclusive", () => {
   assert.equal(interpretation.verdict, "inconclusive");
   assert.equal(interpretation.coverage, "unexercised");
   assert.equal(checkStatus(interpretation, "invariant_inventory"), "fail");
+  assertNoForbiddenInterpretationText(interpretation);
+});
+
+test("counts semantic expression invariant rows in declared invariant inventory", () => {
+  const result = baseResult({
+    summary: {
+      final_tvl: 125,
+      final_utilization: 0.2,
+      agents_active: 2,
+      agents_liquidated: 0,
+      agents_depleted: 0,
+      invariants_fired: null,
+      expression_invariants: [
+        {
+          name: "health_factor_above_one",
+          expr: "health_factor >= 1",
+          severity: "warn",
+          first_tick: null,
+          firing_count: 0,
+          observed: []
+        }
+      ]
+    }
+  });
+
+  const interpretation = interpret(baseRecord(), result, {
+    declaredInvariants: ["health_factor_above_one"]
+  });
+
+  assert.equal(interpretation.verdict, "no-failure-observed");
+  assert.equal(checkStatus(interpretation, "invariant_inventory"), "pass");
+  assert.equal(
+    interpretation.coverage_checks.find((entry) => entry.name === "invariant_inventory")?.detail,
+    "1 declared invariant row present"
+  );
   assertNoForbiddenInterpretationText(interpretation);
 });
 

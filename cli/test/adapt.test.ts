@@ -296,6 +296,17 @@ test("findObservationDelta: rejects a trigger_activated event as a write-action 
   assert.equal(findObservationDelta(fake), null);
 });
 
+test("findObservationDelta: rejects expression-invariant fires as write-action proof", () => {
+  const fake = {
+    summary: {},
+    events: [
+      { tick: 0, action: "expression_invariant_fire:health_factor", outcome: "success" }
+    ],
+    timeseries: []
+  };
+  assert.equal(findObservationDelta(fake), null);
+});
+
 test("findObservationDelta: accepts a timeseries field that changed between first and last tick", () => {
   const fake = {
     summary: {},
@@ -307,6 +318,19 @@ test("findObservationDelta: accepts a timeseries field that changed between firs
   };
   const delta = findObservationDelta(fake);
   assert.ok(delta && delta.includes("tvl"));
+});
+
+test("findObservationDelta: accepts a nested semantic timeseries field that changed", () => {
+  const fake = {
+    summary: {},
+    events: [],
+    timeseries: [
+      { tick: 0, derived_observations: { "oracle.median_price": 1 } },
+      { tick: 1, derived_observations: { "oracle.median_price": 100 } }
+    ]
+  };
+  const delta = findObservationDelta(fake);
+  assert.ok(delta && delta.includes("derived_observations.oracle.median_price"));
 });
 
 test("findObservationDelta: rejects a timeseries where nothing actually changed", () => {

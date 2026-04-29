@@ -435,8 +435,8 @@ fn build_manifest(
         });
 
     let firings = collect_invariant_firings(result);
-    let total_firings: u64 = firings.iter().map(|r| r.firings).sum();
-    let exit_code = if total_firings > 0 { 1 } else { 0 };
+    let exit_firings = count_exit_code_invariant_firings(result);
+    let exit_code = if exit_firings > 0 { 1 } else { 0 };
 
     PackManifest {
         schema_version: 1,
@@ -458,13 +458,18 @@ fn build_manifest(
 }
 
 fn collect_invariant_firings(result: &SimulationResult) -> Vec<InvariantFiringRow> {
-    let rollup = match result
+    let mut rows = collect_legacy_invariant_firings(result);
+    rows.extend(collect_expression_invariant_firings(result));
+    rows
+}
+
+fn collect_legacy_invariant_firings(result: &SimulationResult) -> Vec<InvariantFiringRow> {
+    let Some(rollup) = result
         .summary
         .get("invariants_fired")
-        .and_then(|v| v.as_array())
-    {
-        Some(arr) => arr,
-        None => return Vec::new(),
+        .and_then(Value::as_array)
+    else {
+        return Vec::new();
     };
     let mut first_ticks: BTreeMap<String, u32> = BTreeMap::new();
     for event in &result.events {
@@ -495,6 +500,73 @@ fn collect_invariant_firings(result: &SimulationResult) -> Vec<InvariantFiringRo
             }
         })
         .collect()
+}
+
+fn collect_expression_invariant_firings(result: &SimulationResult) -> Vec<InvariantFiringRow> {
+    let Some(rollup) = result
+        .summary
+        .get("expression_invariants")
+        .and_then(Value::as_array)
+    else {
+        return Vec::new();
+    };
+    let mut first_ticks: BTreeMap<String, u32> = BTreeMap::new();
+    for event in &result.events {
+        if let Some(name) = event.action.strip_prefix("expression_invariant_fire:") {
+            first_ticks.entry(name.to_string()).or_insert(event.tick);
+        }
+    }
+    rollup
+        .iter()
+        .map(|row| {
+            let name = row
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            let firings = row
+                .get("firing_count")
+                .or_else(|| row.get("firings"))
+                .and_then(Value::as_u64)
+                .unwrap_or(0);
+            let first_tick = row
+                .get("first_tick")
+                .or_else(|| row.get("first_fired_tick"))
+                .and_then(Value::as_u64)
+                .and_then(|tick| u32::try_from(tick).ok())
+                .or_else(|| first_ticks.get(&name).copied());
+            InvariantFiringRow {
+                name,
+                firings,
+                first_tick,
+                field: row.get("expr").and_then(Value::as_str).map(str::to_string),
+                op: Some("expr".into()),
+                value: None,
+            }
+        })
+        .collect()
+}
+
+fn count_exit_code_invariant_firings(result: &SimulationResult) -> u64 {
+    let legacy = collect_legacy_invariant_firings(result)
+        .iter()
+        .map(|row| row.firings)
+        .sum::<u64>();
+    let semantic_error = result
+        .summary
+        .get("expression_invariants")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|row| row.get("severity").and_then(Value::as_str) == Some("error"))
+        .map(|row| {
+            row.get("firing_count")
+                .or_else(|| row.get("firings"))
+                .and_then(Value::as_u64)
+                .unwrap_or(0)
+        })
+        .sum::<u64>();
+    legacy + semantic_error
 }
 
 fn write_atomic(path: &Path, body: &str) -> Result<()> {
@@ -690,6 +762,45 @@ mod tests {
         AgentFinalState, AgentStatus, RunConfig, SimulationResult, SimulationSummary, TickSnapshot,
     };
 
+    fn base_pack_result() -> SimulationResult {
+        SimulationResult {
+            run_config: RunConfig {
+                agents: 1,
+                ticks: 1,
+                scenario: "baseline".into(),
+                seed: 1,
+                personas: vec![],
+                validator_url: "unused".into(),
+                output_path: "__canonical__".into(),
+            },
+            seed: 1,
+            total_ticks: 1,
+            timeseries: vec![TickSnapshot::from([(
+                "tick".into(),
+                serde_json::Value::from(0),
+            )])],
+            events: vec![],
+            agents: vec![AgentFinalState {
+                agent_id: "agent-001".into(),
+                persona_id: "p".into(),
+                persona_label: "p".into(),
+                status: AgentStatus::Active,
+                final_balance: 1.0,
+                pnl: 0.0,
+                total_actions: 0,
+                triggers_activated: 0,
+                liquidated_at_tick: None,
+            }],
+            summary: SimulationSummary::from([(
+                "agents_active".into(),
+                serde_json::Value::from(1),
+            )]),
+            semantics: None,
+            replay_provenance: None,
+            simulation_boundaries: vec![],
+        }
+    }
+
     #[test]
     fn run_id_sanitizes_replay_multi_scenarios() {
         assert_eq!(
@@ -707,46 +818,7 @@ mod tests {
 
     #[test]
     fn canonical_hash_ignores_v1_observed_semantics_surfaces() {
-        fn base_result() -> SimulationResult {
-            SimulationResult {
-                run_config: RunConfig {
-                    agents: 1,
-                    ticks: 1,
-                    scenario: "baseline".into(),
-                    seed: 1,
-                    personas: vec![],
-                    validator_url: "unused".into(),
-                    output_path: "__canonical__".into(),
-                },
-                seed: 1,
-                total_ticks: 1,
-                timeseries: vec![TickSnapshot::from([(
-                    "tick".into(),
-                    serde_json::Value::from(0),
-                )])],
-                events: vec![],
-                agents: vec![AgentFinalState {
-                    agent_id: "agent-001".into(),
-                    persona_id: "p".into(),
-                    persona_label: "p".into(),
-                    status: AgentStatus::Active,
-                    final_balance: 1.0,
-                    pnl: 0.0,
-                    total_actions: 0,
-                    triggers_activated: 0,
-                    liquidated_at_tick: None,
-                }],
-                summary: SimulationSummary::from([(
-                    "agents_active".into(),
-                    serde_json::Value::from(1),
-                )]),
-                semantics: None,
-                replay_provenance: None,
-                simulation_boundaries: vec![],
-            }
-        }
-
-        let base = base_result();
+        let base = base_pack_result();
         let mut observed = base.clone();
         observed.timeseries[0].insert(
             "derived_observations".into(),
@@ -773,5 +845,44 @@ mod tests {
             canonical_hash(&observed),
             "observed-only semantic v1 fields must not enter canonical hash"
         );
+    }
+
+    #[test]
+    fn manifest_and_summary_count_expression_invariant_inventory() {
+        let mut result = base_pack_result();
+        result.summary.insert(
+            "expression_invariants".into(),
+            serde_json::json!([
+                {
+                    "name": "health_factor_above_one",
+                    "expr": "health_factor >= 1",
+                    "severity": "warn",
+                    "first_tick": null,
+                    "firing_count": 0,
+                    "observed": []
+                }
+            ]),
+        );
+
+        let manifest = build_manifest(
+            &result,
+            "baseline",
+            "hash",
+            &PackInputsRel::default(),
+            &PackOutputsRel::default(),
+            Some("adapter.toml"),
+        );
+
+        assert_eq!(manifest.invariant_firings.len(), 1);
+        assert_eq!(
+            manifest.invariant_firings[0].name,
+            "health_factor_above_one"
+        );
+        assert_eq!(manifest.invariant_firings[0].firings, 0);
+        assert_eq!(manifest.exit_code, 0);
+
+        let summary = render::render_summary_md(&result, &manifest);
+        assert!(summary.contains("- **Invariants:** 1 declared · 0 firings"));
+        assert!(!summary.contains("no declared invariants"));
     }
 }

@@ -804,6 +804,71 @@ test("runDoctor: generic adapter with dead idl_path → load=fail", async () => 
   assert.match(out, /\/nonexistent\/simple\.json/);
 });
 
+test("runDoctor: user .riptide adapter resolves scaffolded target paths from repo root", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-doctor-test-"));
+  const adaptersDir = path.join(cwd, ".riptide", "adapters");
+  await mkdir(adaptersDir, { recursive: true });
+  await mkdir(path.join(cwd, "target", "deploy"), { recursive: true });
+  await mkdir(path.join(cwd, "target", "idl"), { recursive: true });
+  await writeFile(path.join(cwd, "target", "deploy", "simple.so"), Buffer.alloc(0));
+  await writeFile(path.join(cwd, "target", "idl", "simple.json"), SIMPLE_IDL, "utf8");
+  await writeFile(
+    path.join(adaptersDir, "my-program.toml"),
+    `protocol = "generic"
+program_so = "target/deploy/simple.so"
+idl_path = "target/idl/simple.json"
+
+[accounts.pool]
+kind = "shared"
+space = 64
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"pool.total_deposits" = "pool.total_deposits"
+
+[actions.deposit]
+label = "Deposit"
+takes = ["amount"]
+
+[observations]
+"pool.total_deposits" = "uint"
+
+[personas.grinder]
+label = "Grinder"
+action_rate_multiplier = 1.0
+action_weights = { deposit = 1.0 }
+triggers = []
+
+[lineage]
+idl_source = "target/idl/simple.json"
+generator = "hand-authored"
+`,
+    "utf8"
+  );
+
+  let out = "";
+  const exit = await runDoctor(
+    {},
+    {
+      cwd,
+      stdoutWrite: (c) => { out += c; },
+      stderrWrite: () => {},
+      color: false,
+      buildReport: (input) =>
+        buildDoctorReport({
+          ...input,
+          probeTool: fakeProbe(HEALTHY_VERSIONS),
+          resolveEngine: async () => "/fake/target/release/riptide-engine",
+        }),
+    }
+  );
+  assert.equal(exit, 0, `expected 0 (PASS), got ${exit}. stdout:\n${out}`);
+  assert.match(out, /load=pass\s+·\s+lint=pass/);
+  assert.doesNotMatch(out, /\.riptide\/adapters\/target\/deploy\/simple\.so/);
+});
+
 test("runDoctor: generic adapter with dead owner.program_so → load=fail", async () => {
   // Build a generic adapter with an oracle account owner pointing at a
   // non-existent sibling .so. Doctor must catch this before the engine

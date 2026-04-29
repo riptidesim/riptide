@@ -477,12 +477,8 @@ interface RuntimePathFailure {
 function checkGenericRuntimePaths(adapter: Adapter, adapterPath: string): RuntimePathFailure | null {
   if (resolveAdapterRuntime(adapter) !== "generic") return null;
 
-  const adapterDir = path.dirname(adapterPath);
-  const resolveRel = (raw: string): string =>
-    path.isAbsolute(raw) ? raw : path.resolve(adapterDir, raw);
-
   if (adapter.program_so !== undefined) {
-    const resolved = resolveRel(adapter.program_so);
+    const resolved = resolveRuntimePath(adapter.program_so, adapterPath);
     if (!existsSync(resolved)) {
       return {
         note: `program_so not found on disk: ${resolved}`,
@@ -493,7 +489,7 @@ function checkGenericRuntimePaths(adapter: Adapter, adapterPath: string): Runtim
   }
 
   if (adapter.idl_path !== undefined) {
-    const resolved = resolveRel(adapter.idl_path);
+    const resolved = resolveRuntimePath(adapter.idl_path, adapterPath);
     if (!existsSync(resolved)) {
       return {
         note: `idl_path not found on disk: ${resolved}`,
@@ -506,7 +502,7 @@ function checkGenericRuntimePaths(adapter: Adapter, adapterPath: string): Runtim
   for (const [accountName, def] of Object.entries(adapter.accounts)) {
     const ownerSo = def.owner?.program_so;
     if (ownerSo === undefined) continue;
-    const resolved = resolveRel(ownerSo);
+    const resolved = resolveRuntimePath(ownerSo, adapterPath);
     if (!existsSync(resolved)) {
       return {
         note: `[accounts.${accountName}].owner.program_so not found on disk: ${resolved}`,
@@ -535,6 +531,29 @@ function checkGenericRuntimePaths(adapter: Adapter, adapterPath: string): Runtim
   }
 
   return null;
+}
+
+function resolveRuntimePath(raw: string, adapterPath: string): string {
+  if (path.isAbsolute(raw)) return raw;
+
+  const adapterDir = path.dirname(adapterPath);
+  const adapterRelative = path.resolve(adapterDir, raw);
+  if (existsSync(adapterRelative)) return adapterRelative;
+
+  const repoRoot = repoRootForUserRiptideAdapter(adapterPath);
+  if (repoRoot !== null) {
+    return path.resolve(repoRoot, raw);
+  }
+
+  return adapterRelative;
+}
+
+function repoRootForUserRiptideAdapter(adapterPath: string): string | null {
+  const adapterDir = path.dirname(adapterPath);
+  const riptideDir = path.dirname(adapterDir);
+  if (path.basename(adapterDir) !== "adapters") return null;
+  if (path.basename(riptideDir) !== ".riptide") return null;
+  return path.dirname(riptideDir);
 }
 
 /**

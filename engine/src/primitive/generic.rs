@@ -26,7 +26,7 @@ use crate::{
 #[cfg(any(feature = "litesvm-backend", test))]
 use {
     crate::adapter::loader::sibling_deploy_keypair_path,
-    crate::adapter::OracleKind,
+    crate::adapter::{OracleKind, SemanticClassRef, SemanticSourceBinding},
     crate::scenario::{oracle_layout_for, OracleUpdate},
     litesvm::LiteSVM,
     solana_account::Account,
@@ -903,6 +903,27 @@ impl GenericValue {
     }
 
     fn to_observation(&self, expected: ObservationType) -> Result<ObservationValue> {
+        if let Some(value) = self.wrapped_i80f48_integer()? {
+            return match expected {
+                ObservationType::Int => {
+                    let narrowed = i64::try_from(value).map_err(|_| {
+                        anyhow!("generic WrappedI80F48 value `{value}` does not fit i64")
+                    })?;
+                    Ok(ObservationValue::Int(narrowed))
+                }
+                ObservationType::UInt => {
+                    let narrowed = u64::try_from(value).map_err(|_| {
+                        anyhow!(
+                            "generic WrappedI80F48 value `{value}` is negative or does not fit u64"
+                        )
+                    })?;
+                    Ok(ObservationValue::UInt(narrowed))
+                }
+                _ => bail!(
+                    "generic observation type mismatch; expected `{expected:?}`, got `{self:?}`"
+                ),
+            };
+        }
         match (self, expected) {
             (GenericValue::Int(value), ObservationType::Int) => Ok(ObservationValue::Int(*value)),
             (GenericValue::I128(value), ObservationType::Int) => {
@@ -931,6 +952,24 @@ impl GenericValue {
                 bail!("generic observation type mismatch; expected `{expected:?}`, got `{self:?}`")
             }
         }
+    }
+
+    fn wrapped_i80f48_integer(&self) -> Result<Option<i128>> {
+        let GenericValue::Struct(fields) = self else {
+            return Ok(None);
+        };
+        let Some(GenericValue::Bytes(bytes)) = fields.get("value") else {
+            return Ok(None);
+        };
+        if bytes.len() != 16 {
+            bail!(
+                "generic WrappedI80F48 value field has {} bytes; expected 16",
+                bytes.len()
+            );
+        }
+        let mut raw = [0u8; 16];
+        raw.copy_from_slice(bytes);
+        Ok(Some(i128::from_le_bytes(raw) >> 48))
     }
 }
 
@@ -1108,7 +1147,7 @@ impl GenericHarness {
             .with_sysvars()
             .with_lamports(base_lamports);
 
-        let program_id = Pubkey::new_unique();
+        let program_id = resolve_generic_program_id(&config.program_so)?;
         svm.add_program(program_id, &program_bytes)
             .map_err(|error| anyhow!("failed to load generic program into LiteSVM: {error}"))?;
 
@@ -1263,6 +1302,23 @@ impl GenericHarness {
         Ok(())
     }
 
+    pub fn replay_account_name_for_role(&self, role: &str) -> Result<String> {
+        let Some(semantics) = self.adapter.semantics.as_ref() else {
+            return Ok(role.to_string());
+        };
+        let Some(role_def) = semantics.roles.get(role) else {
+            return Ok(role.to_string());
+        };
+        match role_def.binding.as_ref() {
+            Some(SemanticSourceBinding::Account(account)) => Ok(account.clone()),
+            Some(SemanticSourceBinding::Instruction(instruction)) => bail!(
+                "cannot import replay role `{role}` from instruction source `{instruction}`; \
+                 replay state imports require `[semantics.roles.{role}].source = \"account.<name>\"`"
+            ),
+            None => Ok(role.to_string()),
+        }
+    }
+
     fn resolve_account_meta(
         &self,
         instruction_name: &str,
@@ -1308,13 +1364,14 @@ impl GenericHarness {
             known.push("agent".into());
             known.push("agent_authority".into());
             known.push("owner".into());
+            known.push("trader".into());
             known.sort();
             known.dedup();
             bail!(
                 "MissingGenericAccountBinding(instruction={instruction_name}, account={}); \
                  IDL requires signer={} writable={}, but `{}` is not declared under \
                  `[accounts]`, not a recognized signer (`admin`, `authority`, `agent`, \
-                 `agent_authority`, or `owner`), and not a well-known program/sysvar account. \
+                 `agent_authority`, `owner`, or `trader`), and not a well-known program/sysvar account. \
                  Known bindings/signers: {:?}.",
                 account.name,
                 account.signer,
@@ -1604,6 +1661,9 @@ impl crate::primitive::Primitive for GenericHarness {
         let mut observed = BTreeMap::new();
 
         for (account_name, pubkeys) in &self.agent_accounts {
+            if !adapter_account_has_observation_sources(&self.adapter, account_name) {
+                continue;
+            }
             let pubkey = pubkeys.get(agent_idx).ok_or_else(|| {
                 crate::primitive::PrimitiveError::Infra(format!(
                     "generic agent account `{account_name}` missing index {agent_idx}"
@@ -1616,6 +1676,9 @@ impl crate::primitive::Primitive for GenericHarness {
         }
 
         for (account_name, pubkey) in &self.shared_accounts {
+            if !adapter_account_has_observation_sources(&self.adapter, account_name) {
+                continue;
+            }
             // Bound oracle accounts (declared under `[[oracles]]` and
             // pointed at via `account = "<name>"`) are driven through
             // the `oracle_layout_for(kind)` dispatcher, not the
@@ -1884,6 +1947,30 @@ fn aggregate_observation_column(values: &[&ObservationValue]) -> serde_json::Val
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
+fn adapter_account_has_observation_sources(adapter: &Adapter, account_name: &str) -> bool {
+    let prefix = format!("{account_name}.");
+    if adapter
+        .state_mapping
+        .keys()
+        .any(|source| source.starts_with(&prefix))
+    {
+        return true;
+    }
+    adapter
+        .semantics
+        .as_ref()
+        .map(|semantics| {
+            semantics.roles.values().any(|role| {
+                matches!(
+                    role.binding.as_ref(),
+                    Some(SemanticSourceBinding::Account(source)) if source == account_name
+                )
+            })
+        })
+        .unwrap_or(false)
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
 fn json_f64_gen(value: f64) -> serde_json::Value {
     serde_json::Number::from_f64(value)
         .map(serde_json::Value::Number)
@@ -1972,16 +2059,26 @@ pub(crate) fn bootstrap_generic_accounts(
         let lamports = svm.minimum_balance_for_rent_exemption(definition.space);
         match definition.kind {
             AccountKind::Agent => {
-                let owner = *program_id;
+                let owner = resolve_shared_account_owner(account_name, definition, program_id)?;
                 let pubkeys = agent_accounts.get(account_name).ok_or_else(|| {
                     anyhow!("bootstrap invariant: agent account `{account_name}` was not resolved")
                 })?;
-                for pubkey in pubkeys {
+                for (idx, pubkey) in pubkeys.iter().enumerate() {
+                    let signer = agent_signers.get(idx).copied();
+                    let data = bootstrap_generic_account_data(
+                        adapter,
+                        account_name,
+                        definition,
+                        &owner,
+                        admin,
+                        signer.as_ref(),
+                        &shared_accounts,
+                    )?;
                     svm.set_account(
                         *pubkey,
                         Account {
                             lamports,
-                            data: vec![0u8; definition.space],
+                            data,
                             owner,
                             ..Default::default()
                         },
@@ -2034,7 +2131,15 @@ pub(crate) fn bootstrap_generic_accounts(
                     buf.resize(definition.space, 0);
                     buf
                 } else {
-                    vec![0u8; definition.space]
+                    bootstrap_generic_account_data(
+                        adapter,
+                        account_name,
+                        definition,
+                        &owner,
+                        admin,
+                        None,
+                        &shared_accounts,
+                    )?
                 };
                 svm.set_account(
                     pubkey,
@@ -2337,11 +2442,315 @@ fn resolve_pda_program(value: &str, program_id: &Pubkey) -> Result<Pubkey> {
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
+fn bootstrap_generic_account_data(
+    adapter: &Adapter,
+    account_name: &str,
+    definition: &AccountDefinition,
+    owner: &Pubkey,
+    admin: &Pubkey,
+    agent_signer: Option<&Pubkey>,
+    shared_accounts: &BTreeMap<String, Pubkey>,
+) -> Result<Vec<u8>> {
+    if is_lending_v1_adapter(adapter) && !is_spl_token_program(owner) {
+        if let Some(data) = bootstrap_lending_v1_account_data(
+            account_name,
+            definition,
+            owner,
+            admin,
+            agent_signer,
+            shared_accounts,
+        )? {
+            return Ok(data);
+        }
+    }
+    if !is_spl_token_program(owner) {
+        return Ok(vec![0u8; definition.space]);
+    }
+    match definition.space {
+        82 => {
+            let mint_authority = if account_name == "receipt_mint" {
+                shared_accounts.get("reserve").copied().unwrap_or(*admin)
+            } else {
+                *admin
+            };
+            Ok(spl_token_mint_data(mint_authority, 1_000_000_000_000, 6))
+        }
+        165 => {
+            let mint = token_account_mint(account_name, shared_accounts).ok_or_else(|| {
+                anyhow!(
+                    "cannot bootstrap SPL token account `{account_name}`: no mint binding found"
+                )
+            })?;
+            let authority = if account_name.contains("reserve") {
+                shared_accounts.get("reserve").copied().ok_or_else(|| {
+                    anyhow!(
+                        "cannot bootstrap SPL token account `{account_name}`: missing reserve account"
+                    )
+                })?
+            } else {
+                agent_signer.copied().unwrap_or(*admin)
+            };
+            Ok(spl_token_account_data(mint, authority, 1_000_000_000_000))
+        }
+        _ => Ok(vec![0u8; definition.space]),
+    }
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn is_lending_v1_adapter(adapter: &Adapter) -> bool {
+    adapter.semantics.as_ref().is_some_and(|semantics| {
+        semantics.class_ref == Some(SemanticClassRef::LendingV1)
+            || semantics.class.as_deref() == Some("lending.v1")
+    })
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn bootstrap_lending_v1_account_data(
+    account_name: &str,
+    definition: &AccountDefinition,
+    program_id: &Pubkey,
+    admin: &Pubkey,
+    agent_signer: Option<&Pubkey>,
+    shared_accounts: &BTreeMap<String, Pubkey>,
+) -> Result<Option<Vec<u8>>> {
+    match account_name {
+        "market" => bootstrap_chiefwoods_market_data(definition, program_id, admin).map(Some),
+        "reserve" => {
+            bootstrap_chiefwoods_reserve_data(definition, program_id, shared_accounts).map(Some)
+        }
+        "obligation" => {
+            let Some(agent_signer) = agent_signer else {
+                return Ok(None);
+            };
+            bootstrap_chiefwoods_obligation_data(definition, agent_signer, shared_accounts)
+                .map(Some)
+        }
+        _ => Ok(None),
+    }
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn bootstrap_chiefwoods_market_data(
+    definition: &AccountDefinition,
+    program_id: &Pubkey,
+    admin: &Pubkey,
+) -> Result<Vec<u8>> {
+    const MARKET_DISCRIMINATOR: [u8; 8] = [219, 190, 213, 55, 0, 227, 198, 154];
+    const MARKET_NAME: &str = "riptide-smoke";
+
+    let (_, market_bump) =
+        Pubkey::find_program_address(&[b"market", MARKET_NAME.as_bytes()], program_id);
+    let mut data = Vec::with_capacity(definition.space);
+    data.extend_from_slice(&MARKET_DISCRIMINATOR);
+    push_pubkey(&mut data, admin);
+    push_u8(&mut data, market_bump);
+    push_string(&mut data, MARKET_NAME);
+    pad_account_data("market", data, definition.space)
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn bootstrap_chiefwoods_reserve_data(
+    definition: &AccountDefinition,
+    program_id: &Pubkey,
+    shared_accounts: &BTreeMap<String, Pubkey>,
+) -> Result<Vec<u8>> {
+    const RESERVE_DISCRIMINATOR: [u8; 8] = [43, 242, 204, 202, 26, 247, 59, 127];
+
+    let market = required_shared_account(shared_accounts, "market")?;
+    let reserve = required_shared_account(shared_accounts, "reserve")?;
+    let liquidity_mint = required_shared_account(shared_accounts, "liquidity_mint")?;
+    let price_update_v2 = required_shared_account(shared_accounts, "price_update_v2")?;
+
+    let (expected_reserve, reserve_bump) = Pubkey::find_program_address(
+        &[b"reserve", market.as_ref(), liquidity_mint.as_ref()],
+        program_id,
+    );
+    if expected_reserve != reserve {
+        bail!(
+            "lending.v1 bootstrap for `reserve` expected PDA {expected_reserve}, \
+             but adapter resolved {reserve}"
+        );
+    }
+    let (_, receipt_mint_bump) =
+        Pubkey::find_program_address(&[b"receipt_mint", reserve.as_ref()], program_id);
+
+    let mut data = Vec::with_capacity(definition.space);
+    data.extend_from_slice(&RESERVE_DISCRIMINATOR);
+    push_pubkey(&mut data, &market);
+    push_last_update(&mut data, false, 1);
+
+    push_pubkey(&mut data, &liquidity_mint);
+    push_pubkey(&mut data, &price_update_v2);
+    push_u64(&mut data, 1_000_000);
+    push_u64(&mut data, 0);
+    push_i80f48_integer(&mut data, 1);
+    push_u64(&mut data, 0);
+    push_i80f48_integer(&mut data, 1);
+
+    push_u16(&mut data, 7_500);
+    push_u16(&mut data, 8_000);
+    push_u16(&mut data, 200);
+    push_u16(&mut data, 8_500);
+    push_u16(&mut data, 1_000);
+    push_u16(&mut data, 200);
+    push_u16(&mut data, 2_000);
+    push_u16(&mut data, 8_000);
+    push_u16(&mut data, 500);
+    push_u16(&mut data, 250);
+
+    push_u8(&mut data, 6);
+    push_u8(&mut data, reserve_bump);
+    push_u8(&mut data, receipt_mint_bump);
+    pad_account_data("reserve", data, definition.space)
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn bootstrap_chiefwoods_obligation_data(
+    definition: &AccountDefinition,
+    agent_signer: &Pubkey,
+    shared_accounts: &BTreeMap<String, Pubkey>,
+) -> Result<Vec<u8>> {
+    const OBLIGATION_DISCRIMINATOR: [u8; 8] = [168, 206, 141, 106, 88, 76, 172, 167];
+
+    let market = required_shared_account(shared_accounts, "market")?;
+    let mut data = Vec::with_capacity(definition.space);
+    data.extend_from_slice(&OBLIGATION_DISCRIMINATOR);
+    push_last_update(&mut data, false, 1);
+    push_pubkey(&mut data, &market);
+    push_pubkey(&mut data, agent_signer);
+    push_vec_len(&mut data, 0);
+    push_vec_len(&mut data, 0);
+    push_i80f48_integer(&mut data, 0);
+    push_i80f48_integer(&mut data, 0);
+    push_i80f48_integer(&mut data, 100);
+    push_i80f48_integer(&mut data, 100);
+    push_u8(&mut data, 0);
+    pad_account_data("obligation", data, definition.space)
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn required_shared_account(
+    shared_accounts: &BTreeMap<String, Pubkey>,
+    name: &str,
+) -> Result<Pubkey> {
+    shared_accounts
+        .get(name)
+        .copied()
+        .ok_or_else(|| anyhow!("lending.v1 bootstrap requires shared account `{name}`"))
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn pad_account_data(account_name: &str, mut data: Vec<u8>, space: usize) -> Result<Vec<u8>> {
+    if data.len() > space {
+        bail!(
+            "lending.v1 bootstrap for `{account_name}` encoded {} bytes, \
+             but adapter declares `space = {space}`",
+            data.len()
+        );
+    }
+    data.resize(space, 0);
+    Ok(data)
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn push_last_update(data: &mut Vec<u8>, is_stale: bool, slot: u64) {
+    data.push(u8::from(is_stale));
+    push_u64(data, slot);
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn push_pubkey(data: &mut Vec<u8>, pubkey: &Pubkey) {
+    data.extend_from_slice(pubkey.as_ref());
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn push_string(data: &mut Vec<u8>, value: &str) {
+    push_u32(data, value.len() as u32);
+    data.extend_from_slice(value.as_bytes());
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn push_vec_len(data: &mut Vec<u8>, len: u32) {
+    push_u32(data, len);
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn push_u8(data: &mut Vec<u8>, value: u8) {
+    data.push(value);
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn push_u16(data: &mut Vec<u8>, value: u16) {
+    data.extend_from_slice(&value.to_le_bytes());
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn push_u32(data: &mut Vec<u8>, value: u32) {
+    data.extend_from_slice(&value.to_le_bytes());
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn push_u64(data: &mut Vec<u8>, value: u64) {
+    data.extend_from_slice(&value.to_le_bytes());
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn push_i80f48_integer(data: &mut Vec<u8>, value: i64) {
+    let raw = (i128::from(value) << 48).to_le_bytes();
+    data.extend_from_slice(&raw);
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn is_spl_token_program(owner: &Pubkey) -> bool {
+    Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+        .is_ok_and(|token_program| token_program == *owner)
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn token_account_mint(
+    account_name: &str,
+    shared_accounts: &BTreeMap<String, Pubkey>,
+) -> Option<Pubkey> {
+    if account_name.contains("receipt") {
+        return shared_accounts.get("receipt_mint").copied();
+    }
+    if account_name.contains("collateral") {
+        return shared_accounts.get("collateral_mint").copied();
+    }
+    shared_accounts
+        .get("liquidity_mint")
+        .or_else(|| shared_accounts.get("collateral_mint"))
+        .copied()
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn spl_token_mint_data(mint_authority: Pubkey, supply: u64, decimals: u8) -> Vec<u8> {
+    let mut data = vec![0u8; 82];
+    data[0..4].copy_from_slice(&1u32.to_le_bytes());
+    data[4..36].copy_from_slice(mint_authority.as_ref());
+    data[36..44].copy_from_slice(&supply.to_le_bytes());
+    data[44] = decimals;
+    data[45] = 1;
+    data
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn spl_token_account_data(mint: Pubkey, authority: Pubkey, amount: u64) -> Vec<u8> {
+    let mut data = vec![0u8; 165];
+    data[0..32].copy_from_slice(mint.as_ref());
+    data[32..64].copy_from_slice(authority.as_ref());
+    data[64..72].copy_from_slice(&amount.to_le_bytes());
+    data[108] = 1;
+    data
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
 fn is_agent_authority_signer_name(value: &str) -> bool {
     value.eq_ignore_ascii_case("authority")
         || value.eq_ignore_ascii_case("agent")
         || value.eq_ignore_ascii_case("agent_authority")
         || value.eq_ignore_ascii_case("owner")
+        || value.eq_ignore_ascii_case("trader")
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
@@ -2470,11 +2879,31 @@ fn resolve_shared_account_owner(
     );
 }
 
+#[cfg(any(feature = "litesvm-backend", test))]
+fn resolve_generic_program_id(program_so: &Path) -> Result<Pubkey> {
+    let Some(keypair_path) = sibling_deploy_keypair_path(program_so) else {
+        return Ok(Pubkey::new_unique());
+    };
+    if !keypair_path.exists() {
+        return Ok(Pubkey::new_unique());
+    }
+    let keypair = read_keypair_file(&keypair_path).map_err(|error| {
+        anyhow!(
+            "failed to read generic program keypair {}: {error}",
+            keypair_path.display()
+        )
+    })?;
+    Ok(keypair.pubkey())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        adapter::loader::parse_adapter_str,
+        adapter::{
+            loader::parse_adapter_str, SemanticClassRef, SemanticRole, SemanticSourceBinding,
+            Semantics,
+        },
         agent::{policy::score_actions, runtime::AgentObservation, state::Agent},
     };
     use rand::SeedableRng;
@@ -2674,6 +3103,17 @@ triggers = []
     }
 
     #[test]
+    fn wrapped_i80f48_struct_observes_as_integer() {
+        let raw = (42_i128 << 48).to_le_bytes().to_vec();
+        let value =
+            GenericValue::Struct(BTreeMap::from([("value".into(), GenericValue::Bytes(raw))]));
+        assert_eq!(
+            value.to_observation(ObservationType::UInt).unwrap(),
+            ObservationValue::UInt(42)
+        );
+    }
+
+    #[test]
     fn generic_persona_trigger_boosts_matching_action_score() {
         let adapter = sample_generic_adapter();
         let policies = build_generic_policies(&adapter, |_| {}).unwrap();
@@ -2833,6 +3273,22 @@ triggers = []
             metas[5].pubkey,
             Pubkey::from_str("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL").unwrap()
         );
+
+        let trader_meta = harness
+            .resolve_account_meta(
+                "swap",
+                1,
+                &GenericInstructionAccount {
+                    name: "trader".into(),
+                    signer: true,
+                    writable: false,
+                    address: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(trader_meta.pubkey, harness.agents[1].pubkey());
+        assert!(trader_meta.is_signer);
+        assert!(!trader_meta.is_writable);
     }
 
     #[test]
@@ -2901,6 +3357,89 @@ triggers = []
             .unwrap_err()
             .to_string();
         assert!(err.contains("well-known readonly address"));
+    }
+
+    #[test]
+    fn replay_roles_bind_through_semantic_account_sources() {
+        let mut adapter = anchor_binding_adapter();
+        adapter.semantics = Some(Semantics {
+            class: Some("lending.v1".into()),
+            roles: BTreeMap::from([(
+                "position".into(),
+                SemanticRole {
+                    source: "account.obligation".into(),
+                    fields: BTreeMap::new(),
+                    binding: Some(SemanticSourceBinding::Account("obligation".into())),
+                },
+            )]),
+            derived: BTreeMap::new(),
+            invariants: Vec::new(),
+            extensions: BTreeMap::new(),
+            oracles: BTreeMap::new(),
+            collections: BTreeMap::new(),
+            replay: None,
+            class_ref: Some(SemanticClassRef::LendingV1),
+            derived_order: Vec::new(),
+        });
+        let harness = GenericHarness {
+            svm: LiteSVM::new().with_builtins().with_sysvars(),
+            program_id: Pubkey::new_unique(),
+            admin: Keypair::new(),
+            agents: Vec::new(),
+            adapter,
+            idl: GenericIdl {
+                instructions: Vec::new(),
+                accounts: Vec::new(),
+                types: Vec::new(),
+            },
+            agent_accounts: BTreeMap::new(),
+            shared_accounts: BTreeMap::new(),
+            oracle_binding: None,
+            current_slot: 0,
+        };
+
+        assert_eq!(
+            harness.replay_account_name_for_role("position").unwrap(),
+            "obligation"
+        );
+        assert_eq!(
+            harness.replay_account_name_for_role("unknown").unwrap(),
+            "unknown"
+        );
+    }
+
+    #[test]
+    fn observation_sources_skip_unmapped_auxiliary_accounts() {
+        let mut adapter = anchor_binding_adapter();
+        assert!(adapter_account_has_observation_sources(&adapter, "market"));
+        assert!(!adapter_account_has_observation_sources(
+            &adapter,
+            "token_program"
+        ));
+
+        adapter.semantics = Some(Semantics {
+            class: Some("lending.v1".into()),
+            roles: BTreeMap::from([(
+                "position".into(),
+                SemanticRole {
+                    source: "account.obligation".into(),
+                    fields: BTreeMap::new(),
+                    binding: Some(SemanticSourceBinding::Account("obligation".into())),
+                },
+            )]),
+            derived: BTreeMap::new(),
+            invariants: Vec::new(),
+            extensions: BTreeMap::new(),
+            oracles: BTreeMap::new(),
+            collections: BTreeMap::new(),
+            replay: None,
+            class_ref: Some(SemanticClassRef::LendingV1),
+            derived_order: Vec::new(),
+        });
+        assert!(adapter_account_has_observation_sources(
+            &adapter,
+            "obligation"
+        ));
     }
 
     #[test]

@@ -873,21 +873,14 @@ function isWellKnownAccountAlias(value: string): boolean {
 }
 
 // Mirrors `engine/src/adapter/loader.rs::validate_account_owners`:
-// `kind = "agent"` accounts cannot opt into external ownership,
-// exactly one of `owner.program_so` / `owner.pubkey` must be set,
-// and both must be non-empty after trimming. Keeping the CLI and
-// engine contracts aligned matters for downstream tools (lint, doctor)
-// that need to treat a present `owner` block as a trustworthy signal.
+// exactly one of `owner.program_so` / `owner.pubkey` must be set, and
+// both must be non-empty after trimming. Keeping the CLI and engine
+// contracts aligned matters for downstream tools (lint, doctor) that
+// need to treat a present `owner` block as a trustworthy signal.
 function validateAccountOwners(adapter: Adapter, path: string): void {
   for (const [name, account] of Object.entries(adapter.accounts)) {
     const owner = account.owner;
     if (owner === undefined) continue;
-
-    if (account.kind === "agent") {
-      throw new Error(
-        `${path}: \`[accounts].${name}.owner\`: account \`${name}\` declares external \`owner\` but \`kind = "agent"\`. External ownership is only valid for \`kind = "shared"\` accounts; agent-scoped accounts stay program-owned. Either remove the \`owner\` block or change the account's \`kind\` to \`shared\`.`
-      );
-    }
 
     const programSo = owner.program_so?.trim() ?? "";
     const pubkey = owner.pubkey?.trim() ?? "";
