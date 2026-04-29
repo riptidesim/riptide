@@ -274,6 +274,25 @@ pub trait Primitive {
         Ok(BTreeMap::new())
     }
 
+    /// Resolve the owner program for a semantics-declared oracle
+    /// account. Runtime binding treats `OracleBinding.program_id` as
+    /// authoritative and rejects owner mismatches before decoding values.
+    fn semantic_oracle_account_owner(
+        &self,
+        _account_pubkey: &str,
+    ) -> Result<Option<String>, PrimitiveError> {
+        Ok(None)
+    }
+
+    /// Resolve a semantics-declared oracle account into the fields
+    /// exposed as `<role>.<index>.<field>` during derived evaluation.
+    fn semantic_oracle_observation(
+        &self,
+        _account_pubkey: &str,
+    ) -> Result<Option<SemanticOracleObservation>, PrimitiveError> {
+        Ok(None)
+    }
+
     /// Per-tick metric snapshot in this primitive's own schema.
     ///
     /// Every primitive contributes its own per-tick metric keys to the
@@ -354,25 +373,6 @@ pub trait LendingPrimitive: Primitive {
     /// liquidated). The caller composes these with the current
     /// oracle price to derive the actual health factor.
     fn health_factor(&self, agent_idx: usize) -> Result<PositionHealth, PrimitiveError>;
-
-    /// Resolve the owner program for a semantics-declared oracle
-    /// account. Runtime binding treats `OracleBinding.program_id` as
-    /// authoritative and rejects owner mismatches before decoding values.
-    fn semantic_oracle_account_owner(
-        &self,
-        _account_pubkey: &str,
-    ) -> Result<Option<String>, PrimitiveError> {
-        Ok(None)
-    }
-
-    /// Resolve a semantics-declared oracle account into the fields
-    /// exposed as `<role>.<index>.<field>` during derived evaluation.
-    fn semantic_oracle_observation(
-        &self,
-        _account_pubkey: &str,
-    ) -> Result<Option<SemanticOracleObservation>, PrimitiveError> {
-        Ok(None)
-    }
 
     /// Return already-materialized contexts for repeated semantic
     /// roles such as reserves or markets. Backends that only expose a

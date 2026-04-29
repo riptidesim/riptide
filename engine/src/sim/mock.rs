@@ -283,6 +283,20 @@ impl Primitive for MockHarness {
         summary.insert("largest_single_tick_drawdown".into(), number(largest));
         Ok(summary)
     }
+
+    fn semantic_oracle_account_owner(
+        &self,
+        account_pubkey: &str,
+    ) -> Result<Option<String>, PrimitiveError> {
+        Ok(self.semantic_oracle_owners.get(account_pubkey).cloned())
+    }
+
+    fn semantic_oracle_observation(
+        &self,
+        account_pubkey: &str,
+    ) -> Result<Option<SemanticOracleObservation>, PrimitiveError> {
+        Ok(self.semantic_oracles.get(account_pubkey).copied())
+    }
 }
 
 impl MockHarness {
@@ -319,20 +333,6 @@ impl LendingPrimitive for MockHarness {
             debt: p.debt,
             liquidated: p.liquidated,
         })
-    }
-
-    fn semantic_oracle_account_owner(
-        &self,
-        account_pubkey: &str,
-    ) -> Result<Option<String>, PrimitiveError> {
-        Ok(self.semantic_oracle_owners.get(account_pubkey).cloned())
-    }
-
-    fn semantic_oracle_observation(
-        &self,
-        account_pubkey: &str,
-    ) -> Result<Option<SemanticOracleObservation>, PrimitiveError> {
-        Ok(self.semantic_oracles.get(account_pubkey).copied())
     }
 
     fn semantic_collection_contexts(

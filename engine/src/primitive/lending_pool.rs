@@ -571,6 +571,91 @@ impl crate::primitive::Primitive for LiteSvmHarness {
         Ok(summary)
     }
 
+    fn semantic_oracle_account_owner(
+        &self,
+        account_pubkey: &str,
+    ) -> Result<Option<String>, PrimitiveError> {
+        let pubkey = account_pubkey.parse::<Pubkey>().map_err(|error| {
+            PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` is not a valid pubkey: {error}"
+            ))
+        })?;
+        Ok(self
+            .svm
+            .get_account(&pubkey)
+            .map(|account| account.owner.to_string()))
+    }
+
+    fn semantic_oracle_observation(
+        &self,
+        account_pubkey: &str,
+    ) -> Result<Option<SemanticOracleObservation>, PrimitiveError> {
+        let pubkey = account_pubkey.parse::<Pubkey>().map_err(|error| {
+            PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` is not a valid pubkey: {error}"
+            ))
+        })?;
+        let Some(account) = self.svm.get_account(&pubkey) else {
+            return Ok(None);
+        };
+        let decoded = oracle_layout_for(self.oracle_kind)
+            .decode_observation(&account.data)
+            .map_err(|error| {
+                PrimitiveError::Infra(format!(
+                    "semantic oracle account `{account_pubkey}` failed to decode as {:?}: {error}",
+                    self.oracle_kind
+                ))
+            })?;
+        let price = f64_to_u128(decoded.price).ok_or_else(|| {
+            PrimitiveError::Infra(format!(
+                "semantic oracle account `{account_pubkey}` decoded non-finite price {}",
+                decoded.price
+            ))
+        })?;
+        let (confidence, staleness) = match self.oracle_kind {
+            OracleKind::AdminMock => {
+                // The lending adapter's multi-oracle demo intentionally reuses
+                // the admin-mock oracle as a local stand-in. Its account layout
+                // has no market confidence or publish slot, so expose exact
+                // local-test metadata rather than claiming live oracle semantics.
+                (0, 0)
+            }
+            OracleKind::Pyth => {
+                let confidence = decoded.confidence.ok_or_else(|| {
+                    PrimitiveError::Infra(format!(
+                        "semantic oracle account `{account_pubkey}` decoded as {:?}, but that \
+                         layout does not expose confidence; semantics refuses to publish a \
+                         sentinel value",
+                        self.oracle_kind
+                    ))
+                })?;
+                let publish_slot = decoded.publish_slot.ok_or_else(|| {
+                    PrimitiveError::Infra(format!(
+                        "semantic oracle account `{account_pubkey}` decoded as {:?}, but that \
+                         layout does not expose a publish slot; semantics cannot compute \
+                         staleness",
+                        self.oracle_kind
+                    ))
+                })?;
+                if publish_slot > self.current_slot {
+                    return Err(PrimitiveError::Infra(format!(
+                        "semantic oracle account `{account_pubkey}` publish_slot {publish_slot} \
+                         is ahead of LiteSVM current slot {}; semantics cannot compute staleness \
+                         across slot domains",
+                        self.current_slot
+                    )));
+                }
+                (u128::from(confidence), self.current_slot - publish_slot)
+            }
+        };
+        Ok(Some(SemanticOracleObservation {
+            price,
+            confidence,
+            staleness,
+            exponent: i128::from(decoded.exponent),
+        }))
+    }
+
     fn execute_action(
         &mut self,
         agent_idx: usize,
@@ -677,91 +762,6 @@ impl LendingPrimitive for LiteSvmHarness {
             debt: state.debt,
             liquidated: state.liquidated,
         })
-    }
-
-    fn semantic_oracle_account_owner(
-        &self,
-        account_pubkey: &str,
-    ) -> Result<Option<String>, PrimitiveError> {
-        let pubkey = account_pubkey.parse::<Pubkey>().map_err(|error| {
-            PrimitiveError::Infra(format!(
-                "semantic oracle account `{account_pubkey}` is not a valid pubkey: {error}"
-            ))
-        })?;
-        Ok(self
-            .svm
-            .get_account(&pubkey)
-            .map(|account| account.owner.to_string()))
-    }
-
-    fn semantic_oracle_observation(
-        &self,
-        account_pubkey: &str,
-    ) -> Result<Option<SemanticOracleObservation>, PrimitiveError> {
-        let pubkey = account_pubkey.parse::<Pubkey>().map_err(|error| {
-            PrimitiveError::Infra(format!(
-                "semantic oracle account `{account_pubkey}` is not a valid pubkey: {error}"
-            ))
-        })?;
-        let Some(account) = self.svm.get_account(&pubkey) else {
-            return Ok(None);
-        };
-        let decoded = oracle_layout_for(self.oracle_kind)
-            .decode_observation(&account.data)
-            .map_err(|error| {
-                PrimitiveError::Infra(format!(
-                    "semantic oracle account `{account_pubkey}` failed to decode as {:?}: {error}",
-                    self.oracle_kind
-                ))
-            })?;
-        let price = f64_to_u128(decoded.price).ok_or_else(|| {
-            PrimitiveError::Infra(format!(
-                "semantic oracle account `{account_pubkey}` decoded non-finite price {}",
-                decoded.price
-            ))
-        })?;
-        let (confidence, staleness) = match self.oracle_kind {
-            OracleKind::AdminMock => {
-                // The lending adapter's multi-oracle demo intentionally reuses
-                // the admin-mock oracle as a local stand-in. Its account layout
-                // has no market confidence or publish slot, so expose exact
-                // local-test metadata rather than claiming live oracle semantics.
-                (0, 0)
-            }
-            OracleKind::Pyth => {
-                let confidence = decoded.confidence.ok_or_else(|| {
-                    PrimitiveError::Infra(format!(
-                        "semantic oracle account `{account_pubkey}` decoded as {:?}, but that \
-                         layout does not expose confidence; semantics refuses to publish a \
-                         sentinel value",
-                        self.oracle_kind
-                    ))
-                })?;
-                let publish_slot = decoded.publish_slot.ok_or_else(|| {
-                    PrimitiveError::Infra(format!(
-                        "semantic oracle account `{account_pubkey}` decoded as {:?}, but that \
-                         layout does not expose a publish slot; semantics cannot compute \
-                         staleness",
-                        self.oracle_kind
-                    ))
-                })?;
-                if publish_slot > self.current_slot {
-                    return Err(PrimitiveError::Infra(format!(
-                        "semantic oracle account `{account_pubkey}` publish_slot {publish_slot} \
-                         is ahead of LiteSVM current slot {}; semantics cannot compute staleness \
-                         across slot domains",
-                        self.current_slot
-                    )));
-                }
-                (u128::from(confidence), self.current_slot - publish_slot)
-            }
-        };
-        Ok(Some(SemanticOracleObservation {
-            price,
-            confidence,
-            staleness,
-            exponent: i128::from(decoded.exponent),
-        }))
     }
 
     fn semantic_collection_contexts(
