@@ -47,6 +47,7 @@ interface RawRunConfigFile {
   ticks?: number;
   scenario?: string;
   seed?: number;
+  seeds?: number;
   personas?: string[];
   output_path?: string;
   validator_url?: string;

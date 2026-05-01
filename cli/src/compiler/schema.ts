@@ -63,6 +63,7 @@ export const RunConfigSchema = z.object({
   ticks: z.number().int().positive(),
   scenario: z.string().min(1),
   seed: z.number().int().nonnegative().optional(),
+  seeds: z.number().int().positive().optional(),
   personas: z.array(PersonaIdSchema),
   // Serde on the engine side accepts any string here (LiteSVM runs ignore
   // the field; only the validator-parity path connects to the URL). The

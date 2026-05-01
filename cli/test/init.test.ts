@@ -4,8 +4,8 @@
 // - empty dirs fail by default instead of creating a fake `my-program`
 // - `--blank --name <program>` explicitly opts into a manual stub
 // - Anchor.toml or matching target artifacts identify the adapter name
-// - the wizard (when run) collects program name, protocol, inline personas,
-//   agents, ticks; defaults reproduce the non-interactive output
+// - the wizard (when run) collects program name, protocol, setup harness,
+//   inline personas, agents, ticks, seeds; defaults reproduce the non-interactive output
 // - non-interactive runs (--yes, no-TTY, --quiet) scaffold the adapter,
 //   GETTING-STARTED.md, baseline scenario, and .gitignore entries; no
 //   personas/ directory is copied because personas live inline in the adapter.
@@ -354,6 +354,50 @@ test("scaffold: protocol + personas → matching persona blocks are inlined in t
   assert.ok(adapterBody.includes("[personas.arbitrageur]"));
 });
 
+test("scaffold: one seed and harness mode create seeded run-config plus TODO harness", async () => {
+  const cwd = await mkTempRepo();
+  const result = await scaffold({
+    cwd,
+    force: false,
+    blank: true,
+    programName: "amm-program",
+    protocol: "amm",
+    personas: ["swapper"],
+    agents: 100,
+    ticks: 10,
+    seeds: 1,
+    harnessMode: "todo"
+  });
+
+  assert.equal(result.harnessCreated, true);
+  assert.equal(result.seeds, 1);
+  assert.ok(result.created.includes(".riptide/harness/Cargo.toml"));
+  assert.ok(result.created.includes(".riptide/harness/src/main.rs"));
+  assert.ok(result.created.includes(".riptide/harness/README.md"));
+
+  const runConfig = JSON.parse(
+    await readFile(
+      path.join(cwd, ".riptide", "scenarios", "baseline", "run-config.json"),
+      "utf8"
+    )
+  ) as { seed?: number; seeds?: number; agents: number; ticks: number };
+  assert.equal(runConfig.seed, 1337);
+  assert.equal(runConfig.seeds, undefined);
+  assert.equal(runConfig.agents, 100);
+  assert.equal(runConfig.ticks, 10);
+
+  const harnessMain = await readFile(
+    path.join(cwd, ".riptide", "harness", "src", "main.rs"),
+    "utf8"
+  );
+  assert.match(harnessMain, /impl RiptideHarness for ProjectHarness/);
+  assert.match(harnessMain, /spl_token_account/);
+
+  const gettingStarted = await readFile(path.join(cwd, ".riptide", "GETTING-STARTED.md"), "utf8");
+  assert.match(gettingStarted, /"seed": 1337/);
+  assert.match(gettingStarted, /--harness \.riptide\/harness/);
+});
+
 test("scaffold: explicit scenario battery writes each run-config with scenario-specific sizing", async () => {
   const cwd = await mkTempRepo();
   const result = await scaffold({
@@ -533,6 +577,34 @@ test("renderRunConfig: emits canonical seedless shape without validator_url", ()
   assert.equal("validator_url" in parsed, false);
 });
 
+test("renderRunConfig: one seed emits an explicit deterministic seed", () => {
+  const body = renderRunConfig({
+    agents: 10,
+    ticks: 30,
+    seeds: 1,
+    scenario: "baseline",
+    personas: [],
+    outputPath: ".riptide/runs/baseline"
+  });
+  const parsed = JSON.parse(body) as Record<string, unknown>;
+  assert.equal(parsed.seed, 1337);
+  assert.equal("seeds" in parsed, false);
+});
+
+test("renderRunConfig: multiple seeds emits a sweep count", () => {
+  const body = renderRunConfig({
+    agents: 10,
+    ticks: 30,
+    seeds: 20,
+    scenario: "baseline",
+    personas: [],
+    outputPath: ".riptide/runs/baseline"
+  });
+  const parsed = JSON.parse(body) as Record<string, unknown>;
+  assert.equal(parsed.seeds, 20);
+  assert.equal("seed" in parsed, false);
+});
+
 test("renderGettingStarted: references scaffolded scenarios; no-personas variant stays terse", () => {
   const withBoth = renderGettingStarted("my-program", {
     scenarios: ["baseline", "oracle-price-shock"]
@@ -542,7 +614,18 @@ test("renderGettingStarted: references scaffolded scenarios; no-personas variant
   assert.ok(withBoth.includes("scenarios/oracle-price-shock/run-config.json"));
   assert.ok(withBoth.includes("riptide run --adapter .riptide/adapters/my-program.toml"));
   assert.ok(withBoth.includes("adapters/my-program.toml` `[personas.*]"));
+  assert.ok(withBoth.includes('"seeds": 50'));
+  assert.ok(withBoth.includes("50-seed sweep"));
   assert.ok(!withBoth.includes("personas/*.toml"));
+
+  const withHarness = renderGettingStarted("my-program", {
+    scenarios: ["baseline"],
+    harnessCreated: true,
+    seeds: 1
+  });
+  assert.ok(withHarness.includes("harness/"));
+  assert.ok(withHarness.includes("--harness .riptide/harness"));
+  assert.ok(withHarness.includes('"seed": 1337'));
 
   const minimal = renderGettingStarted("my-program");
   assert.ok(minimal.includes("adapters/my-program.toml` `[personas.*]"));
@@ -557,6 +640,8 @@ test("init: wizard answers thread into scaffold output (injected promptWizard)",
   const fakeAnswers: WizardAnswers = {
     programName: "widget-factory",
     protocol: "amm",
+    harnessMode: "none",
+    seeds: 50,
     personas: ["swapper"],
     scenarios: [
       {

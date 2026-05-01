@@ -6,8 +6,8 @@
 // exists and --force was not passed; exits 0 on successful scaffold.
 //
 // On a TTY the command opens a short wizard (program name, protocol,
-// inline personas, scenarios, invariants, agents, ticks). Under --yes,
-// --quiet, or a non-TTY stdout the wizard is skipped and catalog
+// setup harness, inline personas, scenarios, invariants, agents,
+// ticks, seeds). Under --yes, --quiet, or a non-TTY stdout the wizard is skipped and catalog
 // defaults apply.
 
 import chalk from "chalk";
@@ -34,6 +34,7 @@ import {
   invariantConfigFromCatalog,
   type InitInvariantConfig
 } from "../init/invariants-catalog.js";
+import { resolveSeedCount, seedForSeedCount } from "../init/options.js";
 import { printInitBanner } from "../banner.js";
 
 const SECONDARY_TEXT = "#A8A8A8";
@@ -92,6 +93,8 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
     });
     const wizardAnswers = await maybeRunWizard(cwd, options, deps, detected, optionProtocol);
     const protocol = wizardAnswers?.protocol ?? optionProtocol ?? "custom";
+    const harnessMode = wizardAnswers?.harnessMode;
+    const seeds = wizardAnswers?.seeds;
     const personas = wizardAnswers?.personas ?? [];
     const agents = wizardAnswers?.agents;
     const ticks = wizardAnswers?.ticks;
@@ -101,7 +104,8 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
         agents: agents ?? 100,
         ticks: ticks ?? 30,
         personas,
-        baselineUsesDefaults: Boolean(wizardAnswers)
+        baselineUsesDefaults: Boolean(wizardAnswers),
+        seeds
       });
     const invariants = wizardAnswers?.invariants ?? defaultInvariantsFor(protocol);
     const result = await scaffold({
@@ -114,7 +118,9 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
       agents,
       ticks,
       scenarios,
-      invariants
+      invariants,
+      harnessMode,
+      seeds
     });
 
     process.stderr.write(
@@ -129,20 +135,32 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
     // Echo the same install-first sequence the README + docs/install.md
     // describe: install → doctor → init (just ran) → lint → adapt → run.
     const adapterRel = `.riptide/adapters/${result.programName}.toml`;
+    const harnessRel = ".riptide/harness";
     process.stderr.write(
       `\nNext: edit ${chalk.cyan(adapterRel)} to match your program (TODO comments name every block; the untouched stub is not lint-clean), then:\n`
     );
     process.stderr.write(
       `  1. ${chalk.cyan(`riptide lint ${result.programName}`)}  ${dim("# static validation against the JSON IDL named in [lineage].idl_source")}\n`
     );
-    process.stderr.write(
-      `  2. ${chalk.cyan(`riptide harness generate --adapter ${adapterRel}`)}  ${dim("# optional Rust setup for custom accounts/CPIs")}\n`
-    );
+    if (result.harnessCreated) {
+      process.stderr.write(
+        `  2. ${chalk.cyan(`${harnessRel}/src/main.rs`)}  ${dim("# fill in account/program setup before tick 0")}\n`
+      );
+    } else {
+      process.stderr.write(
+        `  2. ${chalk.cyan(`riptide harness generate --adapter ${adapterRel}`)}  ${dim("# optional Rust setup for custom accounts/CPIs")}\n`
+      );
+    }
     process.stderr.write(
       `  3. ${chalk.cyan(`riptide adapt --adapter ${adapterRel}`)}  ${dim("# end-to-end smoke against the local engine")}\n`
     );
     process.stderr.write(
-      `  4. ${chalk.cyan(`riptide run --adapter ${adapterRel}`)}  ${dim("# add --harness .riptide/harness when setup code is needed")}\n`
+      `  4. ${chalk.cyan(`riptide run --adapter ${adapterRel}${result.harnessCreated ? ` --harness ${harnessRel}` : ""}`)}  ${dim(result.harnessCreated ? "# runs with generated setup harness" : "# add --harness .riptide/harness when setup code is needed")}\n`
+    );
+    process.stderr.write(
+      dim(result.seeds === 1
+        ? "Seed count: generated run-configs pin one seed. Pass --seeds <N> for a larger sweep.\n"
+        : `Seed count: generated run-configs request ${result.seeds} seeds. Pass --seeds <N> to override.\n`)
     );
     process.stderr.write(
       dim(`Run ${chalk.cyan("riptide doctor")} any time to recheck toolchain + adapter health. See .riptide/GETTING-STARTED.md for the full walkthrough.\n`)
@@ -199,8 +217,10 @@ function defaultScenariosFor(
     ticks: number;
     personas: string[];
     baselineUsesDefaults: boolean;
+    seeds?: number;
   }
 ): InitScenarioConfig[] {
+  const seeds = resolveSeedCount(defaults.seeds);
   const entries = scenarioChoicesFor(protocol).filter(
     (entry) => entry.required || entry.recommended
   );
@@ -211,6 +231,8 @@ function defaultScenariosFor(
         scenario: "baseline",
         agents: defaults.agents,
         ticks: defaults.ticks,
+        seed: seedForSeedCount(seeds),
+        seeds: seedForSeedCount(seeds) === undefined ? seeds : undefined,
         personas: defaults.personas
       }
     ];
@@ -225,8 +247,11 @@ function scenarioFromCatalog(
     ticks: number;
     personas: string[];
     baselineUsesDefaults: boolean;
+    seeds?: number;
   }
 ): InitScenarioConfig {
+  const seeds = resolveSeedCount(defaults.seeds);
+  const seed = seedForSeedCount(seeds);
   const isBaseline = entry.name === "baseline" || entry.scenario === "baseline";
   const useDefaultSizing = isBaseline && defaults.baselineUsesDefaults;
   return {
@@ -234,6 +259,8 @@ function scenarioFromCatalog(
     scenario: entry.scenario,
     agents: useDefaultSizing ? defaults.agents : (entry.agents ?? defaults.agents),
     ticks: useDefaultSizing ? defaults.ticks : (entry.ticks ?? defaults.ticks),
+    seed,
+    seeds: seed === undefined ? seeds : undefined,
     personas: entry.defaultPersonas ?? defaults.personas
   };
 }

@@ -688,10 +688,12 @@ function sweepSizeForScenario(runConfigPath: string, override: number | undefine
     }
     return override;
   }
-  return hasExplicitSeed(runConfigPath) ? 1 : DEFAULT_SWEEP_SIZE;
+  const directive = readSweepDirective(runConfigPath);
+  if (directive.seeds !== undefined) return directive.seeds;
+  return directive.hasSeed ? 1 : DEFAULT_SWEEP_SIZE;
 }
 
-function hasExplicitSeed(runConfigPath: string): boolean {
+function readSweepDirective(runConfigPath: string): { hasSeed: boolean; seeds?: number } {
   const raw = readFileSync(runConfigPath, "utf8");
   let parsed: unknown;
   try {
@@ -701,11 +703,25 @@ function hasExplicitSeed(runConfigPath: string): boolean {
       `run-config at ${runConfigPath}: JSON parse failed: ${(err as Error).message}`
     );
   }
-  return (
+  const hasSeed =
     parsed !== null &&
     typeof parsed === "object" &&
-    Object.prototype.hasOwnProperty.call(parsed, "seed")
-  );
+    Object.prototype.hasOwnProperty.call(parsed, "seed");
+  const seeds = parsed !== null && typeof parsed === "object"
+    ? (parsed as Record<string, unknown>).seeds
+    : undefined;
+  if (seeds !== undefined) {
+    if (typeof seeds !== "number" || !Number.isInteger(seeds) || seeds <= 0) {
+      throw new Error(`run-config at ${runConfigPath}: \`seeds\` must be a positive integer`);
+    }
+    if (hasSeed) {
+      throw new Error(
+        `run-config at ${runConfigPath}: \`seed\` and \`seeds\` cannot both be set`
+      );
+    }
+    return { hasSeed, seeds };
+  }
+  return { hasSeed };
 }
 
 function randomSeedRoot(): number {
@@ -718,6 +734,7 @@ interface RawRunConfigFile {
   ticks?: number;
   scenario?: string;
   seed?: number;
+  seeds?: number;
   personas?: string[];
   output_path?: string;
   validator_url?: string;

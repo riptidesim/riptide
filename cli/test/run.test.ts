@@ -691,6 +691,40 @@ test("runScenarios: seedless configs default to a 50-cell sweep", async () => {
   assert.equal(events.filter((event) => event.type === "sweep_end").length, 1);
 });
 
+test("runScenarios: run-config seeds field controls sweep size", async () => {
+  const root = await tmpRoot("run-sweep-config-seeds");
+  const scenarioDir = path.join(root, ".riptide", "scenarios", "baseline");
+  await mkdir(scenarioDir, { recursive: true });
+  const runConfigPath = path.join(scenarioDir, "run-config.json");
+  await writeFile(
+    runConfigPath,
+    JSON.stringify({ agents: 1, ticks: 1, scenario: "baseline", seeds: 3, personas: [] }),
+    "utf8"
+  );
+
+  const seeds: number[] = [];
+  const summary = await runScenarios({
+    scenarios: [{ name: "baseline", runConfigPath }],
+    cwd: root,
+    runOne: async (ctx) => {
+      const cellConfig = JSON.parse(await readFile(ctx.scenario.runConfigPath, "utf8")) as {
+        seed: number;
+      };
+      seeds.push(cellConfig.seed);
+      return passResult(0.01);
+    },
+    sweep: { seedRoot: 200, parallelism: 2 },
+    handleSignals: false
+  });
+
+  assert.deepEqual(
+    seeds.sort((a, b) => a - b),
+    [200, 201, 202]
+  );
+  assert.equal(summary.pass, 1);
+  assert.equal(summary.scenarios[0]!.sweep?.size, 3);
+});
+
 test("runScenarios: explicit seed keeps the legacy single-run path by default", async () => {
   const root = await tmpRoot("run-sweep-explicit-seed");
   const runConfigPath = await mkScenario(root, "baseline");

@@ -1,6 +1,6 @@
 // Interactive prompts for `riptide init`.
 //
-// Seven questions, every one defaulted so Enter-through accepts the
+// Nine questions, every one defaulted so Enter-through accepts the
 // current state without ambiguity. The command layer handles the TTY
 // gate and falls back to defaults under --yes / --quiet / non-TTY.
 
@@ -23,17 +23,27 @@ import {
   type InitInvariantConfig,
   type InvariantCatalogEntry
 } from "./invariants-catalog.js";
+import {
+  defaultHarnessModeForProtocol,
+  DEFAULT_INIT_SEEDS,
+  seedForSeedCount,
+  type InitHarnessMode
+} from "./options.js";
 
 export interface WizardDefaults {
   programName: string;
   protocol: Protocol;
   agents: number;
   ticks: number;
+  seeds?: number;
+  harnessMode?: InitHarnessMode;
 }
 
 export interface WizardAnswers {
   programName: string;
   protocol: Protocol;
+  harnessMode: InitHarnessMode;
+  seeds: number;
   personas: string[];
   scenarios: InitScenarioConfig[];
   invariants: InitInvariantConfig[];
@@ -65,6 +75,25 @@ export async function runWizard(defaults: WizardDefaults): Promise<WizardAnswers
       name: choice.label
     }))
   })) as Protocol;
+
+  const harnessMode = (await select({
+    message: "Custom setup before tick 0:",
+    default: defaults.harnessMode ?? defaultHarnessModeForProtocol(protocol),
+    choices: [
+      {
+        value: "generate",
+        name: "Yes, generate a Rust harness for SPL/PDAs/external accounts"
+      },
+      {
+        value: "todo",
+        name: "Not sure, generate a TODO harness"
+      },
+      {
+        value: "none",
+        name: "No, adapter-only"
+      }
+    ]
+  })) as InitHarnessMode;
 
   const presets = personaChoicesFor(protocol);
   let personas: string[] = [];
@@ -174,12 +203,27 @@ export async function runWizard(defaults: WizardDefaults): Promise<WizardAnswers
     }
   });
 
+  const seeds = await input({
+    message: "Seeds to run by default (1 = quick smoke, 50 = confidence sweep):",
+    default: String(defaults.seeds ?? DEFAULT_INIT_SEEDS),
+    validate: (value) => {
+      const n = Number(value);
+      if (!Number.isInteger(n) || n <= 0) {
+        return "Enter a positive integer";
+      }
+      return true;
+    }
+  });
+
   const resolvedAgents = Number(agents);
   const resolvedTicks = Number(ticks);
+  const resolvedSeeds = Number(seeds);
 
   return {
     programName: programName.trim(),
     protocol,
+    harnessMode,
+    seeds: resolvedSeeds,
     personas,
     scenarios: scenarioCatalog
       .filter((entry) => selectedScenarioNames.has(entry.name))
@@ -187,7 +231,9 @@ export async function runWizard(defaults: WizardDefaults): Promise<WizardAnswers
         personas,
         agents: resolvedAgents,
         ticks: resolvedTicks,
-        baselineUsesDefaults: true
+        baselineUsesDefaults: true,
+        seeds: resolvedSeeds,
+        seed: seedForSeedCount(resolvedSeeds)
       })),
     invariants: invariantCatalog
       .filter((entry) => selectedInvariantNames.has(entry.name))
@@ -217,7 +263,9 @@ function resolveScenario(
     personas: string[];
     agents: number;
     ticks: number;
+    seeds?: number;
     baselineUsesDefaults: boolean;
+    seed?: number;
   }
 ): InitScenarioConfig {
   const isBaseline = entry.name === "baseline" || entry.scenario === "baseline";
@@ -227,6 +275,8 @@ function resolveScenario(
     scenario: entry.scenario,
     agents: useDefaultSizing ? defaults.agents : (entry.agents ?? defaults.agents),
     ticks: useDefaultSizing ? defaults.ticks : (entry.ticks ?? defaults.ticks),
-    personas: entry.defaultPersonas ?? defaults.personas
+    personas: entry.defaultPersonas ?? defaults.personas,
+    seed: defaults.seed,
+    seeds: defaults.seed === undefined ? defaults.seeds : undefined
   };
 }

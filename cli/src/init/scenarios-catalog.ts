@@ -33,6 +33,10 @@ export interface InitScenarioConfig {
   scenario: string;
   agents: number;
   ticks: number;
+  /** Optional explicit seed. Present quick-smoke configs run one deterministic cell. */
+  seed?: number;
+  /** Optional sweep size. Used when seed is absent. */
+  seeds?: number;
   /** Persona slugs written into this scenario's run-config.json. */
   personas: string[];
 }

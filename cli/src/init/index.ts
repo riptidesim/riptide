@@ -10,8 +10,10 @@ import path from "node:path";
 
 import TOML from "toml";
 
+import { cliPackageVersion } from "../banner.js";
 import { FALLBACK_POLICIES } from "../compiler/fallback.js";
 import { validatePolicy, type Policy } from "../compiler/schema.js";
+import { monorepoRootFromModule } from "../orchestrator/index.js";
 import {
   personaPathCandidates,
   type Protocol
@@ -26,6 +28,12 @@ import {
   invariantConfigFromCatalog,
   type InitInvariantConfig
 } from "./invariants-catalog.js";
+import {
+  resolveSeedCount,
+  seedForSeedCount,
+  shouldScaffoldHarness,
+  type InitHarnessMode
+} from "./options.js";
 
 export interface ScaffoldOptions {
   cwd: string;
@@ -46,12 +54,18 @@ export interface ScaffoldOptions {
   scenarios?: InitScenarioConfig[];
   /** Invariants to inline into the scaffolded adapter. */
   invariants?: InitInvariantConfig[];
+  /** Whether to scaffold a Rust setup harness under .riptide/harness. */
+  harnessMode?: InitHarnessMode;
+  /** Number of seeds generated run-configs should request by default. */
+  seeds?: number;
 }
 
 export interface ScaffoldResult {
   created: string[];
   programName: string;
   warnings: string[];
+  harnessCreated: boolean;
+  seeds: number;
 }
 
 const PLACEHOLDER_PROGRAM_NAME = "my-program";
@@ -595,6 +609,8 @@ function errMessage(err: unknown): string {
 export interface GettingStartedOptions {
   scenarios?: string[];
   hasBaselineScenario?: boolean;
+  harnessCreated?: boolean;
+  seeds?: number;
 }
 
 export function renderGettingStarted(
@@ -602,6 +618,8 @@ export function renderGettingStarted(
   options: GettingStartedOptions = {}
 ): string {
   const { hasBaselineScenario = false } = options;
+  const harnessCreated = options.harnessCreated ?? false;
+  const seeds = resolveSeedCount(options.seeds);
   const scenarioNames = options.scenarios ?? (hasBaselineScenario ? ["baseline"] : []);
   const scenariosLine = scenarioNames.length > 0
     ? `- \`scenarios/\` — ready-to-run stress harness:\n${scenarioNames
@@ -609,8 +627,17 @@ export function renderGettingStarted(
         .join("\n")}\n`
     : `- \`scenarios/\` — create this yourself when you have a real experiment to run. Riptide discovers \`.riptide/scenarios/**/run-config.json\`.\n`;
   const runCommand = scenarioNames.length > 0
-    ? `riptide run --adapter .riptide/adapters/${programName}.toml`
+    ? `riptide run --adapter .riptide/adapters/${programName}.toml${harnessCreated ? " --harness .riptide/harness" : ""}`
     : `riptide run .riptide/scenarios/your-scenario/run-config.json --adapter .riptide/adapters/${programName}.toml`;
+  const harnessLayoutLine = harnessCreated
+    ? "- `harness/` — Rust setup crate for account bytes, sibling programs, SPL mints/vaults, PDAs, and other pre-tick-0 state.\n"
+    : "";
+  const harnessNextStep = harnessCreated
+    ? "5. Edit `.riptide/harness/src/main.rs` and fill in setup for account bytes, SPL mints/vaults, PDAs, or sibling programs.\n6. "
+    : "5. `riptide harness generate --adapter .riptide/adapters/" + programName + ".toml` — optional Rust setup for custom account bytes, SPL mints/vaults, PDAs, or sibling programs.\n6. ";
+  const seedCountNote = seeds === 1
+    ? `Generated run-configs include \`"seed": ${seedForSeedCount(1)}\`, so a bare \`riptide run\` executes one deterministic seed. Pass \`--seeds <N>\` when you want a larger sweep.`
+    : `Generated run-configs include \`"seeds": ${seeds}\`, so a bare \`riptide run\` executes a ${seeds}-seed sweep. Pass \`--seeds <N>\` when you want to override the scaffolded count.`;
 
   return `# Getting started with Riptide
 
@@ -622,18 +649,25 @@ Riptide just scaffolded a \`.riptide/\` directory in your repo. Here's what's in
 - \`adapters/${programName}.toml\` \`[personas.*]\` — inline persona archetypes selected during init. Edit \`action_weights\` and \`triggers\` there.
 - \`adapters/${programName}.toml\` \`[[invariants]]\` and \`[semantics]\` — declarative checks the engine evaluates after every tick. The default set fires real lending checks; uncomment template invariants once your \`[observations]\` are wired.
 ${scenariosLine}
+${harnessLayoutLine}
 ## Next steps
 
 1. \`riptide doctor\` — static health check; confirms toolchain + engine binary.
 2. Build your program so \`target/deploy/*.so\` and \`target/idl/*.json\` exist.
 3. Open \`.riptide/adapters/${programName}.toml\` and fill in the TODO blocks (accounts, instructions, state_mapping, actions, observations, personas, invariants, semantics). The untouched stub is intentionally not lint-clean.
 4. \`riptide lint ${programName}\` — static validation against the JSON IDL named in \`[lineage].idl_source\`.
-5. \`riptide adapt --adapter .riptide/adapters/${programName}.toml\` — end-to-end smoke against the local engine.
-6. Run the scenario battery:
+${harnessNextStep}\`riptide adapt --adapter .riptide/adapters/${programName}.toml\` — end-to-end smoke against the local engine.
+7. Run the scenario battery:
 
    \`\`\`
    ${runCommand}
    \`\`\`
+
+## Seed count
+
+${seedCountNote}
+
+Pass \`--seed-root <N>\` when you want a reproducible sweep seed stream. When using \`--harness .riptide/harness\`, the first run may compile the release harness; warm runs reuse the built binary.
 
 ## Reference
 
@@ -647,15 +681,21 @@ Problems? Drop the adapter file + the engine stderr tail into an issue at https:
 export interface RunConfigInput {
   agents: number;
   ticks: number;
+  seed?: number;
+  seeds?: number;
   scenario: string;
   personas: string[];
   outputPath: string;
 }
 
 export function renderRunConfig(input: RunConfigInput): string {
+  const seeds = input.seeds === undefined ? undefined : resolveSeedCount(input.seeds);
+  const seed = input.seed ?? seedForSeedCount(seeds);
   const config = {
     agents: input.agents,
     ticks: input.ticks,
+    ...(seed === undefined ? {} : { seed }),
+    ...(seed === undefined && seeds !== undefined ? { seeds } : {}),
     scenario: input.scenario,
     personas: input.personas,
     output_path: input.outputPath
@@ -666,14 +706,20 @@ export function renderRunConfig(input: RunConfigInput): string {
 function resolveScaffoldScenarios(
   protocol: Protocol,
   requested: InitScenarioConfig[] | undefined,
-  defaults: { agents: number; ticks: number; personas: string[] }
+  defaults: { agents: number; ticks: number; personas: string[]; seeds: number; seed?: number }
 ): InitScenarioConfig[] {
   const byName = new Map<string, InitScenarioConfig>();
   const ordered: InitScenarioConfig[] = [];
   for (const scenario of requested ?? []) {
     if (byName.has(scenario.name)) continue;
-    byName.set(scenario.name, scenario);
-    ordered.push(scenario);
+    const seed = scenario.seed ?? defaults.seed;
+    const resolved = {
+      ...scenario,
+      seed,
+      seeds: seed === undefined ? (scenario.seeds ?? defaults.seeds) : undefined
+    };
+    byName.set(scenario.name, resolved);
+    ordered.push(resolved);
   }
 
   const required = scenarioChoicesFor(protocol).filter((entry) => entry.required);
@@ -690,6 +736,8 @@ function resolveScaffoldScenarios(
       scenario: "baseline",
       agents: defaults.agents,
       ticks: defaults.ticks,
+      seed: defaults.seed,
+      seeds: defaults.seed === undefined ? defaults.seeds : undefined,
       personas: defaults.personas
     });
   }
@@ -699,7 +747,7 @@ function resolveScaffoldScenarios(
 
 function scenarioFromCatalog(
   entry: ScenarioCatalogEntry,
-  defaults: { agents: number; ticks: number; personas: string[] }
+  defaults: { agents: number; ticks: number; personas: string[]; seeds: number; seed?: number }
 ): InitScenarioConfig {
   const isBaseline = entry.name === "baseline" || entry.scenario === "baseline";
   return {
@@ -707,6 +755,8 @@ function scenarioFromCatalog(
     scenario: entry.scenario,
     agents: isBaseline ? defaults.agents : (entry.agents ?? defaults.agents),
     ticks: isBaseline ? defaults.ticks : (entry.ticks ?? defaults.ticks),
+    seed: defaults.seed,
+    seeds: defaults.seed === undefined ? defaults.seeds : undefined,
     personas: entry.defaultPersonas ?? defaults.personas
   };
 }
@@ -764,6 +814,119 @@ function scenarioNameSegments(name: string): string[] {
   return segments;
 }
 
+async function scaffoldHarness(input: {
+  riptideDir: string;
+  programName: string;
+  adapterRel: string;
+}): Promise<string[]> {
+  const harnessDir = path.join(input.riptideDir, "harness");
+  const srcDir = path.join(harnessDir, "src");
+  await mkdir(srcDir, { recursive: true });
+  await writeFile(
+    path.join(harnessDir, "Cargo.toml"),
+    renderInitHarnessCargoToml(`${input.programName}-harness`),
+    "utf8"
+  );
+  await writeFile(
+    path.join(srcDir, "main.rs"),
+    renderInitHarnessMain(input.adapterRel),
+    "utf8"
+  );
+  await writeFile(
+    path.join(harnessDir, "README.md"),
+    renderInitHarnessReadme(input.adapterRel),
+    "utf8"
+  );
+
+  return [
+    path.join(".riptide", "harness", "Cargo.toml"),
+    path.join(".riptide", "harness", "src", "main.rs"),
+    path.join(".riptide", "harness", "README.md")
+  ];
+}
+
+function renderInitHarnessCargoToml(crateName: string): string {
+  return `[package]
+name = "${sanitizeCrateName(crateName)}"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+anyhow = "1.0"
+riptide-engine = ${engineDependency()}
+`;
+}
+
+function engineDependency(): string {
+  const root = monorepoRootFromModule();
+  if (root) {
+    const engineDir = path.join(root, "engine");
+    if (existsSync(path.join(engineDir, "Cargo.toml"))) {
+      return `{ path = ${JSON.stringify(engineDir)} }`;
+    }
+  }
+  return JSON.stringify(cliPackageVersion());
+}
+
+function renderInitHarnessMain(adapterRel: string): string {
+  return `use riptide_engine::harness::{run_harness_cli, HarnessContext, RiptideHarness};
+
+struct ProjectHarness;
+
+impl RiptideHarness for ProjectHarness {
+    fn setup(&self, ctx: &mut HarnessContext<'_>) -> anyhow::Result<()> {
+        // TODO: replace zeroed bootstrap accounts with the concrete bytes
+        // your adapter expects before tick 0.
+        //
+        // Common helpers:
+        //   let mint = ctx.spl_mint("mint", ctx.admin_pubkey(), 1_000_000_000, 6)?;
+        //   let authority = ctx.admin_pubkey();
+        //   ctx.spl_token_account("vault", mint, authority, 500_000)?;
+        //   ctx.agent_spl_token_account("user_ata", 0, mint, ctx.agent_pubkey(0)?, 100_000)?;
+        //   ctx.load_program_from_so("../target/deploy/dependency.so")?;
+        //
+        // Adapter: ${adapterRel}
+        let _ = ctx;
+        Ok(())
+    }
+}
+
+fn main() -> std::process::ExitCode {
+    run_harness_cli(ProjectHarness)
+}
+`;
+}
+
+function renderInitHarnessReadme(adapterRel: string): string {
+  return `# Riptide Rust Harness
+
+This crate owns protocol-specific setup for the adapter:
+
+\`${adapterRel}\`
+
+Use it when your program needs real account bytes, sibling programs, SPL mints,
+token accounts, PDAs, or other setup that should not become Riptide core code.
+
+Run it through the CLI:
+
+\`\`\`sh
+riptide run --adapter ${adapterRel} --harness .riptide/harness
+\`\`\`
+`;
+}
+
+function sanitizeCrateName(value: string): string {
+  const sanitized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return sanitized.length > 0 ? sanitized : "riptide-harness";
+}
+
 export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult> {
   const { cwd, force } = options;
   const riptideDir = path.join(cwd, ".riptide");
@@ -789,9 +952,14 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
   const personaSlugs = options.personas ?? [];
   const agents = options.agents ?? 100;
   const ticks = options.ticks ?? 30;
+  const seeds = resolveSeedCount(options.seeds);
+  const runSeed = seedForSeedCount(seeds);
+  const harnessCreated = shouldScaffoldHarness(options.harnessMode);
   const scenarios = resolveScaffoldScenarios(protocol, options.scenarios, {
     agents,
     ticks,
+    seeds,
+    seed: runSeed,
     personas: personaSlugs
   });
   const invariants = resolveScaffoldInvariants(protocol, options.invariants);
@@ -834,6 +1002,8 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
       renderRunConfig({
         agents: scenario.agents,
         ticks: scenario.ticks,
+        seed: scenario.seed,
+        seeds: scenario.seeds,
         scenario: scenario.scenario,
         personas: scenario.personas,
         outputPath: [".riptide", "runs", ...scenarioSegments].join("/")
@@ -847,11 +1017,22 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
   await writeFile(
     path.join(riptideDir, "GETTING-STARTED.md"),
     renderGettingStarted(programName, {
-      scenarios: resolvedScenarios.map((scenario) => scenario.name)
+      scenarios: resolvedScenarios.map((scenario) => scenario.name),
+      harnessCreated,
+      seeds
     }),
     "utf8"
   );
   created.push(path.join(".riptide", "GETTING-STARTED.md"));
+
+  if (harnessCreated) {
+    const harnessCreatedPaths = await scaffoldHarness({
+      riptideDir,
+      programName,
+      adapterRel
+    });
+    created.push(...harnessCreatedPaths);
+  }
 
   // .gitignore entries for volatile run output (R11.2). Appends to
   // an existing .gitignore when present, creates a fresh one otherwise.
@@ -861,7 +1042,7 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
     created.push(".gitignore");
   }
 
-  return { created, programName, warnings };
+  return { created, programName, warnings, harnessCreated, seeds };
 }
 
 const GITIGNORE_ENTRIES = [".riptide/runs/", ".riptide/last-run.json"] as const;
