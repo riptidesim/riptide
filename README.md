@@ -120,7 +120,7 @@ riptide run .riptide/scenarios/your-scenario/run-config.json --adapter .riptide/
 `riptide init` creates a version-controlled `.riptide/` tree with an adapter stub and a local getting-started note. The adapter/scenario/invariant TOML stays the main simulation contract. When your program needs custom account bytes, PDAs, SPL accounts, or sibling CPI programs, `riptide harness generate` adds a Rust setup crate that runs before tick 0. Riptide does not require core protocol integrations for that setup.
 
 > [!TIP]
-> The `riptide-adapt` and `riptide-scenarios` skills can draft adapters and starter experiments, but they are optional. Riptide runs plain files, not session state.
+> The `riptide-adapt`, `riptide-harness`, and `riptide-scenarios` skills can draft adapters, Rust setup harnesses, and starter experiments, but they are optional. Riptide runs plain files, not session state.
 
 ## Run Examples
 
@@ -196,7 +196,7 @@ Read [Evidence packs](docs/pack.md) and [CI handoff](docs/ci-handoff.md) for the
 | [`fixtures/replays/`](fixtures/replays/) | Declared replay artifacts and committed packs. |
 | [`programs/`](programs/) | Minimal Solana programs used by the examples. |
 | [`docs/`](docs/) | Architecture, install, handoff, lineage, and case-study docs. |
-| [`skills/`](skills/) | Optional Codex/Claude Code accelerators for adapter and scenario authoring. |
+| [`skills/`](skills/) | Optional Codex/Claude Code accelerators for adapter, harness, scenario, and narrative authoring. |
 
 ## Docs
 

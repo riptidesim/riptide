@@ -1,6 +1,6 @@
 ---
 name: riptide-scenarios
-description: Propose a starter catalog of Riptide experiments for a Solana program adapter using the current agent session. Use when the user says "what should I test", "riptide scenarios", "propose experiments", "I don't know what to simulate", or is standing in a repo with an adapter TOML + IDL and wants Riptide to suggest starter runs. The skill reads the adapter + IDL, classifies plausible failure modes from the program shape, proposes 3–5 ranked experiments, writes each as a fixture-style scenario directory, then smoke-validates every generated config via `riptide scenarios --validate`. Proposes only — does not autorun.
+description: Propose a starter catalog of Riptide experiments for a Solana program adapter using the current agent session. Use when the user says "what should I test", "riptide scenarios", "propose experiments", "I don't know what to simulate", or is standing in a repo with `.riptide/adapters/*.toml` or a fixtures adapter and wants Riptide to suggest starter runs. The skill reads the adapter + IDL, classifies plausible failure modes from the program shape, proposes 3–5 ranked experiments, writes user-repo runs under `.riptide/scenarios/**` or monorepo fixtures under `fixtures/scenarios/**`, and smoke-validates with the appropriate CLI path.
 ---
 
 # riptide-scenarios
@@ -11,11 +11,11 @@ model**. There is no second LLM call, no HTTP endpoint, no API key,
 no provider config. The session you are already running in is the
 classifier and the proposer.
 
-The CLI command `riptide scenarios --validate` is a pure boot-test
-harness. It loads one generated scenario directory, runs the engine
-for a single tick against the adapter declared in the manifest, and
-exits 0/1/2 — the same convention as `riptide adapt`. It does not
-call any external service and it does not run the full experiment.
+For monorepo fixture output, `riptide scenarios --validate` is a pure
+boot-test harness. For user repos scaffolded by `riptide init`, use
+the normal runner with a short override such as
+`riptide run <slug> --adapter <adapter> --harness .riptide/harness
+--seeds 1 --seed-root 1337`. Neither path calls an external service.
 
 ## Framing — starter catalog, not bug oracle
 
@@ -32,6 +32,18 @@ promote the skill's proposals to "findings" or "bugs". They are
 experiments worth running.
 
 ## What you actually configure for a Riptide scenario
+
+Choose the output mode from the repo shape:
+
+- **User repo mode:** if `.riptide/adapters/*.toml` exists, write
+  `.riptide/scenarios/<experiment-slug>/run-config.json`. Do not
+  write fixture `manifest.json` or `policies.json`; generic personas
+  live inline in the adapter. Include `"adapter":
+  "../../adapters/<adapter-stem>.toml"` in each run-config when it
+  helps disambiguate.
+- **Monorepo fixture mode:** if the user is working under the Riptide
+  monorepo `fixtures/` layout, write the existing three-file fixture
+  shape under `fixtures/scenarios/<adapter-name>/<experiment-slug>/`.
 
 A scenario today is composed from:
 
@@ -70,6 +82,12 @@ semantic concepts the engine does not yet evaluate.
   `fixtures/adapters/<program>.toml`) that has already been generated
   by `riptide-adapt` or written by hand, and that passes
   `riptide adapt --adapter <path>`.
+- **Required when setup is non-trivial:** a working harness from the
+  `riptide-harness` skill. If the adapter needs SPL mints/vaults,
+  PDAs, sibling programs, oracle accounts, or other concrete account
+  bytes before tick 0, get `riptide run --adapter <path> --harness
+  .riptide/harness --seeds 1` passing before proposing larger
+  scenarios.
 - **Required:** the program IDL the adapter references (either via
   `idl_path` in the adapter for generic programs, or
   auto-detected under `./target/idl/`, `./idls/`,
@@ -79,7 +97,16 @@ semantic concepts the engine does not yet evaluate.
 
 ## Outputs
 
-For each proposed experiment, write three files to
+In user repo mode, write one file per proposed experiment:
+
+    .riptide/scenarios/<experiment-slug>/run-config.json
+
+Use the same schema that `riptide init` writes: `agents`, `ticks`,
+`scenario`, `personas`, `output_path`, plus either `seed` or `seeds`.
+For generic adapters, `personas` must reference inline
+`[personas.*]` IDs from the adapter. Do not add `policies.json`.
+
+In monorepo fixture mode, write three files per proposed experiment to
 
     fixtures/scenarios/<adapter-name>/<experiment-slug>/
 
@@ -116,8 +143,11 @@ are both the classifier and the proposer.
 ### 1. Locate the adapter and IDL
 
 - If the user passed an adapter path as an argument, use it.
-- Otherwise auto-detect: check `./fixtures/adapters/*.toml` and
-  `./adapter.toml`. If zero or multiple candidates, ask the user.
+- Otherwise auto-detect: check `./.riptide/adapters/*.toml`,
+  `./fixtures/adapters/*.toml`, and `./adapter.toml`. If zero or
+  multiple candidates remain ambiguous, ask the user.
+- Set output mode to user repo mode when the adapter is under
+  `.riptide/adapters/`; otherwise use monorepo fixture mode.
 - Load the adapter TOML into working memory. Note:
   - `protocol` (`lending` vs `generic`) — this is the primary
     classification hook
@@ -176,13 +206,27 @@ classification step actually looked at the adapter.
 
 ### 5. Write the files
 
-Write the three files per proposal to
-`fixtures/scenarios/<adapter-name>/<experiment-slug>/`. Use the
-`Write` tool directly. Do not touch `hero-grid/`.
+In user repo mode, write each proposal to
+`.riptide/scenarios/<experiment-slug>/run-config.json`. Keep existing
+scaffolded `baseline` unless you are intentionally repairing it; new
+proposals should be siblings such as `swap-pressure` or
+`persona-mix-stress`.
+
+In monorepo fixture mode, write the three files per proposal to
+`fixtures/scenarios/<adapter-name>/<experiment-slug>/`. Do not touch
+`hero-grid/`.
 
 ### 6. Validate each proposal
 
-For every written scenario directory, shell out:
+In user repo mode, validate each written scenario with a short run:
+
+    riptide run <experiment-slug> --adapter <adapter> --seeds 1 --seed-root 1337
+
+Add `--harness .riptide/harness` when the adapter needed harness
+setup to pass its smoke. If the user repo scenario itself requests a
+larger `seeds` count, keep the validation override at `--seeds 1`.
+
+In monorepo fixture mode, validate every written scenario directory:
 
     riptide scenarios --validate <scenario-dir>
 
@@ -208,7 +252,7 @@ Present the user with a table of:
 - slug
 - failure-mode category it came from
 - one-line rationale
-- validate exit code
+- validation command and exit code
 
 If any proposal failed validation, show the engine stderr tail and
 offer to iterate. If all pass, tell the user they can now run any of
@@ -222,17 +266,23 @@ oracle" framing — proposals that boot are not proposals that hold up.
 - The `riptide-engine` release binary has been built at
   `<repo>/target/release/riptide-engine`. If it isn't, point the
   user at `cargo build --release -p riptide-engine`.
-- The adapter TOML the user points you at has already been
-  smoke-tested via `riptide adapt`. If it hasn't, do that first —
-  this skill does not re-validate adapters.
+- The adapter TOML the user points you at has already passed
+  `riptide lint`. If adapter-only `riptide adapt` cannot boot because
+  setup is required, a one-seed `riptide run --harness` smoke is the
+  required precondition instead.
+- If the adapter depends on project-specific setup, the harness has
+  already been smoke-tested with a one-seed `riptide run --harness`.
+  If not, use `riptide-harness` first; scenario proposals should not
+  paper over setup failures.
 
 ## What this skill does NOT do
 
 - Make any HTTP calls. The classifier and proposer are you,
   in-session.
 - Require any API key or provider config.
-- Autorun the proposed experiments. Validation is one-tick-boot
-  only; the developer owns every real run.
+- Autorun full proposed sweeps. Validation is bounded to
+  fixture one-tick boot or user-repo `--seeds 1`; the developer owns
+  every real run.
 - Claim that a proposed experiment reveals a bug. The skill
   proposes *plausible* failure modes based on program shape; the
   experiment outcome is the developer's call.

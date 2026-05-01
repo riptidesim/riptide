@@ -28,6 +28,8 @@ riptide run lending/whale-shock-grid --serve
 Use optional skills when you want a first draft:
 
 - `riptide-adapt` drafts an adapter from an IDL and program context.
+- `riptide-harness` drafts the Rust setup harness for SPL accounts,
+  PDAs, sibling programs, and concrete pre-tick-0 bytes.
 - `riptide-scenarios` proposes starter stress catalogs for a wired adapter.
 - `riptide-narrative` can help summarize an emitted run.
 

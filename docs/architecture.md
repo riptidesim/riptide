@@ -47,7 +47,7 @@ The stablecoin bundle ships one named rerunnable single-program proof artifact a
 
 One **cross-protocol contagion proof** also ships at `fixtures/replays/lst-lending-contagion-proof/` — upstream liquid-staking slash propagates through one declared scalar-observation → scalar-oracle-write bridge into a downstream lending oracle inside a single deterministic replay, realizing a machine-checkable bad-debt firing that attributes to the upstream shock. This is a **replay-scoped multi-program proof** of contagion, not a generalized N-protocol scenario engine or an audit artifact — see the bundle-local README for the bridge description, per-tick trace, and honest scope notes. The proof's regression hash is pinned by `engine/tests/replay_lst_lending_contagion_proof.rs`.
 
-> **Skills are optional accelerators, not requirements.** The `riptide-adapt`, `riptide-scenarios`, and `riptide-narrative` Claude Code skills produce first-pass TOML / run-configs / reports by letting a session-native LLM do the typing. Every artifact the skills generate is plain TOML or markdown you can hand-author instead — see `fixtures/adapters/resource-grinder.toml` for a minimal from-scratch example.
+> **Skills are optional accelerators, not requirements.** The `riptide-adapt`, `riptide-harness`, `riptide-scenarios`, and `riptide-narrative` Claude Code skills produce first-pass TOML / Rust setup / run-configs / reports by letting a session-native LLM do the typing. Every artifact the skills generate is plain TOML, Rust, JSON, or markdown you can hand-author instead — see `fixtures/adapters/resource-grinder.toml` for a minimal from-scratch example.
 
 ## LiteSVM runtime — default, with honest caveats
 

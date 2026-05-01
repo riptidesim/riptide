@@ -13,6 +13,7 @@ import {
   type RunConfig,
   type SimulationResult
 } from "../compiler/schema.js";
+import { resolveAdapterRuntime, validateAdapter } from "../schemas/adapter.js";
 
 /**
  * Symbol-keyed slot on parsed `SimulationResult` objects that carries
@@ -265,6 +266,8 @@ export async function runOrchestrator(
     if (options.policiesPath) {
       const raw = await readFile(options.policiesPath, "utf8");
       await writeFile(policiesPath, raw);
+    } else if (await usesInlineGenericPersonas(options.adapterPath)) {
+      await writeFile(policiesPath, "[]\n");
     } else {
       const policies = await compilePersonas(runConfig.personas, {
         llmUrl: options.llmUrl,
@@ -352,6 +355,17 @@ export async function runOrchestrator(
     return SimulationResultSchema.parse(JSON.parse(raw));
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
+async function usesInlineGenericPersonas(adapterPath: string | undefined): Promise<boolean> {
+  if (!adapterPath) return false;
+  try {
+    const raw = await readFile(adapterPath, "utf8");
+    const parsed = TOML.parse(raw);
+    return resolveAdapterRuntime(validateAdapter(parsed, adapterPath)) === "generic";
+  } catch {
+    return false;
   }
 }
 

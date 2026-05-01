@@ -97,6 +97,61 @@ test("orchestrator constructs engine args and returns validated result", async (
   assert.ok(Array.isArray(result.events));
 });
 
+test("orchestrator does not compile fallback policies for generic inline personas", async () => {
+  const { root } = await makeFakeEngineRoot();
+  const fixture = await loadFixtureRaw();
+  const adapterPath = path.join(root, "adapter.toml");
+  await writeFile(
+    adapterPath,
+    `protocol = "generic"
+program_so = "./program.so"
+idl_path = "./idl.json"
+
+[accounts.state]
+kind = "shared"
+space = 8
+
+[instructions.swap]
+action = "swap"
+amount = "amount"
+
+[state_mapping]
+"state.amount" = "state.amount"
+
+[actions.swap]
+label = "Swap"
+takes = ["amount"]
+
+[observations]
+"state.amount" = "uint"
+
+[personas.swapper]
+label = "Swapper"
+action_rate_multiplier = 1.0
+action_weights = { swap = 1.0 }
+triggers = []
+`
+  );
+  let policiesRaw = "";
+  const spawner: Spawner = async (_bin, args) => {
+    policiesRaw = await readFile(args[args.indexOf("--policies") + 1]!, "utf8");
+    const outPath = args[args.indexOf("--output") + 1]!;
+    await writeFile(outPath, fixture);
+    return { code: 0, stderrTail: "" };
+  };
+  const runConfig = { ...baseRunConfig(), personas: ["swapper"] };
+
+  await runOrchestrator(runConfig, {
+    cwd: root,
+    env: { PATH: process.env.PATH },
+    spawner,
+    moduleRoot: null,
+    adapterPath
+  });
+
+  assert.deepEqual(JSON.parse(policiesRaw), []);
+});
+
 test("orchestrator forwards explicit state-pack path to the engine", async () => {
   const { root } = await makeFakeEngineRoot();
   const fixture = await loadFixtureRaw();

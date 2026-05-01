@@ -118,12 +118,17 @@ experiment, rank them, and write the top 3–5 to disk.
 4. **Keep the top 3–5.** Never ship more than 5. Never fewer than
    3, unless classification flagged fewer than 3 categories and
    there is genuinely nothing to propose.
-5. Each proposal writes exactly three files to
-   `fixtures/scenarios/<adapter-stem>/<slug>/`: `run-config.json`,
-   `policies.json`, and `manifest.json`. Nothing else. *Exception:*
-   the `whale-shock-grid` proposal from Rule 2a writes a grid-level
-   `manifest.json` at the slug root plus one standard triple per
-   cell subdirectory — see Rule 2a for the full layout.
+5. Output mode follows the repo shape. In user repo mode
+   (`.riptide/adapters/*.toml`), each proposal writes only
+   `.riptide/scenarios/<slug>/run-config.json`; personas stay inline
+   in the adapter and no fixture `manifest.json` or `policies.json`
+   is written. In monorepo fixture mode, each proposal writes exactly
+   three files to `fixtures/scenarios/<adapter-stem>/<slug>/`:
+   `run-config.json`, `policies.json`, and `manifest.json`. Nothing
+   else. *Exception:* the `whale-shock-grid` proposal from Rule 2a
+   writes a grid-level `manifest.json` at the slug root plus one
+   standard triple per cell subdirectory — see Rule 2a for the full
+   layout.
 6. Slugs are kebab-case and describe the *experiment*, not the
    outcome. `whale-share-sweep` is a good slug;
    `solend-collapse` is not (that's a prediction, not an
@@ -132,6 +137,28 @@ experiment, rank them, and write the top 3–5 to disk.
    `fixtures/scenarios/lending/hero-grid/`. Those are sealed.
 
 ## File shapes
+
+### user repo run-config.json
+
+For `.riptide/scenarios/<slug>/run-config.json`, use the init-runner
+shape:
+
+```
+{
+  "agents":      <positive int>,
+  "ticks":       <positive int>,
+  "seeds":       <positive int>,
+  "scenario":    "<baseline | price-shock | custom>",
+  "personas":    ["<adapter-inline-persona-id>", ...],
+  "adapter":     "../../adapters/<adapter-stem>.toml",
+  "output_path": ".riptide/runs/<slug>"
+}
+```
+
+`adapter` is optional when there is exactly one TOML under
+`.riptide/adapters/`, but including it makes the scenario portable
+inside the scaffolded workspace. Do not include `validator_url` unless
+you are writing fixture-style scenarios.
 
 ### run-config.json
 

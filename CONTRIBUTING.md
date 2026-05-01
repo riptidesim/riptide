@@ -24,7 +24,7 @@ We value contributions in this order:
 3. **New adapters** — new Solana programs wired into the six-layer stack. This is the primary growth path.
 4. **New personas** — new adversarial archetypes that compose against existing adapters.
 5. **New failure-mode taxonomy categories** — new named categories the `riptide-scenarios` skill can classify and propose against.
-6. **Skill prompt improvements** — sharpening `riptide-adapt`, `riptide-scenarios`, or `riptide-narrative` so they produce better artifacts in cold-read evaluation.
+6. **Skill improvements** — sharpening `riptide-adapt`, `riptide-harness`, `riptide-scenarios`, or `riptide-narrative` so they produce better artifacts in cold-read evaluation.
 7. **Documentation** — fixes, clarifications, new examples.
 8. **Engine changes** — rare and carefully scoped. See [Touching Engine Code](#touching-engine-code).
 
@@ -56,8 +56,8 @@ This is the most common question for new contributors. Most contributions are *n
 
 ### Modify a **Skill** when
 
-- You want to sharpen `riptide-adapt` (adapter generation), `riptide-scenarios` (classification / proposal), or `riptide-narrative` (post-run report).
-- Skills are pure prompts + helper scripts. They live in `skills/riptide-*/` with a `SKILL.md` and a `prompts/` directory.
+- You want to sharpen `riptide-adapt` (adapter generation), `riptide-harness` (pre-tick-0 Rust setup), `riptide-scenarios` (classification / proposal), or `riptide-narrative` (post-run report).
+- Skills are session-native instructions plus optional prompts/references/helper scripts. They live in `skills/riptide-*/` with a `SKILL.md` and any supporting `prompts/` or `references/` files.
 - See [Modifying a Skill](#modifying-a-skill).
 
 ### Touch **engine code** only when
@@ -154,6 +154,7 @@ riptide/
 │
 ├── skills/                       # Claude Code skills (self-contained, session-native)
 │   ├── riptide-adapt/            # Adapter generation from IDL
+│   ├── riptide-harness/          # Rust pre-tick-0 setup harness authoring
 │   ├── riptide-scenarios/        # Failure-mode classification + experiment proposal
 │   └── riptide-narrative/        # Post-run narrative report
 │
@@ -204,7 +205,8 @@ An adapter wires a specific Solana program into the engine.
    - *Hand-written path:* copy the closest shipping adapter from `fixtures/adapters/` (`lending.toml`, `perpetuals.toml`, `amm.toml`, `liquid-staking.toml`, `stablecoin.toml`, or `resource-grinder.toml`) and edit `program_so`, `[[accounts]]`, `[[actions]]`, `[[observations]]`, and `[[invariants]]`.
 3. **Wire an oracle if the program needs one.** A generic adapter can declare a single `[[oracles]]` block bound to a `kind = "shared"` account. The harness bootstraps that account at tick 0 with admin-mock bytes and mutates it on every scenario/replay oracle update. The bound account can optionally declare `owner = { program_so = "<path>.so" }` (owner resolved from the companion `target/deploy/<name>-keypair.json`) for sibling-owned oracles such as `admin_mock_oracle`, or `owner = { pubkey = "<base58>" }` for a literal external owner. Omit `owner` and the simulated program owns the account. See [`docs/architecture.md#oracle-binding-for-generic-adapters`](docs/architecture.md#oracle-binding-for-generic-adapters) and the end-to-end proof at `engine/tests/perpetuals_sibling_oracle_proof.rs`. Two or more `[[oracles]]` entries on a generic adapter is currently a loader error — multi-oracle generic semantics remain a follow-up.
 4. **Smoke-test it:** `riptide adapt --adapter fixtures/adapters/<your-adapter>.toml` — confirms the engine boots it and observes a state delta.
-5. **Commit** the adapter under `fixtures/adapters/` and the IDL under `fixtures/idls/`.
+5. **Add harness setup if zeroed accounts are not enough.** Use the `riptide-harness` skill or run `riptide harness generate --adapter <adapter>` and edit `.riptide/harness/src/main.rs` for SPL mints/vaults, PDAs, sibling programs, and concrete account bytes.
+6. **Commit** the adapter under `fixtures/adapters/` and the IDL under `fixtures/idls/`.
 
 The adapter is the contract between your program and the six-layer stack. Keep it declarative — anything that can't be expressed in TOML is a signal that the engine needs a new capability, which is a separate (and rarer) PR.
 
