@@ -1,0 +1,21 @@
+# Liquid-staking persona — panic exiter.
+#
+# Standalone TOML fragment the future `scripts/liquid-staking-scratch.sh`
+# sidecar will concatenate onto a truncated copy of
+# `fixtures/adapters/liquid-staking.toml` below the
+# `# === SIDECAR-CUT ===` marker.
+#
+# Redemption-dominant baseline that reacts violently to rate drops.
+# The adapter's observation `pool.exchange_rate_bps` falls below
+# 9_500 only after a slash has shrunk delegated assets — the trigger
+# fires every panic-exiter hard at `request_unstake`, which is what
+# makes withdrawal-queue pressure materially visible in the event
+# stream. `weight_boost = 5.0` is intentionally aggressive: this is
+# the Kelp-style / rsETH-style panic shape, not a polite unwind.
+[personas.panic-exiter]
+label = "Panic exiter"
+action_rate_multiplier = 1.0
+action_weights = { stake = 0.05, request_unstake = 0.8, claim_unstake = 0.15 }
+triggers = [
+  { if = "pool.exchange_rate_bps < 9500", then = "request_unstake", weight_boost = 5.0 },
+]

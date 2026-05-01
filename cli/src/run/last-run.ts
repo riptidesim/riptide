@@ -59,6 +59,18 @@ export interface InvariantFire {
 
 export type ScenarioStatus = "pass" | "fail" | "error" | "skipped";
 
+export interface ScenarioSweepRecord {
+  size: number;
+  seed_root: number;
+  fired_count: number;
+  engine_error_count: number;
+  summary_path: string;
+  report_path: string;
+  first_fire_cell?: string;
+  fail_fast: boolean;
+  status: "all_pass" | "fired" | "engine_error" | "interrupted";
+}
+
 export interface ScenarioRecord {
   name: string;
   run_config_path: string;
@@ -66,6 +78,8 @@ export interface ScenarioRecord {
   wall_clock_s: number;
   invariant_fires: InvariantFire[];
   artifacts_dir?: string;
+  /** Additive sweep metadata for `riptide run` stress sweeps. */
+  sweep?: ScenarioSweepRecord;
   error?: string;
   /** Additive run-evidence interpretation attached by `runScenarios()`. */
   interpretation?: RunInterpretation;

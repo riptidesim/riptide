@@ -1,0 +1,10 @@
+name = "leverage_bound"
+label = "Leverage stays bounded"
+description = "Template check for observed max leverage staying under the protocol cap after margin observations are wired."
+form = "flat"
+field = "max_leverage"
+op = "<="
+value = 10
+severity = "warn"
+commented = true
+

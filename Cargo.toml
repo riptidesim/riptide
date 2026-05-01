@@ -1,4 +1,3 @@
 [workspace]
 members = ["engine"]
-exclude = ["programs/pyth_consumer_test_helper"]
 resolver = "2"

@@ -15,7 +15,7 @@
 // run if it's missing (pure Rust, always buildable) and fails with
 // a clear diagnostic if the lending_pool `.so` hasn't been produced
 // (that requires `cargo build-sbf` which not every CI can run from
-// scratch). Matches the Round 3 Pyth-helper hard-gate pattern.
+// scratch).
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -39,8 +39,7 @@ const LENDING_SO = path.resolve(
  * Enforced gate — build the engine binary in-process if absent, fail
  * loudly if the lending_pool SBF artifact can't be found. Lazy-runs
  * once per `npm test` invocation; subsequent calls reuse the cached
- * binary. Matches the Round 3 pyth helper pattern (auto-build +
- * fail-hard, no soft skip).
+ * binary with fail-hard behavior and no soft skip.
  */
 let gateChecked = false;
 function ensureEngineAndProgramReady(): void {

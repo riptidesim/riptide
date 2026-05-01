@@ -5,71 +5,65 @@ ceiling, not a handwave. The harness and raw TSV are committed alongside.
 
 ## Headline
 
-**Riptide runs 1000 agents for 30 ticks in under 5 seconds on a standard
-laptop, using ~55 MB of RAM. Output is byte-deterministic across reruns.**
+**Riptide runs 1000 agents for 30 ticks in ~3 seconds on a standard
+laptop, using ~62 MB of RAM. Output is byte-deterministic across reruns.**
 
 Machine: Intel Core i7-1165G7 (4 cores / 8 threads, 11th gen, 2.80 GHz base)
-· 15 GiB RAM · Linux 6.19.10-arch1-1 · Arch Linux.
+· 15 GiB RAM · Linux 6.19.14-arch1-1 · Arch Linux.
 
 Scenario: AMM scratch (`scripts/amm-scratch.sh` shape), constant-product
 pool, five-persona library (`lp-provider`, `arbitrageur`, `sandwich-attacker`,
 `swapper`, `rug-puller`), fixed seed 42, `baseline` scenario, 30 ticks.
 
-## Results
+## Results (refreshed 2026-04-29)
 
 | Agents | Wall-clock (s) | Peak RSS (MB) | Determinism hash (sha256)                                          | Status |
 |-------:|---------------:|--------------:|:-------------------------------------------------------------------|:-------|
-|     10 |           0.10 |          21.0 | `631a1b1cee47f7f241135858c0992fb016edb09395d90363d0b27cb07ea80dab` | ok     |
-|     50 |           0.30 |          22.2 | `acdd794fec2b8d7ff178c085f332bcb16ef4829f0db3bb094b357260f529eef6` | ok     |
-|    100 |           0.50 |          23.9 | `80ea5ed2486827a822fd311dd6b2546580dfdd9cd94ba45b125a54635e965998` | ok     |
-|    250 |           1.31 |          28.8 | `d24b2087a3fdbd0b92946b5f26bc5869736e78ef2036e1fafa871be44a5c0cd7` | ok     |
-|    500 |           2.22 |          37.4 | `e0eff42d6ceb65b801fa98d3f0c5a5102a9054bb975a30246bef883bfb27634d` | ok     |
-|   1000 |           4.32 |          54.1 | `9390718df0d6543866c1f7f051e63b818548ac89d7e1bcc963bc477288430840` | ok     |
+|     10 |           0.05 |           ~0  | `631a1b1cee47f7f241135858c0992fb016edb09395d90363d0b27cb07ea80dab` | ok     |
+|     50 |           0.20 |          23.7 | `acdd794fec2b8d7ff178c085f332bcb16ef4829f0db3bb094b357260f529eef6` | ok     |
+|    100 |           0.35 |          25.4 | `80ea5ed2486827a822fd311dd6b2546580dfdd9cd94ba45b125a54635e965998` | ok     |
+|    250 |           0.75 |          30.4 | `d24b2087a3fdbd0b92946b5f26bc5869736e78ef2036e1fafa871be44a5c0cd7` | ok     |
+|    500 |           1.71 |          39.4 | `e0eff42d6ceb65b801fa98d3f0c5a5102a9054bb975a30246bef883bfb27634d` | ok     |
+|   1000 |           3.06 |          62.2 | `9390718df0d6543866c1f7f051e63b818548ac89d7e1bcc963bc477288430840` | ok     |
 
+Hashes match byte-for-byte against the previous (2026-04-19) run despite
+the wall-clock improvement — engine output is reproducible across the
+oracle / generic-binding / external-lending-adapter commits landed since.
 Raw TSV is at [`agent-scaling-results.tsv`](./agent-scaling-results.tsv)
-(overwritten per run — rerun to refresh). Wall-clock varies 30–40% across
-back-to-back runs depending on background CPU load; determinism hashes match
-byte-for-byte across every run. The values above are from a representative
-run on a typical working session, not a tuned-quiet laptop.
+(overwritten per run — rerun to refresh). Wall-clock varies 20–30% across
+back-to-back runs depending on background CPU load.
 
 ## Wall-clock vs. agents
 
 ```
 wall (s)
-  5.0 |
-      |
-  4.5 |                                                        *
-      |
-  4.0 |
-      |
   3.5 |
-      |
+      |                                                        *
   3.0 |
       |
   2.5 |
-      |                                          *
+      |
   2.0 |
+      |                                          *
+  1.5 |
       |
-  1.5 |                                *
+  1.0 |                                *
       |
-  1.0 |
-      |                       *
-  0.5 |             *
-      |      *
-  0.0 |  *
+  0.5 |                       *
+      |             *
+  0.0 |   *  *
       +-------+-------+-------+-------+-------+-------+
          10     50    100    250    500   1000    agents
 ```
 
-Wall-clock is close to linear in agents: ~4.3 ms per agent amortized at 1000,
-dropping to ~4 ms per agent at smaller counts (fixed bootstrap cost dominates
-the low end). No superlinear blow-up emerged in the 10–1000 range, and no
-failure modes surfaced at any tested count (no OOM, no timeout, no engine
-error at 1000).
+Wall-clock is close to linear in agents: ~3.1 ms per agent amortized at 1000,
+dropping below 2 ms per agent at smaller counts where fixed bootstrap cost
+dominates. No superlinear blow-up emerged in the 10–1000 range, no OOM, no
+timeout, no engine error at 1000.
 
 ## Interpretation
 
-The headline ceiling (1000 agents, 30 ticks, ≤5 s, ~55 MB) is the largest
+The headline ceiling (1000 agents, 30 ticks, ~3 s, ~62 MB) is the largest
 count this harness ran, not the largest count Riptide can physically run —
 it's the largest point we measured before declaring the curve well-behaved.
 The scaling shape (linear wall-clock, gently-linear memory, deterministic)
@@ -77,9 +71,12 @@ says nothing is pathological at 1000, so the practical bottleneck for
 higher counts is laptop RAM and patience, not a failure mode inside the
 engine.
 
-Per-tick cost at 1000 agents is ~140 ms. 30 ticks is enough to express the
-AMM scratch scenario end-to-end; longer runs scale proportionally (a 1000-
-agent × 300-tick run projects to ~45 s on this hardware).
+Per-tick cost at 1000 agents is ~100 ms. 30 ticks (≈12 simulated seconds
+of mainnet, since each tick advances one Solana slot ≈ 400 ms) is enough
+to express the AMM scratch scenario end-to-end; longer runs scale
+proportionally (a 1000-agent × 300-tick run projects to ~30 s on this
+hardware; a 500-agent × 750-tick "5-minute oracle drawdown" projects to
+~40–60 s).
 
 What this benchmark does *not* prove: (a) behavior above 1000 agents, (b)
 behavior on SVM backends other than LiteSVM, (c) performance parity with

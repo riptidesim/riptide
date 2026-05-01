@@ -9,8 +9,9 @@ pub mod multi;
 pub use oracle_trajectory::{OracleTrajectory, OracleTrajectoryTick};
 pub use run::{load_replay_bundle, run_lending_replay, run_replay, ReplayBundle};
 pub use state_import::{
-    import_replay_state, ImportedReplayAccount, ReplayStateAccountProvenance, ReplayStateImport,
-    ReplayStateProvenance, StateImportError, MAINNET_RPC_NOT_IMPLEMENTED_MESSAGE,
+    import_replay_state, load_state_pack, ImportedReplayAccount, ImportedStatePackAccount,
+    ReplayStateAccountProvenance, ReplayStateImport, ReplayStateProvenance, StateImportError,
+    StatePackImport, MAINNET_RPC_NOT_IMPLEMENTED_MESSAGE,
 };
 pub use trajectory::{
     ReplayInitialState, ReplayInstruction, ReplayMetadata, ReplayTick, ReplayTrajectory,

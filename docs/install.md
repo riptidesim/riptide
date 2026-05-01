@@ -123,9 +123,11 @@ riptide init
 Then fill in the generated adapter and run:
 
 ```bash
+riptide harness generate --adapter .riptide/adapters/<program-name>.toml
 riptide lint <program-name>
 riptide adapt --adapter .riptide/adapters/<program-name>.toml
-riptide run --serve
+# add .riptide/scenarios/your-scenario/run-config.json
+riptide run .riptide/scenarios/your-scenario/run-config.json --adapter .riptide/adapters/<program-name>.toml --harness .riptide/harness
 ```
 
 What each command does:
@@ -133,7 +135,9 @@ What each command does:
 | Command | Role |
 | --- | --- |
 | `riptide doctor` | Static health check. No build, no network, no simulation. |
-| `riptide init` | Creates `.riptide/adapters/`, `.riptide/personas/`, `.riptide/scenarios/`, and a short getting-started note. |
+| `riptide init` | Creates `.riptide/adapters/<program>.toml` and a short getting-started note. It does not invent personas or scenarios. |
+| `riptide harness generate` | Creates a Rust setup crate for account bytes, PDAs, SPL accounts, and sibling programs your adapter needs before tick 0. |
+| `riptide explain <adapter>` | Pretty-prints a parsed adapter: protocol, runtime, accounts, instructions, observations, personas, invariants, semantics, and oracles. |
 | `riptide lint` | Machine-checks JSON-IDL-backed adapter references. Non-JSON lineage warns honestly. |
 | `riptide adapt` | Smoke-tests the adapter against the local engine. |
 | `riptide run --serve` | Runs discovered scenarios and opens the dashboard for the run collection. |

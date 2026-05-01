@@ -1,0 +1,8 @@
+name = "baseline"
+label = "Baseline smoke"
+description = "Runs the AMM adapter with normal price noise and no protocol perturbation; useful as a wiring smoke test."
+scenario = "baseline"
+agents = 50
+ticks = 60
+recommended = true
+required = true

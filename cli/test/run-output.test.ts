@@ -71,6 +71,14 @@ function interpretation(
       severity: "warning",
       summary: "Setup failed: engine crashed.",
       next_action: "Fix setup or adapter configuration, then rerun the scenario."
+    },
+    interrupted: {
+      confidence: "none",
+      coverage: "unknown",
+      severity: "none",
+      summary: "Run interrupted: SIGINT received.",
+      next_action:
+        "No setup or adapter change is implied by this interruption. Rerun when ready, or pass --seeds <N> for a shorter sweep."
     }
   };
   const base = { ...defaults[verdict], ...opts };
@@ -225,6 +233,27 @@ test("formatScenarioLine: setup-error line names the first line of the error mes
   );
 });
 
+test("formatScenarioLine: interrupted line does not blame setup or adapter config", () => {
+  const line = formatScenarioLine(
+    {
+      name: "baseline",
+      run_config_path: "/x",
+      status: "error",
+      wall_clock_s: 12,
+      invariant_fires: [],
+      error: "riptide-engine terminated by signal SIGINT",
+      interpretation: interpretation("interrupted")
+    },
+    "ok",
+    "FAIL",
+    "ERROR"
+  );
+  assert.equal(
+    line,
+    "ERROR baseline  (12.0s, interrupted: riptide-engine terminated by signal SIGINT, confidence: none, coverage: unknown)"
+  );
+});
+
 test("formatScenarioLine: skipped line prints a muted placeholder", () => {
   const line = formatScenarioLine(
     {
@@ -279,11 +308,27 @@ test("formatSummaryLine: errors counted separately from skip (R9.2 classifier ex
   assert.equal(formatSummaryLine(summary), "1 pass · 0 fail · 2 error · 0 skip");
 });
 
+test("formatSummaryLine: SIGINT-aborted runs are explicitly marked interrupted", () => {
+  const summary: RunSummary = {
+    pass: 0,
+    fail: 0,
+    error: 1,
+    skipped: 0,
+    total: 1,
+    signalAborted: true,
+    partialAbort: false,
+    lastRunPath: "/x",
+    runCollectionPath: "/x-collection",
+    scenarios: []
+  };
+  assert.equal(formatSummaryLine(summary), "0 pass · 0 fail · 1 error · 0 skip · interrupted");
+});
+
 test("formatVerdictTotalsLine: counts interpretation verdicts", () => {
   const summary: RunSummary = {
     pass: 1,
     fail: 1,
-    error: 1,
+    error: 2,
     skipped: 0,
     total: 3,
     signalAborted: false,
@@ -314,12 +359,20 @@ test("formatVerdictTotalsLine: counts interpretation verdicts", () => {
         wall_clock_s: 0,
         invariant_fires: [],
         interpretation: interpretation("setup-error")
+      },
+      {
+        name: "stopped",
+        run_config_path: "/stopped",
+        status: "error",
+        wall_clock_s: 3,
+        invariant_fires: [],
+        interpretation: interpretation("interrupted")
       }
     ]
   };
   assert.equal(
     formatVerdictTotalsLine(summary),
-    "verdicts: 1 failure-observed · 1 no-failure-observed · 1 setup-error"
+    "verdicts: 1 failure-observed · 1 no-failure-observed · 1 setup-error · 1 interrupted"
   );
 });
 
@@ -356,11 +409,11 @@ test("formatFailureBlock: error record uses the error glyph + 'error:' prefix", 
   assert.equal(block, ["  ! y", "    - error: engine crashed"].join("\n"));
 });
 
-test("formatNextActionBlock: appears for failure, inconclusive, and setup-error records", () => {
+test("formatNextActionBlock: appears for failure, inconclusive, setup-error, and interrupted records", () => {
   const summary: RunSummary = {
     pass: 1,
     fail: 1,
-    error: 1,
+    error: 2,
     skipped: 0,
     total: 3,
     signalAborted: false,
@@ -392,6 +445,14 @@ test("formatNextActionBlock: appears for failure, inconclusive, and setup-error 
         wall_clock_s: 0,
         invariant_fires: [],
         interpretation: interpretation("setup-error")
+      },
+      {
+        name: "stopped",
+        run_config_path: "/stopped",
+        status: "error",
+        wall_clock_s: 0,
+        invariant_fires: [],
+        interpretation: interpretation("interrupted")
       }
     ]
   };
@@ -401,6 +462,7 @@ test("formatNextActionBlock: appears for failure, inconclusive, and setup-error 
   assert.match(block!, /weak: Add agent activity/);
   assert.match(block!, /Inspect \.riptide\/runs\/weak\./);
   assert.match(block!, /broken: Fix setup or adapter configuration/);
+  assert.match(block!, /stopped: No setup or adapter change is implied/);
   assert.match(block!, /Inspect \/repo\/\.riptide\/run-collection\.json\./);
   assert.equal(block!.includes("clean:"), false);
 });
@@ -537,6 +599,76 @@ test("createJestFormatter: emits per-scenario line on scenario_end, summary on r
     lines[10],
     "  - bravo: Review the first invariant fire and inspect simulation artifacts before changing the scenario or adapter. Inspect .riptide/runs/bravo."
   );
+});
+
+test("createJestFormatter: emits sweep progress while long seed sweeps are running", () => {
+  const stdout = new PassThrough();
+  stdout.setEncoding("utf8");
+  let buf = "";
+  stdout.on("data", (c: string) => {
+    buf += c;
+  });
+
+  const fmt = createJestFormatter({
+    stdout,
+    stderr: new PassThrough(),
+    plainAscii: true,
+    color: false
+  });
+
+  const scenario = { name: "baseline", runConfigPath: "/x/run-config.json" };
+  fmt.handle({
+    type: "sweep_start",
+    scenario,
+    sweepSize: 50,
+    seedRoot: 1234,
+    parallelism: 8,
+    failFast: true,
+    agents: 1000,
+    ticks: 30,
+    eventsPerCell: 30000,
+    totalEvents: 1500000
+  });
+  fmt.handle({
+    type: "sweep_progress",
+    scenario,
+    sweepSize: 50,
+    seedRoot: 1234,
+    parallelism: 8,
+    started: 8,
+    active: 8,
+    completed: 0,
+    passed: 0,
+    fired: 0,
+    engineErrors: 0,
+    killed: 0,
+    elapsedS: 30,
+    oldestActiveS: 30,
+    eventsPerCell: 30000,
+    totalEvents: 1500000
+  });
+  fmt.handle({
+    type: "sweep_end",
+    scenario,
+    sweepSize: 50,
+    seedRoot: 1234,
+    completed: 50,
+    fired: 0,
+    engineErrors: 0,
+    status: "all_pass",
+    wallClockS: 2100
+  });
+
+  const lines = buf.trimEnd().split("\n");
+  assert.equal(
+    lines[0],
+    "sweep baseline: 50 seeds from 1234 (8 parallel, 1000 agents x 30 ticks = 30,000 events/seed, 1,500,000 planned events, fail-fast)"
+  );
+  assert.equal(
+    lines[1],
+    "  progress baseline: 0/50 complete, 8 active for 30.0s, 8 started, 0 pass, 0 fired, 0 error, elapsed 30.0s; first seed still running (30,000 events/seed)"
+  );
+  assert.equal(lines[2], "sweep baseline: all_pass, 50/50 complete in 35m 00s");
 });
 
 test("createJestFormatter: dashboard URL echoed only when provided", () => {

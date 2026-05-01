@@ -1,0 +1,8 @@
+name = "debt_below_max_borrow"
+label = "Debt below max borrow value (semantic)"
+description = "Position debt must not exceed max-borrow value."
+form = "semantic"
+expr = "debt_value <= max_borrow_value"
+severity = "warn"
+recommended = true
+

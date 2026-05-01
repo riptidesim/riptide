@@ -91,8 +91,8 @@ you are both the reader and the writer.
 - Confirm `report.md` sits alongside the chosen
   `simulation-result.json`. If it does not, stop and tell the user
   to run the simulation with artifact generation enabled (or point
-  them at the `--output` flag on `riptide simulate` / `riptide
-  run`) — the narrative depends on the mechanical report as a
+  them at the artifact directory produced by `riptide run`) — the
+  narrative depends on the mechanical report as a
   co-signed fact set.
 
 ### 2. Load both files into working memory

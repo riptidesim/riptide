@@ -21,19 +21,86 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-function Say {
-  param([string]$Message)
-  Write-Output $Message
+$script:StartTime = Get-Date
+
+# Style is on when the host supports color, NO_COLOR / RIPTIDE_NO_BANNER
+# are unset, and we are not in CI.
+$script:UseColor = (
+  -not $env:NO_COLOR -and
+  -not $env:RIPTIDE_NO_BANNER -and
+  -not $env:CI -and
+  $Host -and $Host.UI -and $Host.UI.RawUI
+)
+
+function Write-Styled {
+  param(
+    [string]$Message,
+    [System.ConsoleColor]$Color = [System.ConsoleColor]::Gray,
+    [switch]$NoNewline
+  )
+  if ($script:UseColor) {
+    if ($NoNewline) {
+      Write-Host $Message -ForegroundColor $Color -NoNewline
+    } else {
+      Write-Host $Message -ForegroundColor $Color
+    }
+  } else {
+    if ($NoNewline) {
+      Write-Host $Message -NoNewline
+    } else {
+      Write-Host $Message
+    }
+  }
 }
 
-function Warn {
+function Print-Banner {
+  if (-not $script:UseColor) { return }
+  $cyan = [System.ConsoleColor]::Cyan
+  Write-Host ""
+  Write-Styled "  .......   ...   ......    .......  ...   .......   ......." -Color $cyan
+  Write-Styled "  ..   ..   ...   ..   ..     ..     ...   ..   ...  ...    " -Color $cyan
+  Write-Styled "  .......   ...   ..  ...     ..     ...   ..   ...  ......." -Color $cyan
+  Write-Styled "  ..  ..    ...   ..          ..     ...   ..   ...  ...    " -Color $cyan
+  Write-Styled "  ..   ..   ...   ..          ..     ...   .......   ......." -Color $cyan
+  Write-Host ""
+  Write-Styled "  Deterministic Solana simulation evidence." -Color DarkGray
+  Write-Host ""
+}
+
+function Rule {
+  Write-Styled "  ─────────────────────────────────────────────────────" -Color DarkGray
+}
+
+function Step {
   param([string]$Message)
-  Write-Warning "riptide install: $Message"
+  Write-Host ""
+  Write-Styled "→ " -Color Cyan -NoNewline
+  Write-Styled $Message -Color White
+}
+
+function Ok {
+  param([string]$Message)
+  Write-Styled "  ✓ " -Color Green -NoNewline
+  Write-Host $Message
+}
+
+function Info {
+  param([string]$Message)
+  Write-Styled "  · " -Color DarkGray -NoNewline
+  Write-Styled $Message -Color DarkGray
+}
+
+function Warn-Styled {
+  param([string]$Message)
+  Write-Styled "  ! " -Color Yellow -NoNewline
+  Write-Styled $Message -Color Yellow
 }
 
 function Die {
   param([string]$Message)
-  Write-Error "riptide install: $Message"
+  Write-Host ""
+  Write-Styled "  ✗ " -Color Red -NoNewline
+  Write-Styled "riptide install: $Message" -Color Red
   exit 1
 }
 
@@ -77,6 +144,18 @@ function Download {
   } catch {
     Die "failed to download $Url"
   }
+}
+
+function Get-HumanSize {
+  param([string]$Path)
+  try {
+    $bytes = (Get-Item -LiteralPath $Path).Length
+  } catch {
+    return ""
+  }
+  if ($bytes -ge 1MB) { return ("{0:N1} MiB" -f ($bytes / 1MB)) }
+  if ($bytes -ge 1KB) { return ("{0:N0} KiB" -f ($bytes / 1KB)) }
+  return "$bytes B"
 }
 
 function Verify-Sha256 {
@@ -147,15 +226,18 @@ $checksumUrl = "$archiveUrl.sha256"
 $current = Join-Path $InstallDir "current"
 $launcher = Join-Path $BinDir "riptide.cmd"
 
-Say "Riptide release install"
-Say "  target:      $target"
-Say "  version:     $Version"
-Say "  archive:     $archiveUrl"
-Say "  install dir: $current"
-Say "  launcher:    $launcher"
+Print-Banner
+Rule
+Write-Styled ("  target       {0}" -f $target) -Color Gray
+Write-Styled ("  version      {0}" -f $Version) -Color Gray
+Write-Styled ("  archive      {0}" -f $archiveUrl) -Color Gray
+Write-Styled ("  install dir  {0}" -f $current) -Color Gray
+Write-Styled ("  launcher     {0}" -f $launcher) -Color Gray
+Rule
 
 if ($DryRun) {
-  Say "dry-run: no files changed"
+  Step "dry run"
+  Ok "no files changed"
   exit 0
 }
 
@@ -167,15 +249,24 @@ try {
   $archive = Join-Path $tmp $asset
   $checksum = Join-Path $tmp "$asset.sha256"
 
-  Say "downloading release bundle..."
+  Step "downloading release bundle"
+  Info $archiveUrl
   Download -Url $archiveUrl -Destination $archive
   Download -Url $checksumUrl -Destination $checksum
+  $sizeText = Get-HumanSize -Path $archive
+  if ($sizeText) {
+    Ok "downloaded ($sizeText)"
+  } else {
+    Ok "downloaded"
+  }
 
-  Say "verifying sha256..."
+  Step "verifying sha256"
   Verify-Sha256 -Archive $archive -ChecksumFile $checksum
+  Ok "checksum matches"
 
-  Say "extracting..."
+  Step "extracting"
   Expand-Archive -Path $archive -DestinationPath $extractDir -Force
+  Ok "unpacked to staging"
 
   $bundleLauncher = Get-ChildItem -Path $extractDir -Filter "riptide.cmd" -Recurse |
     Where-Object { $_.FullName -match "[\\/]bin[\\/]riptide\.cmd$" } |
@@ -189,6 +280,7 @@ try {
   New-Item -ItemType Directory -Path $BinDir -Force | Out-Null
   Ensure-LauncherCanBeManaged -Launcher $launcher
 
+  Step "activating release"
   $staged = Join-Path $InstallDir ".current.tmp.$PID"
   Remove-Item -LiteralPath $staged -Recurse -Force -ErrorAction SilentlyContinue
   New-Item -ItemType Directory -Path $staged -Force | Out-Null
@@ -230,8 +322,8 @@ try {
   }
 
   Remove-Item -LiteralPath $previous -Recurse -Force -ErrorAction SilentlyContinue
-  Say "installed: $installedVersion"
-  Say "staged bundle: $stagedVersion"
+  Ok "installed: $installedVersion"
+  Info "staged bundle: $stagedVersion"
 
   $normalizedBin = $BinDir.TrimEnd("\")
   $pathEntries = @()
@@ -239,13 +331,48 @@ try {
     $pathEntries = $env:Path.Split(";") | ForEach-Object { $_.TrimEnd("\") }
   }
 
+  $pathHint = $false
   if ($pathEntries -contains $normalizedBin) {
-    Say "ready: riptide is on PATH"
+    Ok "$BinDir is on PATH"
   } else {
-    Warn "$BinDir is not on PATH"
-    Warn "add it for future shells with:"
-    Warn "  setx PATH `"$BinDir;%PATH%`""
+    Warn-Styled "$BinDir is not on PATH"
+    Warn-Styled "add it for future shells with:"
+    Warn-Styled "  setx PATH `"$BinDir;%PATH%`""
+    $pathHint = $true
   }
+
+  $elapsed = (Get-Date) - $script:StartTime
+  $elapsedText = "{0}m {1:00}s" -f [int]$elapsed.TotalMinutes, $elapsed.Seconds
+
+  Write-Host ""
+  Rule
+  Write-Styled "  ✓ " -Color Green -NoNewline
+  Write-Styled "Riptide installed " -Color White -NoNewline
+  Write-Styled ("in {0}" -f $elapsedText) -Color DarkGray
+  Rule
+  Write-Host ""
+  Write-Styled "  Next:" -Color White
+  if ($pathHint) {
+    Write-Styled "    (open a new shell or update PATH first)" -Color DarkGray
+  }
+  Write-Styled "    1. " -Color White -NoNewline
+  Write-Styled "riptide doctor" -Color Cyan -NoNewline
+  Write-Styled "          # verify your toolchain" -Color DarkGray
+  Write-Styled "    2. " -Color White -NoNewline
+  Write-Styled "cd <your-program>" -Color Cyan -NoNewline
+  Write-Styled "       # the Solana program you want to simulate" -Color DarkGray
+  Write-Styled "    3. " -Color White -NoNewline
+  Write-Styled "riptide init" -Color Cyan -NoNewline
+  Write-Styled "            # scaffold .riptide/ (adapter stub)" -Color DarkGray
+  Write-Styled "    4. edit " -Color White -NoNewline
+  Write-Styled ".riptide/adapters/<program>.toml" -Color Cyan -NoNewline
+  Write-Styled ", then " -Color White -NoNewline
+  Write-Styled "riptide adapt" -Color Cyan
+  Write-Host ""
+  Write-Styled "  New to Riptide? " -Color DarkGray -NoNewline
+  Write-Styled "riptide --help" -Color White -NoNewline
+  Write-Styled " walks through the full surface." -Color DarkGray
+  Write-Host ""
 } finally {
   Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }

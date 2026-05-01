@@ -24,12 +24,20 @@ import path from "node:path";
 import chalk from "chalk";
 import { Command } from "commander";
 
-import { monorepoRootFromModule } from "../orchestrator/index.js";
-import { resolveScenarios, runScenarios } from "../run/loop.js";
+import { monorepoRootFromModule, runOrchestrator } from "../orchestrator/index.js";
+import {
+  buildScenarioRun,
+  extractInvariantFires,
+  resolveScenarios,
+  runScenarios
+} from "../run/loop.js";
 import { createJestFormatter } from "../run/output.js";
 import { EXIT_CODES, exitCodeFromSummary } from "../run/exit-codes.js";
 import { blockUntilSignal, startDashboardServer } from "../serve/index.js";
 import { printBanner } from "../banner.js";
+import { resolveAdapterForScenario } from "../run/adapter.js";
+import { writeArtifacts } from "../report/artifacts.js";
+import { canonicalSimulationResultHash } from "../review/hash.js";
 
 export function createRunCommand(): Command {
   return new Command("run")
@@ -76,6 +84,36 @@ export function createRunCommand(): Command {
       "Override the artifact root (default: <cwd>/.riptide/runs). Each scenario lands at <output-dir>/<scenario-name>/simulation-result.json. Use for CI systems writing to mounted volumes.",
       undefined
     )
+    .option(
+      "--state-pack <path>",
+      "Hydrate a current-state pack into LiteSVM before tick 0. Overrides any state_pack field in selected run-config files.",
+      undefined
+    )
+    .option(
+      "--harness <path>",
+      "Run scenarios through a generated Rust harness crate or Cargo.toml. Harness setup runs before tick 0.",
+      undefined
+    )
+    .option(
+      "--seeds <N>",
+      "Override stress sweep size. N=1 preserves the single-run path.",
+      undefined
+    )
+    .option(
+      "--full",
+      "Run every seed cell even after an invariant fires or an engine error is observed.",
+      false
+    )
+    .option(
+      "--seed-root <N>",
+      "Pin the sweep seed stream. Cells use seed-root, seed-root+1, ...",
+      undefined
+    )
+    .option(
+      "--replay <cell-dir>",
+      "Re-execute one sweep cell deterministically from <cell-dir>/run-config.json.",
+      undefined
+    )
     .action(async (positional: string | undefined, cliOpts: Record<string, unknown>) => {
       const cwd = process.cwd();
       const formatJson = Boolean(cliOpts.json) || cliOpts.format === "json";
@@ -86,6 +124,54 @@ export function createRunCommand(): Command {
         typeof cliOpts.outputDir === "string" && (cliOpts.outputDir as string).length > 0
           ? path.resolve(cliOpts.outputDir as string)
           : undefined;
+      const statePackOverride =
+        typeof cliOpts.statePack === "string" && (cliOpts.statePack as string).length > 0
+          ? path.resolve(cliOpts.statePack as string)
+          : undefined;
+      const harnessPath =
+        typeof cliOpts.harness === "string" && (cliOpts.harness as string).length > 0
+          ? path.resolve(cliOpts.harness as string)
+          : undefined;
+      const seeds =
+        typeof cliOpts.seeds === "string"
+          ? parsePositiveIntegerFlag(cliOpts.seeds, "--seeds")
+          : undefined;
+      const seedRoot =
+        typeof cliOpts.seedRoot === "string"
+          ? parseNonnegativeIntegerFlag(cliOpts.seedRoot, "--seed-root")
+          : undefined;
+
+      if (typeof cliOpts.replay === "string" && cliOpts.replay.length > 0) {
+        let replay: RunCellReplayResult;
+        try {
+          replay = await replayRunCell({
+            cwd,
+            cellDir: path.resolve(cliOpts.replay),
+            adapterOverride:
+              typeof cliOpts.adapter === "string" && cliOpts.adapter.length > 0
+                ? path.resolve(cliOpts.adapter)
+                : undefined,
+            monorepoRoot: monorepoRootFromModule() ?? null,
+            silent: !verbose,
+            allowInvariantViolations
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (formatJson) {
+            process.stdout.write(JSON.stringify({ error: message }, null, 2) + "\n");
+          } else {
+            process.stderr.write(chalk.red(`${message}\n`));
+          }
+          process.exit(EXIT_CODES.SETUP_ERROR);
+        }
+        if (formatJson) {
+          process.stdout.write(JSON.stringify(replay, null, 2) + "\n");
+        } else {
+          process.stdout.write(`cell hash: ${replay.hash}\n`);
+          process.stdout.write(`cell dir: ${replay.cellDir}\n`);
+        }
+        process.exit(replay.exitCode);
+      }
 
       const resolved = await resolveScenarios({
         cwd,
@@ -137,9 +223,16 @@ export function createRunCommand(): Command {
         monorepoRoot: monorepoRootFromModule() ?? null,
         silent: !verbose,
         outputDir,
+        statePackOverride,
+        harnessPath,
         selectedPattern: positional,
         selectedSourcePath: resolved.sourcePath,
         allowInvariantViolations,
+        sweep: {
+          seeds,
+          full: Boolean(cliOpts.full),
+          seedRoot
+        },
         onEvent: formatter.handle
       });
 
@@ -215,4 +308,98 @@ export function runSummaryJson(summary: import("../run/loop.js").RunSummary): Re
     run_collection_path: summary.runCollectionPath,
     scenarios: summary.scenarios
   };
+}
+
+interface RunCellReplayInput {
+  cwd: string;
+  cellDir: string;
+  adapterOverride?: string;
+  monorepoRoot?: string | null;
+  silent?: boolean;
+  allowInvariantViolations?: boolean;
+}
+
+export interface RunCellReplayResult {
+  cellDir: string;
+  simulationResultPath: string;
+  hash: string;
+  exitCode: number;
+  invariantFires: string[];
+}
+
+export async function replayRunCell(input: RunCellReplayInput): Promise<RunCellReplayResult> {
+  const runConfigPath = path.join(input.cellDir, "run-config.json");
+  let scenarioName = path.basename(input.cellDir);
+  try {
+    const raw = JSON.parse(readFileSync(runConfigPath, "utf8")) as { scenario?: unknown };
+    if (typeof raw.scenario === "string" && raw.scenario.length > 0) {
+      scenarioName = raw.scenario;
+    }
+  } catch (err) {
+    throw new Error(
+      `riptide run --replay: could not read cell run-config at ${runConfigPath}: ${(err as Error).message}`
+    );
+  }
+
+  const adapterResolution = resolveAdapterForScenario(
+    { name: scenarioName, runConfigPath },
+    {
+      cwd: input.cwd,
+      monorepoRoot: input.monorepoRoot ?? null,
+      globalOverride: input.adapterOverride
+    }
+  );
+  if (adapterResolution.kind === "error") {
+    throw new Error(adapterResolution.message);
+  }
+
+  const build = buildScenarioRun({
+    scenarioName,
+    runConfigPath,
+    cwd: input.cwd,
+    adapterPath: adapterResolution.path,
+    outputPathOverride: input.cellDir
+  });
+
+  const result = await runOrchestrator(build.runConfig, {
+    llmUrl: build.simulateOptions.llm_url,
+    adapterPath: build.simulateOptions.adapter_path,
+    allowInvariantViolations: true,
+    silent: input.silent
+  });
+  const artifactPath = await writeArtifacts(result, input.cellDir, {
+    narrativeConfig: {
+      adapterPath: build.simulateOptions.adapter_path ?? "",
+      reproCommand: `riptide run --replay ${path.relative(input.cwd, input.cellDir) || input.cellDir}`
+    }
+  });
+  const rawResult = readFileSync(artifactPath, "utf8");
+  const invariantFires = extractInvariantFires(result).map((fire) => fire.name);
+  const hasFire = invariantFires.length > 0;
+  return {
+    cellDir: input.cellDir,
+    simulationResultPath: artifactPath,
+    hash: canonicalSimulationResultHash(rawResult),
+    exitCode:
+      hasFire && input.allowInvariantViolations !== true
+        ? EXIT_CODES.INVARIANT_FIRE
+        : EXIT_CODES.SUCCESS,
+    invariantFires
+  };
+}
+
+function parsePositiveIntegerFlag(value: string, name: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${name} must be a positive integer, got ${JSON.stringify(value)}`);
+  }
+  return parsed;
+}
+
+function parseNonnegativeIntegerFlag(value: string, name: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${name} must be a nonnegative integer, got ${JSON.stringify(value)}`);
+  }
+  return parsed;
 }

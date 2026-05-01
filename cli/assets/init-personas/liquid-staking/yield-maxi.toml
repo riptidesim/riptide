@@ -1,0 +1,21 @@
+# Liquid-staking persona — yield maximizer.
+#
+# Standalone TOML fragment the future `scripts/liquid-staking-scratch.sh`
+# sidecar will concatenate onto a truncated copy of
+# `fixtures/adapters/liquid-staking.toml` below the
+# `# === SIDECAR-CUT ===` marker.
+#
+# High-rate, stake-heavy. Loads exposure aggressively when the exchange
+# rate drifts UP (indicator of accrued rewards) — the trigger flips
+# the persona briefly into profit-take redemption, simulating the
+# opportunistic unwinding that puts withdrawal-queue pressure on a
+# pool right after a reward window. `weight_boost` is modest (2.0)
+# because yield-maxi is not panic-exiter — the redemption is
+# profit-taking, not fleeing.
+[personas.yield-maxi]
+label = "Yield maximizer"
+action_rate_multiplier = 1.5
+action_weights = { stake = 1.0, request_unstake = 0.05, claim_unstake = 0.05 }
+triggers = [
+  { if = "pool.exchange_rate_bps > 10500", then = "request_unstake", weight_boost = 2.0 },
+]

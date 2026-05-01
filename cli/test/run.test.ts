@@ -346,6 +346,26 @@ test("runScenarios: sequential invocation in discovery-sorted order", async () =
   assert.equal(summary.error, 0);
 });
 
+test("runScenarios: forwards harness path into runOne", async () => {
+  const root = await tmpRoot("run-harness-forward");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  const harnessPath = path.join(root, ".riptide", "harness");
+  const seen: Array<string | undefined> = [];
+
+  await runScenarios({
+    scenarios: [{ name: "alpha", runConfigPath: path.join(root, "a.json") }],
+    cwd: root,
+    harnessPath,
+    runOne: async (ctx) => {
+      seen.push(ctx.harnessPath);
+      return passResult();
+    },
+    handleSignals: false
+  });
+
+  assert.deepEqual(seen, [harnessPath]);
+});
+
 test("runScenarios: writes .riptide/last-run.json with v1 schema", async () => {
   const root = await tmpRoot("run-lastrun");
   await mkdir(path.join(root, ".riptide"), { recursive: true });
@@ -517,7 +537,7 @@ test("runScenarios: errored scenario records 'error' status + partialAbort flag"
   assert.equal(summary.scenarios[0]!.interpretation?.coverage, "unknown");
 });
 
-test("runScenarios: skipped scenarios receive setup-error interpretation on SIGINT", async () => {
+test("runScenarios: skipped scenarios receive interrupted interpretation on SIGINT", async () => {
   const root = await tmpRoot("run-skip-interpretation");
   await mkdir(path.join(root, ".riptide"), { recursive: true });
   const scenarios: ResolvedScenario[] = [
@@ -538,8 +558,31 @@ test("runScenarios: skipped scenarios receive setup-error interpretation on SIGI
   assert.equal(summary.signalAborted, true);
   assert.equal(summary.skipped, 1);
   assert.equal(summary.scenarios[1]!.status, "skipped");
-  assert.equal(summary.scenarios[1]!.interpretation?.verdict, "setup-error");
+  assert.equal(summary.scenarios[1]!.interpretation?.verdict, "interrupted");
   assert.equal(summary.scenarios[1]!.interpretation?.coverage, "unknown");
+});
+
+test("runScenarios: SIGINT-terminated engine errors are interpreted as interrupted", async () => {
+  const root = await tmpRoot("run-sigint-engine");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  const scenarios: ResolvedScenario[] = [
+    { name: "alpha", runConfigPath: path.join(root, "a.json") }
+  ];
+  const runOne = async (): Promise<RunOneResult> => {
+    process.emit("SIGINT");
+    return errorResult("riptide-engine terminated by signal SIGINT");
+  };
+
+  const summary = await runScenarios({
+    scenarios,
+    cwd: root,
+    runOne
+  });
+
+  assert.equal(summary.signalAborted, true);
+  assert.equal(summary.scenarios[0]!.status, "error");
+  assert.equal(summary.scenarios[0]!.interpretation?.verdict, "interrupted");
+  assert.match(summary.scenarios[0]!.interpretation?.next_action ?? "", /No setup or adapter change/);
 });
 
 test("runScenarios: distinguishes error (exit 2) from fail (invariant fire) in records", async () => {
@@ -604,6 +647,103 @@ test("runScenarios: events emitted in the correct order", async () => {
     "scenario_end",
     "run_end"
   ]);
+});
+
+test("runScenarios: seedless configs default to a 50-cell sweep", async () => {
+  const root = await tmpRoot("run-sweep-default");
+  const scenarioDir = path.join(root, ".riptide", "scenarios", "baseline");
+  await mkdir(scenarioDir, { recursive: true });
+  const runConfigPath = path.join(scenarioDir, "run-config.json");
+  await writeFile(
+    runConfigPath,
+    JSON.stringify({ agents: 1, ticks: 1, scenario: "baseline", personas: [] }),
+    "utf8"
+  );
+
+  const seeds: number[] = [];
+  const events: RunEvent[] = [];
+  const summary = await runScenarios({
+    scenarios: [{ name: "baseline", runConfigPath }],
+    cwd: root,
+    runOne: async (ctx) => {
+      const cellConfig = JSON.parse(await readFile(ctx.scenario.runConfigPath, "utf8")) as {
+        seed: number;
+      };
+      seeds.push(cellConfig.seed);
+      return passResult(0.01);
+    },
+    sweep: { seedRoot: 100, parallelism: 4 },
+    onEvent: (event) => events.push(event),
+    handleSignals: false
+  });
+
+  assert.equal(seeds.length, 50);
+  assert.deepEqual(
+    seeds.sort((a, b) => a - b),
+    Array.from({ length: 50 }, (_, idx) => 100 + idx)
+  );
+  assert.equal(summary.pass, 1);
+  assert.equal(summary.scenarios[0]!.sweep?.size, 50);
+  assert.equal(summary.scenarios[0]!.sweep?.seed_root, 100);
+  assert.ok(summary.scenarios[0]!.sweep?.summary_path.endsWith("sweep-summary.json"));
+  assert.equal(events.filter((event) => event.type === "sweep_start").length, 1);
+  assert.equal(events.filter((event) => event.type === "sweep_progress").length, 51);
+  assert.equal(events.filter((event) => event.type === "sweep_end").length, 1);
+});
+
+test("runScenarios: explicit seed keeps the legacy single-run path by default", async () => {
+  const root = await tmpRoot("run-sweep-explicit-seed");
+  const runConfigPath = await mkScenario(root, "baseline");
+  let calls = 0;
+  let artifactOverrideSeen = false;
+
+  const summary = await runScenarios({
+    scenarios: [{ name: "baseline", runConfigPath }],
+    cwd: root,
+    runOne: async (ctx) => {
+      calls += 1;
+      artifactOverrideSeen = ctx.artifactDirOverride !== undefined;
+      return passResult(0.01);
+    },
+    sweep: { seedRoot: 100 },
+    handleSignals: false
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(artifactOverrideSeen, false);
+  assert.equal(summary.pass, 1);
+  assert.equal(summary.scenarios[0]!.sweep, undefined);
+});
+
+test("runScenarios: --seeds 1 keeps seedless configs on the single-run path", async () => {
+  const root = await tmpRoot("run-sweep-seeds-one");
+  const scenarioDir = path.join(root, ".riptide", "scenarios", "baseline");
+  await mkdir(scenarioDir, { recursive: true });
+  const runConfigPath = path.join(scenarioDir, "run-config.json");
+  await writeFile(
+    runConfigPath,
+    JSON.stringify({ agents: 1, ticks: 1, scenario: "baseline", personas: [] }),
+    "utf8"
+  );
+  let calls = 0;
+  let artifactOverrideSeen = false;
+
+  const summary = await runScenarios({
+    scenarios: [{ name: "baseline", runConfigPath }],
+    cwd: root,
+    runOne: async (ctx) => {
+      calls += 1;
+      artifactOverrideSeen = ctx.artifactDirOverride !== undefined;
+      return passResult(0.01);
+    },
+    sweep: { seeds: 1, seedRoot: 100 },
+    handleSignals: false
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(artifactOverrideSeen, false);
+  assert.equal(summary.pass, 1);
+  assert.equal(summary.scenarios[0]!.sweep, undefined);
 });
 
 // --- glob matcher ---
@@ -943,6 +1083,22 @@ test("buildScenarioRun: missing validator_url falls back to env/default (existin
   }
 });
 
+test("buildScenarioRun: repro command points at riptide run with the scenario file", async () => {
+  const root = await tmpRoot("repro-command");
+  const file = await mkScenario(root, "baseline");
+
+  const build = buildScenarioRun({
+    scenarioName: "baseline",
+    runConfigPath: file,
+    cwd: root
+  });
+
+  assert.equal(
+    build.reproCommand,
+    `riptide run ${path.join(".riptide", "scenarios", "baseline", "run-config.json")}`
+  );
+});
+
 test("defaultOutputPathForScenario: preserves full scenario name across leaf collisions", () => {
   const a = defaultOutputPathForScenario("amm/baseline");
   const b = defaultOutputPathForScenario("perps/baseline");
@@ -1025,6 +1181,36 @@ test("buildScenarioRun: outputPathOverride wins over the run-config's output_pat
   assert.equal(
     build.runConfig.output_path,
     path.join(root, ".riptide", "runs", "foo", "bar")
+  );
+});
+
+test("buildScenarioRun: resolves state_pack relative to the run-config file", async () => {
+  const root = await tmpRoot("state-pack-field");
+  const scenarioDir = path.join(root, ".riptide", "scenarios", "orca");
+  await mkdir(scenarioDir, { recursive: true });
+  const file = path.join(scenarioDir, "run-config.json");
+  await writeFile(
+    file,
+    JSON.stringify({
+      agents: 1,
+      ticks: 1,
+      scenario: "x",
+      seed: 1,
+      personas: [],
+      state_pack: "../../state-packs/orca"
+    }),
+    "utf8"
+  );
+
+  const build = buildScenarioRun({
+    scenarioName: "orca",
+    runConfigPath: file,
+    cwd: root
+  });
+
+  assert.equal(
+    build.runConfig.state_pack,
+    path.resolve(scenarioDir, "../../state-packs/orca")
   );
 });
 

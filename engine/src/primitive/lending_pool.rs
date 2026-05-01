@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 use anyhow::{anyhow, Context, Result};
 use borsh::BorshDeserialize;
 use litesvm::LiteSVM;
+use solana_clock::Clock;
 use solana_sdk::{
     pubkey::Pubkey,
     signature::{Keypair, Signer},
@@ -459,6 +460,10 @@ impl crate::primitive::Primitive for LiteSvmHarness {
     fn advance_tick(&mut self) {
         self.current_slot += 1;
         self.svm.warp_to_slot(self.current_slot);
+        let mut clock = self.svm.get_sysvar::<Clock>();
+        clock.slot = self.current_slot;
+        clock.unix_timestamp = i64::try_from(self.current_slot).unwrap_or(i64::MAX);
+        self.svm.set_sysvar(&clock);
         self.svm.expire_blockhash();
     }
 
@@ -619,33 +624,6 @@ impl crate::primitive::Primitive for LiteSvmHarness {
                 // has no market confidence or publish slot, so expose exact
                 // local-test metadata rather than claiming live oracle semantics.
                 (0, 0)
-            }
-            OracleKind::Pyth => {
-                let confidence = decoded.confidence.ok_or_else(|| {
-                    PrimitiveError::Infra(format!(
-                        "semantic oracle account `{account_pubkey}` decoded as {:?}, but that \
-                         layout does not expose confidence; semantics refuses to publish a \
-                         sentinel value",
-                        self.oracle_kind
-                    ))
-                })?;
-                let publish_slot = decoded.publish_slot.ok_or_else(|| {
-                    PrimitiveError::Infra(format!(
-                        "semantic oracle account `{account_pubkey}` decoded as {:?}, but that \
-                         layout does not expose a publish slot; semantics cannot compute \
-                         staleness",
-                        self.oracle_kind
-                    ))
-                })?;
-                if publish_slot > self.current_slot {
-                    return Err(PrimitiveError::Infra(format!(
-                        "semantic oracle account `{account_pubkey}` publish_slot {publish_slot} \
-                         is ahead of LiteSVM current slot {}; semantics cannot compute staleness \
-                         across slot domains",
-                        self.current_slot
-                    )));
-                }
-                (u128::from(confidence), self.current_slot - publish_slot)
             }
         };
         Ok(Some(SemanticOracleObservation {

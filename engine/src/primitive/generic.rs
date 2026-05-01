@@ -14,7 +14,8 @@ use anyhow::{anyhow, bail, Context, Result};
 
 use crate::{
     adapter::{
-        AccountDefinition, AccountKind, Adapter, ArgLiteral, InstructionMapping, ObservationType,
+        AccountDecoder, AccountDefinition, AccountKind, Adapter, ArgLiteral, InstructionMapping,
+        LayoutField, LayoutFieldType, ObservationType,
     },
     agent::policy::RuntimeAction,
     types::{
@@ -27,9 +28,10 @@ use crate::{
 use {
     crate::adapter::loader::sibling_deploy_keypair_path,
     crate::adapter::{OracleKind, SemanticClassRef, SemanticSourceBinding},
-    crate::scenario::{oracle_layout_for, OracleUpdate},
+    crate::scenario::oracle::{oracle_layout_for, OracleEncodeContext, OracleUpdate},
     litesvm::LiteSVM,
     solana_account::Account,
+    solana_clock::Clock,
     solana_sdk::{
         instruction::{AccountMeta, Instruction},
         pubkey::Pubkey,
@@ -224,6 +226,14 @@ pub fn observe_account_state(
     account_name: &str,
     bytes: &[u8],
 ) -> Result<BTreeMap<String, ObservationValue>> {
+    if let Some(decoder) = adapter
+        .accounts
+        .get(account_name)
+        .and_then(|account| account.decoder.as_ref())
+    {
+        return observe_decoded_account_state(adapter, account_name, decoder, bytes);
+    }
+
     let account_type = idl
         .accounts
         .iter()
@@ -262,6 +272,42 @@ pub fn observe_account_state(
         observations.insert(logical_name.clone(), extracted.to_observation(expected)?);
     }
 
+    Ok(observations)
+}
+
+fn observe_decoded_account_state(
+    adapter: &Adapter,
+    account_name: &str,
+    decoder: &AccountDecoder,
+    bytes: &[u8],
+) -> Result<BTreeMap<String, ObservationValue>> {
+    let fields = decoder.layout().ok_or_else(|| match decoder {
+        AccountDecoder::Preset(name) => anyhow!("unknown account decoder preset `{name}`"),
+        AccountDecoder::Layout(layout) => {
+            anyhow!("unknown account decoder kind `{}`", layout.kind)
+        }
+    })?;
+    let mut observations = BTreeMap::new();
+    for (mapping_key, logical_name) in &adapter.state_mapping {
+        let Some((mapped_account, field_name)) = mapping_key.split_once('.') else {
+            continue;
+        };
+        if mapped_account != account_name {
+            continue;
+        }
+        let field = fields.get(field_name).ok_or_else(|| {
+            anyhow!("decoder field `{field_name}` missing in account `{account_name}`")
+        })?;
+        let expected = adapter
+            .observations
+            .get(logical_name)
+            .ok_or_else(|| anyhow!("generic observation `{logical_name}` missing from adapter"))?
+            .kind();
+        let value = decode_layout_field(field, bytes).with_context(|| {
+            format!("decode account `{account_name}` layout field `{field_name}`")
+        })?;
+        observations.insert(logical_name.clone(), value.to_observation(expected)?);
+    }
     Ok(observations)
 }
 
@@ -510,6 +556,91 @@ impl<'a> GenericInstructionBuilder<'a> {
         }
     }
 
+    pub fn build_scheduled_data(
+        &self,
+        instruction_name: &str,
+        scheduled_args: &BTreeMap<String, serde_json::Value>,
+    ) -> Result<Vec<u8>> {
+        let mapping = self
+            .adapter
+            .instructions
+            .get(instruction_name)
+            .ok_or_else(|| {
+                anyhow!("generic adapter missing scheduled instruction `{instruction_name}`")
+            })?;
+        let instruction = self
+            .idl
+            .instructions
+            .iter()
+            .find(|instruction| instruction.name == instruction_name)
+            .ok_or_else(|| anyhow!("generic IDL missing instruction `{instruction_name}`"))?;
+        let scheduled_literals = scheduled_args
+            .iter()
+            .map(|(name, value)| {
+                Ok((
+                    name.clone(),
+                    json_value_to_arg_literal(value).with_context(|| {
+                        format!(
+                            "scheduled instruction `{instruction_name}` arg `{name}` \
+                         must be a bool, integer, or string literal"
+                        )
+                    })?,
+                ))
+            })
+            .collect::<Result<BTreeMap<_, _>>>()?;
+
+        let mut encoded = instruction.discriminator.clone();
+        for arg in &instruction.args {
+            if let Some(literal) = scheduled_literals.get(&arg.name) {
+                encode_literal_arg(&mut encoded, &arg.ty, literal, instruction_name, &arg.name)?;
+                continue;
+            }
+            if let Some(binding) = mapping.args.get(&arg.name) {
+                match binding {
+                    ArgLiteral::String(s) if s.starts_with("@persona.") => {
+                        bail!(
+                            "scheduled instruction `{instruction_name}` arg `{}` resolves from \
+                             persona state in `[instructions.{instruction_name}].args`; scheduled \
+                             actions must provide it inline under `[[scheduled_actions]].args.{}`",
+                            arg.name,
+                            arg.name
+                        );
+                    }
+                    other => {
+                        encode_literal_arg(
+                            &mut encoded,
+                            &arg.ty,
+                            other,
+                            instruction_name,
+                            &arg.name,
+                        )?;
+                        continue;
+                    }
+                }
+            }
+            if mapping.amount.as_deref() == Some(arg.name.as_str()) {
+                bail!(
+                    "scheduled instruction `{instruction_name}` arg `{}` is bound as the \
+                     runtime `amount` in `[instructions.{instruction_name}]`, but scheduled \
+                     actions have no implicit runtime amount. Provide an explicit \
+                     `[[scheduled_actions]].args.{}` value or use a zero-arg scheduled \
+                     instruction.",
+                    arg.name,
+                    arg.name
+                );
+            }
+            bail!(
+                "scheduled instruction `{instruction_name}` arg `{}` is not bound. \
+                 Add `[instructions.{instruction_name}].args.{}` or \
+                 `[[scheduled_actions]].args.{}`.",
+                arg.name,
+                arg.name,
+                arg.name
+            );
+        }
+        Ok(encoded)
+    }
+
     pub fn resolve_instruction_for_replay<'b>(
         &'b self,
         name: &'b str,
@@ -667,6 +798,20 @@ fn encode_runtime_amount(
              support `u64`/`i64`/`u32`/`u8` (got `{other:?}`). For `bool`/`pubkey` args, \
              declare a literal under `[instructions].{instruction_name}.args.{arg_name}`."
         ),
+    }
+}
+
+fn json_value_to_arg_literal(value: &serde_json::Value) -> Result<ArgLiteral> {
+    match value {
+        serde_json::Value::Bool(value) => Ok(ArgLiteral::Bool(*value)),
+        serde_json::Value::Number(value) => {
+            let Some(int) = value.as_i64() else {
+                bail!("numeric value `{value}` is not a signed 64-bit integer")
+            };
+            Ok(ArgLiteral::Int(int))
+        }
+        serde_json::Value::String(value) => Ok(ArgLiteral::String(value.clone())),
+        other => bail!("unsupported scheduled arg literal `{other}`"),
     }
 }
 
@@ -887,6 +1032,52 @@ fn decode_value(
             Ok(GenericValue::Vec(items))
         }
         other => bail!("unsupported generic field type `{other:?}`"),
+    }
+}
+
+fn decode_layout_field(field: &LayoutField, bytes: &[u8]) -> Result<GenericValue> {
+    let width = field
+        .ty
+        .byte_width()
+        .ok_or_else(|| anyhow!("unknown layout field type `{}`", field.ty))?;
+    let end = field.offset.checked_add(width).ok_or_else(|| {
+        anyhow!(
+            "layout field offset {} + size {width} overflows",
+            field.offset
+        )
+    })?;
+    if end > bytes.len() {
+        bail!(
+            "layout field offset {} with size {width} exceeds account data length {}",
+            field.offset,
+            bytes.len()
+        );
+    }
+    let chunk = &bytes[field.offset..end];
+    match &field.ty {
+        LayoutFieldType::U8 => Ok(GenericValue::UInt(u64::from(chunk[0]))),
+        LayoutFieldType::U64 => {
+            let raw: [u8; 8] = chunk.try_into().expect("slice width checked");
+            Ok(GenericValue::UInt(u64::from_le_bytes(raw)))
+        }
+        LayoutFieldType::U128 => {
+            let raw: [u8; 16] = chunk.try_into().expect("slice width checked");
+            Ok(GenericValue::U128(u128::from_le_bytes(raw)))
+        }
+        LayoutFieldType::I64 => {
+            let raw: [u8; 8] = chunk.try_into().expect("slice width checked");
+            Ok(GenericValue::Int(i64::from_le_bytes(raw)))
+        }
+        LayoutFieldType::I128 => {
+            let raw: [u8; 16] = chunk.try_into().expect("slice width checked");
+            Ok(GenericValue::I128(i128::from_le_bytes(raw)))
+        }
+        LayoutFieldType::Bool => Ok(GenericValue::Bool(chunk[0] != 0)),
+        LayoutFieldType::Pubkey => {
+            let raw: [u8; 32] = chunk.try_into().expect("slice width checked");
+            Ok(GenericValue::Pubkey(bs58::encode(raw).into_string()))
+        }
+        LayoutFieldType::Unknown(raw) => bail!("unknown layout field type `{raw}`"),
     }
 }
 
@@ -1131,6 +1322,7 @@ pub struct GenericHarness {
 pub(crate) struct RuntimeOracleBinding {
     pub(crate) account_name: String,
     pub(crate) kind: OracleKind,
+    pub(crate) confidence: Option<u64>,
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
@@ -1227,6 +1419,62 @@ impl GenericHarness {
     pub fn inspect_shared_account(&self, name: &str) -> Option<Account> {
         let pubkey = self.shared_accounts.get(name)?;
         self.svm.get_account(pubkey)
+    }
+
+    /// Adapter definition backing this generic harness. Harness setup
+    /// code uses this for diagnostics and for validating that generated
+    /// account helpers refer to declared adapter accounts.
+    pub fn adapter(&self) -> &Adapter {
+        &self.adapter
+    }
+
+    /// Bind or replace a shared adapter account pubkey. The account
+    /// name must already exist under `[accounts]`; harnesses can move
+    /// declared bindings to deterministic pubkeys, but cannot create
+    /// untracked instruction aliases outside the adapter contract.
+    pub fn bind_shared_account(&mut self, name: &str, pubkey: Pubkey) -> Result<()> {
+        let definition = self.adapter.accounts.get(name).ok_or_else(|| {
+            anyhow!(
+                "cannot bind undeclared harness account `{name}`. Add `[accounts.{name}]` \
+                 to the adapter before binding it in Rust setup."
+            )
+        })?;
+        if !matches!(definition.kind, AccountKind::Shared) {
+            bail!(
+                "cannot bind `{name}` as a shared harness account because the adapter declares \
+                 it as `kind = \"agent\"`; use bind_agent_accounts instead"
+            );
+        }
+        self.shared_accounts.insert(name.to_string(), pubkey);
+        Ok(())
+    }
+
+    /// Bind or replace every per-agent pubkey for an adapter account.
+    /// The number of pubkeys must match the configured agent count so
+    /// instruction dispatch never sees a partially-bound population.
+    pub fn bind_agent_accounts(&mut self, name: &str, pubkeys: Vec<Pubkey>) -> Result<()> {
+        let definition = self.adapter.accounts.get(name).ok_or_else(|| {
+            anyhow!(
+                "cannot bind undeclared harness account `{name}`. Add `[accounts.{name}]` \
+                 to the adapter before binding it in Rust setup."
+            )
+        })?;
+        if !matches!(definition.kind, AccountKind::Agent) {
+            bail!(
+                "cannot bind `{name}` as agent-scoped harness accounts because the adapter \
+                 declares it as `kind = \"shared\"`; use bind_shared_account instead"
+            );
+        }
+        if pubkeys.len() != self.agents.len() {
+            bail!(
+                "cannot bind agent account `{name}`: got {} pubkey(s), expected {} \
+                 (one per simulated agent)",
+                pubkeys.len(),
+                self.agents.len()
+            );
+        }
+        self.agent_accounts.insert(name.to_string(), pubkeys);
+        Ok(())
     }
 
     /// Bind replay/bootstrap-imported accounts into the same name
@@ -1453,6 +1701,10 @@ impl GenericHarness {
         })?;
         Ok(account.data)
     }
+
+    fn current_unix_timestamp(&self) -> i64 {
+        i64::try_from(self.current_slot).unwrap_or(i64::MAX)
+    }
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
@@ -1464,6 +1716,10 @@ impl crate::primitive::Primitive for GenericHarness {
     fn advance_tick(&mut self) {
         self.current_slot += 1;
         self.svm.warp_to_slot(self.current_slot);
+        let mut clock = self.svm.get_sysvar::<Clock>();
+        clock.slot = self.current_slot;
+        clock.unix_timestamp = self.current_unix_timestamp();
+        self.svm.set_sysvar(&clock);
         self.svm.expire_blockhash();
     }
 
@@ -1477,9 +1733,8 @@ impl crate::primitive::Primitive for GenericHarness {
     ///   tick: encode through `oracle_layout_for(kind)`, write into the
     ///   bound shared account via `svm.set_account`, then decode the
     ///   post-write bytes to verify the layout round-trips. Owner and
-    ///   lamports are preserved so a sibling-program-owned oracle
-    ///   (admin-mock, Pyth) stays readable by programs that enforce
-    ///   owner checks.
+    ///   lamports are preserved so a sibling-program-owned oracle stays
+    ///   readable by programs that enforce owner checks.
     /// - Any inconsistency — missing binding despite declaration,
     ///   undersized account buffer, decode failure — surfaces as
     ///   `PrimitiveError::Infra` with the offending account name in the
@@ -1513,8 +1768,14 @@ impl crate::primitive::Primitive for GenericHarness {
             ))
         })?;
         let layout = oracle_layout_for(binding.kind);
+        let context = OracleEncodeContext::new(
+            self.admin.pubkey().to_bytes(),
+            self.current_slot,
+            self.current_unix_timestamp(),
+        )
+        .with_confidence(binding.confidence);
         let encoded = layout
-            .encode(self.admin.pubkey().to_bytes(), update)
+            .encode_with_context(&context, update)
             .map_err(|error| {
                 crate::primitive::PrimitiveError::Infra(format!(
                     "oracle layout `{:?}` failed to encode an update for account `{}`: {error}",
@@ -1608,6 +1869,48 @@ impl crate::primitive::Primitive for GenericHarness {
             .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
         let payer = self
             .payer_for_instruction(agent_idx, instruction)
+            .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
+        self.send_instruction(
+            &payer,
+            Instruction {
+                program_id: self.program_id,
+                accounts,
+                data,
+            },
+        )
+    }
+
+    fn on_scheduled_action(
+        &mut self,
+        _name: &str,
+        instruction_name: &str,
+        _accounts: &[String],
+        args: &BTreeMap<String, serde_json::Value>,
+    ) -> Result<(), crate::primitive::PrimitiveError> {
+        let builder = GenericInstructionBuilder::new(&self.idl, &self.adapter);
+        let instruction = self
+            .idl
+            .instructions
+            .iter()
+            .find(|instruction| instruction.name == instruction_name)
+            .ok_or_else(|| {
+                crate::primitive::PrimitiveError::ProgramRejected(format!(
+                    "generic scheduled instruction `{instruction_name}` not found in IDL"
+                ))
+            })?;
+        let data = builder
+            .build_scheduled_data(instruction_name, args)
+            .map_err(|error| {
+                crate::primitive::PrimitiveError::ProgramRejected(error.to_string())
+            })?;
+        let accounts = instruction
+            .accounts
+            .iter()
+            .map(|account| self.resolve_account_meta(&instruction.name, 0, account))
+            .collect::<Result<Vec<_>>>()
+            .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
+        let payer = self
+            .payer_for_instruction(0, instruction)
             .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
         self.send_instruction(
             &payer,
@@ -1763,30 +2066,6 @@ impl crate::primitive::Primitive for GenericHarness {
         })?;
         let (confidence, staleness) = match kind {
             OracleKind::AdminMock => (0, 0),
-            OracleKind::Pyth => {
-                let confidence = decoded.confidence.ok_or_else(|| {
-                    crate::primitive::PrimitiveError::Infra(format!(
-                        "semantic oracle account `{account_pubkey}` decoded as {kind:?}, but that \
-                         layout does not expose confidence; semantics refuses to publish a \
-                         sentinel value"
-                    ))
-                })?;
-                let publish_slot = decoded.publish_slot.ok_or_else(|| {
-                    crate::primitive::PrimitiveError::Infra(format!(
-                        "semantic oracle account `{account_pubkey}` decoded as {kind:?}, but that \
-                         layout does not expose a publish slot; semantics cannot compute staleness"
-                    ))
-                })?;
-                if publish_slot > self.current_slot {
-                    return Err(crate::primitive::PrimitiveError::Infra(format!(
-                        "semantic oracle account `{account_pubkey}` publish_slot {publish_slot} \
-                         is ahead of LiteSVM current slot {}; semantics cannot compute staleness \
-                         across slot domains",
-                        self.current_slot
-                    )));
-                }
-                (u128::from(confidence), self.current_slot - publish_slot)
-            }
         };
         Ok(Some(crate::primitive::SemanticOracleObservation {
             price,
@@ -2043,6 +2322,7 @@ pub(crate) fn bootstrap_generic_accounts(
                 account_name: account.to_string(),
                 kind: oracle.kind,
                 layout,
+                confidence: oracle.confidence,
                 update: OracleUpdate {
                     price: oracle.base_price,
                     exponent: oracle.exponent,
@@ -2097,10 +2377,14 @@ pub(crate) fn bootstrap_generic_accounts(
                 if is_well_known_readonly_account(definition.address.as_deref(), &pubkey) {
                     continue;
                 }
-                let owner = resolve_shared_account_owner(account_name, definition, program_id)?;
                 let is_oracle = oracle_binding
                     .as_ref()
                     .is_some_and(|binding| binding.account_name == *account_name);
+                let owner = if is_oracle {
+                    resolve_shared_account_owner(account_name, definition, program_id)?
+                } else {
+                    resolve_shared_account_owner(account_name, definition, program_id)?
+                };
                 let data = if is_oracle {
                     let binding = oracle_binding
                         .as_ref()
@@ -2119,9 +2403,11 @@ pub(crate) fn bootstrap_generic_accounts(
                                 .expect("oracle_binding implies first() is Some"),
                         );
                     }
+                    let context = OracleEncodeContext::new(admin.to_bytes(), 0, 0)
+                        .with_confidence(binding.confidence);
                     let mut buf = binding
                         .layout
-                        .encode(admin.to_bytes(), &binding.update)
+                        .encode_with_context(&context, &binding.update)
                         .with_context(|| {
                             format!(
                                 "encode tick-0 oracle bytes for generic adapter oracle \
@@ -2160,6 +2446,7 @@ pub(crate) fn bootstrap_generic_accounts(
     let runtime_binding = oracle_binding.map(|binding| RuntimeOracleBinding {
         account_name: binding.account_name,
         kind: binding.kind,
+        confidence: binding.confidence,
     });
     Ok((agent_accounts, shared_accounts, runtime_binding))
 }
@@ -2823,6 +3110,7 @@ struct OracleBinding {
     account_name: String,
     kind: OracleKind,
     layout: Box<dyn crate::scenario::OracleLayout>,
+    confidence: Option<u64>,
     update: OracleUpdate,
 }
 
@@ -2880,7 +3168,7 @@ fn resolve_shared_account_owner(
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
-fn resolve_generic_program_id(program_so: &Path) -> Result<Pubkey> {
+pub(crate) fn resolve_generic_program_id(program_so: &Path) -> Result<Pubkey> {
     let Some(keypair_path) = sibling_deploy_keypair_path(program_so) else {
         return Ok(Pubkey::new_unique());
     };
@@ -3068,6 +3356,107 @@ triggers = []
     }
 
     #[test]
+    fn scheduled_dispatch_builds_refresh_reserve_instruction_data() {
+        let idl = parse_generic_idl_str(
+            r#"
+{
+  "instructions": [
+    {
+      "name": "refresh_reserve",
+      "discriminator": [2, 218, 138, 235, 79, 201, 25, 102],
+      "accounts": [
+        { "name": "reserve", "writable": true },
+        { "name": "price_update_v2" }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    { "name": "reserve", "fields": [{ "name": "market_price", "type": "u64" }] }
+  ]
+}
+"#,
+        )
+        .unwrap();
+        let adapter = parse_adapter_str(
+            r#"
+protocol = "generic"
+program_so = "target/deploy/lending.so"
+idl_path = "target/idl/lending.json"
+
+[accounts.reserve]
+kind = "shared"
+space = 192
+
+[accounts.price_update_v2]
+kind = "shared"
+space = 50
+
+[instructions]
+refresh_reserve = { action = "refresh_reserve" }
+
+[state_mapping]
+"reserve.market_price" = "reserve.market_price"
+
+[actions.refresh_reserve]
+takes = []
+
+[observations]
+"reserve.market_price" = "uint"
+
+[personas.passive]
+action_rate_multiplier = 0
+action_weights = { refresh_reserve = 0 }
+triggers = []
+
+[[oracles]]
+name = "price_feed"
+kind = "admin-mock"
+account = "price_update_v2"
+base_price = 1.0
+exponent = -6
+confidence = 100
+
+[[scheduled_actions]]
+name = "refresh_reserve"
+instruction = "refresh_reserve"
+interval_ticks = 1
+accounts = ["reserve", "price_update_v2"]
+"#,
+            "lending-refresh.toml",
+        )
+        .unwrap();
+        assert_eq!(adapter.oracles[0].kind, OracleKind::AdminMock);
+        assert_eq!(adapter.accounts["price_update_v2"].space, 50);
+
+        let builder = GenericInstructionBuilder::new(&idl, &adapter);
+        let bytes = builder
+            .build_scheduled_data("refresh_reserve", &BTreeMap::new())
+            .unwrap();
+        assert_eq!(&bytes[..], &[2, 218, 138, 235, 79, 201, 25, 102]);
+    }
+
+    #[test]
+    fn scheduled_dispatch_requires_explicit_args_for_amount_bound_instruction() {
+        let idl = parse_generic_idl_str(SYNTHETIC_IDL).unwrap();
+        let adapter = sample_generic_adapter();
+        let builder = GenericInstructionBuilder::new(&idl, &adapter);
+
+        let err = builder
+            .build_scheduled_data("mine", &BTreeMap::new())
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("scheduled actions have no implicit runtime amount"));
+        assert!(err.contains("[[scheduled_actions]].args.amount"));
+
+        let mut args = BTreeMap::new();
+        args.insert("amount".to_string(), serde_json::Value::from(9));
+        let bytes = builder.build_scheduled_data("mine", &args).unwrap();
+        assert_eq!(&bytes[..8], &[109, 105, 110, 101, 0, 0, 0, 0]);
+        assert_eq!(u64::from_le_bytes(bytes[8..16].try_into().unwrap()), 9);
+    }
+
+    #[test]
     fn observation_read_decodes_scalar_and_map_values() {
         let idl = parse_generic_idl_str(SYNTHETIC_IDL).unwrap();
         let adapter = sample_generic_adapter();
@@ -3099,6 +3488,140 @@ triggers = []
                 bs58::encode(seller).into_string(),
                 3
             )])))
+        );
+    }
+
+    fn decoder_adapter(decoder_block: &str, mapping: &str, observations: &str) -> Adapter {
+        parse_adapter_str(
+            &format!(
+                r#"
+protocol = "generic"
+program_so = "target/deploy/decoder.so"
+idl_path = "target/idl/decoder.json"
+
+[accounts.decoded]
+kind = "shared"
+space = 165
+{decoder_block}
+
+[instructions]
+noop = {{ action = "noop" }}
+
+[state_mapping]
+{mapping}
+
+[actions.noop]
+takes = []
+
+[observations]
+{observations}
+
+[personas.passive]
+action_rate_multiplier = 0
+action_weights = {{ noop = 0 }}
+triggers = []
+"#
+            ),
+            "decoder.toml",
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn layout_decoder_reads_u64_from_fixed_offset() {
+        let idl = parse_generic_idl_str(r#"{"instructions":[],"accounts":[]}"#).unwrap();
+        let adapter = decoder_adapter(
+            r#"
+[accounts.decoded.decoder]
+kind = "layout"
+
+[accounts.decoded.decoder.fields.amount]
+type = "u64"
+offset = 12
+"#,
+            r#""decoded.amount" = "decoded.amount""#,
+            r#""decoded.amount" = "uint""#,
+        );
+        let mut bytes = vec![0u8; 32];
+        bytes[12..20].copy_from_slice(&77u64.to_le_bytes());
+
+        let observed = observe_account_state(&idl, &adapter, "decoded", &bytes).unwrap();
+        assert_eq!(
+            observed.get("decoded.amount"),
+            Some(&ObservationValue::UInt(77))
+        );
+    }
+
+    #[test]
+    fn layout_decoder_reads_pubkey_from_fixed_offset() {
+        let idl = parse_generic_idl_str(r#"{"instructions":[],"accounts":[]}"#).unwrap();
+        let adapter = decoder_adapter(
+            r#"
+[accounts.decoded.decoder]
+kind = "layout"
+
+[accounts.decoded.decoder.fields.owner]
+type = "pubkey"
+offset = 4
+"#,
+            r#""decoded.owner" = "decoded.owner""#,
+            r#""decoded.owner" = "pubkey""#,
+        );
+        let mut bytes = vec![0u8; 64];
+        let owner = [9u8; 32];
+        bytes[4..36].copy_from_slice(&owner);
+
+        let observed = observe_account_state(&idl, &adapter, "decoded", &bytes).unwrap();
+        assert_eq!(
+            observed.get("decoded.owner"),
+            Some(&ObservationValue::Pubkey(bs58::encode(owner).into_string()))
+        );
+    }
+
+    #[test]
+    fn spl_token_account_preset_reads_amount() {
+        let idl = parse_generic_idl_str(r#"{"instructions":[],"accounts":[]}"#).unwrap();
+        let adapter = decoder_adapter(
+            r#"decoder = "spl_token_account""#,
+            r#""decoded.amount" = "decoded.amount""#,
+            r#""decoded.amount" = "uint""#,
+        );
+        let mut bytes = vec![0u8; 165];
+        bytes[64..72].copy_from_slice(&1234u64.to_le_bytes());
+
+        let observed = observe_account_state(&idl, &adapter, "decoded", &bytes).unwrap();
+        assert_eq!(
+            observed.get("decoded.amount"),
+            Some(&ObservationValue::UInt(1234))
+        );
+    }
+
+    #[test]
+    fn spl_mint_preset_reads_supply_and_decimals() {
+        let idl = parse_generic_idl_str(r#"{"instructions":[],"accounts":[]}"#).unwrap();
+        let adapter = decoder_adapter(
+            r#"decoder = "spl_mint""#,
+            r#"
+"decoded.supply" = "decoded.supply"
+"decoded.decimals" = "decoded.decimals"
+"#,
+            r#"
+"decoded.supply" = "uint"
+"decoded.decimals" = "uint"
+"#,
+        );
+        let mut bytes = vec![0u8; 165];
+        bytes[36..44].copy_from_slice(&999u64.to_le_bytes());
+        bytes[44] = 6;
+
+        let observed = observe_account_state(&idl, &adapter, "decoded", &bytes).unwrap();
+        assert_eq!(
+            observed.get("decoded.supply"),
+            Some(&ObservationValue::UInt(999))
+        );
+        assert_eq!(
+            observed.get("decoded.decimals"),
+            Some(&ObservationValue::UInt(6))
         );
     }
 

@@ -565,6 +565,105 @@ function minimalGenericAdapter(overrides: {
   };
 }
 
+function minimalDecoderAdapter(decoder: unknown, mappingKey = "vault.amount"): unknown {
+  return {
+    protocol: "generic",
+    program_so: "out/demo.so",
+    idl_path: "out/demo.json",
+    accounts: {
+      vault: { kind: "shared", space: 165, decoder },
+    },
+    instructions: {
+      noop: { action: "noop" },
+    },
+    state_mapping: {
+      [mappingKey]: "vault.amount",
+    },
+    actions: {
+      noop: { takes: [] },
+    },
+    observations: {
+      "vault.amount": "uint",
+    },
+    personas: {
+      passive: {
+        action_rate_multiplier: 0,
+        action_weights: { noop: 0 },
+        triggers: [],
+      },
+    },
+  };
+}
+
+test("validateAdapter accepts account decoder presets", () => {
+  const adapter = validateAdapter(minimalDecoderAdapter("spl_token_account"), "decoder.toml");
+  assert.equal(adapter.accounts.vault.decoder, "spl_token_account");
+});
+
+test("validateAdapter accepts raw layout account decoders", () => {
+  const adapter = validateAdapter(
+    minimalDecoderAdapter({
+      kind: "layout",
+      fields: {
+        amount: { type: "u64", offset: 64 },
+      },
+    }),
+    "decoder.toml"
+  );
+  assert.deepEqual(adapter.accounts.vault.decoder, {
+    kind: "layout",
+    fields: {
+      amount: { type: "u64", offset: 64 },
+    },
+  });
+});
+
+test("validateAdapter rejects unknown decoder presets", () => {
+  assert.throws(
+    () => validateAdapter(minimalDecoderAdapter("orca_pool"), "decoder.toml"),
+    /unknown account decoder preset/
+  );
+});
+
+test("validateAdapter rejects invalid decoder field types", () => {
+  assert.throws(
+    () =>
+      validateAdapter(
+        minimalDecoderAdapter({
+          kind: "layout",
+          fields: { amount: { type: "u32", offset: 64 } },
+        }),
+        "decoder.toml"
+      ),
+    /unknown layout field type/
+  );
+});
+
+test("validateAdapter rejects decoder fields past account space", () => {
+  assert.throws(
+    () =>
+      validateAdapter(
+        minimalDecoderAdapter({
+          kind: "layout",
+          fields: { amount: { type: "u64", offset: 164 } },
+        }),
+        "decoder.toml"
+      ),
+    /exceeds declared account space/
+  );
+});
+
+test("validateAdapter rejects mappings to undeclared decoder fields", () => {
+  assert.throws(
+    () =>
+      validateAdapter(
+        minimalDecoderAdapter("spl_token_account", "vault.balance"),
+        "decoder.toml"
+      ),
+    /decoder field `balance`/
+  );
+});
+
 test("validateAdapter rejects observation key with ANSI escape", () => {
   const raw = minimalGenericAdapter({ observationKey: "line\u001bbreak" });
   assert.throws(

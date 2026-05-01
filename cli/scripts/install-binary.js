@@ -16,7 +16,7 @@
 // - win32 x64 (x86_64-pc-windows-msvc)
 
 import { createHash } from 'node:crypto';
-import { createWriteStream, mkdirSync, chmodSync, existsSync, readFileSync, unlinkSync } from 'node:fs';
+import { createWriteStream, mkdirSync, chmodSync, existsSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
 import { request as httpsRequest } from 'node:https';
@@ -26,6 +26,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = resolve(__dirname, '..');
 const PKG_JSON = JSON.parse(readFileSync(join(PKG_ROOT, 'package.json'), 'utf8'));
 const VERSION = PKG_JSON.version;
+const START_MS = Date.now();
 
 // Release base URL. Default points at the public GitHub repo. The env
 // var lets us retarget at a pre-release mirror, a private org, or a
@@ -58,6 +59,66 @@ const CHECKSUMS = {
   'x86_64-unknown-linux-gnu': '93231ddee0185841e0b6bfac27bc23be37b96dd2cd5590464ab7c8908bd50b19',
 };
 
+// ---------- cosmetic helpers ----------
+// npm typically buffers postinstall output, so most users never see
+// these lines. They surface with `npm install --foreground-scripts`,
+// when this script is run directly, or on failure. We still want them
+// on-brand when shown.
+const STYLE_ON =
+  Boolean(process.stdout.isTTY) &&
+  !process.env.NO_COLOR &&
+  !process.env.RIPTIDE_NO_BANNER &&
+  !process.env.CI;
+
+const STYLE = STYLE_ON
+  ? {
+      bold:  (s) => `\x1b[1m${s}\x1b[0m`,
+      dim:   (s) => `\x1b[2m${s}\x1b[0m`,
+      red:   (s) => `\x1b[31m${s}\x1b[0m`,
+      green: (s) => `\x1b[32m${s}\x1b[0m`,
+      yellow:(s) => `\x1b[33m${s}\x1b[0m`,
+      cyan:  (s) => `\x1b[38;2;83;213;209m${s}\x1b[0m`,
+    }
+  : {
+      bold:  (s) => s,
+      dim:   (s) => s,
+      red:   (s) => s,
+      green: (s) => s,
+      yellow:(s) => s,
+      cyan:  (s) => s,
+    };
+
+function printBanner() {
+  if (!STYLE_ON) return;
+  const lines = [
+    '.......   ...   ......    .......  ...   .......   .......',
+    '..   ..   ...   ..   ..     ..     ...   ..   ...  ...    ',
+    '.......   ...   ..  ...     ..     ...   ..   ...  .......',
+    '..  ..    ...   ..          ..     ...   ..   ...  ...    ',
+    '..   ..   ...   ..          ..     ...   .......   .......',
+  ];
+  process.stdout.write('\n');
+  for (const line of lines) {
+    process.stdout.write(`  ${STYLE.cyan(line)}\n`);
+  }
+  process.stdout.write(`\n  ${STYLE.dim('Riptide engine · postinstall')}\n\n`);
+}
+
+function step(msg) { process.stdout.write(`\n${STYLE.cyan('→')} ${STYLE.bold(msg)}\n`); }
+function ok(msg)   { process.stdout.write(`  ${STYLE.green('✓')} ${msg}\n`); }
+function info(msg) { process.stdout.write(`  ${STYLE.dim('·')} ${STYLE.dim(msg)}\n`); }
+
+function fail(msg) {
+  process.stderr.write(`\n  ${STYLE.red('✗')} ${STYLE.bold(STYLE.red('riptide postinstall:'))} ${msg}\n`);
+  process.exit(1);
+}
+
+function humanSize(bytes) {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KiB`;
+  return `${bytes} B`;
+}
+
 function platformKey() {
   const p = process.platform;
   const a = process.arch;
@@ -66,11 +127,6 @@ function platformKey() {
 
 function binaryName(triple) {
   return triple.includes('windows') ? 'riptide-engine.exe' : 'riptide-engine';
-}
-
-function fail(msg) {
-  console.error(`[riptide postinstall] ${msg}`);
-  process.exit(1);
 }
 
 // Follow-redirects fetch. node:https / node:http give us no-dep
@@ -116,6 +172,8 @@ function sha256OfFile(path) {
 }
 
 async function main() {
+  printBanner();
+
   const key = platformKey();
   const triple = TARGET_TRIPLES[key];
   if (!triple) {
@@ -135,13 +193,14 @@ async function main() {
 
   if (existsSync(destPath)) {
     // Idempotent — let repeat installs be no-ops.
-    console.log(`[riptide postinstall] binary already present at ${destPath}, skipping download`);
+    info(`engine already present at ${destPath}, skipping download`);
     return;
   }
 
   mkdirSync(destDir, { recursive: true });
 
-  console.log(`[riptide postinstall] downloading ${url}`);
+  step(`fetching engine for ${triple}`);
+  info(url);
   try {
     await download(url, destPath);
   } catch (e) {
@@ -154,27 +213,39 @@ async function main() {
       `For pre-release mirrors, set RIPTIDE_RELEASE_BASE_URL to an alternate endpoint.`
     );
   }
+  let sizeText = '';
+  try { sizeText = humanSize(statSync(destPath).size); } catch {}
+  ok(sizeText ? `downloaded (${sizeText})` : 'downloaded');
 
   const expected = CHECKSUMS[triple];
   if (expected === undefined) {
     fail(`no sha256 recorded for ${triple} in install-binary.js — refusing to install unverified binary`);
   }
+  step('verifying sha256');
   if (expected !== null) {
     const actual = sha256OfFile(destPath);
     if (actual !== expected) {
       try { unlinkSync(destPath); } catch {}
       fail(`sha256 mismatch for ${triple}: expected ${expected}, got ${actual}`);
     }
-    console.log(`[riptide postinstall] sha256 verified: ${actual}`);
+    ok(`checksum matches (${actual.slice(0, 12)}…)`);
   } else {
-    console.log(`[riptide postinstall] sha256 verification skipped (CHECKSUMS[${triple}] = null)`);
+    info(`sha256 verification skipped (CHECKSUMS[${triple}] = null)`);
   }
 
   if (!triple.includes('windows')) {
     chmodSync(destPath, 0o755);
   }
 
-  console.log(`[riptide postinstall] installed ${binName} → ${destPath}`);
+  ok(`engine installed at ${destPath}`);
+
+  if (STYLE_ON) {
+    const elapsed = Math.max(0, Math.round((Date.now() - START_MS) / 1000));
+    process.stdout.write(
+      `\n  ${STYLE.green('✓')} ${STYLE.bold('Riptide engine ready')} ${STYLE.dim(`(${elapsed}s)`)}\n`
+    );
+    process.stdout.write(`  ${STYLE.dim('next:')} ${STYLE.cyan('riptide doctor')} ${STYLE.dim('then')} ${STYLE.cyan('riptide init')} ${STYLE.dim('in your program directory')}\n\n`);
+  }
 }
 
 main().catch((e) => fail(e.stack || e.message));

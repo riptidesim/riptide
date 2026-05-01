@@ -62,6 +62,9 @@ interface Call {
 function successSpawner(log: Call[], fixtureRaw: string): Spawner {
   return async (bin, args) => {
     log.push({ bin, args });
+    if (bin === "cargo" && args[0] === "build") {
+      return { code: 0, stderrTail: "" };
+    }
     const outPath = args[args.indexOf("--output") + 1]!;
     await access(args[args.indexOf("--config") + 1]!);
     await access(args[args.indexOf("--policies") + 1]!);
@@ -92,6 +95,62 @@ test("orchestrator constructs engine args and returns validated result", async (
   assert.ok(!call.args.includes("--allow-nonlocal-rpc"));
   assert.equal(typeof result.total_ticks, "number");
   assert.ok(Array.isArray(result.events));
+});
+
+test("orchestrator forwards explicit state-pack path to the engine", async () => {
+  const { root } = await makeFakeEngineRoot();
+  const fixture = await loadFixtureRaw();
+  const log: Call[] = [];
+  const statePack = path.join(root, ".riptide", "state-packs", "orca");
+
+  await runOrchestrator(baseRunConfig(), {
+    cwd: root,
+    env: { PATH: process.env.PATH },
+    spawner: successSpawner(log, fixture),
+    moduleRoot: null,
+    statePackPath: statePack
+  });
+
+  const call = log[0]!;
+  assert.equal(call.args[call.args.indexOf("--state-pack") + 1], statePack);
+});
+
+test("orchestrator builds harness once and runs the release binary directly", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-harness-orch-"));
+  const harnessDir = path.join(root, ".riptide", "harness");
+  const manifest = path.join(harnessDir, "Cargo.toml");
+  await mkdir(harnessDir, { recursive: true });
+  await writeFile(manifest, "[package]\nname = \"h\"\nversion = \"0.1.0\"\nedition = \"2021\"\n");
+  const binary = path.join(harnessDir, "target", "release", "h");
+  await mkdir(path.dirname(binary), { recursive: true });
+  await writeFile(binary, "#!/bin/sh\nexit 0\n");
+  await chmod(binary, 0o755);
+  const fixture = await loadFixtureRaw();
+  const log: Call[] = [];
+  const adapterPath = path.join(root, ".riptide", "adapters", "demo.toml");
+
+  await runOrchestrator(baseRunConfig(), {
+    cwd: root,
+    env: { PATH: process.env.PATH },
+    spawner: successSpawner(log, fixture),
+    moduleRoot: null,
+    adapterPath,
+    harnessPath: harnessDir
+  });
+
+  assert.equal(log.length, 2);
+  const build = log[0]!;
+  assert.equal(build.bin, "cargo");
+  assert.deepEqual(build.args, [
+    "build",
+    "--release",
+    "--quiet",
+    "--manifest-path",
+    manifest
+  ]);
+  const run = log[1]!;
+  assert.equal(run.bin, binary);
+  assert.equal(run.args[run.args.indexOf("--adapter") + 1], adapterPath);
 });
 
 test("orchestrator resolves engine from cli/ subdir via cwd/../target/release", async () => {

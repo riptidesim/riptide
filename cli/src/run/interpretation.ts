@@ -12,7 +12,8 @@ export type Verdict =
   | "failure-observed"
   | "no-failure-observed"
   | "inconclusive"
-  | "setup-error";
+  | "setup-error"
+  | "interrupted";
 
 export type Confidence = "high" | "medium" | "low" | "none";
 
@@ -83,6 +84,21 @@ interface InvariantObservation {
 export function interpretScenarioResult(input: InterpretScenarioInput): RunInterpretation {
   const setupReason = setupErrorReason(input);
   if (setupReason) {
+    if (isInterruptReason(setupReason)) {
+      const detail = firstLine(setupReason);
+      return {
+        verdict: "interrupted",
+        confidence: "none",
+        coverage: "unknown",
+        severity: "none",
+        summary: `Run interrupted: ${detail}.`,
+        next_action:
+          "No setup or adapter change is implied by this interruption. Rerun when ready, or pass --seeds <N> for a shorter sweep.",
+        evidence: [`interrupted: ${detail}`],
+        reasons: ["The user interrupted the run before a trustworthy SimulationResult was available."],
+        coverage_checks: setupErrorChecks(setupReason)
+      };
+    }
     const coverageChecks = setupErrorChecks(setupReason);
     return {
       verdict: "setup-error",
@@ -132,6 +148,10 @@ function setupErrorReason(input: InterpretScenarioInput): string | null {
     return input.record.error ?? "scenario ended with setup error status";
   }
   return null;
+}
+
+function isInterruptReason(reason: string): boolean {
+  return /\bSIGINT\b/i.test(reason) || /interrupt/i.test(reason);
 }
 
 function setupErrorChecks(reason: string): CoverageCheck[] {
@@ -495,6 +515,7 @@ function classifyConfidence(
   checks: CoverageCheck[]
 ): Confidence {
   if (verdict === "setup-error") return "none";
+  if (verdict === "interrupted") return "none";
   if (verdict === "inconclusive") return "low";
   if (verdict === "failure-observed") {
     return coverage === "exercised" ? "high" : "medium";
@@ -507,6 +528,7 @@ function classifyConfidence(
 function classifySeverity(verdict: Verdict): Severity {
   if (verdict === "failure-observed") return "critical";
   if (verdict === "inconclusive" || verdict === "setup-error") return "warning";
+  if (verdict === "interrupted") return "none";
   return "info";
 }
 
@@ -523,6 +545,8 @@ function summaryFor(verdict: Verdict, invariantFireCount: number): string {
       return "Scenario inconclusive: coverage checks did not show meaningful scenario exercise.";
     case "setup-error":
       return "Setup failed.";
+    case "interrupted":
+      return "Run interrupted before completion.";
   }
 }
 
@@ -536,6 +560,8 @@ function nextActionFor(verdict: Verdict): string {
       return "Add agent activity, state movement, or invariant inventory, then rerun the scenario.";
     case "setup-error":
       return "Fix setup or adapter configuration, then rerun the scenario.";
+    case "interrupted":
+      return "No setup or adapter change is implied by this interruption. Rerun when ready, or pass --seeds <N> for a shorter sweep.";
   }
 }
 

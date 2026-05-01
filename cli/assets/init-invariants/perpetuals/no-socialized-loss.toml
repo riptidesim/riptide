@@ -1,0 +1,10 @@
+name = "no_socialized_loss"
+label = "No socialized loss"
+description = "Template check for a socialized-loss observation staying at zero after funding and liquidation paths are wired."
+form = "flat"
+field = "socialized_loss"
+op = "=="
+value = 0
+severity = "warn"
+commented = true
+

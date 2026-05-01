@@ -1,0 +1,10 @@
+name = "example_invariant"
+label = "Example observation invariant"
+description = "Template check showing how to bind a custom observation into an adapter-level invariant."
+form = "flat"
+field = "example_metric"
+op = ">="
+value = 0
+severity = "warn"
+commented = true
+

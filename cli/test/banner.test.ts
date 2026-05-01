@@ -5,7 +5,9 @@ import {
   bannerDecision,
   cliPackageVersion,
   printBanner,
+  printInitBanner,
   renderBanner,
+  renderInitBanner,
   shouldPrintBanner
 } from "../src/banner.js";
 
@@ -65,4 +67,38 @@ test("printBanner writes exactly once when allowed", () => {
   });
   assert.equal(writes.length, 1);
   assert.match(writes[0]!, /RIPTIDE/);
+});
+
+test("init banner renders ASCII wordmark with tagline", () => {
+  const rendered = renderInitBanner("0.6.0", false);
+  assert.doesNotMatch(rendered, /\x1b\[/);
+  // Dotted ASCII wordmark + spacing + tagline expand past the stub form.
+  assert.ok(rendered.split("\n").length >= 8);
+  assert.match(rendered, /\.\.\.\.\.\.\./);
+  assert.match(rendered, /Riptide v0\.6\.0/);
+  assert.match(rendered, /Deterministic Solana simulation evidence\./);
+  assert.equal(rendered.endsWith("\n\n"), true);
+});
+
+test("printInitBanner respects suppression flags", () => {
+  const writesQuiet: string[] = [];
+  printInitBanner({
+    env: {},
+    flags: { quiet: true },
+    isTTY: true,
+    version: "0.6.0",
+    stdoutWrite: (chunk) => writesQuiet.push(chunk)
+  });
+  assert.equal(writesQuiet.length, 0);
+
+  const writesAllowed: string[] = [];
+  printInitBanner({
+    env: {},
+    flags: {},
+    isTTY: true,
+    version: "0.6.0",
+    stdoutWrite: (chunk) => writesAllowed.push(chunk)
+  });
+  assert.equal(writesAllowed.length, 1);
+  assert.match(writesAllowed[0]!, /\.\.\.\.\.\.\./);
 });

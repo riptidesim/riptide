@@ -48,14 +48,13 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use riptide_engine::{
-    adapter::{load_adapter, parse_adapter_str, OracleKind},
+    adapter::{load_adapter, OracleKind},
     primitive::{GenericBootstrapConfig, GenericHarness, Primitive},
     scenario::{oracle_layout_for, OracleUpdate},
 };
@@ -642,109 +641,4 @@ fn perps_close_outcome_shifts_after_generic_oracle_push() {
         "pushing back to the declared base_price must be byte-identical to the \
          tick-0 bootstrap bytes"
     );
-}
-
-/// Narrower write-path gate: the same generic path can target
-/// `kind = "pyth"` on a declared shared account. Proves that
-/// `push_oracle_price` through GenericHarness produces real Pyth
-/// aggregate-price bytes (the authoritative parser proof is
-/// `pyth_real_layout::pyth_sdk_solana_parses_our_mock_unchanged`).
-#[test]
-fn generic_push_through_pyth_kind_mutates_real_pyth_bytes() {
-    let grinder_so =
-        workspace_root().join("programs/resource_grinder/target/deploy/resource_grinder.so");
-    let grinder_idl = workspace_root().join("fixtures/idls/resource-grinder.json");
-    if skip_if_missing(&[&grinder_so, &grinder_idl]) {
-        return;
-    }
-    // Use the literal-pubkey owner path — Pyth in production is owned by
-    // its own published program id; literals keep the test hermetic.
-    let literal = "FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH";
-    let toml = format!(
-        r#"
-protocol = "generic"
-program_so = "{so}"
-idl_path = "{idl}"
-
-[accounts.player]
-kind = "agent"
-space = 48
-
-[accounts.oracle]
-kind = "shared"
-space = 3312
-owner = {{ pubkey = "{literal}" }}
-
-[instructions]
-mine = {{ action = "mine", amount = "amount" }}
-
-[state_mapping]
-"player.gold" = "player.gold"
-
-[actions.mine]
-takes = ["amount"]
-
-[observations]
-"player.gold" = "uint"
-
-[personas.grinder]
-action_rate_multiplier = 1.0
-action_weights = {{ mine = 1.0 }}
-
-[[oracles]]
-name = "price_feed"
-kind = "pyth"
-account = "oracle"
-base_price = 150.0
-exponent = -2
-"#,
-        so = grinder_so.display(),
-        idl = grinder_idl.display(),
-    );
-    let adapter = parse_adapter_str(&toml, "pyth-narrow.toml").expect("parse adapter");
-    let mut harness = GenericHarness::bootstrap(GenericBootstrapConfig {
-        program_so: grinder_so,
-        idl_path: grinder_idl,
-        agent_count: 1,
-        adapter,
-    })
-    .expect("bootstrap pyth-narrow harness");
-
-    let layout = oracle_layout_for(OracleKind::Pyth);
-    let expected_owner = Pubkey::from_str(literal).unwrap();
-
-    let tick0 = harness
-        .inspect_shared_account("oracle")
-        .expect("pyth tick 0");
-    assert_eq!(tick0.owner, expected_owner);
-    let tick0_decoded = layout.decode(&tick0.data).expect("decode pyth tick 0");
-    assert_eq!(tick0_decoded.exponent, -2);
-    assert!((tick0_decoded.price - 150.0).abs() < 1e-6);
-
-    // Push a shock through the generic path — real Pyth layout bytes
-    // must land on the account.
-    harness
-        .push_oracle_price(&OracleUpdate {
-            price: 75.5,
-            exponent: -2,
-        })
-        .expect("push pyth shock");
-    let post = harness
-        .inspect_shared_account("oracle")
-        .expect("pyth post-push");
-    assert_eq!(post.owner, expected_owner);
-    assert_eq!(
-        post.data.len(),
-        3312,
-        "real Pyth layout stays at 3312 bytes"
-    );
-    let post_decoded = layout.decode(&post.data).expect("decode pyth post-push");
-    assert_eq!(post_decoded.exponent, -2);
-    assert!(
-        (post_decoded.price - 75.5).abs() < 1e-6,
-        "generic push_oracle_price through kind=\"pyth\" must write real Pyth \
-         aggregate-price bytes; got {}",
-        post_decoded.price
-    );
-    assert_ne!(tick0.data, post.data);
 }

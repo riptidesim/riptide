@@ -1,0 +1,10 @@
+name = "backing_ratio"
+label = "Backing ratio stays above one"
+description = "Template check for collateral backing remaining at least 100% after supply and backing observations are wired."
+form = "flat"
+field = "backing_ratio"
+op = ">="
+value = 1
+severity = "warn"
+commented = true
+

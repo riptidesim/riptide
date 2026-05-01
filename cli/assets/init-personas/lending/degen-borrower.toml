@@ -1,0 +1,4 @@
+persona_id = "degen-borrower"
+persona_label = "Degen Borrower"
+description = "Max leverage participant who prefers more borrowing over safety and rarely exits voluntarily."
+risk_posture = "Extreme leverage, low caution"

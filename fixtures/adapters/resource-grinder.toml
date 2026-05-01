@@ -54,3 +54,15 @@ label = "Casual"
 action_rate_multiplier = 0.8
 action_weights = { mine = 1.0, craft = 1.0, list_for_sale = 1.0 }
 triggers = []
+
+[lineage]
+idl_source = "fixtures/idls/resource-grinder.json"
+generator = "hand-authored"
+inferred_assumptions = [
+  "`protocol = \"generic\"` is intentional: this adapter exists to exercise the generic SBF/IDL runtime with a compact non-DeFi surface.",
+  "All IDL instructions are runtime-dispatchable because each accepts a single `amount` argument and maps cleanly to the generic action encoder.",
+  "The marketplace listing vector is surfaced as a coarse `map` observation; listing seller identity is not interpreted by the smoke personas.",
+]
+unsupported_fields = [
+  "account `player.owner` — pubkey bootstrap metadata, not persona-observable state",
+]

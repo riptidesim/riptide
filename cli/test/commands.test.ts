@@ -19,13 +19,26 @@ test("root version matches package metadata", async () => {
   assert.equal(stdout.trim(), packageJson.version);
 });
 
-test("simulate help prints usage", async () => {
-  const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "simulate", "--help"], {
+test("simulate command is not registered", async () => {
+  const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "--help"], {
     cwd: process.cwd()
   });
+  assert.doesNotMatch(stdout, /^\s+simulate\b/m);
 
-  assert.match(stdout, /Usage: riptide simulate/);
-  assert.match(stdout, /compile personas and run a single deterministic\s+Riptide simulation/);
+  let stderr = "";
+  let code: number | string | undefined;
+  try {
+    await execFileAsync(process.execPath, [cliEntrypoint, "simulate"], {
+      cwd: process.cwd()
+    });
+  } catch (err) {
+    const execErr = err as { stderr?: string; code?: number | string };
+    stderr = execErr.stderr ?? "";
+    code = execErr.code;
+  }
+
+  assert.equal(code, 1);
+  assert.match(stderr, /unknown command 'simulate'/);
 });
 
 test("scenarios prints the stub list", async () => {

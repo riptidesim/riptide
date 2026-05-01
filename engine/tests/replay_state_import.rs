@@ -8,6 +8,7 @@ use riptide_engine::{
     adapter::{ReplayBlock, ReplayStateSource},
     agent::policy::LENDING_RUNTIME_ACTIONS,
     harness::{lending::LendingPoolConfig, setup::default_program_so_path},
+    replay::load_state_pack,
     replay::{import_replay_state, StateImportError},
     sim::{
         litesvm::{LiteSvmBootstrapConfig, LiteSvmHarness},
@@ -16,6 +17,7 @@ use riptide_engine::{
     types::{Policy, PositionSizing, PositionSizingStrategy, RunConfig},
 };
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 const ORACLE_PUBKEY: &str = "So11111111111111111111111111111111111111112";
 const RESERVE_PUBKEY: &str = "FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH";
@@ -99,6 +101,69 @@ fn copy_dir(src: &Path, dest: &Path) {
     }
 }
 
+fn sha256_hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    format!("{digest:x}")
+}
+
+fn write_current_state_pack(
+    root: &Path,
+    account_pubkey: &str,
+    manifest_overrides: Option<Value>,
+) -> PathBuf {
+    let pack = root.join("current-pack");
+    fs::create_dir_all(pack.join("accounts")).unwrap();
+    let account_json = serde_json::to_string_pretty(&serde_json::json!({
+        "pubkey": account_pubkey,
+        "owner": "11111111111111111111111111111111",
+        "lamports": 123,
+        "executable": false,
+        "rent_epoch": 0,
+        "data_b64": "UklQVElERQ=="
+    }))
+    .unwrap()
+        + "\n";
+    fs::write(
+        pack.join("accounts").join(format!("{account_pubkey}.json")),
+        &account_json,
+    )
+    .unwrap();
+    let mut manifest = serde_json::json!({
+        "version": 1,
+        "kind": "state-pack",
+        "mode": "current-from-explicit-accounts",
+        "slot": 42,
+        "source": { "accounts": [account_pubkey], "slot": 42 },
+        "warnings": [],
+        "accounts": {}
+    });
+    manifest["accounts"][account_pubkey] = serde_json::json!({
+        "account_pubkey": account_pubkey,
+        "path": format!("accounts/{account_pubkey}.json"),
+        "sha256_hash": sha256_hex(account_json.as_bytes())
+    });
+    if let Some(overrides) = manifest_overrides {
+        merge_json(&mut manifest, overrides);
+    }
+    fs::write(
+        pack.join("manifest.json"),
+        serde_json::to_string_pretty(&manifest).unwrap() + "\n",
+    )
+    .unwrap();
+    pack
+}
+
+fn merge_json(target: &mut Value, patch: Value) {
+    match (target, patch) {
+        (Value::Object(target), Value::Object(patch)) => {
+            for (key, value) in patch {
+                merge_json(target.entry(key).or_insert(Value::Null), value);
+            }
+        }
+        (target, patch) => *target = patch,
+    }
+}
+
 #[test]
 fn replay_state_import_fixture_loader_reads_manifest_accounts_and_provenance() {
     let import = import_replay_state(&replay_block("state-pack-demo"), &fixture_base())
@@ -144,6 +209,77 @@ fn replay_state_import_fixture_loader_reads_manifest_accounts_and_provenance() {
         import.provenance.accounts["reserve"].sha256_hash,
         RESERVE_SHA256
     );
+}
+
+#[test]
+fn current_state_pack_loader_reads_hash_checked_accounts_and_provenance() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let pack = write_current_state_pack(temp.path(), ORACLE_PUBKEY, None);
+
+    let import = load_state_pack(&pack).expect("load current-state pack");
+
+    assert_eq!(import.accounts.len(), 1);
+    assert_eq!(import.accounts[0].pubkey.to_string(), ORACLE_PUBKEY);
+    assert_eq!(import.accounts[0].account.data, b"RIPTIDE");
+    assert_eq!(import.provenance.slot, 42);
+    assert_eq!(
+        import.provenance.accounts[ORACLE_PUBKEY].account_pubkey,
+        ORACLE_PUBKEY
+    );
+}
+
+#[test]
+fn current_state_pack_loader_rejects_unsafe_account_paths() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let mut overrides = serde_json::json!({ "accounts": {} });
+    overrides["accounts"][ORACLE_PUBKEY] = serde_json::json!({
+        "path": "../escape.json"
+    });
+    let pack = write_current_state_pack(temp.path(), ORACLE_PUBKEY, Some(overrides));
+
+    let err = load_state_pack(&pack).expect_err("must fail");
+    assert!(matches!(
+        err,
+        StateImportError::UnsafeStatePackAccountPath { account_pubkey, .. }
+            if account_pubkey == ORACLE_PUBKEY
+    ));
+}
+
+#[test]
+fn current_state_pack_loader_rejects_slot_source_inconsistency() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let pack = write_current_state_pack(
+        temp.path(),
+        ORACLE_PUBKEY,
+        Some(serde_json::json!({
+            "source": { "slot": 41 }
+        })),
+    );
+
+    let err = load_state_pack(&pack).expect_err("must fail");
+    assert!(matches!(
+        err,
+        StateImportError::SlotSourceInconsistency {
+            slot: 42,
+            source_slot: 41
+        }
+    ));
+}
+
+#[test]
+fn current_state_pack_loader_rejects_malformed_pubkeys() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let mut overrides = serde_json::json!({ "accounts": {} });
+    overrides["accounts"][ORACLE_PUBKEY] = serde_json::json!({
+        "account_pubkey": "not-a-pubkey"
+    });
+    let pack = write_current_state_pack(temp.path(), ORACLE_PUBKEY, Some(overrides));
+
+    let err = load_state_pack(&pack).expect_err("must fail");
+    assert!(matches!(
+        err,
+        StateImportError::InvalidPubkey { value, .. } if value == "not-a-pubkey"
+    ));
 }
 
 #[test]

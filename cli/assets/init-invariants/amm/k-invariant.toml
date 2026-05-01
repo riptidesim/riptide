@@ -1,0 +1,10 @@
+name = "k_invariant"
+label = "Constant product does not decrease"
+description = "Template check for AMM reserve product staying non-decreasing after reserve observations are wired."
+form = "flat"
+field = "k"
+op = ">="
+value = 0
+severity = "warn"
+commented = true
+

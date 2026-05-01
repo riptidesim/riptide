@@ -190,9 +190,7 @@ export function renderNarrative(
     lines.push("```");
   } else {
     lines.push("```sh");
-    lines.push(
-      `riptide simulate --agents ${run_config.agents} --ticks ${result.total_ticks} --scenario ${run_config.scenario} --seed ${result.seed} --personas ${run_config.personas.join(",")}`
-    );
+    lines.push("riptide run path/to/run-config.json");
     lines.push("```");
   }
   lines.push("");

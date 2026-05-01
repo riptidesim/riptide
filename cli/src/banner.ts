@@ -29,7 +29,16 @@ export interface PrintBannerOptions {
   version?: string;
 }
 
-const PRIMARY_ACCENT = "#22F0E6";
+const PRIMARY_ACCENT = "#53d5d1";
+const SECONDARY_TEXT = "#A8A8A8";
+
+const RIPTIDE_INIT_LOGO_LINES = [
+  ".......   ...   ......    .......  ...   .......   .......",
+  "..   ..   ...   ..   ..     ..     ...   ..   ...  ...    ",
+  ".......   ...   ..  ...     ..     ...   ..   ...  .......",
+  "..  ..    ...   ..          ..     ...   ..   ...  ...    ",
+  "..   ..   ...   ..          ..     ...   .......   ......."
+];
 
 export function bannerDecision(input: BannerDecisionInput): BannerDecision {
   const flags = input.flags ?? {};
@@ -63,6 +72,29 @@ export function printBanner(options: PrintBannerOptions = {}): void {
   if (!decision.print) return;
   const write = options.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
   write(renderBanner(options.version ?? cliPackageVersion(), decision.color));
+}
+
+export function renderInitBanner(version: string, color = true): string {
+  const accent = color ? (value: string) => chalk.hex(PRIMARY_ACCENT).bold(value) : (value: string) => value;
+  const dim = color ? (value: string) => chalk.hex(SECONDARY_TEXT)(value) : (value: string) => value;
+  const tagline = `Riptide v${version} · Deterministic Solana simulation evidence.`;
+  return [
+    "",
+    ...RIPTIDE_INIT_LOGO_LINES.map((line) => accent(line)),
+    "",
+    dim(tagline),
+    "",
+    ""
+  ].join("\n");
+}
+
+export function printInitBanner(options: PrintBannerOptions = {}): void {
+  const env = options.env ?? process.env;
+  const isTTY = options.isTTY ?? Boolean(process.stdout.isTTY);
+  const decision = bannerDecision({ env, flags: options.flags, isTTY });
+  if (!decision.print) return;
+  const write = options.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
+  write(renderInitBanner(options.version ?? cliPackageVersion(), decision.color));
 }
 
 export function cliPackageVersion(): string {

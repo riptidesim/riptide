@@ -4,54 +4,196 @@
 // `cli/src/commands/init.ts` handles argv parsing, user-facing output,
 // and exit codes. Everything here is testable in isolation via `scaffold`.
 
-import { existsSync, readFileSync } from "node:fs";
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { monorepoRootFromModule } from "../orchestrator/index.js";
+import TOML from "toml";
+
+import { FALLBACK_POLICIES } from "../compiler/fallback.js";
+import { validatePolicy, type Policy } from "../compiler/schema.js";
+import {
+  personaPathCandidates,
+  type Protocol
+} from "./personas-catalog.js";
+import {
+  scenarioChoicesFor,
+  type InitScenarioConfig,
+  type ScenarioCatalogEntry
+} from "./scenarios-catalog.js";
+import {
+  invariantChoicesFor,
+  invariantConfigFromCatalog,
+  type InitInvariantConfig
+} from "./invariants-catalog.js";
 
 export interface ScaffoldOptions {
   cwd: string;
   force: boolean;
-  /**
-   * Override the starter-persona source directory. Defaults to the
-   * packaged `cli/assets/init-personas/` bundle that ships with the
-   * CLI, with a monorepo `fixtures/personas/` fallback for repo-checkout
-   * dev. Tests inject this directly to stay hermetic.
-   */
-  personasSourceDir?: string;
+  /** Explicitly allow scaffolding without a detected Solana program. */
+  blank?: boolean;
+  /** Optional program name override for the adapter filename and artifact paths. */
+  programName?: string;
+  /** Adapter protocol field. Defaults to "custom" (rendered as `generic`). */
+  protocol?: Protocol;
+  /** Persona slugs to copy from the bundled catalog. */
+  personas?: string[];
+  /** Agent count for the baseline scenario. */
+  agents?: number;
+  /** Tick count for the baseline scenario. */
+  ticks?: number;
+  /** Scenario run-configs to scaffold under .riptide/scenarios/. */
+  scenarios?: InitScenarioConfig[];
+  /** Invariants to inline into the scaffolded adapter. */
+  invariants?: InitInvariantConfig[];
 }
 
 export interface ScaffoldResult {
   created: string[];
   programName: string;
+  warnings: string[];
 }
-
-// The three starter personas chosen to give a new user concrete,
-// non-protocol-specific references. `swapper` + `arbitrageur` + `whale`
-// cover the baseline/adversarial/outsized-actor spread without implying
-// the user is simulating lending vs AMM vs perps.
-const STARTER_PERSONAS = ["swapper", "arbitrageur", "whale"] as const;
 
 const PLACEHOLDER_PROGRAM_NAME = "my-program";
 
-export function inferProgramName(cwd: string): string {
+export interface ProgramDetection {
+  programName: string;
+  source: "anchor" | "artifacts";
+  warnings: string[];
+}
+
+interface PersonaArtifact {
+  slug: string;
+  source: string;
+  adapterBlock: string;
+}
+
+export function preflightScaffold(
+  options: Pick<ScaffoldOptions, "cwd" | "force" | "blank">
+): ProgramDetection | undefined {
+  const riptideDir = path.join(options.cwd, ".riptide");
+  if (existsSync(riptideDir) && !options.force) {
+    throw new RiptideDirExistsError(riptideDir);
+  }
+  return options.blank ? undefined : detectProgram(options.cwd);
+}
+
+export function inferProgramName(cwd: string): string | null {
   const anchorPath = path.join(cwd, "Anchor.toml");
   if (!existsSync(anchorPath)) {
-    return PLACEHOLDER_PROGRAM_NAME;
+    return null;
   }
   let raw: string;
   try {
     // Sync read keeps the inference function synchronous to match the
     // task contract — the file is tiny (< 1 KiB typical) and we only
-    // read it once at init time. Unreadable/malformed files fall
-    // through to the placeholder per R1.3.
+    // read it once at init time. Unreadable/malformed files return
+    // null so the caller can fail with an explicit detection error.
     raw = readFileSync(anchorPath, "utf8");
   } catch {
-    return PLACEHOLDER_PROGRAM_NAME;
+    return null;
   }
-  return parseAnchorTomlForProgramName(raw) ?? PLACEHOLDER_PROGRAM_NAME;
+  return parseAnchorTomlForProgramName(raw);
+}
+
+export function detectProgram(cwd: string): ProgramDetection {
+  const anchorPath = path.join(cwd, "Anchor.toml");
+  if (existsSync(anchorPath)) {
+    const programName = inferProgramName(cwd);
+    if (programName === null) {
+      throw new ProgramDetectionError(
+        "Anchor.toml found, but Riptide could not infer exactly one program name.\n" +
+          "Expected one [programs.localnet] entry, one [programs.mainnet] entry, or a top-level name = \"...\".\n" +
+          "Use `riptide init --blank --name <program-name>` if you want to scaffold manually."
+      );
+    }
+    return {
+      programName,
+      source: "anchor",
+      warnings: missingArtifactWarnings(cwd, programName)
+    };
+  }
+
+  const fromArtifacts = detectProgramFromArtifacts(cwd);
+  if (fromArtifacts !== null) return fromArtifacts;
+
+  throw new ProgramDetectionError(
+    "no Solana program detected in this directory.\n" +
+      "Expected an Anchor.toml file or a matching target/deploy/<program>.so + target/idl/<program>.json pair.\n" +
+      "Run this from your program repo, or use `riptide init --blank --name <program-name>` to create a manual stub."
+  );
+}
+
+function detectProgramFromArtifacts(cwd: string): ProgramDetection | null {
+  const deployDir = path.join(cwd, "target", "deploy");
+  const idlDir = path.join(cwd, "target", "idl");
+  if (!existsSync(deployDir) || !existsSync(idlDir)) return null;
+
+  const soStems = new Set(
+    safeReaddir(deployDir)
+      .filter((entry) => entry.endsWith(".so"))
+      .map((entry) => entry.slice(0, -".so".length))
+  );
+  const idlStems = new Set(
+    safeReaddir(idlDir)
+      .filter((entry) => entry.endsWith(".json"))
+      .map((entry) => entry.slice(0, -".json".length))
+  );
+
+  const matches = [...soStems].filter((stem) => idlStems.has(stem)).sort();
+  if (matches.length === 0) {
+    if (soStems.size > 0 || idlStems.size > 0) {
+      throw new ProgramDetectionError(
+        "found target/deploy or target/idl artifacts, but no matching <program>.so + <program>.json pair.\n" +
+          "Build/regenerate the missing artifact, or use `riptide init --blank --name <program-name>` to scaffold manually."
+      );
+    }
+    return null;
+  }
+  if (matches.length > 1) {
+    throw new ProgramDetectionError(
+      `found multiple program artifact pairs (${matches.join(", ")}); Riptide will not guess.\n` +
+        "Use `riptide init --blank --name <program-name>` to choose one explicitly."
+    );
+  }
+
+  return {
+    programName: normalizeProgramName(matches[0]!),
+    source: "artifacts",
+    warnings: []
+  };
+}
+
+function safeReaddir(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
+}
+
+function missingArtifactWarnings(cwd: string, programName: string): string[] {
+  const soName = programName.replace(/-/g, "_");
+  const expectedSo = path.join(cwd, "target", "deploy", `${soName}.so`);
+  const expectedIdl = path.join(cwd, "target", "idl", `${soName}.json`);
+  const warnings: string[] = [];
+  if (!existsSync(expectedSo)) {
+    warnings.push(`target/deploy/${soName}.so not found yet; build your program before running adapt/run.`);
+  }
+  if (!existsSync(expectedIdl)) {
+    warnings.push(`target/idl/${soName}.json not found yet; generate or commit an IDL before running adapt/run.`);
+  }
+  return warnings;
+}
+
+function normalizeProgramName(value: string): string {
+  const normalized = value.trim().replace(/_/g, "-");
+  if (!/^[a-z][a-z0-9-]*$/.test(normalized)) {
+    throw new ProgramDetectionError(
+      `invalid program name ${JSON.stringify(value)}. Use lowercase letters, numbers, and dashes, starting with a letter.`
+    );
+  }
+  return normalized;
 }
 
 // Minimal Anchor.toml parser targeting just the two keys we need. We
@@ -62,8 +204,8 @@ export function inferProgramName(cwd: string): string {
 // cleanly" behavior the task contract demands.
 function parseAnchorTomlForProgramName(raw: string): string | null {
   // Multi-program workspaces are ambiguous: picking the first key would
-  // quietly commit a user of a monorepo to the wrong adapter. Fall
-  // through to the placeholder so the user edits intentionally.
+  // quietly commit a user of a monorepo to the wrong adapter. Return
+  // null so init can ask for an explicit --blank/--name choice.
   const localnetKeys = extractProgramKeys(raw, "programs.localnet");
   if (localnetKeys.length === 1) {
     return localnetKeys[0]!.replace(/_/g, "-");
@@ -103,17 +245,29 @@ function extractProgramKeys(raw: string, tableHeader: string): string[] {
   return keys;
 }
 
-export function renderAdapterStub(programName: string): string {
-  const soName = programName.replace(/-/g, "_");
-  return `# Riptide adapter for ${programName}.
-#
-# This is a stub — fill in the sections below to wire your program into
-# Riptide. Every block has a TODO comment explaining what goes in it.
-# When you're done, run \`riptide adapt --adapter .riptide/adapters/${programName}.toml\`
-# to smoke-test the adapter round-trips against the engine.
+export interface RenderAdapterStubOptions {
+  personaBlocks?: string[];
+  invariants?: InitInvariantConfig[];
+}
 
-protocol = "generic"
-program_so = "target/deploy/${soName}.so"
+export function renderAdapterStub(
+  programName: string,
+  protocol: Protocol = "custom",
+  options: RenderAdapterStubOptions = {}
+): string {
+  const soName = programName.replace(/-/g, "_");
+  // The engine's adapter loader recognizes "lending" as a first-class
+  // protocol; everything else uses the "generic" path. The wizard's
+  // protocol selection is preserved as a comment so `riptide-adapt`
+  // and humans see the user's intent without guessing.
+  const protocolValue = protocol === "lending" ? "lending" : "generic";
+  const intentLine = protocol === "custom" ? "" : `# Selected adapter type: ${protocol}\n`;
+  const runtimeSections = protocol === "lending"
+    ? `# Lending uses Riptide's bundled lending primitive. Leave
+# program_so/idl_path unset unless you are intentionally switching this
+# adapter to the generic SBF/IDL runtime.
+`
+    : `program_so = "target/deploy/${soName}.so"
 idl_path = "target/idl/${soName}.json"
 
 # TODO: declare every account type the engine should track.
@@ -121,11 +275,79 @@ idl_path = "target/idl/${soName}.json"
 #   (wallet, position, token account, etc.)
 # - \`kind = "shared"\` for global / pool / config accounts
 # - \`space\` is the account byte size — match your Rust \`#[account]\` layout
-[accounts.player]
-kind = "agent"
-space = 64
+[accounts]
+# [accounts.player]
+# kind = "agent"
+# space = 64
+`;
+  const coreSections = renderAdapterCoreSections(protocol);
+  const personasSection = renderPersonasSection(options.personaBlocks ?? []);
+  const invariantsSection = renderInvariantsSection(options.invariants ?? []);
+  const semanticsSection = renderSemanticsSection(options.invariants ?? [], protocol);
+  return `# Riptide adapter for ${programName}.
+#
+# This is a stub — fill in the sections below to wire your program into
+# Riptide. Every block has a TODO comment explaining what goes in it.
+# When you're done, run \`riptide adapt --adapter .riptide/adapters/${programName}.toml\`
+# to smoke-test the adapter round-trips against the engine.
+${intentLine}
+protocol = "${protocolValue}"
+${runtimeSections}
 
-# TODO: map every instruction you want agents to invoke to a Riptide action.
+${coreSections}
+${personasSection}${invariantsSection}${semanticsSection}`;
+}
+
+function renderAdapterCoreSections(protocol: Protocol): string {
+  if (protocol === "lending") {
+    return `# Lending starter mappings selected during \`riptide init\`.
+# TODO: verify these instruction names and amount args match your IDL.
+[instructions]
+deposit   = { action = "deposit",   amount = "amount" }
+borrow    = { action = "borrow",    amount = "amount" }
+repay     = { action = "repay",     amount = "amount" }
+withdraw  = { action = "withdraw",  amount = "amount" }
+liquidate = { action = "liquidate", amount = "repay_amount" }
+
+# TODO: update the LHS dotted paths to match your account layout.
+[state_mapping]
+"pool.total_deposits" = "tvl"
+"pool.total_borrows"  = "debt"
+"pool.bad_debt"       = "bad_debt"
+"position.collateral" = "collateral"
+"position.debt"       = "debt"
+"position.liquidated" = "liquidated"
+
+[actions.deposit]
+label = "Deposit"
+takes = ["amount"]
+
+[actions.borrow]
+label = "Borrow"
+takes = ["amount"]
+
+[actions.repay]
+label = "Repay"
+takes = ["amount"]
+
+[actions.withdraw]
+label = "Withdraw"
+takes = ["amount"]
+
+[actions.liquidate]
+label = "Liquidate"
+takes = ["repay_amount"]
+
+[observations]
+tvl = "uint"
+debt = "uint"
+bad_debt = "uint"
+collateral = "uint"
+liquidated = "bool"
+`;
+  }
+
+  return `# TODO: map every instruction you want agents to invoke to a Riptide action.
 # - \`action\` is the string personas reference in \`action_weights\`
 # - \`amount\` names the primary numeric arg the runtime binds per decision
 # - add \`args = { ... }\` for any other instruction args (literal or @persona.<key>)
@@ -149,62 +371,268 @@ space = 64
 # "uint" / "int" / "float" / "bool" / "pubkey" / "map".
 [observations]
 # "player.balance" = "uint"
+`;
+}
 
-# TODO: declare at least one persona so \`riptide run\` has an agent shape
-# to seed. For generic adapters, personas live inline here and the scenario
-# \`run-config.json\` leaves the \`personas\` array empty — the engine reads
-# the roster from this block. The \`personas/\` directory next to this file
-# holds reference archetypes you can copy fields from.
-[personas.example]
-label = "Example persona"
-action_rate_multiplier = 1.0
-# TODO: replace \`action_name\` below with real \`[actions.*]\` keys you declared above.
-action_weights = { action_name = 1.0 }
+function renderPersonasSection(personaBlocks: string[]): string {
+  if (personaBlocks.length === 0) {
+    return `# TODO: declare personas intentionally. For generic adapters, personas
+# live inline here and scenario run-configs usually leave their
+# \`personas\` array empty so the engine reads this roster.
+[personas]
+# [personas.example]
+# label = "Example persona"
+# action_rate_multiplier = 1.0
+# action_weights = { example = 1.0 }
+# triggers = []
+`;
+  }
+
+  return `# Personas selected during \`riptide init\`. Edit action_weights and
+# triggers after you finish wiring the adapter actions above.
+[personas]
+
+${personaBlocks.map((block) => block.trim()).join("\n\n")}
+`;
+}
+
+export function renderInvariantsSection(invariants: InitInvariantConfig[]): string {
+  const blocks = invariants
+    .filter((invariant) => invariant.form === "flat")
+    .map((invariant) => invariant.toml.trim())
+    .filter((block) => block.length > 0);
+  return blocks.length === 0 ? "" : `\n${blocks.join("\n\n")}\n`;
+}
+
+export function renderSemanticsSection(
+  invariants: InitInvariantConfig[],
+  protocol: Protocol
+): string {
+  if (protocol !== "lending") return "";
+
+  const semanticBlocks = invariants
+    .filter((invariant) => invariant.form === "semantic")
+    .map((invariant) => renderSemanticInvariantBlock(invariant))
+    .filter((block) => block.length > 0);
+
+  return `
+[semantics]
+class = "lending.v1"
+
+[semantics.roles.position]
+source = "instruction.deposit_or_borrow" # TODO: if you switch to generic-runtime, confirm the source binding for your IDL
+fields.collateral_amount = "u128"
+fields.debt_amount = "u128"
+
+[semantics.roles.reserve]
+source = "account.reserve" # TODO: if you switch to generic-runtime, name the [accounts.<name>] reserve account
+fields.collateral_decimals = "u64"
+fields.collateral_price = "u128"
+fields.max_ltv_bps = "u64"
+
+[semantics.roles.oracle]
+source = "account.oracle" # TODO: if you switch to generic-runtime, name the [accounts.<name>] oracle account
+fields.price = "u128"
+fields.confidence = "u128"
+
+[semantics.roles.liquidation_config]
+source = "account.reserve" # TODO: if you switch to generic-runtime, bind this to your liquidation config account
+fields.liquidation_threshold_bps = "u64"
+
+[semantics.derived]
+collateral_value = "position.collateral_amount * reserve.collateral_price"
+debt_value = "position.debt_amount"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+liquidation_threshold_value = "collateral_value * liquidation_config.liquidation_threshold_bps / 10000"
+health_factor = "liquidation_threshold_value / max(debt_value, 1)"
+${semanticBlocks.length === 0 ? "" : `\n${semanticBlocks.join("\n\n")}\n`}`;
+}
+
+function renderSemanticInvariantBlock(invariant: InitInvariantConfig): string {
+  if (invariant.expr === undefined) return "";
+  const lines = [
+    "[[semantics.invariants]]",
+    `name = ${tomlString(invariant.name)}`,
+    `expr = ${tomlString(invariant.expr)}`,
+    `severity = ${tomlString(invariant.severity)}`,
+    `description = ${tomlString(invariant.description)}`
+  ];
+  const body = lines.join("\n");
+  return invariant.commented ? body.split("\n").map((line) => `# ${line}`).join("\n") : body;
+}
+
+function collectPersonaArtifacts(
+  protocol: Protocol,
+  personaSlugs: string[],
+  warnings: string[]
+): PersonaArtifact[] {
+  const artifacts: PersonaArtifact[] = [];
+  for (const slug of personaSlugs) {
+    const source = personaPathCandidates(protocol, slug).find((candidate) => existsSync(candidate));
+    if (!source) {
+      warnings.push(
+        `persona "${slug}" not found in bundled catalog for protocol "${protocol}"; skipped`
+      );
+      continue;
+    }
+
+    let raw: string;
+    try {
+      raw = readFileSync(source, "utf8");
+    } catch (err) {
+      warnings.push(`persona "${slug}" could not be read from ${source}: ${errMessage(err)}; skipped`);
+      continue;
+    }
+
+    let adapterBlock: string;
+    try {
+      adapterBlock = renderPersonaAdapterBlock(slug, raw);
+    } catch (err) {
+      warnings.push(`persona "${slug}" could not be embedded in the adapter: ${errMessage(err)}; skipped`);
+      continue;
+    }
+
+    artifacts.push({ slug, source, adapterBlock });
+  }
+  return artifacts;
+}
+
+function renderPersonaAdapterBlock(slug: string, raw: string): string {
+  const parsed = TOML.parse(raw) as Record<string, unknown>;
+  const personas = objectRecord(parsed.personas);
+  if (personas && Object.keys(personas).length > 0) {
+    return raw.trim() + "\n";
+  }
+
+  const policy = parsePolicyLikePersona(parsed) ?? FALLBACK_POLICIES[slug];
+  if (policy) {
+    return renderPolicyAsAdapterPersona(slug, policy, parsed);
+  }
+
+  const label = stringValue(parsed.persona_label) ?? titleizePersona(slug);
+  return renderAdapterPersonaBlock({
+    slug,
+    label,
+    actionRateMultiplier: numberValue(parsed.action_rate_multiplier) ?? 1,
+    actionWeights: {}
+  });
+}
+
+function parsePolicyLikePersona(parsed: Record<string, unknown>): Policy | null {
+  try {
+    return validatePolicy(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function renderPolicyAsAdapterPersona(
+  slug: string,
+  policy: Policy,
+  raw: Record<string, unknown>
+): string {
+  return renderAdapterPersonaBlock({
+    slug,
+    label: policy.persona_label,
+    actionRateMultiplier: numberValue(raw.action_rate_multiplier) ?? 1,
+    actionWeights: policy.action_weights
+  });
+}
+
+function renderAdapterPersonaBlock(input: {
+  slug: string;
+  label: string;
+  actionRateMultiplier: number;
+  actionWeights: Record<string, number>;
+}): string {
+  return `[personas.${input.slug}]
+label = ${tomlString(input.label)}
+action_rate_multiplier = ${formatTomlNumber(input.actionRateMultiplier)}
+action_weights = { ${Object.entries(input.actionWeights)
+    .map(([key, value]) => `${tomlKey(key)} = ${formatTomlNumber(value)}`)
+    .join(", ")} }
 triggers = []
 `;
 }
 
-export function renderBaselineRunConfig(): object {
-  // personas is intentionally empty: generic adapters (the scaffolded
-  // primitive) carry their persona roster inline in the adapter TOML
-  // under `[personas.*]`. The CLI's lending-era policy fallback only
-  // resolves five hard-coded ids, so leaving this empty delegates
-  // persona shape to the adapter where the scaffold already put it.
-  return {
-    agents: 10,
-    ticks: 30,
-    scenario: "baseline",
-    seed: 42,
-    personas: [],
-    output_path: ".riptide/runs/baseline",
-    validator_url: "http://localhost:8899"
-  };
+function objectRecord(value: unknown): Record<string, unknown> | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
 }
 
-export function renderGettingStarted(programName: string): string {
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function numberValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function titleizePersona(slug: string): string {
+  return slug
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function tomlString(value: string): string {
+  return JSON.stringify(value);
+}
+
+function tomlKey(value: string): string {
+  return /^[A-Za-z0-9_-]+$/.test(value) ? value : tomlString(value);
+}
+
+function formatTomlNumber(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  return String(value);
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+export interface GettingStartedOptions {
+  scenarios?: string[];
+  hasBaselineScenario?: boolean;
+}
+
+export function renderGettingStarted(
+  programName: string,
+  options: GettingStartedOptions = {}
+): string {
+  const { hasBaselineScenario = false } = options;
+  const scenarioNames = options.scenarios ?? (hasBaselineScenario ? ["baseline"] : []);
+  const scenariosLine = scenarioNames.length > 0
+    ? `- \`scenarios/\` — ready-to-run stress harness:\n${scenarioNames
+        .map((name) => `  - \`scenarios/${name}/run-config.json\``)
+        .join("\n")}\n`
+    : `- \`scenarios/\` — create this yourself when you have a real experiment to run. Riptide discovers \`.riptide/scenarios/**/run-config.json\`.\n`;
+  const runCommand = scenarioNames.length > 0
+    ? `riptide run --adapter .riptide/adapters/${programName}.toml`
+    : `riptide run .riptide/scenarios/your-scenario/run-config.json --adapter .riptide/adapters/${programName}.toml`;
+
   return `# Getting started with Riptide
 
 Riptide just scaffolded a \`.riptide/\` directory in your repo. Here's what's in it and what to do next.
 
 ## Directory layout
 
-- \`adapters/${programName}.toml\` — the bridge between your Anchor program and Riptide's engine. **This is the one file you need to edit.** Every section has a TODO comment explaining what belongs in it. Generic adapters declare personas inline under \`[personas.*]\`.
-- \`personas/\` — reference agent archetypes (swapper, arbitrageur, whale). Copy their \`action_weights\` + \`triggers\` shape into your adapter's \`[personas.*]\` block; the files themselves are reference material, not live config.
-- \`scenarios/baseline/run-config.json\` — a minimum-viable 10-agent, 30-tick scenario seeded at 42. Its \`personas\` array is empty by default — the engine reads the roster from your adapter's inline \`[personas.*]\` entries. Add more scenarios as subdirectories: \`.riptide/scenarios/<name>/run-config.json\`.
-
+- \`adapters/${programName}.toml\` — the bridge between your Solana program and Riptide's engine. Every section has a TODO comment explaining what belongs in it.
+- \`adapters/${programName}.toml\` \`[personas.*]\` — inline persona archetypes selected during init. Edit \`action_weights\` and \`triggers\` there.
+- \`adapters/${programName}.toml\` \`[[invariants]]\` and \`[semantics]\` — declarative checks the engine evaluates after every tick. The default set fires real lending checks; uncomment template invariants once your \`[observations]\` are wired.
+${scenariosLine}
 ## Next steps
 
-The install-first path is **doctor → edit adapter → lint → adapt → run**.
-
-1. \`riptide doctor\` — static health check (no build, no network, no simulation). Confirms your toolchain (\`node\`, \`npm\`, \`rustc\`, \`cargo\`, \`solana\`, \`cargo-build-sbf\`), the \`riptide-engine\` binary, and any adapters it can discover. Exit \`0\` all-pass, \`1\` warnings only, \`2\` at least one failure — jest-style semantics so CI can gate on it.
+1. \`riptide doctor\` — static health check; confirms toolchain + engine binary.
 2. Build your program so \`target/deploy/*.so\` and \`target/idl/*.json\` exist.
-3. Open \`.riptide/adapters/${programName}.toml\` and fill in the TODO blocks: accounts, instructions, state_mapping, actions, observations, personas. The untouched stub is intentionally not lint-clean. If you add a \`[lineage]\` block pointing at your JSON IDL, the next step can machine-validate the wiring.
-4. \`riptide lint ${programName}\` — static validation. When \`[lineage].idl_source\` is a JSON IDL, this cross-checks every mapped instruction, arg, account, and \`account.field\` reference against the IDL (positive mismatches exit 2 with a next-step hint). Non-JSON lineage sources WARN; missing \`[lineage]\` SKIPS — no false PASS.
-5. \`riptide adapt --adapter .riptide/adapters/${programName}.toml\` — end-to-end smoke-test against the local engine. Runs the same linter as a preflight when machine-checkable lineage is present, then spawns the engine to assert the adapter round-trips with an observed state delta.
-6. Run the baseline scenario:
+3. Open \`.riptide/adapters/${programName}.toml\` and fill in the TODO blocks (accounts, instructions, state_mapping, actions, observations, personas, invariants, semantics). The untouched stub is intentionally not lint-clean.
+4. \`riptide lint ${programName}\` — static validation against the JSON IDL named in \`[lineage].idl_source\`.
+5. \`riptide adapt --adapter .riptide/adapters/${programName}.toml\` — end-to-end smoke against the local engine.
+6. Run the scenario battery:
 
    \`\`\`
-   riptide run .riptide/scenarios/baseline/run-config.json --adapter .riptide/adapters/${programName}.toml
+   ${runCommand}
    \`\`\`
 
 ## Reference
@@ -214,6 +642,126 @@ The install-first path is **doctor → edit adapter → lint → adapt → run**
 
 Problems? Drop the adapter file + the engine stderr tail into an issue at https://github.com/riptidesim/riptide/issues.
 `;
+}
+
+export interface RunConfigInput {
+  agents: number;
+  ticks: number;
+  scenario: string;
+  personas: string[];
+  outputPath: string;
+}
+
+export function renderRunConfig(input: RunConfigInput): string {
+  const config = {
+    agents: input.agents,
+    ticks: input.ticks,
+    scenario: input.scenario,
+    personas: input.personas,
+    output_path: input.outputPath
+  };
+  return JSON.stringify(config, null, 2) + "\n";
+}
+
+function resolveScaffoldScenarios(
+  protocol: Protocol,
+  requested: InitScenarioConfig[] | undefined,
+  defaults: { agents: number; ticks: number; personas: string[] }
+): InitScenarioConfig[] {
+  const byName = new Map<string, InitScenarioConfig>();
+  const ordered: InitScenarioConfig[] = [];
+  for (const scenario of requested ?? []) {
+    if (byName.has(scenario.name)) continue;
+    byName.set(scenario.name, scenario);
+    ordered.push(scenario);
+  }
+
+  const required = scenarioChoicesFor(protocol).filter((entry) => entry.required);
+  for (const entry of [...required].reverse()) {
+    if (byName.has(entry.name)) continue;
+    const scenario = scenarioFromCatalog(entry, defaults);
+    byName.set(scenario.name, scenario);
+    ordered.unshift(scenario);
+  }
+
+  if (ordered.length === 0) {
+    ordered.push({
+      name: "baseline",
+      scenario: "baseline",
+      agents: defaults.agents,
+      ticks: defaults.ticks,
+      personas: defaults.personas
+    });
+  }
+
+  return ordered;
+}
+
+function scenarioFromCatalog(
+  entry: ScenarioCatalogEntry,
+  defaults: { agents: number; ticks: number; personas: string[] }
+): InitScenarioConfig {
+  const isBaseline = entry.name === "baseline" || entry.scenario === "baseline";
+  return {
+    name: entry.name,
+    scenario: entry.scenario,
+    agents: isBaseline ? defaults.agents : (entry.agents ?? defaults.agents),
+    ticks: isBaseline ? defaults.ticks : (entry.ticks ?? defaults.ticks),
+    personas: entry.defaultPersonas ?? defaults.personas
+  };
+}
+
+function resolveScaffoldInvariants(
+  protocol: Protocol,
+  requested: InitInvariantConfig[] | undefined
+): InitInvariantConfig[] {
+  const byName = new Map<string, InitInvariantConfig>();
+  const ordered: InitInvariantConfig[] = [];
+  for (const invariant of requested ?? []) {
+    if (byName.has(invariant.name)) continue;
+    byName.set(invariant.name, invariant);
+    ordered.push(invariant);
+  }
+
+  const required = invariantChoicesFor(protocol).filter((entry) => entry.required);
+  for (const entry of [...required].reverse()) {
+    if (byName.has(entry.name)) continue;
+    const invariant = invariantConfigFromCatalog(entry);
+    byName.set(invariant.name, invariant);
+    ordered.unshift(invariant);
+  }
+
+  return ordered;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
+}
+
+function scenarioNameSegments(name: string): string[] {
+  const segments = name.split("/").filter((segment) => segment.length > 0);
+  if (
+    segments.length === 0 ||
+    segments.some(
+      (segment) =>
+        segment === "." ||
+        segment === ".." ||
+        segment.includes("\\") ||
+        !/^[a-z0-9][a-z0-9-]*$/.test(segment)
+    )
+  ) {
+    throw new ProgramDetectionError(
+      `invalid scenario name ${JSON.stringify(name)}. Use slash-separated lowercase slugs.`
+    );
+  }
+  return segments;
 }
 
 export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult> {
@@ -227,8 +775,37 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
     await rm(riptideDir, { recursive: true, force: true });
   }
 
-  const programName = inferProgramName(cwd);
-  const personasSrc = options.personasSourceDir ?? resolveBundledPersonasDir();
+  const detection = options.blank
+    ? {
+        programName: normalizeProgramName(options.programName ?? PLACEHOLDER_PROGRAM_NAME),
+        warnings: [
+          "blank scaffold requested; Riptide did not verify this directory contains a Solana program."
+        ]
+      }
+    : detectProgram(cwd);
+  const programName = normalizeProgramName(options.programName ?? detection.programName);
+  const warnings = options.blank ? detection.warnings : missingArtifactWarnings(cwd, programName);
+  const protocol: Protocol = options.protocol ?? "custom";
+  const personaSlugs = options.personas ?? [];
+  const agents = options.agents ?? 100;
+  const ticks = options.ticks ?? 30;
+  const scenarios = resolveScaffoldScenarios(protocol, options.scenarios, {
+    agents,
+    ticks,
+    personas: personaSlugs
+  });
+  const invariants = resolveScaffoldInvariants(protocol, options.invariants);
+  const personaSlugsToInline = uniqueStrings([
+    ...personaSlugs,
+    ...scenarios.flatMap((scenario) => scenario.personas)
+  ]);
+  const personaArtifacts = collectPersonaArtifacts(protocol, personaSlugsToInline, warnings);
+  const resolvedPersonaSlugs = personaArtifacts.map((artifact) => artifact.slug);
+  const resolvedPersonaSet = new Set(resolvedPersonaSlugs);
+  const resolvedScenarios = scenarios.map((scenario) => ({
+    ...scenario,
+    personas: scenario.personas.filter((slug) => resolvedPersonaSet.has(slug))
+  }));
 
   const created: string[] = [];
 
@@ -238,43 +815,40 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
   const adapterRel = path.join(".riptide", "adapters", `${programName}.toml`);
   await writeFile(
     path.join(riptideDir, "adapters", `${programName}.toml`),
-    renderAdapterStub(programName),
+    renderAdapterStub(programName, protocol, {
+      personaBlocks: personaArtifacts.map((artifact) => artifact.adapterBlock),
+      invariants
+    }),
     "utf8"
   );
   created.push(adapterRel);
 
-  // personas/
-  const personasDir = path.join(riptideDir, "personas");
-  await mkdir(personasDir, { recursive: true });
-  for (const persona of STARTER_PERSONAS) {
-    const srcPath = path.join(personasSrc, `${persona}.toml`);
-    if (!existsSync(srcPath)) {
-      throw new Error(
-        `Could not locate starter persona "${persona}" at ${srcPath}. ` +
-          `Your CLI install is missing bundled starter personas — ` +
-          `reinstall the package, or set personasSourceDir explicitly.`
-      );
-    }
-    const destPath = path.join(personasDir, `${persona}.toml`);
-    await cp(srcPath, destPath);
-    created.push(path.join(".riptide", "personas", `${persona}.toml`));
+  // scenarios/<name>/run-config.json — ready-to-run scenario battery.
+  for (const scenario of resolvedScenarios) {
+    const scenarioSegments = scenarioNameSegments(scenario.name);
+    const scenarioDir = path.join(riptideDir, "scenarios", ...scenarioSegments);
+    await mkdir(scenarioDir, { recursive: true });
+    const scenarioRel = path.join(".riptide", "scenarios", ...scenarioSegments, "run-config.json");
+    await writeFile(
+      path.join(scenarioDir, "run-config.json"),
+      renderRunConfig({
+        agents: scenario.agents,
+        ticks: scenario.ticks,
+        scenario: scenario.scenario,
+        personas: scenario.personas,
+        outputPath: [".riptide", "runs", ...scenarioSegments].join("/")
+      }),
+      "utf8"
+    );
+    created.push(scenarioRel);
   }
 
-  // scenarios/baseline/run-config.json
-  const scenarioDir = path.join(riptideDir, "scenarios", "baseline");
-  await mkdir(scenarioDir, { recursive: true });
-  const runConfig = renderBaselineRunConfig();
-  await writeFile(
-    path.join(scenarioDir, "run-config.json"),
-    JSON.stringify(runConfig, null, 2) + "\n",
-    "utf8"
-  );
-  created.push(path.join(".riptide", "scenarios", "baseline", "run-config.json"));
-
-  // GETTING-STARTED.md
+  // GETTING-STARTED.md (after we know what was actually scaffolded).
   await writeFile(
     path.join(riptideDir, "GETTING-STARTED.md"),
-    renderGettingStarted(programName),
+    renderGettingStarted(programName, {
+      scenarios: resolvedScenarios.map((scenario) => scenario.name)
+    }),
     "utf8"
   );
   created.push(path.join(".riptide", "GETTING-STARTED.md"));
@@ -287,7 +861,7 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
     created.push(".gitignore");
   }
 
-  return { created, programName };
+  return { created, programName, warnings };
 }
 
 const GITIGNORE_ENTRIES = [".riptide/runs/", ".riptide/last-run.json"] as const;
@@ -333,30 +907,9 @@ export class RiptideDirExistsError extends Error {
   }
 }
 
-// Starter personas ship under `cli/assets/init-personas/` and get mirrored
-// into `cli/dist/assets/init-personas/` by the build's copy-personas
-// step, so a packaged install has them next to the compiled JS. The
-// resolver probes both layouts (dev + built), then falls back to the
-// monorepo fixtures for repo-checkout developers who haven't built yet.
-function resolveBundledPersonasDir(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    // built: <cli>/dist/src/init/index.js → <cli>/dist/assets/init-personas
-    path.resolve(here, "..", "..", "assets", "init-personas"),
-    // built-alt layout: <cli>/dist/src/init/index.js → <cli>/assets/init-personas
-    path.resolve(here, "..", "..", "..", "assets", "init-personas"),
-    // dev ts-node: <cli>/src/init/index.ts → <cli>/assets/init-personas
-    path.resolve(here, "..", "..", "assets", "init-personas")
-  ];
-  for (const c of candidates) {
-    if (existsSync(c)) return c;
+export class ProgramDetectionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProgramDetectionError";
   }
-  // Repo-checkout fallback: monorepo fixtures are the authoritative
-  // source before a build has populated the packaged bundle.
-  const moduleRoot = monorepoRootFromModule();
-  if (moduleRoot) {
-    const monorepoPersonas = path.resolve(moduleRoot, "fixtures", "personas");
-    if (existsSync(monorepoPersonas)) return monorepoPersonas;
-  }
-  return candidates[0]!;
 }

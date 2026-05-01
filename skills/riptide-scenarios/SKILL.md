@@ -1,6 +1,6 @@
 ---
 name: riptide-scenarios
-description: Propose a starter catalog of Riptide experiments for a Solana program adapter using the current agent session. Use when the user says "what should I test", "riptide scenarios", "propose experiments", "I don't know what to simulate", or is standing in a repo with an adapter TOML + IDL and wants Riptide to suggest starter runs. The skill reads the adapter + IDL, classifies plausible failure modes from the program shape, proposes 3–5 ranked experiments, writes each as a run-config + persona file, then smoke-validates every generated config via `riptide scenarios --validate`. Proposes only — does not autorun.
+description: Propose a starter catalog of Riptide experiments for a Solana program adapter using the current agent session. Use when the user says "what should I test", "riptide scenarios", "propose experiments", "I don't know what to simulate", or is standing in a repo with an adapter TOML + IDL and wants Riptide to suggest starter runs. The skill reads the adapter + IDL, classifies plausible failure modes from the program shape, proposes 3–5 ranked experiments, writes each as a fixture-style scenario directory, then smoke-validates every generated config via `riptide scenarios --validate`. Proposes only — does not autorun.
 ---
 
 # riptide-scenarios
@@ -38,8 +38,11 @@ A scenario today is composed from:
 - **Run config + scenario parameters** — `run-config.json`: seed,
   ticks, agent counts, the scenario's named shock or sweep
   dimension, the personas it activates.
-- **Personas / policies** — `policies.json` per `persona_id`, plus
-  reusable persona TOML under `fixtures/personas/<adapter>/*.toml`.
+- **Personas / policies** — for lending primitive scenarios,
+  `policies.json` declares the persona catalog referenced by
+  `run-config.personas`. For generic-runtime scenarios,
+  `policies.json` is usually `[]`; the engine resolves personas from
+  inline `[personas.*]` tables in the adapter TOML.
 - **Manifest** — `manifest.json` indexing adapter, slug, failure-mode
   category, rationale.
 - **Replay surface (optional, separate path)** — when reproducing
@@ -52,20 +55,14 @@ A scenario today is composed from:
 
 This skill proposes synthetic stress scenarios — not replays.
 
-## Coming next — semantic-aware scenario hints
+## Semantic-aware scenario hints
 
-The next product milestone is a declarative `[semantics]` block
-inside the adapter (versioned classes — `lending.v1`, `perps-margin.v1`,
-`amm.v1`, `lst.v1`, `stablecoin.v1` — with named roles, derived
-observations, expression invariants, and protocol-specific
-extensions). Once it lands, this skill will be able to propose
-scenarios against *economic concepts* (target bad-debt boundary,
-target margin floor, target backing ratio) instead of raw account
-fields. **Status:** design committed at
-`.specs/designs/economic-semantics-v1.md`; implementation in flight
-Sprint 19+. Until then, propose scenarios over the raw observation
-surface the adapter already declares — do not invent semantic
-concepts the engine does not yet evaluate.
+`[semantics]` is real for `lending.v1` adapters. Use it as additional
+context when it is present, but still ground every proposal in
+adapter-visible actions, observations, and invariants. Other class
+strings from the design doc (`perps-margin.v1`, `amm.v1`, `lst.v1`,
+`stablecoin.v1`) are reserved until their loaders land; do not invent
+semantic concepts the engine does not yet evaluate.
 
 ## Inputs
 
@@ -87,9 +84,11 @@ For each proposed experiment, write three files to
     fixtures/scenarios/<adapter-name>/<experiment-slug>/
 
 - `run-config.json` — engine run-config, matches
-  `cli/src/compiler/schema.ts::RunConfigSchema`. Use
-  `"validator_url": "http://localhost:8899"` (the engine runs
-  LiteSVM in-process — this field is a stub).
+  `cli/src/compiler/schema.ts::RunConfigSchema`. For this
+  fixture-validator path, include
+  `"validator_url": "http://localhost:8899"` because that shared
+  schema still requires a non-empty string; init-scaffolded
+  `.riptide/scenarios/**/run-config.json` files intentionally omit it.
 - `policies.json` — an array of `Policy` objects, one per
   `persona_id` referenced by `run-config.personas`.
 - `manifest.json` — metadata the validator needs:

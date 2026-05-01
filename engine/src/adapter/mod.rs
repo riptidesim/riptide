@@ -41,12 +41,13 @@ pub use errors::{
 };
 pub use loader::{load_adapter, parse_adapter_str, AdapterError};
 pub use schema::{
-    AccountDefinition, AccountKind, AccountOwner, ActionDefinition, Adapter, AdapterLineage,
-    ArgLiteral, CollectionDef, CollectionFormula, InstructionMapping, Invariant, InvariantOp,
-    ObservationDefinition, ObservationType, OracleBinding, OracleDefinition, OracleKind,
-    PdaDefinition, PersonaDefinition, PersonaTriggerDefinition, Protocol, ReplayBlock,
-    ReplayStateSource, ScheduledAction, SemanticClassRef, SemanticExpression, SemanticFieldType,
-    SemanticInvariant, SemanticInvariantSeverity, SemanticRole, SemanticSourceBinding, Semantics,
-    ACTION_NAMES, LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS, ORACLE_KINDS,
-    SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
+    AccountDecoder, AccountDefinition, AccountKind, AccountOwner, ActionDefinition, Adapter,
+    AdapterLineage, ArgLiteral, CollectionDef, CollectionFormula, InstructionMapping, Invariant,
+    InvariantOp, LayoutDecoder, LayoutField, LayoutFieldType, ObservationDefinition,
+    ObservationType, OracleBinding, OracleDefinition, OracleKind, PdaDefinition, PersonaDefinition,
+    PersonaTriggerDefinition, Protocol, ReplayBlock, ReplayStateSource, ScheduledAction,
+    SemanticClassRef, SemanticExpression, SemanticFieldType, SemanticInvariant,
+    SemanticInvariantSeverity, SemanticRole, SemanticSourceBinding, Semantics,
+    ACCOUNT_DECODER_PRESETS, ACTION_NAMES, LENDING_ACTIONS, LENDING_OBSERVATIONS,
+    LENDING_SNAPSHOT_METRICS, ORACLE_KINDS, SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
 };

@@ -1,9 +1,11 @@
 import { spawn } from "node:child_process";
 import { access, constants, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import TOML from "toml";
 
 import { compilePersonas } from "../compiler/compile.js";
 import {
@@ -84,11 +86,12 @@ export interface SpawnerOptions {
    * `process.stderr`. The full captured text surfaces on the
    * SpawnResult.stderrFull field so the caller can inline it in
    * failure blocks under `riptide run`. Default (undefined/false)
-   * preserves the historical pass-through for `riptide simulate`,
-   * `riptide replay`, and the adapt smoke-test — keeps per-command
-   * behavior explicit.
+   * preserves stderr pass-through for `riptide replay` and the adapt
+   * smoke-test — keeps per-command behavior explicit.
    */
   silent?: boolean;
+  /** Abort signal used by sweep fail-fast cancellation to terminate the engine process. */
+  signal?: AbortSignal;
 }
 
 export interface OrchestratorOptions {
@@ -130,6 +133,12 @@ export interface OrchestratorOptions {
    * LLM-free persona fallback table only covers five lending archetypes.
    */
   policiesPath?: string;
+  /** Abort signal used by sweep fail-fast cancellation to terminate the engine process. */
+  abortSignal?: AbortSignal;
+  /** Absolute current-state pack path to pass to the engine as an explicit override. */
+  statePackPath?: string;
+  /** Path to a generated Rust harness crate or its Cargo.toml. */
+  harnessPath?: string;
 }
 
 export interface ReplayOrchestratorInput {
@@ -157,6 +166,7 @@ const ENGINE_REL_PATH = path.join("target", "release", "riptide-engine");
 // users call `riptide` without having built the engine themselves.
 const ENGINE_NPM_REL_PATH = path.join("bin", "riptide-engine");
 const STDERR_TAIL_BYTES = 8192;
+const harnessBuildCache = new Map<string, Promise<string>>();
 
 // Derive the monorepo root from *this file's* real location on disk. The
 // CLI ships as `<monorepo>/cli/dist/src/orchestrator/index.js`, so five
@@ -222,11 +232,23 @@ export async function runOrchestrator(
   const spawner = options.spawner ?? defaultSpawner;
   const warn = options.warn ?? ((msg: string) => process.stderr.write(`${msg}\n`));
 
-  const enginePath = await resolveEngineBinary(
-    env,
-    cwd,
-    options.moduleRoot === undefined ? monorepoRootFromModule() ?? null : options.moduleRoot
-  );
+  const harnessManifest = options.harnessPath
+    ? resolveHarnessManifest(options.harnessPath, cwd)
+    : undefined;
+  const enginePath = harnessManifest
+    ? await prepareHarnessExecutable({
+        manifestPath: harnessManifest,
+        cwd,
+        env,
+        spawner,
+        silent: options.silent,
+        signal: options.abortSignal
+      })
+    : await resolveEngineBinary(
+        env,
+        cwd,
+        options.moduleRoot === undefined ? monorepoRootFromModule() ?? null : options.moduleRoot
+      );
 
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), "riptide-run-"));
   try {
@@ -251,7 +273,7 @@ export async function runOrchestrator(
       await writeFile(policiesPath, JSON.stringify(policies, null, 2));
     }
 
-    const args = [
+    const engineArgs = [
       "--config",
       configPath,
       "--policies",
@@ -260,14 +282,23 @@ export async function runOrchestrator(
       outputPath
     ];
     if (options.adapterPath) {
-      args.push("--adapter", options.adapterPath);
+      engineArgs.push("--adapter", options.adapterPath);
+    }
+    if (harnessManifest && !options.adapterPath) {
+      throw new Error("runOrchestrator: harness runs require an adapter path");
+    }
+    if (options.statePackPath) {
+      engineArgs.push("--state-pack", options.statePackPath);
     }
     if (options.allowInvariantViolations) {
-      args.push("--allow-invariant-violations");
+      engineArgs.push("--allow-invariant-violations");
     }
+    const args = engineArgs;
+    const runnerLabel = harnessManifest ? "riptide harness" : "riptide-engine";
 
     const { code, stderrTail, stderrFull } = await spawner(enginePath, args, {
-      silent: options.silent
+      silent: options.silent,
+      signal: options.abortSignal
     });
     if (code !== 0) {
       const tail = stderrTail.trim();
@@ -284,7 +315,7 @@ export async function runOrchestrator(
           const raw = await readFile(outputPath, "utf8");
           const parsed = SimulationResultSchema.parse(JSON.parse(raw));
           const error = new Error(
-            `riptide-engine exited with code 1 — invariant violation(s) recorded.${suffix}`
+            `${runnerLabel} exited with code 1 — invariant violation(s) recorded.${suffix}`
           ) as Error & {
             simulationResult?: SimulationResult;
             exitCode?: number;
@@ -301,7 +332,7 @@ export async function runOrchestrator(
           // fall through to the generic error below.
         }
       }
-      const err = new Error(`riptide-engine exited with code ${code}.${suffix}`) as Error & {
+      const err = new Error(`${runnerLabel} exited with code ${code}.${suffix}`) as Error & {
         stderrFull?: string;
         exitCode?: number;
       };
@@ -365,7 +396,9 @@ export async function runReplayOrchestrator(
       args.push("--allow-invariant-violations");
     }
 
-    const { code, stderrTail } = await spawner(enginePath, args);
+    const { code, stderrTail } = await spawner(enginePath, args, {
+      signal: options.abortSignal
+    });
     if (code !== 0) {
       const tail = stderrTail.trim();
       const suffix = tail ? `\n--- engine stderr (tail) ---\n${tail}` : "";
@@ -503,6 +536,110 @@ async function which(bin: string, env: NodeJS.ProcessEnv): Promise<string | unde
   return undefined;
 }
 
+function resolveHarnessManifest(harnessPath: string, cwd: string): string {
+  const resolved = path.isAbsolute(harnessPath)
+    ? harnessPath
+    : path.resolve(cwd, harnessPath);
+  const manifest = (() => {
+    if (existsSync(resolved) && statSync(resolved).isDirectory()) {
+      return path.join(resolved, "Cargo.toml");
+    }
+    return resolved;
+  })();
+  if (!existsSync(manifest)) {
+    throw new Error(
+      `Rust harness not found at ${manifest}. Run 'riptide harness generate' or pass --harness <dir-or-Cargo.toml>.`
+    );
+  }
+  if (path.basename(manifest) !== "Cargo.toml") {
+    throw new Error(`Rust harness path must be a harness directory or Cargo.toml, got ${manifest}`);
+  }
+  return manifest;
+}
+
+async function prepareHarnessExecutable(input: {
+  manifestPath: string;
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  spawner: Spawner;
+  silent?: boolean;
+  signal?: AbortSignal;
+}): Promise<string> {
+  const key = realpathSync(input.manifestPath);
+  const existing = harnessBuildCache.get(key);
+  if (existing) return existing;
+
+  const promise = buildHarnessExecutable(input).catch((err) => {
+    harnessBuildCache.delete(key);
+    throw err;
+  });
+  harnessBuildCache.set(key, promise);
+  return promise;
+}
+
+async function buildHarnessExecutable(input: {
+  manifestPath: string;
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  spawner: Spawner;
+  silent?: boolean;
+  signal?: AbortSignal;
+}): Promise<string> {
+  const executable = await harnessExecutablePath(input.manifestPath, input.cwd, input.env);
+  const { code, stderrTail, stderrFull } = await input.spawner(
+    "cargo",
+    ["build", "--release", "--quiet", "--manifest-path", input.manifestPath],
+    {
+      silent: input.silent,
+      signal: input.signal
+    }
+  );
+  if (code !== 0) {
+    const tail = stderrTail.trim();
+    const suffix = tail ? `\n--- cargo stderr (tail) ---\n${tail}` : "";
+    const err = new Error(`riptide harness build exited with code ${code}.${suffix}`) as Error & {
+      stderrFull?: string;
+      exitCode?: number;
+    };
+    err.stderrFull = stderrFull;
+    err.exitCode = code;
+    throw err;
+  }
+  if (!existsSync(executable)) {
+    throw new Error(
+      `riptide harness build completed, but the release binary was not found at ${executable}`
+    );
+  }
+  return executable;
+}
+
+async function harnessExecutablePath(
+  manifestPath: string,
+  cwd: string,
+  env: NodeJS.ProcessEnv
+): Promise<string> {
+  const manifestRaw = await readFile(manifestPath, "utf8");
+  const parsed = TOML.parse(manifestRaw) as {
+    package?: { name?: unknown };
+    bin?: Array<{ name?: unknown }>;
+  };
+  const name =
+    Array.isArray(parsed.bin) && typeof parsed.bin[0]?.name === "string"
+      ? parsed.bin[0].name
+      : typeof parsed.package?.name === "string"
+        ? parsed.package.name
+        : undefined;
+  if (!name || name.trim().length === 0) {
+    throw new Error(`Rust harness manifest at ${manifestPath} is missing [package].name`);
+  }
+
+  const targetDir =
+    typeof env.CARGO_TARGET_DIR === "string" && env.CARGO_TARGET_DIR.trim().length > 0
+      ? path.resolve(cwd, env.CARGO_TARGET_DIR)
+      : path.join(path.dirname(manifestPath), "target");
+  return path.join(targetDir, "release", process.platform === "win32" ? `${name}.exe` : name);
+}
+
 const defaultSpawner: Spawner = (bin, args, opts) => {
   const silent = opts?.silent === true;
   // In non-silent mode we pipe stderr so we can BOTH stream it live
@@ -510,6 +647,7 @@ const defaultSpawner: Spawner = (bin, args, opts) => {
   // silent mode we capture the full stderr stream for later display
   // (riptide run's failure block) without any live pass-through.
   const child = spawn(bin, args, { stdio: ["ignore", "ignore", "pipe"] });
+  const abort = opts?.signal;
   const chunks: string[] = [];
   let chunksBytes = 0;
   const fullBuf: string[] = [];
@@ -531,8 +669,22 @@ const defaultSpawner: Spawner = (bin, args, opts) => {
   });
 
   return new Promise<SpawnResult>((resolve, reject) => {
-    child.once("error", reject);
+    const onAbort = () => {
+      if (!child.killed) {
+        child.kill("SIGTERM");
+      }
+    };
+    if (abort?.aborted) {
+      onAbort();
+    } else {
+      abort?.addEventListener("abort", onAbort, { once: true });
+    }
+    child.once("error", (err) => {
+      abort?.removeEventListener("abort", onAbort);
+      reject(err);
+    });
     child.once("close", (code, signal) => {
+      abort?.removeEventListener("abort", onAbort);
       if (code === null) {
         reject(new Error(`riptide-engine terminated by signal ${signal ?? "unknown"}`));
         return;

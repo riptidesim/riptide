@@ -96,6 +96,12 @@ pub struct AccountDefinition {
     /// program id. Only valid on `kind = "shared"` accounts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner: Option<AccountOwner>,
+    /// Optional byte-layout decoder for accounts whose state is not
+    /// described by the program IDL. Preset strings (for example
+    /// `decoder = "spl_token_account"`) are sugar over the same fixed
+    /// offset layout represented by the table form.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decoder: Option<AccountDecoder>,
 }
 
 /// Minimal deterministic PDA declaration for generic account bindings.
@@ -109,7 +115,7 @@ pub struct PdaDefinition {
 
 /// External-owner metadata for a generic adapter account. Exactly one
 /// of `program_so` (sibling program on disk) or `pubkey` (literal
-/// base58 key for real external programs such as Pyth) must be set;
+/// base58 key for real external programs) must be set;
 /// declaring both or neither is rejected by the loader with a
 /// key-level diagnostic.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -121,9 +127,163 @@ pub struct AccountOwner {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub program_so: Option<String>,
     /// Literal base58-encoded 32-byte pubkey for real external
-    /// programs that do not ship a local `.so` artifact (e.g. Pyth).
+    /// programs that do not ship a local `.so` artifact.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pubkey: Option<String>,
+}
+
+/// Built-in account decoder preset names accepted by the loader.
+pub const ACCOUNT_DECODER_PRESETS: &[&str] = &["spl_token_account", "spl_mint"];
+
+/// Account-level raw byte decoder declaration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AccountDecoder {
+    /// Built-in preset alias such as `spl_token_account`.
+    Preset(String),
+    /// Explicit fixed-offset layout.
+    Layout(LayoutDecoder),
+}
+
+impl AccountDecoder {
+    pub fn preset_name(&self) -> Option<&str> {
+        match self {
+            Self::Preset(name) => Some(name),
+            Self::Layout(_) => None,
+        }
+    }
+
+    pub fn layout(&self) -> Option<BTreeMap<String, LayoutField>> {
+        match self {
+            Self::Preset(name) => account_decoder_preset_layout(name),
+            Self::Layout(layout) if layout.kind == "layout" => Some(layout.fields.clone()),
+            Self::Layout(_) => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LayoutDecoder {
+    /// Kept as a string so the loader, not serde, owns the validation
+    /// diagnostic for unknown decoder kinds.
+    pub kind: String,
+    #[serde(default)]
+    pub fields: BTreeMap<String, LayoutField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LayoutField {
+    #[serde(rename = "type")]
+    pub ty: LayoutFieldType,
+    pub offset: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LayoutFieldType {
+    U8,
+    U64,
+    U128,
+    I64,
+    I128,
+    Bool,
+    Pubkey,
+    /// Stored so loader validation can reject unknown values with the
+    /// same key-level `AdapterError::Validation` shape as other adapter
+    /// schema mistakes.
+    Unknown(String),
+}
+
+impl LayoutFieldType {
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "u8" => Self::U8,
+            "u64" => Self::U64,
+            "u128" => Self::U128,
+            "i64" => Self::I64,
+            "i128" => Self::I128,
+            "bool" => Self::Bool,
+            "pubkey" => Self::Pubkey,
+            other => Self::Unknown(other.to_string()),
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::U8 => "u8",
+            Self::U64 => "u64",
+            Self::U128 => "u128",
+            Self::I64 => "i64",
+            Self::I128 => "i128",
+            Self::Bool => "bool",
+            Self::Pubkey => "pubkey",
+            Self::Unknown(value) => value.as_str(),
+        }
+    }
+
+    pub fn byte_width(&self) -> Option<usize> {
+        match self {
+            Self::U8 | Self::Bool => Some(1),
+            Self::U64 | Self::I64 => Some(8),
+            Self::U128 | Self::I128 => Some(16),
+            Self::Pubkey => Some(32),
+            Self::Unknown(_) => None,
+        }
+    }
+}
+
+impl fmt::Display for LayoutFieldType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl Serialize for LayoutFieldType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for LayoutFieldType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Ok(Self::parse(&value))
+    }
+}
+
+fn layout_field(ty: LayoutFieldType, offset: usize) -> LayoutField {
+    LayoutField { ty, offset }
+}
+
+pub fn account_decoder_preset_layout(name: &str) -> Option<BTreeMap<String, LayoutField>> {
+    match name {
+        "spl_token_account" => Some(BTreeMap::from([
+            ("mint".into(), layout_field(LayoutFieldType::Pubkey, 0)),
+            ("owner".into(), layout_field(LayoutFieldType::Pubkey, 32)),
+            ("amount".into(), layout_field(LayoutFieldType::U64, 64)),
+            ("state".into(), layout_field(LayoutFieldType::U8, 108)),
+            (
+                "delegated_amount".into(),
+                layout_field(LayoutFieldType::U64, 121),
+            ),
+        ])),
+        "spl_mint" => Some(BTreeMap::from([
+            ("supply".into(), layout_field(LayoutFieldType::U64, 36)),
+            ("decimals".into(), layout_field(LayoutFieldType::U8, 44)),
+            (
+                "is_initialized".into(),
+                layout_field(LayoutFieldType::Bool, 45),
+            ),
+        ])),
+        _ => None,
+    }
 }
 
 /// Generic action definition.
@@ -664,9 +824,7 @@ impl Invariant {
 
 /// Supported oracle account layouts. Selects which concrete
 /// [`crate::scenario::oracle::OracleLayout`] implementation the engine
-/// uses when it encodes a price shock. Keep this small — add new
-/// variants as new oracle kinds (Pyth, Switchboard, …) ship with their
-/// own account layout + mock program.
+/// uses when it encodes a price shock.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum OracleKind {
@@ -676,9 +834,6 @@ pub enum OracleKind {
     /// standalone program at `programs/admin_mock_oracle/` so
     /// non-lending adapters can depend on it directly.
     AdminMock,
-    /// Pyth-compatible mock (placeholder variant — the layout impl is
-    /// reserved for a drop where the full Borsh shape lands).
-    Pyth,
 }
 
 /// Declarative oracle entry from the adapter TOML's `[[oracles]]`
@@ -708,8 +863,9 @@ pub struct OracleDefinition {
     /// Price exponent (e.g. `-2` for "report cents"). Defaults to `0`.
     #[serde(default)]
     pub exponent: i8,
-    /// Optional Pyth-style confidence. Accepted for forward compat with
-    /// the Pyth kind; ignored by the AdminMock layout.
+    /// Optional confidence metadata. The built-in AdminMock layout
+    /// ignores it; custom harnesses may use it outside the MVP engine
+    /// oracle writer.
     #[serde(default)]
     pub confidence: Option<u64>,
 }
@@ -719,7 +875,7 @@ fn default_oracle_base_price() -> f64 {
 }
 
 /// Canonical set of oracle kinds, for error messages and documentation.
-pub const ORACLE_KINDS: &[&str] = &["admin-mock", "pyth"];
+pub const ORACLE_KINDS: &[&str] = &["admin-mock"];
 
 // ---------------------------------------------------------------------------
 // Engine-triggered scheduled actions

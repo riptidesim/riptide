@@ -30,7 +30,8 @@ use riptide_engine::{
         build_generic_policies, generic_runtime_actions, GenericBootstrapConfig, GenericHarness,
     },
     replay::{
-        import_replay_state, load_replay_bundle, run_lending_replay, run_replay, ReplayStateImport,
+        import_replay_state, load_replay_bundle, load_state_pack, run_lending_replay, run_replay,
+        ReplayStateImport, StatePackImport,
     },
     scenario::{
         load_presets_dir, BaselineScenario, OracleUpdate, PresetSpec, PriceShockScenario, Scenario,
@@ -79,6 +80,14 @@ struct SimulateCli {
     /// lending primitive (Solend fork) so existing callers keep working.
     #[arg(long, value_name = "FILE")]
     adapter: Option<PathBuf>,
+
+    /// Optional current-state pack produced by `riptide pack-state`.
+    /// Accounts are hydrated into LiteSVM before tick 0. When absent,
+    /// the engine also accepts a `state_pack` string field in the
+    /// run-config JSON and resolves relative paths from that config's
+    /// directory.
+    #[arg(long, value_name = "DIR")]
+    state_pack: Option<PathBuf>,
 
     /// override the invariant-violation exit code back
     /// to 0. By default the engine exits 1 whenever one or more
@@ -365,6 +374,7 @@ fn finish_main(
 fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
     let run_config: RunConfig = load_json(&cli.config)?;
     let loaded_policies: Vec<Policy> = load_policies(&cli.policies)?;
+    let state_pack_import = load_current_state_pack(cli.state_pack.as_ref(), &cli.config)?;
 
     eprintln!(
         "riptide-engine: loaded {} policies, agents={}, ticks={}, scenario={}",
@@ -373,6 +383,16 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
         run_config.ticks,
         run_config.scenario,
     );
+    if let Some(import) = state_pack_import.as_ref() {
+        eprintln!(
+            "state-pack: {} accounts from {}",
+            import.accounts.len(),
+            import.pack_path.display()
+        );
+        for warning in &import.warnings {
+            eprintln!("warn: {warning}");
+        }
+    }
 
     // --- Optional adapter TOML. Selects the primitive at runtime. ---
     //
@@ -552,6 +572,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 harness.agents.len(),
             );
             apply_generic_replay_state(&mut harness, replay_import.as_ref())?;
+            apply_generic_state_pack(&mut harness, state_pack_import.as_ref())?;
 
             let params = SimulationParams {
                 run_config: &run_config,
@@ -560,12 +581,15 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 available_actions: generic_runtime_actions(&adapter),
                 starting_balance,
                 starting_price: starting_price_f64,
-                simulation_boundaries: vec![
+                simulation_boundaries: simulation_boundaries_with_state_pack(
+                    vec![
                     "In-process LiteSVM backend (no external validator).".into(),
                     "Generic adapters expose only adapter-defined actions/observations; no default TVL/health semantics are inferred.".into(),
                     "Pool-wide TVL/utilization metrics are zeroed on the generic path until a protocol-specific aggregate is declared.".into(),
                     "Custom actions do not mutate engine cash/PnL by default; only on-chain account observations are authoritative.".into(),
-                ],
+                    ],
+                    state_pack_import.as_ref(),
+                ),
                 invariants: adapter.invariants.clone(),
                 scheduled_actions: adapter.scheduled_actions.clone(),
                 semantics: adapter.semantics.clone(),
@@ -575,7 +599,10 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
             eprintln!("running tick loop ...");
             let mut result = run_generic_simulation(&mut harness, scenario.as_mut(), params)
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
-            result.replay_provenance = replay_import.map(|import| import.provenance);
+            result.replay_provenance = state_pack_import
+                .as_ref()
+                .map(|import| import.provenance.clone())
+                .or_else(|| replay_import.map(|import| import.provenance));
             result
         }
         adapter => {
@@ -629,6 +656,7 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 seed_amount,
             );
             apply_lending_replay_state(&mut harness, replay_import.as_ref())?;
+            apply_lending_state_pack(&mut harness, state_pack_import.as_ref())?;
 
             let agent_personas = build_agent_personas(
                 &run_config.personas,
@@ -643,12 +671,15 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
                 available_actions: LENDING_RUNTIME_ACTIONS.to_vec(),
                 starting_balance,
                 starting_price: starting_price_f64,
-                simulation_boundaries: vec![
-                    "In-process LiteSVM backend (no external validator).".into(),
-                    "No slippage, fees, or MEV modeled.".into(),
-                    "Oracle prices are scenario-driven, not external feeds.".into(),
-                    "Agents funded via deterministic airdrop, not realistic onboarding.".into(),
-                ],
+                simulation_boundaries: simulation_boundaries_with_state_pack(
+                    vec![
+                        "In-process LiteSVM backend (no external validator).".into(),
+                        "No slippage, fees, or MEV modeled.".into(),
+                        "Oracle prices are scenario-driven, not external feeds.".into(),
+                        "Agents funded via deterministic airdrop, not realistic onboarding.".into(),
+                    ],
+                    state_pack_import.as_ref(),
+                ),
                 invariants: lending_invariants,
                 scheduled_actions: lending_scheduled_actions,
                 semantics: lending_semantics,
@@ -658,7 +689,10 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
             eprintln!("running tick loop ...");
             let mut result = run_simulation(&mut harness, scenario.as_mut(), params)
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
-            result.replay_provenance = replay_import.map(|import| import.provenance);
+            result.replay_provenance = state_pack_import
+                .as_ref()
+                .map(|import| import.provenance.clone())
+                .or_else(|| replay_import.map(|import| import.provenance));
             result
         }
     };
@@ -682,6 +716,51 @@ fn run_simulation_command(cli: SimulateCli) -> anyhow::Result<EngineOutcome> {
     }
 }
 
+fn load_current_state_pack(
+    cli_state_pack: Option<&PathBuf>,
+    config_path: &Path,
+) -> anyhow::Result<Option<StatePackImport>> {
+    let Some(path) = cli_state_pack
+        .cloned()
+        .or_else(|| state_pack_path_from_run_config(config_path))
+    else {
+        return Ok(None);
+    };
+    let resolved = if path.is_absolute() {
+        path
+    } else {
+        config_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(path)
+    };
+    load_state_pack(&resolved)
+        .map(Some)
+        .map_err(|e| anyhow::anyhow!("{e}"))
+}
+
+fn state_pack_path_from_run_config(config_path: &Path) -> Option<PathBuf> {
+    let raw = fs::read_to_string(config_path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    value
+        .get("state_pack")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(PathBuf::from)
+}
+
+fn simulation_boundaries_with_state_pack(
+    mut boundaries: Vec<String>,
+    state_pack: Option<&StatePackImport>,
+) -> Vec<String> {
+    if state_pack.is_some() {
+        boundaries.push(
+            "State pack hydration uses current RPC account bytes; transaction signatures are account-discovery hints, not historical pre-state replay.".into(),
+        );
+    }
+    boundaries
+}
+
 fn load_adapter_replay_state(
     adapter: &riptide_engine::adapter::Adapter,
     adapter_path: Option<&Path>,
@@ -699,6 +778,51 @@ fn load_adapter_replay_state(
     import_replay_state(replay, base_dir)
         .map(Some)
         .map_err(|e| anyhow::anyhow!("{e}"))
+}
+
+fn apply_generic_state_pack(
+    harness: &mut GenericHarness,
+    import: Option<&StatePackImport>,
+) -> anyhow::Result<()> {
+    let Some(import) = import else {
+        return Ok(());
+    };
+    for account in &import.accounts {
+        let binding_name = account.account_name.as_deref().or(account.role.as_deref());
+        if let Some(name) = binding_name {
+            harness
+                .bind_imported_account(name, vec![account.pubkey])
+                .map_err(|e| {
+                    anyhow::anyhow!(
+                        "failed to bind state-pack account {} to adapter account `{name}`: {e:#}",
+                        account.pubkey
+                    )
+                })?;
+        }
+        harness
+            .svm_mut()
+            .set_account(account.pubkey, account.account.clone())
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "failed to hydrate state-pack account {}: {e}",
+                    account.pubkey
+                )
+            })?;
+    }
+    Ok(())
+}
+
+fn apply_lending_state_pack(
+    harness: &mut LiteSvmHarness,
+    import: Option<&StatePackImport>,
+) -> anyhow::Result<()> {
+    let Some(import) = import else {
+        return Ok(());
+    };
+    for account in &import.accounts {
+        harness.import_account(account.pubkey, account.account.clone())?;
+    }
+    Ok(())
 }
 
 fn apply_generic_replay_state(
@@ -1056,7 +1180,7 @@ fn friendly_read_error(kind: &str, path: &Path, source: std::io::Error) -> anyho
                  or check that --config points at a readable JSON file."
             }
             "policies" => {
-                "The policies file is the JSON emitted by `riptide simulate` after compiling personas \
+                "The policies file is the JSON emitted by the CLI after compiling personas \
                  — check that --policies points at a readable file, or let the CLI compile personas \
                  for you instead of invoking the engine directly."
             }

@@ -1,0 +1,8 @@
+name = "bank-run"
+label = "Bank run"
+description = "Uses the steeper bank-run price-shock preset with a longer tail after the drop."
+scenario = "bank-run"
+agents = 50
+ticks = 80
+default_personas = ["panic-whale", "degen-borrower", "cautious-yield-farmer"]
+recommended = false

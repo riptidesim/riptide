@@ -1,0 +1,11 @@
+name = "active_agents_survive"
+label = "Active agents survive the run"
+description = "Engine-emitted active_agents stays positive so a simulation cannot silently end with every agent inactive."
+form = "flat"
+field = "active_agents"
+op = ">"
+value = 0
+severity = "error"
+recommended = true
+required = true
+

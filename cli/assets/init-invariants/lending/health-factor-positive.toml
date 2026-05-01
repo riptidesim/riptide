@@ -1,0 +1,8 @@
+name = "health_factor_positive"
+label = "Health factor positive (semantic)"
+description = "Per-position health factor must remain above 1.0."
+form = "semantic"
+expr = "health_factor > 1.0"
+severity = "warn"
+recommended = true
+

@@ -9,10 +9,10 @@ use std::{collections::BTreeSet, fmt, path::Path, str::FromStr};
 use solana_sdk::pubkey::Pubkey;
 
 use crate::adapter::schema::{
-    is_valid_semantic_class, AccountKind, Adapter, CollectionFormula, Protocol, ReplayStateSource,
-    SemanticClassRef, SemanticSourceBinding, LENDING_ACTIONS, LENDING_OBSERVATIONS,
-    LENDING_SNAPSHOT_METRICS, LENDING_V1_REQUIRED_ROLES, ORACLE_KINDS, SEMANTIC_CLASS_RE,
-    SUPPORTED_SEMANTIC_CLASSES,
+    is_valid_semantic_class, AccountDecoder, AccountKind, Adapter, CollectionFormula,
+    LayoutFieldType, Protocol, ReplayStateSource, SemanticClassRef, SemanticSourceBinding,
+    ACCOUNT_DECODER_PRESETS, LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS,
+    LENDING_V1_REQUIRED_ROLES, ORACLE_KINDS, SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
 };
 use crate::adapter::{errors::ErrorRegistryValidation, validate_error_entries};
 use crate::semantics::derived::{build_derived_order, DerivedObservationError};
@@ -1180,8 +1180,29 @@ fn check_lineage_text(path: &str, key: &str, value: &str) -> Result<(), AdapterE
 }
 
 fn validate_identifiers(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
-    for (account_name, _) in &adapter.accounts {
+    for (account_name, account) in &adapter.accounts {
         check_ident(path, &format!("[accounts].{account_name}"), account_name)?;
+        if let Some(decoder) = account.decoder.as_ref() {
+            match decoder {
+                AccountDecoder::Preset(name) => {
+                    check_ident(path, &format!("[accounts].{account_name}.decoder"), name)?;
+                }
+                AccountDecoder::Layout(layout) => {
+                    check_ident(
+                        path,
+                        &format!("[accounts].{account_name}.decoder.kind"),
+                        &layout.kind,
+                    )?;
+                    for field_name in layout.fields.keys() {
+                        check_ident(
+                            path,
+                            &format!("[accounts].{account_name}.decoder.fields.{field_name}"),
+                            field_name,
+                        )?;
+                    }
+                }
+            }
+        }
     }
     for (ix_name, mapping) in &adapter.instructions {
         check_ident(path, &format!("[instructions].{ix_name}"), ix_name)?;
@@ -1521,6 +1542,7 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
             });
         }
     }
+    validate_account_decoders(adapter, path)?;
 
     for (ix_name, mapping) in &adapter.instructions {
         if !adapter.actions.contains_key(&mapping.action) {
@@ -1620,15 +1642,35 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
     }
 
     for (key, logical) in &adapter.state_mapping {
-        let (account, _) = validate_dotted_path(path, key)?;
-        if !adapter.accounts.contains_key(account) {
-            return Err(AdapterError::Validation {
+        let (account, field) = validate_dotted_path(path, key)?;
+        let account_definition =
+            adapter
+                .accounts
+                .get(account)
+                .ok_or_else(|| AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[state_mapping].{key}"),
+                    reason: format!(
+                        "unknown generic account binding `{account}`; declare it under `[accounts]`"
+                    ),
+                })?;
+        if let Some(decoder) = account_definition.decoder.as_ref() {
+            let fields = decoder.layout().ok_or_else(|| AdapterError::Validation {
                 path: path.to_string(),
-                key: format!("[state_mapping].{key}"),
-                reason: format!(
-                    "unknown generic account binding `{account}`; declare it under `[accounts]`"
-                ),
-            });
+                key: format!("[accounts].{account}.decoder"),
+                reason: "decoder layout is invalid".into(),
+            })?;
+            if !fields.contains_key(field) {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[state_mapping].{key}"),
+                    reason: format!(
+                        "state mapping references decoder field `{field}` on account `{account}`, \
+                         but the decoder declares only {:?}",
+                        fields.keys().collect::<Vec<_>>()
+                    ),
+                });
+            }
         }
         if !adapter.observations.contains_key(logical) {
             return Err(AdapterError::Validation {
@@ -1698,6 +1740,90 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
     validate_oracles(adapter, path)?;
     validate_scheduled_actions(adapter, path)?;
 
+    Ok(())
+}
+
+fn validate_account_decoders(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
+    for (account_name, account) in &adapter.accounts {
+        let Some(decoder) = account.decoder.as_ref() else {
+            continue;
+        };
+        let fields = match decoder {
+            AccountDecoder::Preset(name) => {
+                let Some(fields) = decoder.layout() else {
+                    return Err(AdapterError::Validation {
+                        path: path.to_string(),
+                        key: format!("[accounts].{account_name}.decoder"),
+                        reason: format!(
+                            "unknown account decoder preset `{name}`; expected one of {ACCOUNT_DECODER_PRESETS:?}"
+                        ),
+                    });
+                };
+                fields
+            }
+            AccountDecoder::Layout(layout) => {
+                if layout.kind != "layout" {
+                    return Err(AdapterError::Validation {
+                        path: path.to_string(),
+                        key: format!("[accounts].{account_name}.decoder.kind"),
+                        reason: format!(
+                            "unknown account decoder kind `{}`; expected `layout`",
+                            layout.kind
+                        ),
+                    });
+                }
+                if layout.fields.is_empty() {
+                    return Err(AdapterError::Validation {
+                        path: path.to_string(),
+                        key: format!("[accounts].{account_name}.decoder.fields"),
+                        reason: "layout decoder must declare at least one field".into(),
+                    });
+                }
+                layout.fields.clone()
+            }
+        };
+        for (field_name, field) in &fields {
+            if let LayoutFieldType::Unknown(raw) = &field.ty {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[accounts].{account_name}.decoder.fields.{field_name}.type"),
+                    reason: format!(
+                        "unknown layout field type `{raw}`; expected one of `u8`, `u64`, `u128`, `i64`, `i128`, `bool`, `pubkey`"
+                    ),
+                });
+            }
+            let size = field
+                .ty
+                .byte_width()
+                .ok_or_else(|| AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[accounts].{account_name}.decoder.fields.{field_name}.type"),
+                    reason: format!("unknown layout field type `{}`", field.ty),
+                })?;
+            let end = field
+                .offset
+                .checked_add(size)
+                .ok_or_else(|| AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[accounts].{account_name}.decoder.fields.{field_name}.offset"),
+                    reason: format!(
+                        "layout field `{field_name}` offset {} + size {size} overflows usize",
+                        field.offset
+                    ),
+                })?;
+            if end > account.space {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[accounts].{account_name}.decoder.fields.{field_name}.offset"),
+                    reason: format!(
+                        "layout field `{field_name}` at offset {} with size {size} exceeds \
+                         declared account space {}",
+                        field.offset, account.space
+                    ),
+                });
+            }
+        }
+    }
     Ok(())
 }
 
@@ -1924,8 +2050,7 @@ fn validate_account_owners(adapter: &Adapter, path: &str) -> Result<(), AdapterE
                     reason: format!(
                         "account `{account_name}` declares an empty `owner` block. Set either \
                          `owner.program_so = \"<path to .so>\"` for a local sibling program, \
-                         or `owner.pubkey = \"<base58>\"` for a literal external program \
-                         (e.g. Pyth)."
+                         or `owner.pubkey = \"<base58>\"` for a literal external program."
                     ),
                 });
             }
@@ -1974,30 +2099,9 @@ fn validate_account_owners(adapter: &Adapter, path: &str) -> Result<(), AdapterE
 /// declared account.
 /// 4. Oracle `name`s are unique within the adapter.
 fn validate_oracles(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
-    use crate::adapter::schema::OracleKind;
     use std::collections::BTreeSet;
     let mut seen: BTreeSet<&str> = BTreeSet::new();
     for (idx, oracle) in adapter.oracles.iter().enumerate() {
-        if matches!(oracle.kind, OracleKind::Pyth) {
-            // ships a real Pyth `PriceAccount` byte
-            // layout for the aggregate-price read path (magic, ver,
-            // atype=Price, expo, agg.{price,conf,status,pub_slot},
-            // ema_price.val). A program built against
-            // `pyth-sdk-solana` and limited to
-            // `load_price_feed_from_account_info`'s aggregate path
-            // will boot unchanged. SMA window, multi-publisher
-            // aggregation, and the full per-publisher component
-            // array are still out of scope (the comp[] slots stay
-            // zero-filled in ). Adapters that depend on those
-            // extended fields should track the + follow-up.
-            eprintln!(
-                "info: {path}: `[[oracles]][{idx}]` declares `kind = \"pyth\"` — \
-                 aggregate-price read path ships. Programs that read \
-                 `agg.price` / `agg.conf` / `expo` / `agg.pub_slot` via \
-                 `pyth-sdk-solana` boot unchanged. Extended fields (SMA, \
-                 multi-publisher aggregation) stay zero-filled."
-            );
-        }
         let key_name = format!("[[oracles]][{idx}].name");
         if oracle.name.is_empty() {
             return Err(AdapterError::Validation {
@@ -2297,6 +2401,38 @@ triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
 "#
     }
 
+    fn sample_decoder_toml(decoder_block: &str, mapping_key: &str) -> String {
+        format!(
+            r#"
+protocol = "generic"
+program_so = "programs/resource_grinder/target/deploy/resource_grinder.so"
+idl_path = "fixtures/idls/resource-grinder.json"
+
+[accounts.vault]
+kind = "shared"
+space = 165
+{decoder_block}
+
+[instructions]
+noop = {{ action = "noop" }}
+
+[state_mapping]
+"{mapping_key}" = "vault.amount"
+
+[actions.noop]
+takes = []
+
+[observations]
+"vault.amount" = "uint"
+
+[personas.passive]
+action_rate_multiplier = 0
+action_weights = {{ noop = 0 }}
+triggers = []
+"#
+        )
+    }
+
     fn sample_generic_lending_v1_toml() -> String {
         format!(
             "{}{}",
@@ -2570,6 +2706,68 @@ protocol = "lending"
     }
 
     #[test]
+    fn rejects_unknown_account_decoder_preset() {
+        let toml_str = sample_decoder_toml(r#"decoder = "orca_pool""#, "vault.amount");
+        let err = parse_adapter_str(&toml_str, "decoder.toml").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("[accounts].vault.decoder"), "got: {msg}");
+        assert!(msg.contains("unknown account decoder preset"), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_unknown_layout_field_type() {
+        let toml_str = sample_decoder_toml(
+            r#"
+[accounts.vault.decoder]
+kind = "layout"
+
+[accounts.vault.decoder.fields.amount]
+type = "u32"
+offset = 64
+"#,
+            "vault.amount",
+        );
+        let err = parse_adapter_str(&toml_str, "decoder.toml").unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("[accounts].vault.decoder.fields.amount.type"),
+            "got: {msg}"
+        );
+        assert!(msg.contains("unknown layout field type"), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_layout_field_past_declared_space() {
+        let toml_str = sample_decoder_toml(
+            r#"
+[accounts.vault.decoder]
+kind = "layout"
+
+[accounts.vault.decoder.fields.amount]
+type = "u64"
+offset = 164
+"#,
+            "vault.amount",
+        );
+        let err = parse_adapter_str(&toml_str, "decoder.toml").unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("[accounts].vault.decoder.fields.amount.offset"),
+            "got: {msg}"
+        );
+        assert!(msg.contains("exceeds"), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_state_mapping_field_missing_from_decoder() {
+        let toml_str = sample_decoder_toml(r#"decoder = "spl_token_account""#, "vault.balance");
+        let err = parse_adapter_str(&toml_str, "decoder.toml").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("[state_mapping].vault.balance"), "got: {msg}");
+        assert!(msg.contains("decoder field `balance`"), "got: {msg}");
+    }
+
+    #[test]
     fn io_error_carries_path() {
         let err = load_adapter(std::path::Path::new("/nonexistent/adapter.toml")).unwrap_err();
         let msg = err.to_string();
@@ -2694,7 +2892,7 @@ action_weights = { mine = 1.0 }
 
 [[oracles]]
 name = "price_feed"
-kind = "pyth"
+kind = "admin-mock"
 account = "oracle"
 base_price = 100.0
 exponent = 0

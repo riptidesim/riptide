@@ -20,8 +20,8 @@ import type { InvariantFire, ScenarioRecord, ScenarioStatus } from "../run/last-
  *
  * A tiny read-only HTTP server that renders a simulation's
  * `simulation-result.json` + `report.md` artifacts as a single-page
- * HTML dashboard. Invoked via the `--serve` flag on `riptide run`,
- * `riptide simulate`, and `riptide replay`.
+ * HTML dashboard. Invoked via the `--serve` flag on `riptide run`
+ * and `riptide replay`.
  *
  * Design constraints (per ):
  * - No new npm deps. Uses `node:http` stdlib only. Chart.js is
@@ -243,7 +243,8 @@ async function syntheticSingleRunCollection(
         "failure-observed": 0,
         "no-failure-observed": 0,
         inconclusive: 0,
-        "setup-error": 1
+        "setup-error": 1,
+        interrupted: 0
       },
       totals_by_coverage: { exercised: 0, partial: 0, unexercised: 0, unknown: 1 },
       scenarios: [
@@ -295,7 +296,8 @@ async function syntheticSingleRunCollection(
         "failure-observed": 0,
         "no-failure-observed": 0,
         inconclusive: 0,
-        "setup-error": 1
+        "setup-error": 1,
+        interrupted: 0
       },
       totals_by_coverage: { exercised: 0, partial: 0, unexercised: 0, unknown: 1 },
       scenarios: [
@@ -371,7 +373,8 @@ async function syntheticSingleRunCollection(
       "failure-observed": interpretation.verdict === "failure-observed" ? 1 : 0,
       "no-failure-observed": interpretation.verdict === "no-failure-observed" ? 1 : 0,
       inconclusive: interpretation.verdict === "inconclusive" ? 1 : 0,
-      "setup-error": interpretation.verdict === "setup-error" ? 1 : 0
+      "setup-error": interpretation.verdict === "setup-error" ? 1 : 0,
+      interrupted: interpretation.verdict === "interrupted" ? 1 : 0
     },
     totals_by_coverage: {
       exercised: interpretation.coverage === "exercised" ? 1 : 0,

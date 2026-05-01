@@ -62,7 +62,7 @@ export const RunConfigSchema = z.object({
   agents: z.number().int().positive(),
   ticks: z.number().int().positive(),
   scenario: z.string().min(1),
-  seed: z.number().int().nonnegative(),
+  seed: z.number().int().nonnegative().optional(),
   personas: z.array(PersonaIdSchema),
   // Serde on the engine side accepts any string here (LiteSVM runs ignore
   // the field; only the validator-parity path connects to the URL). The
@@ -71,7 +71,8 @@ export const RunConfigSchema = z.object({
   // byte-stable rerun of every pre-Sprint-8 fixture via `riptide run`.
   // Keep the Zod layer in lockstep with serde: accept any non-empty string.
   validator_url: z.string().min(1),
-  output_path: z.string().min(1)
+  output_path: z.string().min(1),
+  state_pack: z.string().min(1).optional()
 });
 
 export const SimEventSchema = z.object({

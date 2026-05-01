@@ -89,6 +89,51 @@ export function createJestFormatter(opts: FormatterOptions): Formatter {
       case "scenario_start":
       case "warning":
         return;
+      case "sweep_start": {
+        opts.stdout.write(
+          c.cyan(
+            `sweep ${event.scenario.name}: ${event.sweepSize} seeds from ${event.seedRoot} ` +
+              `(${event.parallelism} parallel, ${event.agents} agents x ${event.ticks} ticks = ` +
+              `${formatCount(event.eventsPerCell)} events/seed, ` +
+              `${formatCount(event.totalEvents)} planned events, ` +
+              `${event.failFast ? "fail-fast" : "full"})`
+          ) + "\n"
+        );
+        return;
+      }
+      case "sweep_progress": {
+        let line =
+          `  progress ${event.scenario.name}: ${event.completed}/${event.sweepSize} complete, ` +
+          `${event.active} active${event.active > 0 ? ` for ${formatDuration(event.oldestActiveS)}` : ""}, ` +
+          `${event.started} started, ${event.passed} pass, ${event.fired} fired, ` +
+          `${event.engineErrors} error`;
+        if (event.killed > 0) {
+          line += `, ${event.killed} killed`;
+        }
+        line += `, elapsed ${formatDuration(event.elapsedS)}`;
+        if (event.completed === 0 && event.active > 0) {
+          line += `; first seed still running (${formatCount(event.eventsPerCell)} events/seed)`;
+        } else if (event.averageCellS !== undefined && event.etaS !== undefined) {
+          line += `, avg seed ${formatDuration(event.averageCellS)}, eta ${formatDuration(event.etaS)}`;
+        }
+        const colored =
+          event.fired > 0 || event.engineErrors > 0 || event.killed > 0 ? c.yellow(line) : c.dim(line);
+        opts.stdout.write(colored + "\n");
+        return;
+      }
+      case "sweep_end": {
+        const line =
+          `sweep ${event.scenario.name}: ${event.status}, ${event.completed}/${event.sweepSize} ` +
+          `complete in ${formatDuration(event.wallClockS)}`;
+        const colored =
+          event.status === "all_pass"
+            ? c.green(line)
+            : event.engineErrors > 0
+              ? c.yellow(line)
+              : c.red(line);
+        opts.stdout.write(colored + "\n");
+        return;
+      }
       case "scenario_end": {
         const raw = formatScenarioLine(
           event.record,
@@ -137,6 +182,10 @@ export function formatScenarioLine(
       const fireDetail = invariantFireDetail(record.invariant_fires);
       return `${inconclusiveGlyph} ${record.name}  (${secs}s, inconclusive, ${confidence}, ${coverage}${fireDetail})`;
     }
+    if (interpretation.verdict === "interrupted") {
+      const head = record.error ? firstLine(record.error) : firstLine(interpretation.summary);
+      return `${errorGlyph} ${record.name}  (${secs}s, interrupted: ${head}, ${confidence}, ${coverage})`;
+    }
     const head = record.error ? firstLine(record.error) : setupHead(interpretation.summary);
     return `${errorGlyph} ${record.name}  (${secs}s, setup failed: ${head}, ${confidence}, ${coverage})`;
   }
@@ -159,9 +208,9 @@ export function formatScenarioLine(
 }
 
 export function formatSummaryLine(summary: RunSummary): string {
-  return (
-    `${summary.pass} pass · ${summary.fail} fail · ${summary.error} error · ${summary.skipped} skip`
-  );
+  const base =
+    `${summary.pass} pass · ${summary.fail} fail · ${summary.error} error · ${summary.skipped} skip`;
+  return summary.signalAborted ? `${base} · interrupted` : base;
 }
 
 export function formatVerdictTotalsLine(summary: RunSummary): string | null {
@@ -169,7 +218,8 @@ export function formatVerdictTotalsLine(summary: RunSummary): string | null {
     "failure-observed": 0,
     "no-failure-observed": 0,
     inconclusive: 0,
-    "setup-error": 0
+    "setup-error": 0,
+    interrupted: 0
   };
   for (const record of summary.scenarios) {
     const verdict = record.interpretation?.verdict;
@@ -192,9 +242,18 @@ export function formatFailureBlock(
     if (record.error) {
       lines.push(`    - error: ${record.error}`);
     }
+    if (record.sweep?.summary_path) {
+      lines.push(`    - sweep summary: ${record.sweep.summary_path}`);
+    }
     return lines.join("\n");
   }
   lines.push(`  ${failGlyph} ${record.name}`);
+  if (record.sweep?.first_fire_cell) {
+    lines.push(`    - first fire cell: ${record.sweep.first_fire_cell}`);
+  }
+  if (record.sweep?.summary_path) {
+    lines.push(`    - sweep summary: ${record.sweep.summary_path}`);
+  }
   for (const fire of record.invariant_fires) {
     lines.push(`    - ${fire.name} at tick ${fire.tick}`);
   }
@@ -207,7 +266,8 @@ export function formatNextActionBlock(summary: RunSummary): string | null {
     return (
       verdict === "failure-observed" ||
       verdict === "inconclusive" ||
-      verdict === "setup-error"
+      verdict === "setup-error" ||
+      verdict === "interrupted"
     );
   });
   if (records.length === 0) return null;
@@ -226,7 +286,8 @@ function colorizeScenarioLine(line: string, record: ScenarioRecord, c: Colorizer
   if (record.interpretation?.verdict === "failure-observed") return c.red(line);
   if (
     record.interpretation?.verdict === "inconclusive" ||
-    record.interpretation?.verdict === "setup-error"
+    record.interpretation?.verdict === "setup-error" ||
+    record.interpretation?.verdict === "interrupted"
   ) {
     return c.yellow(line);
   }
@@ -309,6 +370,19 @@ function setupHead(summary: string): string {
   const prefix = "Setup failed:";
   const line = firstLine(summary);
   return line.startsWith(prefix) ? line.slice(prefix.length).trim().replace(/\.$/, "") : line;
+}
+
+function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0s";
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const total = Math.round(seconds);
+  const minutes = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${minutes}m ${secs.toString().padStart(2, "0")}s`;
+}
+
+function formatCount(value: number): string {
+  return Number.isFinite(value) ? Math.round(value).toLocaleString("en-US") : "0";
 }
 
 /** Convenience helper for plain-text extraction of invariant-fire detail. */

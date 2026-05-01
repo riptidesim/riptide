@@ -50,7 +50,7 @@ impl Processor {
                 // `oracle` is owned by the oracle program, not perpetuals.
                 // We validate the shape via Borsh read but do not enforce
                 // `owner == program_id` — the oracle account is shared
-                // across programs by design (admin-mock / Pyth).
+                // across programs by design.
                 Self::read_oracle(oracle)?;
 
                 if max_leverage_bps == 0 || liquidation_threshold_bps == 0 {

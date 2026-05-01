@@ -28,7 +28,7 @@
 # the oracle. The generic harness can now bind a shared oracle
 # account to an external owner (`owner.program_so = ".../admin_mock_oracle.so"`
 # or `owner.pubkey = "<base58>"`) and bootstrap it with real
-# admin-mock / Pyth bytes at tick 0; that surface is exercised by
+# admin-mock bytes at tick 0; that surface is exercised by
 # the proof test cited above. Declaring it here would work and the
 # harness would honour the sibling-program ownership — the reason
 # this file leaves it out is scope, not capability.
@@ -185,7 +185,7 @@ unsupported_fields = [
   "instruction `open_position(side, leverage_bps, notional)` — full multi-arg trade flow not dispatched from personas; covered by perps_sibling_oracle_proof",
   "instruction `close_position` — terminal position flow, same reason as `open_position`",
   "instruction `liquidate_position` — pairwise `target_idx` plumbing in `GenericHarness::execute_action` is still a follow-up",
-  "account `market.admin` / `market.oracle` — pubkey metadata, not part of the logical persona-observable surface",
+  "account `market.is_initialized` / `market.admin` / `market.oracle` — bootstrap and pubkey metadata, not part of the logical persona-observable surface",
   "account `position.owner` / `position.market` / `position.is_initialized` — pubkey/bool bootstrap metadata, not persona-observable",
   "funding rate and insurance fund — deliberately out of scope for this fork (documented in the IDL description)",
 ]

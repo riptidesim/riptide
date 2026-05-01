@@ -2,7 +2,6 @@ import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { Command } from "commander";
 import TOML from "toml";
 import { z } from "zod";
 
@@ -27,19 +26,6 @@ export const DEFAULT_PERSONAS = [
   "degen-borrower"
 ] as const;
 export const DEFAULT_VALIDATOR_URL = "http://127.0.0.1:8899";
-
-export function registerRunConfigOptions(command: Command): Command {
-  return command
-    .option("--agents <count>", "Number of simulated agents", parseInteger)
-    .option("--ticks <count>", "Number of ticks to run", parseInteger)
-    .option("--scenario <name>", "Scenario preset", "baseline")
-    .option("--seed <seed>", "Random seed", parseInteger)
-    .option("--personas <ids>", "Comma-separated persona ids")
-    .option("--validator-url <url>", "Solana RPC URL", DEFAULT_VALIDATOR_URL)
-    .option("--llm-url <url>", "OpenAI-compatible LLM endpoint override")
-    .option("--adapter <path>", "Path to an adapter TOML (selects the primitive at runtime)")
-    .option("--output <path>", "Output directory for artifacts");
-}
 
 export function buildSimulateOptions(raw: Record<string, unknown>): { config: SimulateOptions; generatedSeed: boolean } {
   const generatedSeed = raw.seed === undefined;
@@ -94,6 +80,10 @@ export function buildSimulateOptions(raw: Record<string, unknown>): { config: Si
     personas: parsePersonas(raw.personas, adapterProtocol),
     validator_url: raw.validatorUrl ?? process.env.RIPTIDE_RPC_URL ?? DEFAULT_VALIDATOR_URL,
     output_path: raw.output ?? "riptide-output/default-run",
+    state_pack:
+      typeof raw.statePack === "string" && raw.statePack.length > 0
+        ? path.resolve(raw.statePack)
+        : undefined,
     llm_url: raw.llmUrl,
     adapter_path: adapterPath
   });
@@ -121,14 +111,6 @@ function parsePersonas(
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean);
-}
-
-function parseInteger(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed)) {
-    throw new Error(`Expected an integer, received "${value}"`);
-  }
-  return parsed;
 }
 
 function generateSeed(): number {

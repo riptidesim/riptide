@@ -38,15 +38,60 @@ import {
   writeLastRun,
   type InvariantFire,
   type LastRun,
-  type ScenarioRecord
+  type ScenarioRecord,
+  type ScenarioSweepRecord
 } from "./last-run.js";
 import { writeRunCollection } from "./collection.js";
 import { interpretScenarioResult, type ArtifactReadability } from "./interpretation.js";
+import { DEFAULT_SWEEP_SIZE, runSweep } from "./sweep.js";
 
 export type RunEvent =
   | { type: "run_start"; total: number; cwd: string }
   | { type: "warning"; message: string }
   | { type: "scenario_start"; index: number; total: number; scenario: DiscoveredScenario }
+  | {
+      type: "sweep_start";
+      scenario: ResolvedScenario;
+      sweepSize: number;
+      seedRoot: number;
+      parallelism: number;
+      failFast: boolean;
+      agents: number;
+      ticks: number;
+      eventsPerCell: number;
+      totalEvents: number;
+    }
+  | {
+      type: "sweep_progress";
+      scenario: ResolvedScenario;
+      sweepSize: number;
+      seedRoot: number;
+      parallelism: number;
+      started: number;
+      active: number;
+      completed: number;
+      passed: number;
+      fired: number;
+      engineErrors: number;
+      killed: number;
+      elapsedS: number;
+      oldestActiveS: number;
+      eventsPerCell: number;
+      totalEvents: number;
+      averageCellS?: number;
+      etaS?: number;
+    }
+  | {
+      type: "sweep_end";
+      scenario: ResolvedScenario;
+      sweepSize: number;
+      seedRoot: number;
+      completed: number;
+      fired: number;
+      engineErrors: number;
+      status: string;
+      wallClockS: number;
+    }
   | {
       type: "scenario_end";
       index: number;
@@ -249,6 +294,17 @@ export interface RunScenariosInput {
   selectedSourcePath?: string;
   /** Mirrors the CLI flag for reviewer-facing collection metadata only. */
   allowInvariantViolations?: boolean;
+  /** Stress-sweep controls. When omitted, runScenarios preserves the legacy one-call path. */
+  sweep?: {
+    seeds?: number;
+    full?: boolean;
+    seedRoot?: number;
+    parallelism?: number;
+  };
+  /** Optional state pack override for every scenario in this invocation. */
+  statePackOverride?: string;
+  /** Generated Rust harness crate or Cargo.toml for every scenario in this invocation. */
+  harnessPath?: string;
   onEvent?: (event: RunEvent) => void;
   /** Injection hook for tests — substitute the orchestrator invocation. */
   runOne?: (ctx: RunOneContext) => Promise<RunOneResult>;
@@ -269,6 +325,18 @@ export interface RunOneContext {
   silent?: boolean;
   /** Artifact root directory override (T11). */
   outputDir?: string;
+  /** Exact artifact directory for a sweep cell or replay cell. */
+  artifactDirOverride?: string;
+  /** Pre-compiled policies next to the source scenario run-config. */
+  policiesPathOverride?: string;
+  /** Reproduction command written into reports and packs. */
+  reproCommandOverride?: string;
+  /** Absolute path to the current-state pack to hydrate before tick 0. */
+  statePackPath?: string;
+  /** Generated Rust harness crate or Cargo.toml for this scenario. */
+  harnessPath?: string;
+  /** Abort signal used by sweep fail-fast cancellation. */
+  abortSignal?: AbortSignal;
 }
 
 export type RunOneResult =
@@ -277,6 +345,7 @@ export type RunOneResult =
       wallClockS: number;
       artifactsDir: string;
       result: SimulationResult;
+      sweep?: ScenarioSweepRecord;
       /** Captured engine stderr when silent mode was on (informational). */
       engineStderr?: string;
     }
@@ -286,12 +355,14 @@ export type RunOneResult =
       artifactsDir: string;
       result: SimulationResult;
       fires: InvariantFire[];
+      sweep?: ScenarioSweepRecord;
       engineStderr?: string;
     }
   | {
       kind: "error";
       wallClockS: number;
       error: string;
+      sweep?: ScenarioSweepRecord;
       /** Captured engine stderr when available — used to surface real engine diagnostics. */
       engineStderr?: string;
     };
@@ -306,6 +377,9 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
   const onEvent = input.onEvent ?? (() => {});
   const runOne = input.runOne ?? defaultRunOne;
   const handleSignals = input.handleSignals !== false;
+  const sweepSeedRoot = input.sweep
+    ? (input.sweep.seedRoot ?? randomSeedRoot())
+    : undefined;
 
   // Per-scenario adapter resolver. Injection-friendly so tests can
   // skip resolution entirely by passing a fake runOne; when runOne is
@@ -385,6 +459,46 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
           wallClockS: 0,
           error: adapterResolution.message
         };
+      } else if (input.sweep) {
+        const sweepSize = sweepSizeForScenario(
+          scenario.runConfigPath,
+          input.sweep.seeds
+        );
+        if (sweepSize > 1) {
+          runResult = await runSweep({
+            scenario,
+            cwd: input.cwd,
+            adapterPath,
+            adapterSource:
+              adapterResolution?.kind === "ok" ? adapterResolution.source : undefined,
+            silent: input.silent !== false,
+            scenarioOutputDir: resolveArtifactsDir({
+              scenario,
+              cwd: input.cwd,
+              outputDir: input.outputDir
+            }),
+            statePackPath: input.statePackOverride,
+            harnessPath: input.harnessPath,
+            sweepSize,
+            seedRoot: sweepSeedRoot ?? randomSeedRoot(),
+            full: input.sweep.full === true,
+            runOne,
+            shouldAbort: () => signalAborted,
+            parallelism: input.sweep.parallelism,
+            onEvent
+          });
+        } else {
+          runResult = await runOne({
+            scenario,
+            cwd: input.cwd,
+            adapterPath,
+            adapterSource: adapterResolution?.kind === "ok" ? adapterResolution.source : undefined,
+            silent: input.silent !== false,
+            outputDir: input.outputDir,
+            statePackPath: input.statePackOverride,
+            harnessPath: input.harnessPath
+          });
+        }
       } else {
         runResult = await runOne({
           scenario,
@@ -392,7 +506,9 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
           adapterPath,
           adapterSource: adapterResolution?.kind === "ok" ? adapterResolution.source : undefined,
           silent: input.silent !== false,
-          outputDir: input.outputDir
+          outputDir: input.outputDir,
+          statePackPath: input.statePackOverride,
+          harnessPath: input.harnessPath
         });
       }
     } catch (err) {
@@ -485,7 +601,8 @@ function recordForResult(
       status: "pass",
       wall_clock_s: roundSec(result.wallClockS),
       invariant_fires: [],
-      artifacts_dir: result.artifactsDir
+      artifacts_dir: result.artifactsDir,
+      ...(result.sweep ? { sweep: result.sweep } : {})
     };
     record.interpretation = interpretScenarioResult({
       record,
@@ -503,6 +620,7 @@ function recordForResult(
       wall_clock_s: roundSec(result.wallClockS),
       invariant_fires: result.fires,
       artifacts_dir: result.artifactsDir,
+      ...(result.sweep ? { sweep: result.sweep } : {}),
       engine_stderr: result.engineStderr
     };
     record.interpretation = interpretScenarioResult({
@@ -520,6 +638,7 @@ function recordForResult(
     wall_clock_s: roundSec(result.wallClockS),
     invariant_fires: [],
     error: result.error,
+    ...(result.sweep ? { sweep: result.sweep } : {}),
     engine_stderr: result.engineStderr
   };
   record.interpretation = interpretScenarioResult({ record, result: null });
@@ -562,6 +681,37 @@ function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+function sweepSizeForScenario(runConfigPath: string, override: number | undefined): number {
+  if (override !== undefined) {
+    if (!Number.isInteger(override) || override <= 0) {
+      throw new Error(`--seeds must be a positive integer, got ${override}`);
+    }
+    return override;
+  }
+  return hasExplicitSeed(runConfigPath) ? 1 : DEFAULT_SWEEP_SIZE;
+}
+
+function hasExplicitSeed(runConfigPath: string): boolean {
+  const raw = readFileSync(runConfigPath, "utf8");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(
+      `run-config at ${runConfigPath}: JSON parse failed: ${(err as Error).message}`
+    );
+  }
+  return (
+    parsed !== null &&
+    typeof parsed === "object" &&
+    Object.prototype.hasOwnProperty.call(parsed, "seed")
+  );
+}
+
+function randomSeedRoot(): number {
+  return Math.floor(Math.random() * 2 ** 31);
+}
+
 /** Shape parsed out of a user-authored run-config.json file. */
 interface RawRunConfigFile {
   agents?: number;
@@ -571,6 +721,7 @@ interface RawRunConfigFile {
   personas?: string[];
   output_path?: string;
   validator_url?: string;
+  state_pack?: string;
 }
 
 export interface ScenarioRunInputs {
@@ -584,10 +735,11 @@ export interface ScenarioRunInputs {
    * declared — the T11 shape ("artifacts always inside .riptide/runs/
    * inside the repo, not /tmp/ and not fixtures/"). Leaving this
    * undefined preserves the pre-Phase-4 behavior of honoring the
-   * run-config field so `riptide simulate` + script-direct callers
-   * aren't affected.
-   */
+   * run-config field so script-direct callers aren't affected.
+  */
   outputPathOverride?: string;
+  /** Optional state pack override for this scenario. Relative paths resolve from cwd. */
+  statePackOverride?: string;
 }
 
 export interface ScenarioRunBuild {
@@ -595,6 +747,7 @@ export interface ScenarioRunBuild {
   simulateOptions: SimulateOptions;
   outputPath: string;
   reproCommand: string;
+  statePackPath?: string;
 }
 
 /**
@@ -622,11 +775,10 @@ export function buildScenarioRun(inputs: ScenarioRunInputs): ScenarioRunBuild {
     typeof parsed.agents !== "number" ||
     typeof parsed.ticks !== "number" ||
     typeof parsed.scenario !== "string" ||
-    typeof parsed.seed !== "number" ||
     !Array.isArray(parsed.personas)
   ) {
     throw new Error(
-      `run-config at ${inputs.runConfigPath} missing one of: agents, ticks, scenario, seed, personas`
+      `run-config at ${inputs.runConfigPath} missing one of: agents, ticks, scenario, personas`
     );
   }
 
@@ -635,6 +787,12 @@ export function buildScenarioRun(inputs: ScenarioRunInputs): ScenarioRunBuild {
     : typeof parsed.output_path === "string" && parsed.output_path.length > 0
       ? parsed.output_path
       : defaultOutputPathForScenario(inputs.scenarioName);
+  const statePackPath = resolveStatePackPath({
+    override: inputs.statePackOverride,
+    rawStatePack: parsed.state_pack,
+    runConfigPath: inputs.runConfigPath,
+    cwd: inputs.cwd
+  });
 
   const { config } = buildSimulateOptions({
     agents: parsed.agents,
@@ -649,15 +807,30 @@ export function buildScenarioRun(inputs: ScenarioRunInputs): ScenarioRunBuild {
     // environment-variable override keep working unchanged.
     validatorUrl: parsed.validator_url,
     adapter: inputs.adapterPath,
-    output: outputPath
+    output: outputPath,
+    statePack: statePackPath
   });
   const runConfig = toRunConfig(config);
 
   const reproCommand =
     `riptide run ${path.relative(inputs.cwd, inputs.runConfigPath) || inputs.runConfigPath}` +
-    (config.adapter_path ? ` --adapter ${config.adapter_path}` : "");
+    (config.adapter_path ? ` --adapter ${config.adapter_path}` : "") +
+    (inputs.statePackOverride && statePackPath ? ` --state-pack ${statePackPath}` : "");
 
-  return { runConfig, simulateOptions: config, outputPath, reproCommand };
+  return { runConfig, simulateOptions: config, outputPath, reproCommand, statePackPath };
+}
+
+function resolveStatePackPath(input: {
+  override?: string;
+  rawStatePack?: string;
+  runConfigPath: string;
+  cwd: string;
+}): string | undefined {
+  const value = input.override ?? input.rawStatePack;
+  if (typeof value !== "string" || value.trim().length === 0) return undefined;
+  if (path.isAbsolute(value)) return value;
+  const baseDir = input.override ? input.cwd : path.dirname(input.runConfigPath);
+  return path.resolve(baseDir, value);
 }
 
 /**
@@ -690,14 +863,15 @@ async function defaultRunOne(ctx: RunOneContext): Promise<RunOneResult> {
   // `output_path` field so riptide-run writes land inside the user's
   // repo and outside /tmp/, regardless of what the run-config file
   // declared (shipping fixtures declare fixtures/scenarios/... paths).
-  const artifactDir = resolveArtifactsDir(ctx);
+  const artifactDir = ctx.artifactDirOverride ?? resolveArtifactsDir(ctx);
 
   const build = buildScenarioRun({
     scenarioName: ctx.scenario.name,
     runConfigPath: ctx.scenario.runConfigPath,
     cwd: ctx.cwd,
     adapterPath: ctx.adapterPath,
-    outputPathOverride: artifactDir
+    outputPathOverride: artifactDir,
+    statePackOverride: ctx.statePackPath
   });
 
   // Shipping bundles (Sprint 4/5/6 fixtures, scenarios generated by the
@@ -706,11 +880,10 @@ async function defaultRunOne(ctx: RunOneContext): Promise<RunOneResult> {
   // receives the byte-stable policy set instead of a fresh LLM/fallback
   // compilation. Adjacent means the exact same directory — no
   // recursion.
-  const adjacentPolicies = path.join(
-    path.dirname(ctx.scenario.runConfigPath),
-    "policies.json"
-  );
-  const policiesPath = existsSync(adjacentPolicies) ? adjacentPolicies : undefined;
+  const adjacentPolicies = path.join(path.dirname(ctx.scenario.runConfigPath), "policies.json");
+  const policiesPath =
+    ctx.policiesPathOverride ??
+    (existsSync(adjacentPolicies) ? adjacentPolicies : undefined);
 
   const silent = ctx.silent !== false;
 
@@ -722,7 +895,10 @@ async function defaultRunOne(ctx: RunOneContext): Promise<RunOneResult> {
       adapterPath: build.simulateOptions.adapter_path,
       allowInvariantViolations: true,
       policiesPath,
-      silent
+      silent,
+      statePackPath: build.statePackPath,
+      harnessPath: ctx.harnessPath,
+      abortSignal: ctx.abortSignal
     });
   } catch (err) {
     const elapsed = (Date.now() - started) / 1000;
@@ -738,10 +914,10 @@ async function defaultRunOne(ctx: RunOneContext): Promise<RunOneResult> {
   const fires = extractInvariantFires(result);
 
   const artifactPath = await writeArtifacts(result, artifactDir, {
-    narrativeConfig: {
-      adapterPath: build.simulateOptions.adapter_path ?? "",
-      reproCommand: build.reproCommand
-    }
+      narrativeConfig: {
+        adapterPath: build.simulateOptions.adapter_path ?? "",
+        reproCommand: ctx.reproCommandOverride ?? buildPackRerunHint(ctx, build.simulateOptions.adapter_path)
+      }
   });
   const artifactsDir = path.dirname(artifactPath);
 
@@ -751,7 +927,8 @@ async function defaultRunOne(ctx: RunOneContext): Promise<RunOneResult> {
   // SimulationResult itself is the load-bearing artifact and the
   // pack is auxiliary.
   try {
-    const packCommand = buildPackRerunHint(ctx, build.simulateOptions.adapter_path);
+    const packCommand =
+      ctx.reproCommandOverride ?? buildPackRerunHint(ctx, build.simulateOptions.adapter_path);
     await emitPack({
       simulationResultPath: artifactPath,
       cwd: ctx.cwd,
@@ -787,6 +964,14 @@ function buildPackRerunHint(ctx: RunOneContext, adapterPath: string | undefined)
   const parts = ["exec", "riptide", "run", posixQuote(rel)];
   if (adapterRel && !adapterRel.startsWith("..")) {
     parts.push("--adapter", posixQuote(adapterRel));
+  }
+  if (ctx.statePackPath) {
+    const statePackRel = path.relative(ctx.cwd, ctx.statePackPath) || ctx.statePackPath;
+    parts.push("--state-pack", posixQuote(statePackRel));
+  }
+  if (ctx.harnessPath) {
+    const harnessRel = path.relative(ctx.cwd, ctx.harnessPath) || ctx.harnessPath;
+    parts.push("--harness", posixQuote(harnessRel));
   }
   return parts.join(" ");
 }

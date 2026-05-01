@@ -120,7 +120,8 @@ test("dashboard server serves a run collection and selected scenario artifacts",
       "failure-observed": 0,
       "no-failure-observed": 2,
       inconclusive: 0,
-      "setup-error": 0
+      "setup-error": 0,
+      interrupted: 0
     },
     totals_by_coverage: { exercised: 2, partial: 0, unexercised: 0, unknown: 0 },
     scenarios: [

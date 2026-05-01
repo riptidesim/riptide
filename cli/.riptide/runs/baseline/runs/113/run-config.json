@@ -1,0 +1,15 @@
+{
+  "agents": 1,
+  "ticks": 1,
+  "scenario": "baseline",
+  "seed": 113,
+  "personas": [
+    "cautious-yield-farmer",
+    "aggressive-arb-bot",
+    "panic-whale",
+    "steady-lp",
+    "degen-borrower"
+  ],
+  "validator_url": "http://127.0.0.1:8899",
+  "output_path": ".riptide/runs/baseline/runs/113"
+}

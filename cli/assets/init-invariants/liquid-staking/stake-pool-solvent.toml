@@ -1,0 +1,10 @@
+name = "stake_pool_solvent"
+label = "Stake pool remains solvent"
+description = "Template check for stake-pool backing staying non-negative after stake and redemption observations are wired."
+form = "flat"
+field = "stake_pool_surplus"
+op = ">="
+value = 0
+severity = "warn"
+commented = true
+

@@ -452,3 +452,21 @@ test("classifies missing SimulationResult or error records as setup error", () =
   assert.match(interpretation.summary, /Setup failed: adapter failed to parse\./);
   assertNoForbiddenInterpretationText(interpretation);
 });
+
+test("classifies SIGINT termination as interrupted, not setup error", () => {
+  const interpretation = interpret(
+    baseRecord({
+      status: "error",
+      artifacts_dir: undefined,
+      error: "riptide-engine terminated by signal SIGINT"
+    }),
+    null
+  );
+
+  assert.equal(interpretation.verdict, "interrupted");
+  assert.equal(interpretation.coverage, "unknown");
+  assert.equal(interpretation.confidence, "none");
+  assert.equal(interpretation.severity, "none");
+  assert.match(interpretation.summary, /Run interrupted/);
+  assert.match(interpretation.next_action, /No setup or adapter change/);
+});

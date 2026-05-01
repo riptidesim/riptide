@@ -73,6 +73,7 @@ use litesvm::LiteSVM;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use solana_account::Account;
+use solana_clock::Clock;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
@@ -99,7 +100,7 @@ use crate::{
         PrimitiveError,
     },
     replay::run::{load_replay_bundle, ReplayBundle},
-    scenario::{oracle_layout_for, OracleUpdate},
+    scenario::oracle::{oracle_layout_for, OracleEncodeContext, OracleUpdate},
     sim::run::{build_invariants_summary, evaluate_invariants, SimulationAbort},
     types::{
         AgentStatus, InvariantViolation, ObservationValue, Policy, PositionSizing,
@@ -576,6 +577,10 @@ impl MultiComponentHarness {
     fn advance_tick_all(&mut self) {
         self.current_slot += 1;
         self.svm.warp_to_slot(self.current_slot);
+        let mut clock = self.svm.get_sysvar::<Clock>();
+        clock.slot = self.current_slot;
+        clock.unix_timestamp = i64::try_from(self.current_slot).unwrap_or(i64::MAX);
+        self.svm.set_sysvar(&clock);
         self.svm.expire_blockhash();
     }
 
@@ -586,7 +591,9 @@ impl MultiComponentHarness {
     ) -> Result<(), PrimitiveError> {
         let component = &mut self.components[component_idx];
         match &mut component.runtime {
-            ComponentRuntime::Generic(state) => push_generic_oracle(&mut self.svm, state, update),
+            ComponentRuntime::Generic(state) => {
+                push_generic_oracle(&mut self.svm, state, self.current_slot, update)
+            }
             ComponentRuntime::Lending(state) => push_lending_oracle(&mut self.svm, state, update),
         }
     }
@@ -880,6 +887,7 @@ fn bootstrap_generic_component(
 fn push_generic_oracle(
     svm: &mut LiteSVM,
     state: &GenericComponent,
+    current_slot: u64,
     update: &OracleUpdate,
 ) -> Result<(), PrimitiveError> {
     let Some(binding) = state.oracle_binding.clone() else {
@@ -903,14 +911,18 @@ fn push_generic_oracle(
         ))
     })?;
     let layout = oracle_layout_for(binding.kind);
-    let encoded = layout
-        .encode(state.admin.pubkey().to_bytes(), update)
-        .map_err(|e| {
-            PrimitiveError::Infra(format!(
-                "oracle layout `{:?}` failed to encode update for `{}`: {e}",
-                binding.kind, binding.account_name
-            ))
-        })?;
+    let context = OracleEncodeContext::new(
+        state.admin.pubkey().to_bytes(),
+        current_slot,
+        i64::try_from(current_slot).unwrap_or(i64::MAX),
+    )
+    .with_confidence(binding.confidence);
+    let encoded = layout.encode_with_context(&context, update).map_err(|e| {
+        PrimitiveError::Infra(format!(
+            "oracle layout `{:?}` failed to encode update for `{}`: {e}",
+            binding.kind, binding.account_name
+        ))
+    })?;
     if existing.data.len() < encoded.len() {
         return Err(PrimitiveError::Infra(format!(
             "generic component oracle `{}` has {} bytes of space but layout `{:?}` \

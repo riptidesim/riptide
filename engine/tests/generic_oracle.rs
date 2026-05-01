@@ -232,29 +232,6 @@ exponent = 0
 }
 
 #[test]
-fn adapter_parses_pyth_kind() {
-    let toml = r#"
-protocol = "lending"
-
-[instructions]
-deposit = { action = "deposit", amount = "amount" }
-
-[state_mapping]
-"pool.total_deposits" = "tvl"
-
-[[oracles]]
-name = "sol_usd"
-kind = "pyth"
-base_price = 150.0
-exponent = -2
-confidence = 42
-"#;
-    let adapter = parse_adapter_str(toml, "test.toml").expect("parse");
-    assert_eq!(adapter.oracles[0].kind, OracleKind::Pyth);
-    assert_eq!(adapter.oracles[0].confidence, Some(42));
-}
-
-#[test]
 fn adapter_rejects_unknown_oracle_kind() {
     let toml = r#"
 protocol = "lending"
@@ -292,7 +269,7 @@ kind = "admin-mock"
 
 [[oracles]]
 name = "dup"
-kind = "pyth"
+kind = "admin-mock"
 "#;
     let err = parse_adapter_str(toml, "test.toml").unwrap_err();
     let msg = err.to_string();
@@ -330,24 +307,6 @@ fn dispatch_resolves_admin_mock_to_matching_byte_length() {
     // SSOT: matches the golden file shipped with lending_pool's
     // OracleState mirror.
     assert_eq!(layout.byte_len(), 50);
-}
-
-#[test]
-fn dispatch_resolves_pyth_kind_without_panic() {
-    // Pyth variant is shipped as a placeholder that reuses the
-    // admin-mock layout for. A drop will replace
-    // this with the full Pyth Borsh shape; until then, dispatch must
-    // still resolve and round-trip.
-    let layout = oracle_layout_for(OracleKind::Pyth);
-    let admin = [7u8; 32];
-    let update = OracleUpdate {
-        price: 123.45,
-        exponent: -2,
-    };
-    let bytes = layout.encode(admin, &update).expect("encode");
-    let decoded = layout.decode(&bytes).expect("decode");
-    assert!((decoded.price - 123.45).abs() < 1e-6);
-    assert_eq!(decoded.exponent, -2);
 }
 
 #[test]
@@ -396,10 +355,8 @@ mod owner_aware_bootstrap {
         primitive::{GenericBootstrapConfig, GenericHarness},
         scenario::{oracle_layout_for, OracleUpdate},
     };
-    use solana_sdk::{
-        pubkey::Pubkey,
-        signature::{read_keypair_file, Signer},
-    };
+    use solana_sdk::pubkey::Pubkey;
+    use solana_sdk::signature::{read_keypair_file, Signer};
 
     fn workspace_root() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -584,12 +541,11 @@ exponent = {exponent}
         if skip_if_missing(&[&grinder_so, &grinder_idl]) {
             return;
         }
-        // Use a well-known literal key (Pyth's current deployment address
-        // is a long-standing public pubkey used in docs).
+        // Use a literal external-owner key to prove owner preservation
+        // stays independent of the built-in oracle layout.
         let literal = "FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH";
         let owner_clause = format!(r#"owner = {{ pubkey = "{literal}" }}"#);
-        // Pyth layout needs 3312 bytes.
-        let toml = adapter_toml_with_owner(&owner_clause, 150.0, -2, 3312, "pyth", "");
+        let toml = adapter_toml_with_owner(&owner_clause, 150.0, -2, 50, "admin-mock", "");
         let adapter_path = tmpdir_for("literal").join("adapter.toml");
         write_adapter(&adapter_path, &toml);
         let adapter = load_adapter(&adapter_path).expect("load literal-owner adapter");
@@ -603,11 +559,10 @@ exponent = {exponent}
         .expect("bootstrap literal-owner harness");
         let (_, oracle_account) = harness_oracle_account(&harness, "oracle");
         assert_eq!(oracle_account.owner, Pubkey::from_str(literal).unwrap());
-        // Pyth layout decodes back to the declared base_price/exponent.
-        let layout = oracle_layout_for(OracleKind::Pyth);
+        let layout = oracle_layout_for(OracleKind::AdminMock);
         let decoded = layout
             .decode(&oracle_account.data)
-            .expect("decode pyth tick-0");
+            .expect("decode oracle tick-0");
         assert!(
             (decoded.price - 150.0).abs() < 1e-6,
             "got {}",
@@ -630,9 +585,9 @@ name = "secondary"
 kind = "admin-mock"
 account = "oracle"
 base_price = 50.0
-exponent = 0
+        exponent = 0
 "#;
-        let toml = adapter_toml_with_owner(owner_clause, 100.0, 0, 3312, "pyth", extra);
+        let toml = adapter_toml_with_owner(owner_clause, 100.0, 0, 50, "admin-mock", extra);
         // parse_adapter_str is fine for this negative test — no filesystem
         // owner.program_so so no path resolution needed.
         let adapter = parse_adapter_str(&toml, "multi.toml").expect("parse multi-oracle adapter");
@@ -733,8 +688,8 @@ exponent = 0
 mod generic_oracle_write_path {
     //! Gate: `generic-oracle-write`. Proves that
     //! `GenericHarness::push_oracle_price` mutates the bound shared
-    //! oracle account through the shipping layout dispatcher — admin-mock
-    //! and Pyth both end-to-end — and that adapters without an
+    //! oracle account through the shipping admin-mock layout dispatcher
+    //! and that adapters without an
     //! `[[oracles]]` block keep the trait's no-op semantics so the
     //! existing generic scratch-gate regression hashes stay byte-stable.
     use riptide_engine::{
@@ -742,13 +697,9 @@ mod generic_oracle_write_path {
         primitive::{GenericBootstrapConfig, GenericHarness, Primitive},
         scenario::{oracle_layout_for, OracleUpdate},
     };
-    use solana_sdk::{
-        pubkey::Pubkey,
-        signature::{read_keypair_file, Signer},
-    };
+    use solana_sdk::signature::{read_keypair_file, Signer};
     use std::fs;
     use std::path::{Path, PathBuf};
-    use std::str::FromStr;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::OnceLock;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -968,67 +919,6 @@ exponent = {exponent}
             &tick0.data[..layout.byte_len()],
             "pushing the tick-0 price must produce byte-identical bytes to tick 0"
         );
-    }
-
-    #[test]
-    fn push_pyth_kind_writes_real_pyth_layout_bytes() {
-        let grinder_so = resource_grinder_so();
-        let grinder_idl = resource_grinder_idl();
-        if skip_if_missing(&[&grinder_so, &grinder_idl]) {
-            return;
-        }
-        let literal = "FsJ3A3u2vn5cTVofAjvy6y5kwABJAqYWpe4975bi2epH";
-        let owner_clause = format!(r#"owner = {{ pubkey = "{literal}" }}"#);
-        let toml = adapter_toml(&owner_clause, 150.0, -2, 3312, "pyth");
-        let adapter = parse_adapter_str(&toml, "pyth-push.toml").expect("parse adapter");
-
-        let mut harness = GenericHarness::bootstrap(GenericBootstrapConfig {
-            program_so: grinder_so,
-            idl_path: grinder_idl,
-            agent_count: 1,
-            adapter,
-        })
-        .expect("bootstrap pyth adapter");
-
-        let expected_owner = Pubkey::from_str(literal).unwrap();
-        let pyth_layout = oracle_layout_for(OracleKind::Pyth);
-
-        let tick0 = harness
-            .inspect_shared_account("oracle")
-            .expect("pyth tick 0");
-        assert_eq!(tick0.owner, expected_owner);
-        assert_eq!(
-            tick0.data.len(),
-            pyth_layout.byte_len(),
-            "pyth layout must consume the declared 3312-byte account"
-        );
-        let tick0_decoded = pyth_layout.decode(&tick0.data).expect("decode pyth tick 0");
-        assert_eq!(tick0_decoded.exponent, -2);
-        assert!((tick0_decoded.price - 150.0).abs() < 1e-6);
-
-        let shock = OracleUpdate {
-            price: 200.0,
-            exponent: -2,
-        };
-        harness.push_oracle_price(&shock).expect("push pyth shock");
-
-        let post = harness
-            .inspect_shared_account("oracle")
-            .expect("pyth post push");
-        assert_eq!(
-            post.owner, expected_owner,
-            "pyth owner (literal external pubkey) must survive the push path"
-        );
-        let post_decoded = pyth_layout
-            .decode(&post.data)
-            .expect("decode pyth post-push");
-        assert_eq!(post_decoded.exponent, -2);
-        assert!(
-            (post_decoded.price - 200.0).abs() < 1e-6,
-            "push_oracle_price must write real pyth aggregate-price bytes; got {}",
-            post_decoded.price
-        );
-        assert_ne!(tick0.data, post.data);
     }
 
     #[test]

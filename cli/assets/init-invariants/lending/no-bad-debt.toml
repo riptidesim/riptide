@@ -1,0 +1,11 @@
+name = "no_bad_debt"
+label = "No accumulated bad debt"
+description = "Engine-emitted cumulative_bad_debt stays at zero across the run; fires on any liquidation insolvency."
+form = "flat"
+field = "cumulative_bad_debt"
+op = "=="
+value = 0
+severity = "error"
+recommended = true
+required = true
+

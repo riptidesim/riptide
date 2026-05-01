@@ -283,7 +283,8 @@ test("renderNarrative produces lending-shaped report with key metrics", () => {
   assert.match(md, /## Invariants/);
   assert.match(md, /No invariant violations/);
   assert.match(md, /## How to reproduce/);
-  assert.match(md, /riptide simulate/);
+  assert.match(md, /riptide run/);
+  assert.doesNotMatch(md, /riptide simulate/);
 });
 
 test("renderNarrative produces generic-shaped report with adapter observations", () => {

@@ -12,9 +12,11 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   classifyLineageSourceKind,
@@ -24,6 +26,28 @@ import { runLint } from "../src/commands/lint.js";
 import { resolveAdapterArg } from "../src/adapter/resolve.js";
 import { renderAdapterStub } from "../src/init/index.js";
 import type { Adapter, Semantics } from "../src/schemas/adapter.js";
+
+const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = findRepoRoot(TEST_DIR);
+const FIXTURES_ROOT = path.join(REPO_ROOT, "fixtures");
+
+function findRepoRoot(testDir: string): string {
+  const candidates = [
+    path.resolve(testDir, "..", ".."),
+    path.resolve(testDir, "..", "..", ".."),
+    process.cwd(),
+    path.resolve(process.cwd(), ".."),
+  ];
+  for (const candidate of candidates) {
+    if (
+      existsSync(path.join(candidate, "engine", "Cargo.toml")) &&
+      existsSync(path.join(candidate, "fixtures", "adapters"))
+    ) {
+      return candidate;
+    }
+  }
+  return path.resolve(testDir, "..", "..");
+}
 
 // Minimal but realistic JSON-IDL-backed adapter + IDL pair used for the
 // isolated-unit tests. Mirrors the shape of `fixtures/idls/amm.json`
@@ -245,6 +269,41 @@ deposit = { action = "deposit", amount = "amount" }
 [actions]
 [observations]
 [personas]
+`;
+
+const GENERIC_ORACLE_TOML = (oracleBlock: string, oracleAccountExtra = "") => `protocol = "generic"
+program_so = "./simple.so"
+idl_path = "fixtures/idls/simple.json"
+
+[accounts.player]
+kind = "agent"
+space = 64
+
+[accounts.oracle]
+kind = "shared"
+space = 134
+${oracleAccountExtra}
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+"player.balance" = "player.balance"
+
+[actions.deposit]
+label = "Deposit"
+takes = ["amount"]
+
+[observations]
+"player.balance" = "uint"
+
+[personas.grinder]
+label = "Grinder"
+action_rate_multiplier = 1.0
+action_weights = { deposit = 1.0 }
+triggers = []
+
+${oracleBlock}
 `;
 
 const ERROR_REGISTRY_TOML = `protocol = "lending"
@@ -878,16 +937,14 @@ test("runLint: untouched init stub gets scaffold-specific next step", async () =
 // ---- integration: shipping JSON-IDL adapters lint cleanly ----
 
 test("runLint: shipping amm lints cleanly (no FAILs)", async () => {
-  const fixturesRoot = path.resolve(process.cwd(), "..", "fixtures");
-  const repoRoot = path.resolve(process.cwd(), "..");
   let out = "";
   let err = "";
   const exit = await runLint(
     "amm",
     {},
     {
-      fixturesRoot,
-      repoRoot,
+      fixturesRoot: FIXTURES_ROOT,
+      repoRoot: REPO_ROOT,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: (c) => { err += c; },
       color: false,
@@ -899,15 +956,13 @@ test("runLint: shipping amm lints cleanly (no FAILs)", async () => {
 });
 
 test("runLint: shipping perpetuals lints cleanly (no FAILs)", async () => {
-  const fixturesRoot = path.resolve(process.cwd(), "..", "fixtures");
-  const repoRoot = path.resolve(process.cwd(), "..");
   let out = "";
   const exit = await runLint(
     "perpetuals",
     {},
     {
-      fixturesRoot,
-      repoRoot,
+      fixturesRoot: FIXTURES_ROOT,
+      repoRoot: REPO_ROOT,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
@@ -918,15 +973,13 @@ test("runLint: shipping perpetuals lints cleanly (no FAILs)", async () => {
 });
 
 test("runLint: shipping liquid-staking lints cleanly (no FAILs)", async () => {
-  const fixturesRoot = path.resolve(process.cwd(), "..", "fixtures");
-  const repoRoot = path.resolve(process.cwd(), "..");
   let out = "";
   const exit = await runLint(
     "liquid-staking",
     {},
     {
-      fixturesRoot,
-      repoRoot,
+      fixturesRoot: FIXTURES_ROOT,
+      repoRoot: REPO_ROOT,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
@@ -937,15 +990,13 @@ test("runLint: shipping liquid-staking lints cleanly (no FAILs)", async () => {
 });
 
 test("runLint: shipping lending semantics preflight passes despite non-JSON lineage → exit 0", async () => {
-  const fixturesRoot = path.resolve(process.cwd(), "..", "fixtures");
-  const repoRoot = path.resolve(process.cwd(), "..");
   let out = "";
   const exit = await runLint(
     "lending",
     {},
     {
-      fixturesRoot,
-      repoRoot,
+      fixturesRoot: FIXTURES_ROOT,
+      repoRoot: REPO_ROOT,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,

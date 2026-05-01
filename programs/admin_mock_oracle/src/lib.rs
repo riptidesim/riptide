@@ -23,8 +23,8 @@
 //! by the engine when dispatching shocks declaratively.
 //!
 //! The program is intentionally tiny (no cross-program invocations, no
-//! derived addresses, no extensions). Pyth-compatible layouts remain a
-//! task per the scope call.
+//! derived addresses, no extensions). Protocol-specific oracle layouts
+//! belong in project harnesses or helper crates.
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{

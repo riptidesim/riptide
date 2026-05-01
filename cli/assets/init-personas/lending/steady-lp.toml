@@ -1,0 +1,4 @@
+persona_id = "steady-lp"
+persona_label = "Steady LP"
+description = "Patient liquidity provider who compounds over time and only reacts to severe health-factor deterioration."
+risk_posture = "Medium risk, long horizon"

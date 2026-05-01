@@ -24,6 +24,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 sha2 = "0.10.9"
 solana-account = "3.2.0"
+solana-clock = "3.0.1"
 solana-client = "3.1.12"
 solana-commitment-config = "3.1.1"
 solana-sdk = "4.0.1"
@@ -47,14 +48,3 @@ name = "litesvm_benchmark"
 [dev-dependencies]
 litesvm = "0.11.0"
 tempfile = "3.27.0"
-# note: pyth-sdk-solana CANNOT be added as a direct
-# dev-dep. The crate is built against borsh 0.10 (pre-breaking-change)
-# while the engine's dep graph pins borsh 1.6 transitively through
-# solana-sdk 4.0.1. Mixing the two produces a compile-time trait
-# conflict (solana_address::Address carries borsh 0.10 impls through
-# solana_hash, but the engine's code path expects borsh 1.6 derives).
-# Instead, isolates pyth-sdk-solana in a separate helper crate
-# at `../programs/pyth_consumer_test_helper/` (outside the workspace, separate
-# Cargo.lock). The engine test spawns the compiled helper binary over
-# stdin/stdout — see engine/tests/pyth_real_layout.rs for the wire
-# format and the "REAL pyth-sdk-solana consumer" acceptance test.

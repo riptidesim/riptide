@@ -1,0 +1,10 @@
+name = "utilization_bound"
+label = "Utilization stays bounded"
+description = "Engine-emitted utilization remains at or below 100%."
+form = "flat"
+field = "utilization"
+op = "<="
+value = 100
+severity = "warn"
+recommended = true
+

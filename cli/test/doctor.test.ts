@@ -662,7 +662,7 @@ test("runDoctor: empty repo (no adapters anywhere) → exit 1 with init hint", a
   assert.match(out, /Verdict: WARN/);
 });
 
-test("runDoctor: lending in monorepo lands as warn-only (non-JSON lineage)", async () => {
+test("runDoctor: shipping monorepo fixtures are machine-check clean", async () => {
   // Use the real shipping monorepo fixtures by pointing cwd at it.
   const cwd = path.resolve(process.cwd(), "..");
   let out = "";
@@ -681,10 +681,10 @@ test("runDoctor: lending in monorepo lands as warn-only (non-JSON lineage)", asy
         }),
     }
   );
-  // Could be 0 or 1 depending on shipping adapter coverage warnings.
-  // Either way, doctor must NOT FAIL on a clean monorepo.
-  assert.ok(exit === 0 || exit === 1, `expected 0/1 on shipping monorepo, got ${exit}. stdout:\n${out}`);
+  assert.equal(exit, 0, `expected 0 on shipping monorepo, got ${exit}. stdout:\n${out}`);
   assert.match(out, /lending/);
+  assert.match(out, /Verdict: PASS/);
+  assert.doesNotMatch(out, /lint=warn/);
   assert.doesNotMatch(out, /load=fail/);
 });
 

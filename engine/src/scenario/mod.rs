@@ -4,7 +4,7 @@ pub mod presets;
 
 pub use oracle::{
     oracle_layout_for, AdminMockOracleLayout, OracleLayout, OracleObservation, OracleSnapshot,
-    OracleUpdate, PythMockOracleLayout,
+    OracleUpdate,
 };
 pub use preset_spec::{load_presets_dir, PresetSpec, ScenarioKind};
 pub use presets::{BaselineScenario, PriceShockScenario};

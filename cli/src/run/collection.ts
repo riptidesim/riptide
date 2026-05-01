@@ -4,7 +4,12 @@ import path from "node:path";
 import { SimulationResultSchema } from "../compiler/schema.js";
 
 import type { Coverage, Verdict, CoverageCheck, RunInterpretation } from "./interpretation.js";
-import type { InvariantFire, ScenarioRecord, ScenarioStatus } from "./last-run.js";
+import type {
+  InvariantFire,
+  ScenarioRecord,
+  ScenarioStatus,
+  ScenarioSweepRecord
+} from "./last-run.js";
 
 export const RUN_COLLECTION_FILE_REL = path.join(".riptide", "run-collection.json");
 export const RUN_COLLECTION_SCHEMA_VERSION = 1 as const;
@@ -22,6 +27,7 @@ export interface RunCollectionScenario {
   status: ScenarioStatus;
   wall_clock_s: number;
   artifacts_dir?: string;
+  sweep?: ScenarioSweepRecord;
   invariant_fires: InvariantFire[];
   invariant_fire_count: number;
   interpretation?: RunInterpretation;
@@ -108,6 +114,7 @@ async function buildScenarioEntry(
     status: record.status,
     wall_clock_s: record.wall_clock_s,
     ...(artifactsDir ? { artifacts_dir: artifactsDir } : {}),
+    ...(record.sweep ? { sweep: relativizeSweep(cwd, record.sweep) } : {}),
     invariant_fires: record.invariant_fires,
     invariant_fire_count: record.invariant_fires.length,
     ...(record.interpretation ? { interpretation: record.interpretation } : {}),
@@ -118,6 +125,17 @@ async function buildScenarioEntry(
     ...(simulationResultPath ? { simulation_result_path: simulationResultPath } : {}),
     ...(reportPath ? { report_path: reportPath } : {}),
     ...(record.error ? { error: record.error } : {})
+  };
+}
+
+function relativizeSweep(cwd: string, sweep: ScenarioSweepRecord): ScenarioSweepRecord {
+  return {
+    ...sweep,
+    summary_path: relativizeIfInside(cwd, sweep.summary_path),
+    report_path: relativizeIfInside(cwd, sweep.report_path),
+    ...(sweep.first_fire_cell
+      ? { first_fire_cell: relativizeIfInside(cwd, sweep.first_fire_cell) }
+      : {})
   };
 }
 
@@ -177,7 +195,8 @@ function countVerdicts(records: ScenarioRecord[]): TotalsByVerdict {
     "failure-observed": 0,
     "no-failure-observed": 0,
     inconclusive: 0,
-    "setup-error": 0
+    "setup-error": 0,
+    interrupted: 0
   };
   for (const record of records) {
     const verdict = record.interpretation?.verdict;

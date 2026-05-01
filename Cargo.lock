@@ -3369,6 +3369,7 @@ dependencies = [
  "sha2 0.10.9",
  "solana-account 3.4.0",
  "solana-client",
+ "solana-clock",
  "solana-commitment-config",
  "solana-sdk",
  "solana-system-interface 3.2.0",

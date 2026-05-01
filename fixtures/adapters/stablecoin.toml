@@ -35,19 +35,15 @@
 #   stablecoin bundle boots against the real externally-owned
 #   shared-oracle surface, not a bundle-local shortcut. The program
 #   does not currently read the oracle (backing is driven by
-#   on-account state only, not a Pyth-style feed), but the adapter
+#   on-account state only), but the adapter
 #   binding is still honest — the account is created with sibling-
 #   program ownership at tick 0, not `program_id`, and the
 #   `push_oracle_price` path from the scenario harness still lands
 #   real admin-mock bytes on it. Declaring it here exercises the full
 #   owner-aware binding surface for the bundle. A later bundle can
-#   add an oracle-sanity hook (e.g. compare `effective_collateral_ratio_bps`
-#   against a Pyth NAV feed) without reshaping this file.
-# - **Scope call: admin-mock over Pyth.** `kind = "admin-mock"` keeps
-#   the oracle bootstrap minimal. The Pyth layout path is proven
-#   working for generic adapters (perps_sibling_oracle_proof) and
-#   this adapter can switch to `kind = "pyth"` without a program-level
-#   change.
+#   add an oracle-sanity hook without reshaping this file.
+# - **Scope call: admin-mock only.** `kind = "admin-mock"` keeps
+#   the oracle bootstrap minimal for the MVP.
 # - `pool` is a shared account, `position` is per-agent — same account
 #   kinds amm (`pool` shared, `lp_position` agent) and
 #   liquid-staking (`pool` shared, `stake_account` agent) use.
@@ -261,7 +257,7 @@ inferred_assumptions = [
   "`claim_redeem` is zero-arg: `[instructions].claim_redeem` omits the `amount` binding and the corresponding action has an empty `takes`, exercising the generic primitive's zero-arg dispatch path.",
   "Mint is 1:1 against deposited collateral (position.free_collateral >= amount). Redemption pays 1:1 back. The under-backed regime manifests at the pool level (collateral_assets < stable_supply, effective_collateral_ratio_bps < 10_000) after `apply_hedge_loss` lands, rather than through a dynamic mint/redeem price. This is the honest program-local substitute for real UXD mint/redeem pricing — captured as pressure geometry, not protocol fidelity.",
   "The `[[oracles]]` entry binds an externally-owned admin-mock price account for forward compat — the shipping stablecoin processor does NOT currently read it (backing is driven by on-account state). The binding still honestly exercises the owner-aware oracle path at tick 0.",
-  "`kind = \"admin-mock\"` over `\"pyth\"` — minimal oracle bootstrap. The adapter can switch to `\"pyth\"` without a program-level change once a bundle actually needs price-sanity reads.",
+  "`kind = \"admin-mock\"` — minimal MVP oracle bootstrap; protocol-specific oracle layouts belong in the project harness.",
   "Shipping invariants are tick-0-safe and structural only. The economically meaningful floor invariant (`effective_collateral_ratio_bps >= 10_000`) lives in the named UXD-style proof artifact under `fixtures/replays/`, which operates against explicitly-initialized pool state where the floor has honest meaning. The `collateral_ratio_bounded` ceiling (100_000 bps = 10x nominal) is an anti-runaway sanity check.",
 ]
 unsupported_fields = [

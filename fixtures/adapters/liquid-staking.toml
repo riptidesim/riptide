@@ -28,21 +28,16 @@
 #   liquid-staking bundle boots against the real externally-owned
 #   shared-oracle surface, not a bundle-local shortcut. The program
 #   does not currently read the oracle (it depegs through on-account
-#   state only, not a Pyth-style feed), but the adapter binding is
+#   state only), but the adapter binding is
 #   still honest — the account is created with sibling-program
 #   ownership at tick 0, not `program_id`, and the `push_oracle_price`
 #   path from the scenario harness still lands real admin-mock bytes
 #   on it. Declaring it here exercises the full owner-aware binding
 #   surface for the bundle even though the current processor doesn't
 #   consume the reads. A later bundle can add an oracle-sanity hook
-#   (`sync_exchange_rate` against a Pyth feed, for example) without
-#   reshaping this file.
-# - **Scope call: admin-mock over Pyth.** `kind = "admin-mock"` keeps
-#   the oracle bootstrap minimal for this bundle. The Pyth layout path
-#   is proven working for generic adapters
-#   (`perps_sibling_oracle_proof::generic_push_through_pyth_kind_mutates_real_pyth_bytes`)
-#   and this adapter can switch to `kind = "pyth"` without any
-#   program-level change.
+#   without reshaping this file.
+# - **Scope call: admin-mock only.** `kind = "admin-mock"` keeps
+#   the oracle bootstrap minimal for the MVP.
 # - `pool` is a shared account, `stake_account` is per-agent — same
 #   account kinds perpetuals uses (`market` shared, `position` agent)
 #   and amm uses (`pool` shared, `lp_position` agent).
@@ -240,7 +235,7 @@ inferred_assumptions = [
   "`apply_slash` is admin-gated and not mapped for persona dispatch. Named depeg / redemption-run proofs call it directly through a replay trajectory; the shipping smoke scenario leaves `[[scheduled_actions]]` empty.",
   "`claim_unstake` is zero-arg: `[instructions].claim_unstake` omits the `amount` binding and the corresponding action has an empty `takes`, exercising the generic primitive's zero-arg dispatch path.",
   "The `[[oracles]]` entry binds an externally-owned admin-mock price account for forward compat — the shipping liquid_staking processor does NOT currently read it (depeg is driven by on-account `exchange_rate_bps` state). The binding still honestly exercises the owner-aware oracle path at tick 0.",
-  "`kind = \"admin-mock\"` over `\"pyth\"` — minimal oracle bootstrap. The Pyth layout path is proven working for generic adapters (see `perps_sibling_oracle_proof::generic_push_through_pyth_kind_mutates_real_pyth_bytes`) and the adapter can switch without program-level changes.",
+  "`kind = \"admin-mock\"` — minimal MVP oracle bootstrap; protocol-specific oracle layouts belong in the project harness.",
   "`exchange_rate_bounded` invariant's 100_000-bps ceiling is 10x the nominal 10_000-bps 1:1 rate; any proposal sweep over `initial_exchange_rate_bps` must stay under this ceiling or the smoke gate turns red.",
 ]
 unsupported_fields = [
@@ -248,7 +243,7 @@ unsupported_fields = [
   "instruction `apply_slash(slash_bps)` — admin-gated stress mutation, dispatched via replay trajectory, not persona draws",
   "account `pool.admin` / `pool.oracle` / `pool.is_initialized` — pubkey/bool metadata, not persona-observable",
   "account `stake_account.owner` / `stake_account.pool` / `stake_account.is_initialized` — pubkey/bool metadata, not persona-observable",
-  "oracle-sanity hooks (e.g. `sync_exchange_rate` against a Pyth feed) — the program does not currently compare on-account rate against the bound oracle; the oracle binding is forward-compat plumbing",
+  "oracle-sanity hooks — the program does not currently compare on-account rate against the bound oracle; the oracle binding is forward-compat plumbing",
 ]
 
 [[oracles]]

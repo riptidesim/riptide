@@ -1,0 +1,15 @@
+# Perps persona — aggressive short trader.
+#
+#. Mirror of leveraged-long on the short side. 's
+# generic-path executable actions are deposit/withdraw only — the
+# long/short semantic distinction is a extension once
+# `open_position` becomes runtime-dispatchable. See the adapter
+# note for why only deposit/withdraw are bound today.
+
+[personas.leveraged-short]
+label = "Leveraged short"
+action_rate_multiplier = 1.5
+action_weights = { deposit = 1.0, withdraw = 0.05 }
+triggers = [
+  { if = "market.total_oi_long > 5000", then = "deposit", weight_boost = 2.5 },
+]

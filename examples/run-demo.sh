@@ -49,28 +49,14 @@ run_one() {
   local config="$2"
   local out_dir="examples/outputs/$label"
 
-  # Extract flags from the JSON config using node (always available
-  # because the cli itself is Node).
-  read -r agents ticks scenario seed personas < <(
-    node -e '
-      const fs = require("fs");
-      const c = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-      process.stdout.write(
-        [c.agents, c.ticks, c.scenario, c.seed, c.personas.join(",")].join(" ") + "\n"
-      );
-    ' -- "$REPO_ROOT/$config"
-  )
-
-  echo ">>> running $label: agents=$agents ticks=$ticks scenario=$scenario seed=$seed personas=$personas"
   rm -rf "$out_dir"
-  "$RIPTIDE_NODE_BIN" "$RIPTIDE_CLI_JS" simulate \
-    --agents "$agents" \
-    --ticks "$ticks" \
-    --scenario "$scenario" \
-    --seed "$seed" \
-    --personas "$personas" \
+  mkdir -p "$out_dir"
+  cp "$REPO_ROOT/$config" "$out_dir/run-config.json"
+
+  echo ">>> running $label: $out_dir/run-config.json"
+  "$RIPTIDE_NODE_BIN" "$RIPTIDE_CLI_JS" run "$out_dir/run-config.json" \
     --adapter "$REPO_ROOT/fixtures/adapters/lending.toml" \
-    --output "$out_dir"
+    --output-dir "$REPO_ROOT/examples/outputs"
 }
 
 run_one safe  examples/configs/safe.json

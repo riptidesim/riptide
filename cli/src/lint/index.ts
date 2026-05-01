@@ -258,6 +258,7 @@ export function lintAdapterAgainstJsonIdl(
 ): CoverageReport {
   const idlInstructionsByName = new Map(idl.instructions.map((ix) => [ix.name, ix]));
   const idlAccountsByName = new Map(idl.accounts.map((a) => [a.name, a]));
+  const logicalObservations = new Set(Object.values(adapter.state_mapping));
 
   // --- instruction + arg checks ---
   const mappedInstructions: string[] = [];
@@ -325,7 +326,12 @@ export function lintAdapterAgainstJsonIdl(
   // accounts that the adapter claims the simulated program itself owns.
   const mappedAccounts: string[] = [];
   const siblingOwnedAccounts = new Set<string>();
+  const decodedAccounts = new Set<string>();
   for (const [accountName, def] of Object.entries(adapter.accounts)) {
+    if (def.decoder !== undefined) {
+      decodedAccounts.add(accountName);
+      continue;
+    }
     // Defensive: only treat the account as externally-owned when the
     // owner block is *valid* (exactly one of program_so / pubkey, both
     // non-empty after trimming). The CLI schema already enforces this
@@ -336,15 +342,7 @@ export function lintAdapterAgainstJsonIdl(
       siblingOwnedAccounts.add(accountName);
       continue;
     }
-    if (!idlAccountsByName.has(accountName)) {
-      findings.push({
-        level: "fail",
-        code: "account-not-in-idl",
-        subject: `[accounts].${accountName}`,
-        message: `adapter declares account \`${accountName}\` but the JSON IDL has no account with that name.`,
-        hint: `Available accounts in the IDL: ${formatList(idl.accounts.map((a) => a.name))}.`,
-      });
-    } else {
+    if (findIdlAccount(idlAccountsByName, accountName) !== undefined) {
       mappedAccounts.push(accountName);
     }
   }
@@ -364,13 +362,17 @@ export function lintAdapterAgainstJsonIdl(
     const parts = splitDotted(key);
     if (parts === null) continue; // adapter validation already rejects malformed dotted keys
     const [account, field] = parts;
+    if (decodedAccounts.has(account)) {
+      recordField(account, field);
+      continue;
+    }
     // Sibling-owned accounts belong to a different program and are
     // intentionally outside the adapter's main JSON IDL.
     if (siblingOwnedAccounts.has(account)) {
       recordField(account, field);
       continue;
     }
-    const idlAccount = idlAccountsByName.get(account);
+    const idlAccount = findIdlAccount(idlAccountsByName, account);
     if (!idlAccount) {
       findings.push({
         level: "fail",
@@ -399,14 +401,21 @@ export function lintAdapterAgainstJsonIdl(
   // plain logical observation name (lending path). Only check when
   // dotted — lending observations are logical names, not IDL refs.
   for (const obsKey of Object.keys(adapter.observations)) {
+    if (logicalObservations.has(obsKey)) {
+      continue;
+    }
     const parts = splitDotted(obsKey);
     if (parts === null) continue;
     const [account, field] = parts;
+    if (decodedAccounts.has(account)) {
+      recordField(account, field);
+      continue;
+    }
     if (siblingOwnedAccounts.has(account)) {
       recordField(account, field);
       continue;
     }
-    const idlAccount = idlAccountsByName.get(account);
+    const idlAccount = findIdlAccount(idlAccountsByName, account);
     if (!idlAccount) {
       findings.push({
         level: "fail",
@@ -433,6 +442,9 @@ export function lintAdapterAgainstJsonIdl(
 
   // invariants[].field is a dotted `account.field` reference too.
   for (const [idx, inv] of adapter.invariants.entries()) {
+    if (adapter.observations[inv.field] !== undefined) {
+      continue;
+    }
     const parts = splitDotted(inv.field);
     if (parts === null) {
       // adapter allows non-dotted invariant fields (e.g. logical lending
@@ -441,11 +453,15 @@ export function lintAdapterAgainstJsonIdl(
       continue;
     }
     const [account, field] = parts;
+    if (decodedAccounts.has(account)) {
+      recordField(account, field);
+      continue;
+    }
     if (siblingOwnedAccounts.has(account)) {
       recordField(account, field);
       continue;
     }
-    const idlAccount = idlAccountsByName.get(account);
+    const idlAccount = findIdlAccount(idlAccountsByName, account);
     const subject = inv.name
       ? `[[invariants]][${idx}] (${inv.name})`
       : `[[invariants]][${idx}]`;
@@ -508,7 +524,7 @@ export function lintAdapterAgainstJsonIdl(
   ]);
   const uncoveredFields: Array<{ account: string; field: string }> = [];
   for (const account of accountsOfInterest) {
-    const idlAccount = idlAccountsByName.get(account);
+    const idlAccount = findIdlAccount(idlAccountsByName, account);
     if (!idlAccount) continue;
     for (const field of idlAccount.fields) {
       const isMapped = mappedFields.some(
@@ -630,6 +646,25 @@ function splitDotted(key: string): [string, string] | null {
   return [key.slice(0, dot), key.slice(dot + 1)];
 }
 
+function findIdlAccount(
+  accounts: Map<string, JsonIdl["accounts"][number]>,
+  adapterName: string
+): JsonIdl["accounts"][number] | undefined {
+  const exact = accounts.get(adapterName);
+  if (exact !== undefined) return exact;
+  const normalizedAdapterName = normalizeIdlName(adapterName);
+  for (const account of accounts.values()) {
+    if (normalizeIdlName(account.name) === normalizedAdapterName) {
+      return account;
+    }
+  }
+  return undefined;
+}
+
+function normalizeIdlName(value: string): string {
+  return value.replace(/[_-]/g, "").toLowerCase();
+}
+
 function resolveLineageSource(idlSource: string, adapterPath: string, repoRoot: string): string {
   if (path.isAbsolute(idlSource)) return idlSource;
   // Two resolution bases, in order:
@@ -680,19 +715,42 @@ function parseJsonIdl(raw: string): JsonIdl {
   }
 
   const accounts: IdlAccount[] = [];
+  const typeFieldsByName = new Map<string, IdlAccountField[]>();
+  const typesRaw = (parsed as { types?: unknown }).types;
+  if (Array.isArray(typesRaw)) {
+    for (const entry of typesRaw) {
+      if (!entry || typeof entry !== "object") continue;
+      const e = entry as { name?: unknown; fields?: unknown; type?: unknown };
+      if (typeof e.name !== "string") continue;
+      const fieldsRaw = Array.isArray(e.fields)
+        ? e.fields
+        : e.type && typeof e.type === "object" && Array.isArray((e.type as { fields?: unknown }).fields)
+          ? (e.type as { fields: unknown[] }).fields
+          : [];
+      const fields: IdlAccountField[] = [];
+      for (const f of fieldsRaw) {
+        if (f && typeof f === "object" && typeof (f as { name?: unknown }).name === "string") {
+          fields.push({ name: (f as { name: string }).name });
+        }
+      }
+      typeFieldsByName.set(e.name, fields);
+    }
+  }
   const accountsRaw = (parsed as { accounts?: unknown }).accounts;
   if (Array.isArray(accountsRaw)) {
     for (const entry of accountsRaw) {
       if (!entry || typeof entry !== "object") continue;
       const e = entry as { name?: unknown; fields?: unknown };
       if (typeof e.name !== "string") continue;
-      const fields: IdlAccountField[] = [];
+      let fields: IdlAccountField[] = [];
       if (Array.isArray(e.fields)) {
         for (const f of e.fields) {
           if (f && typeof f === "object" && typeof (f as { name?: unknown }).name === "string") {
             fields.push({ name: (f as { name: string }).name });
           }
         }
+      } else {
+        fields = typeFieldsByName.get(e.name) ?? [];
       }
       accounts.push({ name: e.name, fields });
     }

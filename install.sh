@@ -232,7 +232,26 @@ TMP_LAUNCHER="${LAUNCHER}.tmp.$$"
 cat > "$TMP_LAUNCHER" <<EOF
 #!/usr/bin/env bash
 # Riptide CLI launcher — installed by riptide/install.sh
-exec node "$CLI_ENTRY" "\$@"
+set -euo pipefail
+
+CLI_ROOT="$REPO_ROOT/cli"
+CLI_ENTRY="$CLI_ENTRY"
+
+if [ ! -f "\$CLI_ENTRY" ]; then
+  printf 'riptide: CLI build artifact is missing: %s\n' "\$CLI_ENTRY" >&2
+  if ! command -v npm >/dev/null 2>&1; then
+    printf 'riptide: npm is not on PATH, so the source checkout launcher cannot rebuild the CLI.\n' >&2
+    printf 'riptide: fix: cd %s && npm install --no-audit --no-fund --ignore-scripts && npm run build\n' "\$CLI_ROOT" >&2
+    exit 127
+  fi
+  printf 'riptide: rebuilding CLI from source with npm run build...\n' >&2
+  if ! ( cd "\$CLI_ROOT" && npm run build >&2 ); then
+    printf 'riptide: rebuild failed. Try: cd %s && npm install --no-audit --no-fund --ignore-scripts && npm run build\n' "\$CLI_ROOT" >&2
+    exit 127
+  fi
+fi
+
+exec node "\$CLI_ENTRY" "\$@"
 EOF
 chmod +x "$TMP_LAUNCHER"
 mv -f "$TMP_LAUNCHER" "$LAUNCHER"
@@ -310,13 +329,19 @@ GENERIC_RESULT="$GENERIC_OUT_DIR/simulation-result.json"
 GENERIC_POLICIES="$GENERIC_OUT_DIR/policies.json"
 printf '[]' > "$GENERIC_POLICIES"
 ENGINE_BIN="$REPO_ROOT/target/release/riptide-engine"
+ENGINE_LOG="$GENERIC_OUT_DIR/engine.log"
 log "running: $ENGINE_BIN --adapter fixtures/adapters/resource-grinder.toml --config fixtures/generic-demo.run.json"
+# Engine emits its own progress chatter (TICK 1/12 …, "LiteSVM ready: …",
+# etc.) — capture it here so a green install stays quiet, then surface
+# the full log on failure where it is actually load-bearing.
 if ! ( cd "$REPO_ROOT" && "$ENGINE_BIN" \
         --adapter "$REPO_ROOT/fixtures/adapters/resource-grinder.toml" \
         --config  "$REPO_ROOT/fixtures/generic-demo.run.json" \
         --policies "$GENERIC_POLICIES" \
-        --output  "$GENERIC_RESULT" ); then
+        --output  "$GENERIC_RESULT" ) >"$ENGINE_LOG" 2>&1; then
   fail "generic smoke test failed: the engine did not accept the resource-grinder adapter cleanly."
+  fail "engine output (also at $ENGINE_LOG):"
+  cat "$ENGINE_LOG" >&2 || true
   fail "reproduce manually from the repo root:"
   fail "  echo '[]' > /tmp/empty-policies.json"
   fail "  target/release/riptide-engine \\"
@@ -343,7 +368,8 @@ printf '\n%s=====================================================%s\n' "$BOLD" "
 printf '%sRiptide install complete in %dm %02ds%s\n' "$GREEN" "$MIN" "$SEC" "$RESET"
 printf '%s=====================================================%s\n' "$BOLD" "$RESET"
 printf '\nnext steps:\n'
-printf '  - %sriptide --help%s                         # CLI overview\n' "$BOLD" "$RESET"
-printf '  - %sbash examples/run-demo.sh%s                  # safe vs risky lending headline\n' "$BOLD" "$RESET"
-printf '  - browse %sexamples/configs/%s and %sfixtures/%s for more runs\n' "$BOLD" "$RESET" "$BOLD" "$RESET"
-printf '  - see README.md for the full tour\n'
+printf '  1. %sriptide doctor%s                        # verify your toolchain\n' "$BOLD" "$RESET"
+printf '  2. %scd <your-program>%s                     # the Solana program you want to simulate\n' "$BOLD" "$RESET"
+printf '  3. %sriptide init%s                          # scaffold .riptide/ (adapter stub)\n' "$BOLD" "$RESET"
+printf '  4. edit %s.riptide/adapters/<program>.toml%s and run %sriptide adapt%s\n' "$BOLD" "$RESET" "$BOLD" "$RESET"
+printf '\n%sNew to Riptide?%s %sriptide --help%s walks through the full surface.\n' "$DIM" "$RESET" "$BOLD" "$RESET"

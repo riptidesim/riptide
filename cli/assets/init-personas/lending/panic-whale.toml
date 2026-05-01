@@ -1,0 +1,4 @@
+persona_id = "panic-whale"
+persona_label = "Panic Whale"
+description = "Large holder who can move markets through size and exits abruptly when the tape weakens."
+risk_posture = "Large size, emotionally reactive"

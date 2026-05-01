@@ -1,0 +1,8 @@
+name = "oracle-price-shock"
+label = "Oracle price shock"
+description = "Drops the lending oracle 40% midway through the run; surfaces under-collateralized positions and bad-debt events."
+scenario = "price-shock"
+agents = 50
+ticks = 60
+default_personas = ["steady-lp", "panic-whale", "degen-borrower"]
+recommended = true

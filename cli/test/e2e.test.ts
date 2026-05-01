@@ -1,4 +1,4 @@
-// End-to-end integration test for `riptide simulate` using the in-process
+// End-to-end integration test for `riptide run` using the in-process
 // LiteSVM backend. This is the full-system smoke test that proves the
 // CLI -> persona compiler -> engine -> lending program pipeline works.
 //
@@ -19,7 +19,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -34,34 +34,52 @@ interface RunResult {
   stdout: string;
   stderr: string;
   code: number;
+  artifactDir: string;
 }
 
-interface RunSimulateOptions {
-  outputDir: string;
+interface RunScenarioOptions {
+  workspace: string;
+  label: string;
   personas: string;
   shockDrop?: string;
   extraArgs?: string[];
 }
 
-async function runSimulate(opts: RunSimulateOptions): Promise<RunResult> {
+async function runScenario(opts: RunScenarioOptions): Promise<RunResult> {
+  const scenarioDir = path.join(opts.workspace, opts.label);
+  const runConfigPath = path.join(scenarioDir, "run-config.json");
+  const outputRoot = path.join(opts.workspace, "runs");
+  const artifactDir = path.join(outputRoot, opts.label);
+  await mkdir(scenarioDir, { recursive: true });
+  await mkdir(outputRoot, { recursive: true });
+  await writeFile(
+    runConfigPath,
+    JSON.stringify(
+      {
+        agents: 5,
+        ticks: 10,
+        seed: 42,
+        scenario: "price-shock",
+        personas: opts.personas.split(",").filter((entry) => entry.length > 0),
+        validator_url: "http://127.0.0.1:8899"
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
       [
         cliEntrypoint,
-        "simulate",
-        "--agents",
-        "5",
-        "--ticks",
-        "10",
-        "--seed",
-        "42",
-        "--scenario",
-        "price-shock",
-        "--personas",
-        opts.personas,
-        "--output",
-        opts.outputDir,
+        "run",
+        runConfigPath,
+        "--adapter",
+        path.resolve(process.cwd(), "fixtures/adapters/lending.toml"),
+        "--output-dir",
+        outputRoot,
         ...(opts.extraArgs ?? [])
       ],
       {
@@ -97,7 +115,7 @@ async function runSimulate(opts: RunSimulateOptions): Promise<RunResult> {
     });
     child.once("error", reject);
     child.once("close", (code) => {
-      resolve({ stdout, stderr, code: code ?? -1 });
+      resolve({ stdout, stderr, code: code ?? -1, artifactDir });
     });
   });
 }
@@ -134,26 +152,25 @@ function stripEphemeral(value: unknown): unknown {
   return value;
 }
 
-async function loadArtifact(outputDir: string): Promise<SimulationResult> {
-  const raw = await readFile(path.join(outputDir, "simulation-result.json"), "utf8");
+async function loadArtifact(artifactDir: string): Promise<SimulationResult> {
+  const raw = await readFile(path.join(artifactDir, "simulation-result.json"), "utf8");
   return SimulationResultSchema.parse(JSON.parse(raw));
 }
 
 test("e2e: risky persona mix produces realized liquidations under shock", { skip: !E2E_ENABLED, timeout: E2E_TIMEOUT_MS }, async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "riptide-e2e-risky-"));
   try {
-    const outputDir = path.join(tmp, "run");
-    const run = await runSimulate({
-      outputDir,
+    const run = await runScenario({
+      workspace: tmp,
+      label: "risky",
       personas: "panic-whale,degen-borrower,aggressive-arb-bot"
     });
 
-    assert.equal(run.code, 0, `simulate exited non-zero (code=${run.code})\nstderr tail:\n${run.stderr.slice(-2000)}`);
-    assert.match(run.stderr, /riptide simulate:/);
-    assert.match(run.stdout, /Riptide Simulation Summary/);
-    assert.match(run.stdout, /Final TVL:/);
+    assert.equal(run.code, 0, `run exited non-zero (code=${run.code})\nstderr tail:\n${run.stderr.slice(-2000)}`);
+    assert.match(run.stderr, /riptide run: 1 scenario/);
+    assert.match(run.stdout, /risky/);
 
-    const parsed = await loadArtifact(outputDir);
+    const parsed = await loadArtifact(run.artifactDir);
 
     assert.equal(parsed.total_ticks, 10, "total_ticks should match --ticks");
     // 1 initial snapshot at t=0 + one per tick = 11.
@@ -203,14 +220,14 @@ test("e2e: cautious persona mix survives the same shock without liquidations", {
   // to similar behavior will fail this test.
   const tmp = await mkdtemp(path.join(os.tmpdir(), "riptide-e2e-safe-"));
   try {
-    const outputDir = path.join(tmp, "run");
-    const run = await runSimulate({
-      outputDir,
+    const run = await runScenario({
+      workspace: tmp,
+      label: "safe",
       personas: "cautious-yield-farmer,steady-lp"
     });
 
-    assert.equal(run.code, 0, `safe simulate exited non-zero: ${run.stderr.slice(-1000)}`);
-    const parsed = await loadArtifact(outputDir);
+    assert.equal(run.code, 0, `safe run exited non-zero: ${run.stderr.slice(-1000)}`);
+    const parsed = await loadArtifact(run.artifactDir);
 
     assert.equal(parsed.summary.total_liquidations, 0, "safe mix should not liquidate anyone");
     assert.equal(parsed.summary.agents_liquidated, 0, "safe mix should have zero liquidated agents");
@@ -236,18 +253,15 @@ test("e2e: cautious persona mix survives the same shock without liquidations", {
 test("e2e: determinism — two runs with same seed produce byte-identical simulation logic", { skip: !E2E_ENABLED, timeout: E2E_TIMEOUT_MS * 2 }, async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "riptide-e2e-det-"));
   try {
-    const outA = path.join(tmp, "runA");
-    const outB = path.join(tmp, "runB");
-
     const runOpts = { personas: "panic-whale,degen-borrower,aggressive-arb-bot" };
-    const runA = await runSimulate({ ...runOpts, outputDir: outA });
+    const runA = await runScenario({ ...runOpts, workspace: tmp, label: "run-a" });
     assert.equal(runA.code, 0, `first run exited non-zero: ${runA.stderr.slice(-1000)}`);
 
-    const runB = await runSimulate({ ...runOpts, outputDir: outB });
+    const runB = await runScenario({ ...runOpts, workspace: tmp, label: "run-b" });
     assert.equal(runB.code, 0, `second run exited non-zero: ${runB.stderr.slice(-1000)}`);
 
-    const rawA = await readFile(path.join(outA, "simulation-result.json"), "utf8");
-    const rawB = await readFile(path.join(outB, "simulation-result.json"), "utf8");
+    const rawA = await readFile(path.join(runA.artifactDir, "simulation-result.json"), "utf8");
+    const rawB = await readFile(path.join(runB.artifactDir, "simulation-result.json"), "utf8");
     const a = JSON.parse(rawA);
     const b = JSON.parse(rawB);
 

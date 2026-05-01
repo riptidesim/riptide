@@ -4,15 +4,18 @@ import { Command } from "commander";
 
 import { createAdaptCommand } from "./commands/adapt.js";
 import { createDoctorCommand } from "./commands/doctor.js";
+import { createExplainCommand } from "./commands/explain.js";
+import { createHarnessCommand } from "./commands/harness.js";
 import { createInitCommand } from "./commands/init.js";
 import { createLineageCommand } from "./commands/lineage.js";
 import { createLintCommand } from "./commands/lint.js";
 import { createListCommand } from "./commands/list.js";
+import { createPackStateCommand } from "./commands/pack-state.js";
 import { createReviewCommand } from "./commands/review.js";
 import { createReplayCommand } from "./commands/replay.js";
 import { createRunCommand } from "./commands/run.js";
 import { createScenariosCommand } from "./commands/scenarios.js";
-import { createSimulateCommand } from "./commands/simulate.js";
+import { createTemplateCommand } from "./commands/template.js";
 import { cliPackageVersion } from "./banner.js";
 import { renderCliError } from "./errors/render.js";
 
@@ -25,13 +28,16 @@ program
   )
   .version(cliPackageVersion());
 
-program.addCommand(createSimulateCommand());
 program.addCommand(createRunCommand());
 program.addCommand(createReplayCommand());
+program.addCommand(createPackStateCommand());
+program.addCommand(createTemplateCommand());
+program.addCommand(createHarnessCommand());
 program.addCommand(createReviewCommand());
 program.addCommand(createScenariosCommand());
 program.addCommand(createAdaptCommand());
 program.addCommand(createInitCommand());
+program.addCommand(createExplainCommand());
 program.addCommand(createLineageCommand());
 program.addCommand(createLintCommand());
 program.addCommand(createDoctorCommand());

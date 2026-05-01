@@ -110,12 +110,14 @@ Inside your own Anchor repo:
 ```bash
 riptide init
 # edit .riptide/adapters/<program-name>.toml
+riptide harness generate --adapter .riptide/adapters/<program-name>.toml
 riptide lint <program-name>
 riptide adapt --adapter .riptide/adapters/<program-name>.toml
-riptide run --serve
+# add .riptide/scenarios/your-scenario/run-config.json
+riptide run .riptide/scenarios/your-scenario/run-config.json --adapter .riptide/adapters/<program-name>.toml --harness .riptide/harness
 ```
 
-`riptide init` creates a version-controlled `.riptide/` tree with starter adapters, personas, and a baseline scenario. You fill in the adapter, lint it against the JSON IDL when available, smoke-test it end to end, then run the scenarios you care about.
+`riptide init` creates a version-controlled `.riptide/` tree with an adapter stub and a local getting-started note. The adapter/scenario/invariant TOML stays the main simulation contract. When your program needs custom account bytes, PDAs, SPL accounts, or sibling CPI programs, `riptide harness generate` adds a Rust setup crate that runs before tick 0. Riptide does not require core protocol integrations for that setup.
 
 > [!TIP]
 > The `riptide-adapt` and `riptide-scenarios` skills can draft adapters and starter experiments, but they are optional. Riptide runs plain files, not session state.
@@ -153,9 +155,11 @@ Common commands:
 | --- | --- |
 | `riptide doctor` | Static environment and adapter health check. |
 | `riptide init` | Scaffold `.riptide/` in the current repo. |
+| `riptide harness generate` | Generate a Rust setup crate for protocol-owned accounts/programs. |
 | `riptide list` | List discovered scenarios under `.riptide/scenarios/`. |
-| `riptide run [pattern-or-path]` | Run all scenarios, a glob-filtered set, or one JSON run config. |
+| `riptide run [pattern-or-path]` | Run all scenarios, a glob-filtered set, or one JSON run config. Add `--harness` when custom setup is needed. |
 | `riptide replay <config>` | Replay a declared trajectory. |
+| `riptide explain <adapter>` | Pretty-print a parsed adapter: protocol, runtime, accounts, instructions, observations, personas, invariants, semantics, and oracles. |
 | `riptide lint <adapter>` | Validate a JSON-IDL-backed adapter. |
 | `riptide lineage <adapter>` | Print adapter provenance and assumptions. |
 | `riptide review <pack>` | Validate an evidence pack and emit reviewer markdown. |

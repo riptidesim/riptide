@@ -22,6 +22,7 @@ use std::{
 
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use solana_account::Account;
 use solana_sdk::pubkey::Pubkey;
@@ -40,6 +41,17 @@ pub enum StateImportError {
     MissingReplayPackPath,
     UnsafeReplayPackPath {
         pack_path: String,
+    },
+    UnsafeStatePackAccountPath {
+        account_pubkey: String,
+        path: String,
+    },
+    MissingStatePackAccountPubkey {
+        account_key: String,
+    },
+    SlotSourceInconsistency {
+        slot: u64,
+        source_slot: u64,
     },
     MainnetRpcNotImplemented {
         message: &'static str,
@@ -129,6 +141,21 @@ impl std::fmt::Display for StateImportError {
             Self::UnsafeReplayPackPath { pack_path } => write!(
                 f,
                 "UnsafeReplayPackPath({pack_path}); pack_path must be relative and free of path traversal"
+            ),
+            Self::UnsafeStatePackAccountPath {
+                account_pubkey,
+                path,
+            } => write!(
+                f,
+                "UnsafeStatePackAccountPath({account_pubkey}); account path `{path}` must be relative and free of path traversal"
+            ),
+            Self::MissingStatePackAccountPubkey { account_key } => write!(
+                f,
+                "MissingStatePackAccountPubkey({account_key}); state-pack manifest account entries must declare account_pubkey"
+            ),
+            Self::SlotSourceInconsistency { slot, source_slot } => write!(
+                f,
+                "StatePackSlotSourceInconsistency; manifest slot {slot} does not match source.slot {source_slot}"
             ),
             Self::MainnetRpcNotImplemented { message } => {
                 write!(f, "MainnetRpcNotImplemented; {message}")
@@ -231,6 +258,23 @@ pub struct ImportedReplayAccount {
     pub sha256_hash: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatePackImport {
+    pub pack_path: PathBuf,
+    pub accounts: Vec<ImportedStatePackAccount>,
+    pub provenance: ReplayStateProvenance,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportedStatePackAccount {
+    pub pubkey: Pubkey,
+    pub account: Account,
+    pub sha256_hash: String,
+    pub account_name: Option<String>,
+    pub role: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReplayStateProvenance {
     pub pack_path: String,
@@ -263,6 +307,35 @@ struct ManifestAccount {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct CurrentStatePackManifest {
+    version: u32,
+    slot: u64,
+    #[serde(default)]
+    mode: Option<String>,
+    #[serde(default)]
+    source: Option<Value>,
+    #[serde(default)]
+    warnings: Vec<String>,
+    accounts: BTreeMap<String, CurrentManifestAccount>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct CurrentManifestAccount {
+    #[serde(default)]
+    account_pubkey: Option<String>,
+    #[serde(default)]
+    pubkey: Option<String>,
+    #[serde(default)]
+    path: Option<String>,
+    #[serde(default)]
+    sha256_hash: Option<String>,
+    #[serde(default)]
+    account_name: Option<String>,
+    #[serde(default)]
+    role: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AccountFixture {
     #[serde(alias = "account_pubkey")]
@@ -272,6 +345,13 @@ struct AccountFixture {
     executable: bool,
     rent_epoch: u64,
     data_b64: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(untagged)]
+enum AccountFixtureFile {
+    One(AccountFixture),
+    Many(Vec<AccountFixture>),
 }
 
 pub fn import_replay_state(
@@ -284,6 +364,189 @@ pub fn import_replay_state(
             message: MAINNET_RPC_NOT_IMPLEMENTED_MESSAGE,
         }),
     }
+}
+
+/// Load a current-state pack produced by `riptide pack-state`.
+///
+/// Unlike `[semantics.replay]` fixture packs, this loader is not role-bound:
+/// every account declared in the manifest is hydrated into LiteSVM before
+/// tick 0. Optional `account_name` / `role` metadata can be used by callers
+/// to bind imported pubkeys back into adapter account registries.
+pub fn load_state_pack(pack_path: &Path) -> Result<StatePackImport, StateImportError> {
+    let manifest_path = pack_path.join("manifest.json");
+    let manifest_raw =
+        fs::read(&manifest_path).map_err(|source| StateImportError::ManifestRead {
+            path: manifest_path.clone(),
+            source: source.to_string(),
+        })?;
+    let manifest: CurrentStatePackManifest =
+        serde_json::from_slice(&manifest_raw).map_err(|source| {
+            StateImportError::ManifestParse {
+                path: manifest_path.clone(),
+                source: source.to_string(),
+            }
+        })?;
+
+    if manifest.version != 1 {
+        return Err(StateImportError::ManifestParse {
+            path: manifest_path,
+            source: format!("unsupported state pack version {}", manifest.version),
+        });
+    }
+    if let Some(source_slot) = manifest
+        .source
+        .as_ref()
+        .and_then(|source| source.get("slot"))
+        .and_then(Value::as_u64)
+    {
+        if source_slot != manifest.slot {
+            return Err(StateImportError::SlotSourceInconsistency {
+                slot: manifest.slot,
+                source_slot,
+            });
+        }
+    }
+
+    let mut accounts = Vec::new();
+    let mut provenance_accounts = BTreeMap::new();
+
+    for (account_key, manifest_account) in &manifest.accounts {
+        let account_pubkey = manifest_account
+            .account_pubkey
+            .as_deref()
+            .or(manifest_account.pubkey.as_deref())
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| StateImportError::MissingStatePackAccountPubkey {
+                account_key: account_key.clone(),
+            })?;
+        let expected_pubkey = parse_pubkey(account_key, "account_pubkey", account_pubkey)?;
+        if is_probable_pubkey(account_key) && account_key != account_pubkey {
+            return Err(StateImportError::AccountPubkeyMismatch {
+                role: account_key.clone(),
+                source: "manifest.json",
+                expected: account_key.clone(),
+                actual: account_pubkey.to_string(),
+            });
+        }
+
+        let expected_hash = manifest_account
+            .sha256_hash
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| StateImportError::MissingSha256Hash {
+                role: account_pubkey.to_string(),
+            })?;
+        validate_sha256_hash(account_pubkey, expected_hash)?;
+
+        let account_rel_path = manifest_account
+            .path
+            .clone()
+            .unwrap_or_else(|| format!("accounts/{account_pubkey}.json"));
+        if !is_safe_relative_path(&account_rel_path) {
+            return Err(StateImportError::UnsafeStatePackAccountPath {
+                account_pubkey: account_pubkey.to_string(),
+                path: account_rel_path,
+            });
+        }
+        let path = pack_path.join(&account_rel_path);
+        let raw = fs::read(&path).map_err(|source| StateImportError::AccountRead {
+            role: account_pubkey.to_string(),
+            path: path.clone(),
+            source: source.to_string(),
+        })?;
+        let actual_hash = sha256_hex(&raw);
+        if actual_hash != expected_hash {
+            return Err(StateImportError::Sha256Mismatch {
+                role: account_pubkey.to_string(),
+                path,
+                expected: expected_hash.to_string(),
+                actual: actual_hash,
+            });
+        }
+
+        let fixture_file: AccountFixtureFile =
+            serde_json::from_slice(&raw).map_err(|source| StateImportError::AccountParse {
+                role: account_pubkey.to_string(),
+                path: path.clone(),
+                source: source.to_string(),
+            })?;
+        let fixtures = match fixture_file {
+            AccountFixtureFile::One(fixture) => vec![fixture],
+            AccountFixtureFile::Many(fixtures) => fixtures,
+        };
+        if fixtures.is_empty() {
+            return Err(StateImportError::AccountCountMismatch {
+                role: account_pubkey.to_string(),
+                found: 0,
+            });
+        }
+
+        let mut fixture_pubkeys = Vec::with_capacity(fixtures.len());
+        for fixture in fixtures {
+            let fixture_pubkey = parse_pubkey(account_pubkey, "account_pubkey", &fixture.pubkey)?;
+            fixture_pubkeys.push(fixture.pubkey.clone());
+            if fixture_pubkey != expected_pubkey {
+                return Err(StateImportError::AccountPubkeyMismatch {
+                    role: account_pubkey.to_string(),
+                    source: "accounts/<pubkey>.json",
+                    expected: account_pubkey.to_string(),
+                    actual: fixture.pubkey.clone(),
+                });
+            }
+            let owner = parse_pubkey(account_pubkey, "owner", &fixture.owner)?;
+            let data = BASE64_STANDARD
+                .decode(&fixture.data_b64)
+                .map_err(|source| StateImportError::AccountDecode {
+                    role: account_pubkey.to_string(),
+                    path: path.clone(),
+                    source: source.to_string(),
+                })?;
+            accounts.push(ImportedStatePackAccount {
+                pubkey: fixture_pubkey,
+                account: Account {
+                    lamports: fixture.lamports,
+                    data,
+                    owner,
+                    executable: fixture.executable,
+                    rent_epoch: fixture.rent_epoch,
+                },
+                sha256_hash: expected_hash.to_string(),
+                account_name: manifest_account.account_name.clone(),
+                role: manifest_account.role.clone(),
+            });
+        }
+
+        provenance_accounts.insert(
+            account_pubkey.to_string(),
+            ReplayStateAccountProvenance {
+                account_pubkey: account_pubkey.to_string(),
+                account_pubkeys: fixture_pubkeys,
+                sha256_hash: expected_hash.to_string(),
+            },
+        );
+    }
+
+    let mut warnings = manifest.warnings;
+    match manifest.mode.as_deref() {
+        Some("current-from-tx-discovery") => warnings.push(
+            "`--tx` state packs use the transaction only for account discovery; account bytes are current RPC state, not historical pre-state.".into(),
+        ),
+        Some("current-from-explicit-accounts") | None => {}
+        Some(other) => warnings.push(format!(
+            "state pack mode `{other}` is not known to this engine; accounts were still hash-checked and imported"
+        )),
+    }
+
+    Ok(StatePackImport {
+        pack_path: pack_path.to_path_buf(),
+        accounts,
+        provenance: ReplayStateProvenance {
+            pack_path: pack_path.display().to_string(),
+            slot: manifest.slot,
+            accounts: provenance_accounts,
+        },
+        warnings,
+    })
 }
 
 fn replay_state_source(replay: &ReplayBlock) -> Result<ReplayStateSource, StateImportError> {
@@ -510,6 +773,10 @@ fn validate_sha256_hash(role: &str, value: &str) -> Result<(), StateImportError>
             sha256_hash: value.to_string(),
         })
     }
+}
+
+fn is_probable_pubkey(value: &str) -> bool {
+    Pubkey::from_str(value).is_ok()
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {

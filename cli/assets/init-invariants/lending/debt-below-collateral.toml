@@ -1,0 +1,8 @@
+name = "debt_below_collateral"
+label = "Debt below collateral value (semantic)"
+description = "Position debt must not exceed collateral value."
+form = "semantic"
+expr = "debt_value <= collateral_value"
+severity = "warn"
+recommended = true
+

@@ -115,12 +115,46 @@ export const AccountOwnerSchema = z.object({
 });
 export type AccountOwner = z.infer<typeof AccountOwnerSchema>;
 
+export const ACCOUNT_DECODER_PRESETS = [
+  "spl_token_account",
+  "spl_mint",
+] as const;
+export const LAYOUT_FIELD_TYPES = [
+  "u8",
+  "u64",
+  "u128",
+  "i64",
+  "i128",
+  "bool",
+  "pubkey",
+] as const;
+export type LayoutFieldType = (typeof LAYOUT_FIELD_TYPES)[number];
+
+export const LayoutFieldSchema = z.object({
+  type: z.string().min(1),
+  offset: z.number().int().nonnegative(),
+}).strict();
+export type LayoutField = z.infer<typeof LayoutFieldSchema>;
+
+export const LayoutDecoderSchema = z.object({
+  kind: z.string().min(1),
+  fields: z.record(z.string(), LayoutFieldSchema).default({}),
+}).strict();
+export type LayoutDecoder = z.infer<typeof LayoutDecoderSchema>;
+
+export const AccountDecoderSchema = z.union([
+  z.string().min(1),
+  LayoutDecoderSchema,
+]);
+export type AccountDecoder = z.infer<typeof AccountDecoderSchema>;
+
 export const AccountDefinitionSchema = z.object({
   kind: AccountKindSchema,
   space: z.number().int().positive(),
   address: z.string().min(1).optional(),
   pda: PdaDefinitionSchema.optional(),
   owner: AccountOwnerSchema.optional(),
+  decoder: AccountDecoderSchema.optional(),
 });
 
 export const ActionDefinitionSchema = z.object({
@@ -175,7 +209,9 @@ export type Invariant = z.infer<typeof InvariantSchema>;
 // generic oracle injection. Adapters can declare
 // `[[oracles]]` entries that the engine uses to dispatch price shocks
 // through a typed account layout.
-export const OracleKindSchema = z.enum(["admin-mock", "pyth"]);
+export const OracleKindSchema = z.enum([
+  "admin-mock"
+]);
 export type OracleKind = z.infer<typeof OracleKindSchema>;
 
 export const OracleDefinitionSchema = z.object({
@@ -396,8 +432,22 @@ function checkLabel(path: string, key: string, value: string): void {
 }
 
 function validateAdapterIdentifiers(adapter: Adapter, path: string): void {
-  for (const accountName of Object.keys(adapter.accounts)) {
+  for (const [accountName, account] of Object.entries(adapter.accounts)) {
     checkIdentifier(path, `[accounts].${accountName}`, accountName);
+    if (account.decoder !== undefined) {
+      if (typeof account.decoder === "string") {
+        checkIdentifier(path, `[accounts].${accountName}.decoder`, account.decoder);
+      } else {
+        checkIdentifier(path, `[accounts].${accountName}.decoder.kind`, account.decoder.kind);
+        for (const fieldName of Object.keys(account.decoder.fields)) {
+          checkIdentifier(
+            path,
+            `[accounts].${accountName}.decoder.fields.${fieldName}`,
+            fieldName
+          );
+        }
+      }
+    }
   }
   for (const [ixName, mapping] of Object.entries(adapter.instructions)) {
     checkIdentifier(path, `[instructions].${ixName}`, ixName);
@@ -468,6 +518,7 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
   validateErrors(adapter, path);
   validateAccountBindings(adapter, path);
   validateAccountOwners(adapter, path);
+  validateAccountDecoders(adapter, path);
 
   const runtime = validateRuntimeSelection(adapter, path);
   if (runtime === "lending") {
@@ -894,7 +945,7 @@ function validateAccountOwners(adapter: Adapter, path: string): void {
     }
     if (!hasProgramSo && !hasPubkey) {
       throw new Error(
-        `${path}: \`[accounts].${name}.owner\`: account \`${name}\` declares an empty \`owner\` block. Set either \`owner.program_so = "<path to .so>"\` for a local sibling program, or \`owner.pubkey = "<base58>"\` for a literal external program (e.g. Pyth).`
+        `${path}: \`[accounts].${name}.owner\`: account \`${name}\` declares an empty \`owner\` block. Set either \`owner.program_so = "<path to .so>"\` for a local sibling program, or \`owner.pubkey = "<base58>"\` for a literal external program.`
       );
     }
     if (owner.program_so !== undefined && !hasProgramSo) {
@@ -915,6 +966,96 @@ function validateAccountOwners(adapter: Adapter, path: string): void {
         );
       }
     }
+  }
+}
+
+function validateAccountDecoders(adapter: Adapter, path: string): void {
+  for (const [name, account] of Object.entries(adapter.accounts)) {
+    const decoder = account.decoder;
+    if (decoder === undefined) continue;
+
+    let fields: Record<string, LayoutField>;
+    if (typeof decoder === "string") {
+      const preset = accountDecoderPresetFields(decoder);
+      if (preset === undefined) {
+        throw new Error(
+          `${path}: \`[accounts].${name}.decoder\`: unknown account decoder preset \`${decoder}\`; expected one of ${JSON.stringify(ACCOUNT_DECODER_PRESETS)}`
+        );
+      }
+      fields = preset;
+    } else {
+      if (decoder.kind !== "layout") {
+        throw new Error(
+          `${path}: \`[accounts].${name}.decoder.kind\`: unknown account decoder kind \`${decoder.kind}\`; expected \`layout\``
+        );
+      }
+      if (Object.keys(decoder.fields).length === 0) {
+        throw new Error(
+          `${path}: \`[accounts].${name}.decoder.fields\`: layout decoder must declare at least one field`
+        );
+      }
+      fields = decoder.fields;
+    }
+
+    for (const [fieldName, field] of Object.entries(fields)) {
+      const size = layoutFieldTypeSize(field.type);
+      if (size === undefined) {
+        throw new Error(
+          `${path}: \`[accounts].${name}.decoder.fields.${fieldName}.type\`: unknown layout field type \`${field.type}\`; expected one of ${JSON.stringify(LAYOUT_FIELD_TYPES)}`
+        );
+      }
+      const end = field.offset + size;
+      if (!Number.isSafeInteger(end) || end > account.space) {
+        throw new Error(
+          `${path}: \`[accounts].${name}.decoder.fields.${fieldName}.offset\`: layout field \`${fieldName}\` at offset ${field.offset} with size ${size} exceeds declared account space ${account.space}`
+        );
+      }
+    }
+  }
+}
+
+function accountDecoderFields(decoder: AccountDecoder): Record<string, LayoutField> | undefined {
+  if (typeof decoder === "string") return accountDecoderPresetFields(decoder);
+  if (decoder.kind !== "layout") return undefined;
+  return decoder.fields;
+}
+
+function accountDecoderPresetFields(name: string): Record<string, LayoutField> | undefined {
+  switch (name) {
+    case "spl_token_account":
+      return {
+        mint: { type: "pubkey", offset: 0 },
+        owner: { type: "pubkey", offset: 32 },
+        amount: { type: "u64", offset: 64 },
+        state: { type: "u8", offset: 108 },
+        delegated_amount: { type: "u64", offset: 121 },
+      };
+    case "spl_mint":
+      return {
+        supply: { type: "u64", offset: 36 },
+        decimals: { type: "u8", offset: 44 },
+        is_initialized: { type: "bool", offset: 45 },
+      };
+    default:
+      return undefined;
+  }
+}
+
+function layoutFieldTypeSize(type: string): number | undefined {
+  switch (type) {
+    case "u8":
+    case "bool":
+      return 1;
+    case "u64":
+    case "i64":
+      return 8;
+    case "u128":
+    case "i128":
+      return 16;
+    case "pubkey":
+      return 32;
+    default:
+      return undefined;
   }
 }
 
@@ -980,10 +1121,20 @@ function validateOracles(adapter: Adapter, path: string, runtime: Protocol): voi
       );
     }
     seen.add(oracle.name);
-    if (runtime === "generic" && oracle.account !== undefined) {
+    if (runtime === "generic") {
+      if (oracle.account === undefined) {
+        throw new Error(
+          `${path}: \`[[oracles]][${idx}].account\`: generic oracle \`${oracle.name}\` must bind \`account = "<shared account>"\``
+        );
+      }
       if (!(oracle.account in adapter.accounts)) {
         throw new Error(
           `${path}: \`[[oracles]][${idx}].account\`: unknown account \`${oracle.account}\`; declare it under \`[accounts]\``
+        );
+      }
+      if (adapter.accounts[oracle.account]?.kind !== "shared") {
+        throw new Error(
+          `${path}: \`[[oracles]][${idx}].account\`: oracle account \`${oracle.account}\` must be declared with \`kind = "shared"\``
         );
       }
     }
@@ -1101,11 +1252,20 @@ function validateGeneric(adapter: Adapter, path: string): void {
   }
 
   for (const [key, logical] of Object.entries(adapter.state_mapping)) {
-    const [account] = validateDottedPath(path, key);
+    const [account, field] = validateDottedPath(path, key);
     if (!(account in adapter.accounts)) {
       throw new Error(
         `${path}: \`[state_mapping].${key}\`: unknown generic account binding \`${account}\`; declare it under \`[accounts]\``
       );
+    }
+    const decoder = adapter.accounts[account]?.decoder;
+    if (decoder !== undefined) {
+      const fields = accountDecoderFields(decoder);
+      if (fields === undefined || !(field in fields)) {
+        throw new Error(
+          `${path}: \`[state_mapping].${key}\`: state mapping references decoder field \`${field}\` on account \`${account}\`, but the decoder declares only ${JSON.stringify(Object.keys(fields ?? {}).sort())}`
+        );
+      }
     }
     if (!(logical in adapter.observations)) {
       throw new Error(

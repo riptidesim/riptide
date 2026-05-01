@@ -18,10 +18,53 @@ INSTALL_DIR="${RIPTIDE_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/riptide
 BASE_URL="${RIPTIDE_RELEASE_BASE_URL:-}"
 DRY_RUN=0
 FORCE=0
+START_TS="$(date +%s 2>/dev/null || echo 0)"
 
+# ---------- cosmetic helpers ----------
+# POSIX-portable color/style. Active only when stdout is a TTY, NO_COLOR
+# is unset, RIPTIDE_NO_BANNER is unset, CI is unset, and TERM is sane.
+# RGB cyan #22F0E6 matches the brand accent used by `riptide init`.
+if [ -t 1 ] \
+  && [ -z "${NO_COLOR:-}" ] \
+  && [ -z "${RIPTIDE_NO_BANNER:-}" ] \
+  && [ -z "${CI:-}" ] \
+  && [ "${TERM:-dumb}" != "dumb" ]; then
+  C_BOLD="$(printf '\033[1m')"
+  C_DIM="$(printf '\033[2m')"
+  C_RED="$(printf '\033[31m')"
+  C_GREEN="$(printf '\033[32m')"
+  C_YELLOW="$(printf '\033[33m')"
+  C_CYAN="$(printf '\033[38;2;83;213;209m')"
+  C_RESET="$(printf '\033[0m')"
+else
+  C_BOLD=''; C_DIM=''; C_RED=''; C_GREEN=''; C_YELLOW=''; C_CYAN=''; C_RESET=''
+fi
+
+print_banner() {
+  [ -n "$C_CYAN" ] || return 0
+  printf '\n'
+  printf '%s  .......   ...   ......    .......  ...   .......   .......%s\n' "$C_CYAN" "$C_RESET"
+  printf '%s  ..   ..   ...   ..   ..     ..     ...   ..   ...  ...    %s\n' "$C_CYAN" "$C_RESET"
+  printf '%s  .......   ...   ..  ...     ..     ...   ..   ...  .......%s\n' "$C_CYAN" "$C_RESET"
+  printf '%s  ..  ..    ...   ..          ..     ...   ..   ...  ...    %s\n' "$C_CYAN" "$C_RESET"
+  printf '%s  ..   ..   ...   ..          ..     ...   .......   .......%s\n' "$C_CYAN" "$C_RESET"
+  printf '\n'
+  printf '  %sDeterministic Solana simulation evidence.%s\n' "$C_DIM" "$C_RESET"
+  printf '\n'
+}
+
+rule() {
+  printf '%s  ─────────────────────────────────────────────────────%s\n' "$C_DIM" "$C_RESET"
+}
+
+step()  { printf '\n%s→%s %s%s%s\n' "$C_CYAN" "$C_RESET" "$C_BOLD" "$*" "$C_RESET"; }
+ok()    { printf '  %s✓%s %s\n' "$C_GREEN" "$C_RESET" "$*"; }
+info()  { printf '  %s·%s %s%s%s\n' "$C_DIM" "$C_RESET" "$C_DIM" "$*" "$C_RESET"; }
+warn()  { printf '  %s!%s %s%s%s\n' "$C_YELLOW" "$C_RESET" "$C_YELLOW" "$*" "$C_RESET" >&2; }
+die()   { printf '\n  %s✗%s %s%sriptide install: %s%s\n' "$C_RED" "$C_RESET" "$C_BOLD" "$C_RED" "$*" "$C_RESET" >&2; exit 1; }
+
+# Legacy shims kept so existing call sites stay structurally readable.
 say() { printf '%s\n' "$*"; }
-warn() { printf 'riptide install: %s\n' "$*" >&2; }
-die() { warn "$*"; exit 1; }
 
 usage() {
   cat <<'EOF'
@@ -49,6 +92,8 @@ Environment:
   RIPTIDE_INSTALL_DIR
   RIPTIDE_RELEASE_BASE_URL  Override the GitHub Release download base.
   RIPTIDE_GITHUB_REPO       Defaults to riptidesim/riptide.
+  NO_COLOR                  Disable ANSI styling.
+  RIPTIDE_NO_BANNER         Disable banner + ANSI styling.
 EOF
 }
 
@@ -136,6 +181,23 @@ download() {
   fi
 }
 
+# Best-effort human-readable file size (KiB / MiB). Pure POSIX arithmetic
+# so we don't pull in numfmt, awk float, or bc.
+human_size() {
+  path="$1"
+  bytes="$(wc -c < "$path" 2>/dev/null | tr -d ' ' || echo 0)"
+  [ -n "$bytes" ] || bytes=0
+  if [ "$bytes" -ge 1048576 ]; then
+    whole="$((bytes / 1048576))"
+    frac="$(((bytes * 10 / 1048576) % 10))"
+    printf '%s.%s MiB' "$whole" "$frac"
+  elif [ "$bytes" -ge 1024 ]; then
+    printf '%s KiB' "$((bytes / 1024))"
+  else
+    printf '%s B' "$bytes"
+  fi
+}
+
 verify_sha256() {
   archive="$1"
   checksum_file="$2"
@@ -144,7 +206,8 @@ verify_sha256() {
   checksum_dir="$(dirname "$checksum_file")"
 
   if command -v sha256sum >/dev/null 2>&1; then
-    (cd "$checksum_dir" && sha256sum -c "$checksum_name")
+    (cd "$checksum_dir" && sha256sum -c "$checksum_name" >/dev/null 2>&1) \
+      || die "sha256 mismatch for $archive_name"
     return
   fi
 
@@ -205,15 +268,18 @@ fi
 archive_url="${base}/${asset}"
 checksum_url="${archive_url}.sha256"
 
-say "Riptide release install"
-say "  target:      $target"
-say "  version:     $VERSION"
-say "  archive:     $archive_url"
-say "  install dir: $INSTALL_DIR/current"
-say "  launcher:    $BIN_DIR/riptide"
+print_banner
+rule
+printf '  %starget%s       %s\n' "$C_DIM" "$C_RESET" "$target"
+printf '  %sversion%s      %s\n' "$C_DIM" "$C_RESET" "$VERSION"
+printf '  %sarchive%s      %s\n' "$C_DIM" "$C_RESET" "$archive_url"
+printf '  %sinstall dir%s  %s\n' "$C_DIM" "$C_RESET" "$INSTALL_DIR/current"
+printf '  %slauncher%s     %s\n' "$C_DIM" "$C_RESET" "$BIN_DIR/riptide"
+rule
 
 if [ "$DRY_RUN" -eq 1 ]; then
-  say "dry-run: no files changed"
+  step "dry run"
+  ok "no files changed"
   exit 0
 fi
 
@@ -233,15 +299,19 @@ trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 archive="$tmp/$asset"
 checksum="$tmp/${asset}.sha256"
 
-say "downloading release bundle..."
+step "downloading release bundle"
+info "$archive_url"
 download "$archive_url" "$archive"
 download "$checksum_url" "$checksum"
+ok "downloaded ($(human_size "$archive"))"
 
-say "verifying sha256..."
+step "verifying sha256"
 verify_sha256 "$archive" "$checksum"
+ok "checksum matches"
 
-say "extracting..."
+step "extracting"
 tar -xzf "$archive" -C "$tmp/extract"
+ok "unpacked to staging"
 
 bundle_bin="$(find "$tmp/extract" -type f -path "*/bin/riptide" | head -n 1)"
 [ -n "$bundle_bin" ] || die "release archive does not contain bin/riptide"
@@ -257,6 +327,7 @@ rm -rf "$staged"
 mkdir -p "$staged"
 cp -R "$bundle_root/." "$staged/"
 
+step "activating release"
 if "$staged/bin/riptide" --version >/dev/null 2>&1; then
   staged_version="$("$staged/bin/riptide" --version 2>/dev/null | head -n 1)"
 else
@@ -289,16 +360,47 @@ else
 fi
 
 rm -rf "$previous"
-say "installed: $installed_version"
-say "staged bundle: $staged_version"
+ok "installed: $installed_version"
+info "staged bundle: $staged_version"
 
 case ":$PATH:" in
   *":$BIN_DIR:"*)
-    say "ready: riptide is on PATH"
+    ok "$BIN_DIR is on PATH"
+    PATH_HINT=""
     ;;
   *)
-    warn "$BIN_DIR is not on PATH"
-    warn "add this to your shell rc:"
+    warn "$BIN_DIR is not on your PATH"
+    warn "add this to your shell rc (~/.bashrc, ~/.zshrc, …):"
     warn "  export PATH=\"$BIN_DIR:\$PATH\""
+    PATH_HINT="path-not-set"
     ;;
 esac
+
+# ---------- completion ----------
+END_TS="$(date +%s 2>/dev/null || echo 0)"
+ELAPSED=0
+if [ "$START_TS" -gt 0 ] && [ "$END_TS" -ge "$START_TS" ]; then
+  ELAPSED="$((END_TS - START_TS))"
+fi
+ELAPSED_MIN="$((ELAPSED / 60))"
+ELAPSED_SEC="$((ELAPSED % 60))"
+
+printf '\n'
+rule
+if [ "$ELAPSED" -gt 0 ]; then
+  printf '  %s✓%s %sRiptide installed%s %sin %dm %02ds%s\n' \
+    "$C_GREEN" "$C_RESET" "$C_BOLD" "$C_RESET" "$C_DIM" "$ELAPSED_MIN" "$ELAPSED_SEC" "$C_RESET"
+else
+  printf '  %s✓%s %sRiptide installed%s\n' "$C_GREEN" "$C_RESET" "$C_BOLD" "$C_RESET"
+fi
+rule
+printf '\n  %sNext:%s\n' "$C_BOLD" "$C_RESET"
+if [ -n "$PATH_HINT" ]; then
+  printf '    %s%s%s\n' "$C_DIM" "(open a new shell or update PATH first)" "$C_RESET"
+fi
+printf '    1. %sriptide doctor%s          %s# verify your toolchain%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+printf '    2. %scd <your-program>%s       %s# the Solana program you want to simulate%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+printf '    3. %sriptide init%s            %s# scaffold .riptide/ (adapter stub)%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+printf '    4. edit %s.riptide/adapters/<program>.toml%s, then %sriptide adapt%s\n' "$C_CYAN" "$C_RESET" "$C_CYAN" "$C_RESET"
+printf '\n  %sNew to Riptide?%s %sriptide --help%s walks through the full surface.\n' "$C_DIM" "$C_RESET" "$C_BOLD" "$C_RESET"
+printf '\n'

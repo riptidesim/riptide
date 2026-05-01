@@ -107,7 +107,7 @@ If all three are green, your environment is good.
 
 ### Testing against your own Anchor program
 
-Contributors developing adapters against their own Anchor repos (rather than working on Riptide itself) should use the drop-in path — run `riptide init` inside your Anchor repo to scaffold `.riptide/` with an adapter stub, starter personas, and a baseline scenario, fill in the adapter TODOs, and then `riptide run` to discover and execute every scenario under `.riptide/scenarios/`. See [`docs/install.md`](docs/install.md#next-steps-after-install) for the full walkthrough. The monorepo path above stays as the authoritative workflow for contributors working on Riptide itself (engine, CLI, or the shipping bundles).
+Contributors developing adapters against their own Anchor repos (rather than working on Riptide itself) should use the drop-in path — run `riptide init` inside your Anchor repo to scaffold `.riptide/` with an adapter stub and getting-started guide, fill in the adapter TODOs, add your own scenarios under `.riptide/scenarios/`, and then `riptide run` to execute them. See [`docs/install.md`](docs/install.md#next-steps-after-install) for the full walkthrough. The monorepo path above stays as the authoritative workflow for contributors working on Riptide itself (engine, CLI, or the shipping bundles).
 
 ---
 
@@ -127,7 +127,7 @@ riptide/
 │
 ├── cli/                          # TypeScript CLI wrapper
 │   ├── src/
-│   │   ├── commands/             # run, replay, simulate, adapt, serve entry points
+│   │   ├── commands/             # run, replay, adapt, serve entry points
 │   │   ├── schemas/              # Zod mirrors of the serde schemas (adapter, run-config, persona)
 │   │   ├── compiler/             # Persona compilation pipeline
 │   │   ├── serve/                # Dashboard HTTP server + asset pipeline
@@ -202,7 +202,7 @@ An adapter wires a specific Solana program into the engine.
 2. **Generate or hand-write the adapter TOML:**
    - *Skill path:* install the `riptide-adapt` Claude Code skill (`skills/riptide-adapt/SKILL.md`). Invoke it in-session pointing at your program source or IDL. The skill reads the program, classifies it against the primitive library (lending / perps / AMM / generic), writes the adapter TOML, and runs `riptide adapt` as a smoke test. No API keys or endpoint config.
    - *Hand-written path:* copy the closest shipping adapter from `fixtures/adapters/` (`lending.toml`, `perpetuals.toml`, `amm.toml`, `liquid-staking.toml`, `stablecoin.toml`, or `resource-grinder.toml`) and edit `program_so`, `[[accounts]]`, `[[actions]]`, `[[observations]]`, and `[[invariants]]`.
-3. **Wire an oracle if the program needs one.** A generic adapter can declare a single `[[oracles]]` block bound to a `kind = "shared"` account. The harness bootstraps that account at tick 0 with real admin-mock or Pyth bytes and mutates it on every scenario/replay oracle update. The bound account can optionally declare `owner = { program_so = "<path>.so" }` (owner resolved from the companion `target/deploy/<name>-keypair.json`) for sibling-owned oracles such as `admin_mock_oracle`, or `owner = { pubkey = "<base58>" }` for real external programs such as Pyth. Omit `owner` and the simulated program owns the account. See [`docs/architecture.md#oracle-binding-for-generic-adapters`](docs/architecture.md#oracle-binding-for-generic-adapters) and the end-to-end proof at `engine/tests/perpetuals_sibling_oracle_proof.rs`. Two or more `[[oracles]]` entries on a generic adapter is currently a loader error — multi-oracle generic semantics remain a follow-up.
+3. **Wire an oracle if the program needs one.** A generic adapter can declare a single `[[oracles]]` block bound to a `kind = "shared"` account. The harness bootstraps that account at tick 0 with admin-mock bytes and mutates it on every scenario/replay oracle update. The bound account can optionally declare `owner = { program_so = "<path>.so" }` (owner resolved from the companion `target/deploy/<name>-keypair.json`) for sibling-owned oracles such as `admin_mock_oracle`, or `owner = { pubkey = "<base58>" }` for a literal external owner. Omit `owner` and the simulated program owns the account. See [`docs/architecture.md#oracle-binding-for-generic-adapters`](docs/architecture.md#oracle-binding-for-generic-adapters) and the end-to-end proof at `engine/tests/perpetuals_sibling_oracle_proof.rs`. Two or more `[[oracles]]` entries on a generic adapter is currently a loader error — multi-oracle generic semantics remain a follow-up.
 4. **Smoke-test it:** `riptide adapt --adapter fixtures/adapters/<your-adapter>.toml` — confirms the engine boots it and observes a state delta.
 5. **Commit** the adapter under `fixtures/adapters/` and the IDL under `fixtures/idls/`.
 
