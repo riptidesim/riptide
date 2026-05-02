@@ -21,6 +21,7 @@
 .riptide/last-run.json
 .riptide/run-collection.json
 .riptide/runs/
+.riptide/campaigns/
 .riptide/pack/
 fixtures/replays/*/.riptide/pack/
 

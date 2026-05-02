@@ -3,6 +3,7 @@
 import { Command } from "commander";
 
 import { createAdaptCommand } from "./commands/adapt.js";
+import { createCampaignCommand } from "./commands/campaign.js";
 import { createDoctorCommand } from "./commands/doctor.js";
 import { createExplainCommand } from "./commands/explain.js";
 import { createHarnessCommand } from "./commands/harness.js";
@@ -29,6 +30,7 @@ program
   .version(cliPackageVersion());
 
 program.addCommand(createRunCommand());
+program.addCommand(createCampaignCommand());
 program.addCommand(createReplayCommand());
 program.addCommand(createPackStateCommand());
 program.addCommand(createTemplateCommand());
