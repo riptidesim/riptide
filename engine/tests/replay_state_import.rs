@@ -54,6 +54,7 @@ fields.debt_amount = "u128"
 [semantics.roles.reserve]
 source = "account.reserve"
 fields.liquidity = "u128"
+fields.max_ltv_bps = "u64"
 
 [semantics.roles.oracle]
 source = "account.oracle"
@@ -68,6 +69,13 @@ fields.liquidation_threshold_bps = "u64"
 over = "reserves"
 formula = "sum"
 expr = "reserve.liquidity"
+
+[semantics.derived]
+collateral_value = "position.collateral_amount * oracle.price"
+debt_value = "position.debt_amount * oracle.price"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+liquidation_threshold_value = "collateral_value * liquidation_config.liquidation_threshold_bps / 10000"
+health_factor = "liquidation_threshold_value / max(debt_value, 1)"
 "#;
 
 fn fixture_base() -> PathBuf {

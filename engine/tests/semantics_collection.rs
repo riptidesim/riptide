@@ -59,6 +59,8 @@ fields.liquidation_threshold_bps = "u64"
 [semantics.derived]
 collateral_value = "position.collateral_amount * oracle.price"
 debt_value = "position.debt_amount"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+liquidation_threshold_value = "collateral_value * liquidation_config.liquidation_threshold_bps / 10000"
 health_factor = "collateral_value / max(debt_value, 1)"
 
 [semantics.collections.worst_health_factor]
@@ -101,6 +103,7 @@ fields.debt_amount = "u128"
 [semantics.roles.reserve]
 source = "account.reserve"
 fields.health_factor = "u128"
+fields.max_ltv_bps = "u64"
 
 [semantics.roles.oracle]
 source = "account.oracle"
@@ -110,6 +113,13 @@ fields.confidence = "u64"
 [semantics.roles.liquidation_config]
 source = "account.reserve"
 fields.liquidation_threshold_bps = "u64"
+
+[semantics.derived]
+collateral_value = "position.collateral_amount * oracle.price"
+debt_value = "position.debt_amount * oracle.price"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+liquidation_threshold_value = "collateral_value * liquidation_config.liquidation_threshold_bps / 10000"
+health_factor = "reserve.health_factor"
 
 [semantics.collections.worst_health_factor]
 over = "reserves"

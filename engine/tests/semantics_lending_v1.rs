@@ -126,6 +126,8 @@ fields.liquidation_threshold_bps = "u64"
 collateral_value = "position.collateral_amount * oracle.price"
 debt_value = "position.debt_amount"
 max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+liquidation_threshold_value = "collateral_value * liquidation_config.liquidation_threshold_bps / 10000"
+health_factor = "liquidation_threshold_value / max(debt_value, 1)"
 
 [[semantics.invariants]]
 name = "replay_debt_bound"

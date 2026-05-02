@@ -30,6 +30,7 @@ fields.health_factor = "u128"
 fields.collateral_ratio = "u128"
 fields.bad_debt_ratio = "u128"
 fields.utilization = "u128"
+fields.max_ltv_bps = "u64"
 
 [semantics.roles.oracle]
 source = "account.oracle"
@@ -40,6 +41,13 @@ fields.staleness = "u64"
 [semantics.roles.liquidation_config]
 source = "account.reserve"
 fields.liquidation_threshold_bps = "u64"
+
+[semantics.derived]
+collateral_value = "position.collateral_amount * oracle.price"
+debt_value = "position.debt_amount * oracle.price"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+liquidation_threshold_value = "collateral_value * liquidation_config.liquidation_threshold_bps / 10000"
+health_factor = "liquidation_threshold_value / max(debt_value, 1)"
 
 [semantics.collections.total_liquidity]
 over = "reserves"
