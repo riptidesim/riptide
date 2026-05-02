@@ -6,6 +6,7 @@ import path from "node:path";
 
 import type { SimulationResult } from "../src/compiler/schema.js";
 import { RUN_COLLECTION_SCHEMA_VERSION, type RunCollection } from "../src/run/collection.js";
+import { SEMANTIC_CLASS_REQUIREMENTS } from "../src/schemas/adapter.js";
 import { startDashboardServer, type DashboardHandle } from "../src/serve/index.js";
 import { SEMANTIC_LABELS } from "../src/serve/labels.js";
 
@@ -185,6 +186,15 @@ test("dashboard server serves a run collection and selected scenario artifacts",
     const payload = (await missing.json()) as { error: string };
     assert.equal(payload.error, "scenario_not_found");
   });
+});
+
+test("semantic label map covers every required derived observation", () => {
+  for (const [className, requirements] of Object.entries(SEMANTIC_CLASS_REQUIREMENTS)) {
+    for (const name of requirements.requiredDerived) {
+      const key = `${className}.${name}`;
+      assert.ok(SEMANTIC_LABELS[key], `missing semantic label for ${key}`);
+    }
+  }
 });
 
 test("dashboard server returns a synthetic collection for a single artifact directory", async () => {

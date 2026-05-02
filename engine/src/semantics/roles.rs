@@ -75,7 +75,7 @@ impl fmt::Display for RoleBindingError {
             Self::UnsupportedSemanticClass => {
                 write!(
                     f,
-                    "semantic role binding is only implemented for lending.v1"
+                    "lending harness semantic role binding is only implemented for lending.v1"
                 )
             }
         }
@@ -159,15 +159,11 @@ where
     Ok(context)
 }
 
-pub fn bind_generic_lending_v1_roles(
+pub fn bind_generic_semantic_roles(
     semantics: &Semantics,
     snapshot: &TickSnapshot,
     binding_context: RoleBindingContext<'_>,
 ) -> Result<Context, RoleBindingError> {
-    if semantics.class_ref != Some(SemanticClassRef::LendingV1) {
-        return Err(RoleBindingError::UnsupportedSemanticClass);
-    }
-
     let mut context = Context::new();
     for (role_name, role) in &semantics.roles {
         let source = role
@@ -204,6 +200,14 @@ pub fn bind_generic_lending_v1_roles(
     }
 
     Ok(context)
+}
+
+pub fn bind_generic_lending_v1_roles(
+    semantics: &Semantics,
+    snapshot: &TickSnapshot,
+    binding_context: RoleBindingContext<'_>,
+) -> Result<Context, RoleBindingError> {
+    bind_generic_semantic_roles(semantics, snapshot, binding_context)
 }
 
 fn is_oracle_runtime_field(field: &str) -> bool {
@@ -797,6 +801,71 @@ mod tests {
                 error: EvalError::MissingField { path, .. },
             } if name == "fresh_oracle" && path == "oracle.staleness"
         ));
+    }
+
+    #[test]
+    fn generic_semantic_roles_bind_non_lending_snapshot_fields() {
+        let mut roles = BTreeMap::new();
+        roles.insert(
+            "pool".into(),
+            SemanticRole {
+                source: "account.pool".into(),
+                fields: BTreeMap::from([
+                    ("reserve_a".into(), SemanticFieldType::U128),
+                    ("reserve_b".into(), SemanticFieldType::U128),
+                ]),
+                binding: Some(SemanticSourceBinding::Account("pool".into())),
+            },
+        );
+        roles.insert(
+            "fee_config".into(),
+            SemanticRole {
+                source: "account.pool".into(),
+                fields: BTreeMap::from([("fee_bps".into(), SemanticFieldType::U64)]),
+                binding: Some(SemanticSourceBinding::Account("pool".into())),
+            },
+        );
+        let semantics = Semantics {
+            class: Some("amm.v1".into()),
+            roles,
+            derived: BTreeMap::from([
+                (
+                    "constant_product".into(),
+                    expression("pool.reserve_a * pool.reserve_b"),
+                ),
+                ("price_impact_bps".into(), expression("fee_config.fee_bps")),
+            ]),
+            invariants: vec![invariant("fee_bounded", "price_impact_bps <= 10000")],
+            extensions: BTreeMap::new(),
+            oracles: BTreeMap::new(),
+            collections: BTreeMap::new(),
+            replay: None,
+            class_ref: Some(SemanticClassRef::AmmV1),
+            derived_order: vec!["constant_product".into(), "price_impact_bps".into()],
+        };
+        let snapshot = BTreeMap::from([
+            ("pool.reserve_a".into(), serde_json::Value::from(1_000)),
+            ("pool.reserve_b".into(), serde_json::Value::from(2_000)),
+            ("pool.fee_bps".into(), serde_json::Value::from(30)),
+        ]);
+
+        let role_context =
+            bind_generic_semantic_roles(&semantics, &snapshot, RoleBindingContext::default())
+                .unwrap();
+        assert_eq!(
+            role_context.get("pool.reserve_a"),
+            Some(&Value::U128(1_000))
+        );
+
+        let derived = evaluate_derived_observations(&semantics, &role_context).unwrap();
+        assert_eq!(
+            derived.observations.get("constant_product"),
+            Some(&Value::U128(2_000_000))
+        );
+        assert_eq!(
+            evaluate_expression_invariants(&semantics, &derived.context, 0).unwrap(),
+            Vec::new()
+        );
     }
 }
 

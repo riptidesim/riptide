@@ -132,6 +132,72 @@ takes = []
 "position.claimable_collateral"   = "uint"
 "position.cumulative_claimed"     = "uint"
 
+[semantics]
+class = "stablecoin.v1"
+
+[semantics.roles.collateral_pool]
+source = "account.pool"
+fields.collateral_assets = "u128"
+fields.effective_collateral_ratio_bps = "u64"
+
+[semantics.roles.liabilities]
+source = "account.pool"
+fields.stable_supply = "u128"
+
+# The shipped processor does not read the externally-owned admin-mock
+# oracle yet. For stablecoin.v1's oracle/backing-source role, bind the
+# program-local effective backing ratio the processor actually exposes.
+# The top-level `[[oracles]]` block still exercises owner-aware oracle
+# bootstrap, but it is not a semantic price input yet.
+[semantics.roles.oracle]
+source = "account.pool"
+fields.effective_collateral_ratio_bps = "u64"
+
+[semantics.roles.redemption_queue]
+source = "account.pool"
+fields.pending_redemption_assets = "u128"
+fields.pending_redemption_count = "u64"
+
+[semantics.roles.backing_module]
+source = "account.pool"
+fields.reserve_buffer_assets = "u128"
+fields.cumulative_hedge_loss_bps = "u64"
+
+# Program-local peg proxy: the fixture exposes effective backing ratio,
+# not an external market price. `peg_deviation_bps` below is therefore a
+# backing-ratio deviation from par, not a traded-price depeg measure.
+[semantics.roles.peg_config]
+source = "account.pool"
+fields.effective_collateral_ratio_bps = "u64"
+
+[semantics.derived]
+collateral_value = "collateral_pool.collateral_assets"
+liability_value = "liabilities.stable_supply"
+backing_ratio = "collateral_value * 10000 / max(liability_value, 1)"
+collateralization_ratio = "collateral_pool.effective_collateral_ratio_bps"
+redemption_pressure = "redemption_queue.pending_redemption_assets * 10000 / max(liability_value, 1)"
+redemption_coverage_ratio = "backing_module.reserve_buffer_assets * 10000 / max(redemption_queue.pending_redemption_assets, 1)"
+peg_deviation_bps = "max(10000, peg_config.effective_collateral_ratio_bps) - min(10000, peg_config.effective_collateral_ratio_bps)"
+hedge_gap_value = "collateral_pool.collateral_assets * backing_module.cumulative_hedge_loss_bps / 10000"
+
+[[semantics.invariants]]
+name = "collateral_value_covers_liability_value"
+expr = "collateral_value >= liability_value"
+severity = "warn"
+description = "Program-local collateral value should cover issued stablecoin liabilities"
+
+[[semantics.invariants]]
+name = "redemptions_within_collateral_value"
+expr = "redemption_queue.pending_redemption_assets <= collateral_value"
+severity = "warn"
+description = "Queued redemption claims should not exceed remaining program-local collateral"
+
+[[semantics.invariants]]
+name = "hedge_gap_within_collateral_value"
+expr = "hedge_gap_value <= collateral_value"
+severity = "warn"
+description = "Program-local hedge-loss proxy should stay bounded by current collateral"
+
 # Shipping invariants.
 #
 # `no_hedge_loss_during_healthy_run` — the scratch smoke run never
@@ -141,8 +207,10 @@ takes = []
 # invariant is *meant* to fire as the proof signal.
 #
 # `collateral_ratio_bounded` — the reported ratio must stay below a
-# sanity ceiling. Declared at 10x the nominal 10_000-bps full-backing
-# rate to catch accidental runaway math. The interesting floor check
+# smoke sanity ceiling. The shipped persona mix can transiently
+# over-collateralize above 10x while deposits land before matching
+# mints/redemptions, so the ceiling is intentionally loose at 100x the
+# nominal 10_000-bps full-backing rate. The interesting floor check
 # (`effective_collateral_ratio_bps >= 10_000`) is left to the named
 # proof artifact, which operates against explicitly-initialized pool
 # state where the floor has honest meaning.
@@ -162,7 +230,7 @@ value = 0
 name = "collateral_ratio_bounded"
 field = "pool.effective_collateral_ratio_bps"
 op = "<="
-value = 100000
+value = 1000000
 
 # Differentiated stablecoin persona library. The four bundle personas
 # below are inline mirrors of the per-file fragments at

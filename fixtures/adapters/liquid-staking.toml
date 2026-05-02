@@ -119,6 +119,64 @@ takes = []
 "stake_account.claimable_assets"       = "uint"
 "stake_account.cumulative_claimed"     = "uint"
 
+[semantics]
+class = "lst.v1"
+
+[semantics.roles.pool]
+source = "account.pool"
+fields.total_assets = "u64"
+fields.cumulative_slashed = "u64"
+
+[semantics.roles.underlying_reserve]
+source = "account.pool"
+fields.reserve_buffer = "u64"
+
+[semantics.roles.lst_mint]
+source = "account.pool"
+fields.lst_supply = "u64"
+
+[semantics.roles.exchange_rate_config]
+source = "account.pool"
+fields.exchange_rate_bps = "u64"
+
+[semantics.roles.withdrawal_queue]
+source = "account.pool"
+fields.pending_unstake_assets = "u64"
+fields.pending_unstake_count = "u64"
+
+[semantics.derived]
+total_assets = "pool.total_assets"
+lst_supply = "lst_mint.lst_supply"
+exchange_rate = "exchange_rate_config.exchange_rate_bps"
+reserve_buffer = "underlying_reserve.reserve_buffer"
+withdrawal_queue_pressure = "withdrawal_queue.pending_unstake_assets * 10000 / max(total_assets, 1)"
+claim_coverage_ratio = "reserve_buffer * 10000 / max(withdrawal_queue.pending_unstake_assets, 1)"
+slash_loss_bps = "pool.cumulative_slashed * 10000 / max(total_assets + pool.cumulative_slashed, 1)"
+
+[[semantics.invariants]]
+name = "exchange_rate_sanity_bound"
+expr = "exchange_rate_config.exchange_rate_bps <= 100000"
+severity = "warn"
+description = "Stored exchange rate should stay below the fixture sanity ceiling"
+
+[[semantics.invariants]]
+name = "reserve_buffer_within_assets"
+expr = "reserve_buffer <= total_assets"
+severity = "warn"
+description = "Liquid reserve buffer cannot exceed pooled underlying assets"
+
+[[semantics.invariants]]
+name = "withdrawal_queue_within_assets"
+expr = "withdrawal_queue.pending_unstake_assets <= total_assets"
+severity = "warn"
+description = "Queued withdrawal claims should remain covered by pooled assets"
+
+[[semantics.invariants]]
+name = "lst_supply_backed_by_pool_rate"
+expr = "lst_supply * exchange_rate_config.exchange_rate_bps <= total_assets * 10000"
+severity = "warn"
+description = "Live LST supply should not exceed backing at the stored exchange rate"
+
 # Shipping invariants.
 #
 # `no_slash_during_healthy_run` — the scratch smoke run never fires

@@ -326,13 +326,15 @@ bash scripts/ci/harnessed-user-flow-smoke.sh
 | Fixture | sha256 |
 |---------|--------|
 | Solend-fork hero-grid `w25-s40` | `89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11` |
-| Perps-fork scratch | `1518bcfdeb6cdb7d538be86584195b4b348b73beed610003d4a35939994f1878` |
-| AMM-fork scratch | `5de060cdcacfbacaa598a387a9f249e7633fedac449f137d62c0ede9cf10624f` |
+| Perps-fork scratch | `58898e0aab6a16da8c0044dcd0ffc55bed7a655bc8f0ca7e868a86f13f6ae5d8` |
+| AMM-fork scratch | `6757d989c2d80b84593de23e27ee43238e467b414a818ebbe9adf4c869e06f7f` |
 | Liquid-staking depeg + redemption-run replay (canonical `result_sha256`) | see `fixtures/replays/liquid-staking-depeg-redemption-run/expected-summary.json` |
 | Liquid-staking slash-with-open-queue replay (canonical `result_sha256`) | see `fixtures/replays/liquid-staking-slash-with-open-queue/expected-summary.json` |
 | Stablecoin UXD-style collateral-cascade replay (canonical `result_sha256`) | `2f61c0a7cfd592b0e625060ddc076cccb62093a1f0d5b5779fc8f548f7c2f2bf` (pinned in `fixtures/replays/stablecoin-uxd-style-collateral-cascade/expected-summary.json`) |
 
 If your PR flips any of these, include the conscious-retune justification in the PR description — why the new bytes are correct, what changed in the adapter / scenario / engine that causes the shift, and why the old hash is no longer load-bearing.
+
+Sprint 24 retune note: the AMM and perps scratch hashes intentionally changed when `amm.v1` and `perps-margin.v1` semantics were added to the shipped adapters. The simulation behavior remains deterministic; the bytes now include additive semantic output (`derived_observations` and expression-invariant inventory) for those classes, so the old pre-semantics hashes are no longer the active pins.
 
 ---
 

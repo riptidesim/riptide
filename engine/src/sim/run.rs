@@ -23,7 +23,7 @@ use crate::{
             build_expression_invariants_summary, evaluate_expression_invariants,
             ExpressionInvariantFire,
         },
-        roles::{bind_generic_lending_v1_roles, bind_lending_v1_roles, RoleBindingContext},
+        roles::{bind_generic_semantic_roles, bind_lending_v1_roles, RoleBindingContext},
     },
     types::{
         AgentStatus, InvariantViolation, Policy, ProgramErrorInfo, RunConfig, SimEvent, SimOutcome,
@@ -1229,7 +1229,7 @@ where
         semantics.filter(|semantics| should_evaluate_semantics(semantics, role_binding_context))
     {
         let mut role_context =
-            bind_generic_lending_v1_roles(semantics, &snapshot, role_binding_context)
+            bind_generic_semantic_roles(semantics, &snapshot, role_binding_context)
                 .map_err(|e| SimulationAbort::BadInput(e.to_string()))?;
         bind_lending_multi_oracle_accounts(semantics, harness, &mut role_context)?;
         let derived = evaluate_derived_observations(semantics, &role_context)

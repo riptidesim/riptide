@@ -105,6 +105,67 @@ takes = ["amount_in", "min_amount_out", "direction"]
 "pool.k_last"             = "uint"
 "lp_position.lp_shares"   = "uint"
 
+[semantics]
+class = "amm.v1"
+
+[semantics.roles.pool]
+source = "account.pool"
+fields.reserve_a = "u128"
+fields.reserve_b = "u128"
+fields.total_lp_supply = "u128"
+fields.last_swap_price = "u128"
+fields.k_last = "u128"
+
+[semantics.roles.reserve_a]
+source = "account.pool"
+fields.reserve_a = "u128"
+
+[semantics.roles.reserve_b]
+source = "account.pool"
+fields.reserve_b = "u128"
+
+[semantics.roles.lp_supply]
+source = "account.pool"
+fields.total_lp_supply = "u128"
+
+[semantics.roles.fee_config]
+source = "account.pool"
+fields.fee_bps = "u64"
+
+[semantics.derived]
+spot_price = "pool.last_swap_price"
+liquidity_value = "reserve_a.reserve_a + reserve_b.reserve_b"
+lp_share_value = "liquidity_value / max(lp_supply.total_lp_supply, 1)"
+reserve_ratio = "reserve_a.reserve_a / max(reserve_b.reserve_b, 1)"
+constant_product = "reserve_a.reserve_a * reserve_b.reserve_b"
+# Proxy boundary: tick snapshots do not expose the trade size needed for
+# realized slippage. Fee bps is the honest lower-bound cost available here.
+price_impact_bps = "fee_config.fee_bps"
+
+[[semantics.invariants]]
+name = "reserve_pair_nonzero_together"
+expr = "(reserve_a.reserve_a == 0 && reserve_b.reserve_b == 0) || (reserve_a.reserve_a > 0 && reserve_b.reserve_b > 0)"
+severity = "warn"
+description = "AMM reserves should be either both uninitialized at tick 0 or both positive after pool initialization"
+
+[[semantics.invariants]]
+name = "lp_supply_backed_by_liquidity"
+expr = "(lp_supply.total_lp_supply == 0 && liquidity_value == 0) || (lp_supply.total_lp_supply > 0 && liquidity_value > 0)"
+severity = "warn"
+description = "LP supply should only be positive when the pool has reserve liquidity"
+
+[[semantics.invariants]]
+name = "fee_config_bounded"
+expr = "fee_config.fee_bps <= 10000"
+severity = "warn"
+description = "AMM fee configuration should remain at or below 100 percent"
+
+[[semantics.invariants]]
+name = "stored_k_tracks_current_product"
+expr = "pool.k_last == 0 || pool.k_last == constant_product"
+severity = "warn"
+description = "Stored k should match the current reserve product once the pool has been initialized"
+
 # invariants. Per the task note (default to option 2:
 # simple structural bounds) we ship three upper-bound sanity checks
 # that pass at tick 0 (zero-byte harness bootstrap — reserves / lp
@@ -126,10 +187,9 @@ takes = ["amount_in", "min_amount_out", "direction"]
 # catchable via discovery proposals
 # — the observation is in the adapter, it just is not an invariant.
 #
-# Constant-product exact equality (`k_last == reserve_a * reserve_b`)
-# is also deferred — it compares two observations, not an observation
-# to a literal, and the DSL is observation-to-literal only. A
-# tolerance-based `approx_eq` operator is territory.
+# The semantics block above now expresses tick-0-safe structural reserve,
+# LP backing, fee-bound, and stored-k checks. These legacy scalar
+# invariants stay for the older invariant inventory path.
 
 [[invariants]]
 name = "fee_bps_bounded"

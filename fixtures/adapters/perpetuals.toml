@@ -42,6 +42,14 @@
 # only appends persona TOMLs at merge time (see
 # `# === SIDECAR-CUT ===` below) — it does not inject additional
 # invariants.
+# - `[semantics].class = "perps-margin.v1"` gives the generic runtime
+# an economic reading without claiming Mango/Drift/Jupiter fidelity.
+# The oracle, funding, liquidation, and insurance roles below are
+# bound only to fields this fixture already exports. Price is a neutral
+# `position.entry_price` proxy, funding is an open-interest imbalance
+# proxy, and insurance coverage is a market-collateral/socialized-loss
+# proxy; none of these are live protocol subsystems in the shipped
+# deposit/withdraw smoke path.
 #
 # **What the generic oracle surface here does NOT yet cover:**
 # - more than one `[[oracles]]` entry per adapter (loader rejects 2+
@@ -127,6 +135,93 @@ name = "max_leverage_respected"
 field = "position.leverage_bps"
 op = "<="
 value = 100000
+
+[semantics]
+class = "perps-margin.v1"
+
+# Runtime dispatch in this shipped fixture is deposit/withdraw only.
+# These roles therefore describe the observable margin-account surface
+# and proxy risk inputs, not a full perps venue implementation.
+[semantics.roles.margin_account]
+source = "account.position"
+fields.collateral = "u128"
+
+[semantics.roles.collateral]
+source = "account.position"
+fields.collateral = "u128"
+
+[semantics.roles.perp_position]
+source = "account.position"
+fields.notional = "u128"
+fields.entry_price = "u128"
+fields.leverage_bps = "u128"
+fields.side = "u128"
+
+# Proxy price role: the shipping adapter does not bind an oracle account
+# because deposit/withdraw do not read one. Reusing entry_price keeps
+# unrealized PnL neutral and tick-0-safe for this smoke fixture.
+[semantics.roles.oracle]
+source = "account.position"
+fields.entry_price = "u128"
+
+# Proxy funding role: no funding-rate update action is scheduled here.
+# The imbalance inputs below are observable open-interest fields only.
+[semantics.roles.funding_config]
+source = "account.market"
+fields.total_oi_long = "u128"
+fields.total_oi_short = "u128"
+
+[semantics.roles.liquidation_config]
+source = "account.market"
+fields.liquidation_threshold_bps = "u128"
+fields.max_leverage_bps = "u128"
+
+# Proxy insurance role: the fixture exposes aggregate collateral and
+# cumulative socialized loss, not a real insurance-fund account.
+[semantics.roles.insurance_fund]
+source = "account.market"
+fields.total_collateral = "u128"
+fields.cumulative_socialized_loss = "u128"
+
+[semantics.derived]
+unrealized_pnl = "0"
+account_equity = "margin_account.collateral + unrealized_pnl"
+initial_margin_requirement = "perp_position.notional * 10000 / max(liquidation_config.max_leverage_bps, 1)"
+maintenance_margin_requirement = "perp_position.notional * liquidation_config.liquidation_threshold_bps / 10000"
+margin_ratio = "account_equity * 10000 / max(perp_position.notional, 1)"
+liquidation_buffer = "max(account_equity, maintenance_margin_requirement) - maintenance_margin_requirement"
+funding_payment = "perp_position.notional * (max(funding_config.total_oi_long, funding_config.total_oi_short) - min(funding_config.total_oi_long, funding_config.total_oi_short)) / max(funding_config.total_oi_long + funding_config.total_oi_short, 1)"
+insurance_coverage = "max(insurance_fund.total_collateral, insurance_fund.cumulative_socialized_loss) - insurance_fund.cumulative_socialized_loss"
+
+[[semantics.invariants]]
+name = "margin_above_maintenance_proxy"
+expr = "maintenance_margin_requirement <= account_equity"
+severity = "warn"
+description = "Proxy margin equity should remain above the maintenance requirement implied by observable position and market fields."
+
+[[semantics.invariants]]
+name = "liquidation_buffer_nonnegative_proxy"
+expr = "account_equity >= maintenance_margin_requirement"
+severity = "warn"
+description = "Proxy liquidation buffer should not go negative over the shipped deposit/withdraw surface."
+
+[[semantics.invariants]]
+name = "funding_payment_bounded_proxy"
+expr = "abs(funding_payment) <= perp_position.notional"
+severity = "warn"
+description = "Proxy funding payment from open-interest imbalance should not exceed observable notional."
+
+[[semantics.invariants]]
+name = "oracle_divergence_bounded_proxy"
+expr = "max(oracle.entry_price, perp_position.entry_price) - min(oracle.entry_price, perp_position.entry_price) <= max(perp_position.entry_price, 1)"
+severity = "warn"
+description = "Proxy oracle price should not diverge from the fixture mark/entry price over the shipped smoke surface."
+
+[[semantics.invariants]]
+name = "insurance_coverage_nonnegative_proxy"
+expr = "insurance_fund.cumulative_socialized_loss <= insurance_fund.total_collateral"
+severity = "warn"
+description = "Proxy insurance coverage, computed from market collateral less socialized loss, should remain nonnegative."
 
 # The `market_config_initialized` invariant
 # (`market.max_leverage_bps > 0`) was intentionally omitted: it fires

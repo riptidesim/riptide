@@ -355,26 +355,40 @@ fn contains_terminal_control(value: &str) -> bool {
 }
 
 #[test]
-fn non_lending_legacy_adapters_without_semantics_still_parse() {
+fn shipped_non_lending_adapters_declare_semantic_classes() {
     let fixtures = [
         (
             "perpetuals.toml",
             include_str!("../../fixtures/adapters/perpetuals.toml"),
+            "perps-margin.v1",
         ),
-        ("amm.toml", include_str!("../../fixtures/adapters/amm.toml")),
+        (
+            "amm.toml",
+            include_str!("../../fixtures/adapters/amm.toml"),
+            "amm.v1",
+        ),
         (
             "liquid-staking.toml",
             include_str!("../../fixtures/adapters/liquid-staking.toml"),
+            "lst.v1",
         ),
         (
             "stablecoin.toml",
             include_str!("../../fixtures/adapters/stablecoin.toml"),
+            "stablecoin.v1",
         ),
     ];
 
-    for (name, toml) in fixtures {
+    for (name, toml, semantic_class) in fixtures {
         let adapter = parse_adapter_str(toml, name)
-            .unwrap_or_else(|err| panic!("legacy adapter {name} should parse: {err}"));
-        assert!(adapter.semantics.is_none(), "{name} should stay legacy");
+            .unwrap_or_else(|err| panic!("semantic adapter {name} should parse: {err}"));
+        assert_eq!(
+            adapter
+                .semantics
+                .as_ref()
+                .and_then(|semantics| semantics.class.as_deref()),
+            Some(semantic_class),
+            "{name} should declare {semantic_class}"
+        );
     }
 }

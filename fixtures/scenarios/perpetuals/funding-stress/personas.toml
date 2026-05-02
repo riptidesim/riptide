@@ -1,10 +1,13 @@
-# Scenario-local persona notes for the funding-stress shape.
+# Scenario-local persona notes for the funding-stress smoke shape.
 #
 # The current perps adapter dispatches deposit/withdraw in the generic runtime.
 # These persona IDs intentionally match the adapter's inline smoke personas so
 # `riptide run perpetuals/funding-stress` stays cold-runnable without adapter
 # changes. The scenario name and catalog copy carry the perps risk objective:
-# margin pressure, leverage bounds, and socialized-loss monitoring.
+# margin pressure, leverage bounds, and socialized-loss monitoring. Funding and
+# insurance semantics for this fixture are deterministic proxies over observable
+# open-interest and collateral/socialized-loss fields; this scenario does not
+# execute live funding-rate updates or insurance-fund flows.
 
 [personas.botter]
 label = "Perps stress taker"
