@@ -50,13 +50,13 @@ A scenario today is composed from:
 - **Run config + scenario parameters** — `run-config.json`: seed,
   ticks, agent counts, the scenario's named shock or sweep
   dimension, the personas it activates.
-- **Personas / policies** — for lending primitive scenarios,
-  `policies.json` declares the persona catalog referenced by
-  `run-config.personas`. For generic-runtime scenarios,
-  `policies.json` is usually `[]`; the engine resolves personas from
-  inline `[personas.*]` tables in the adapter TOML.
-- **Manifest** — `manifest.json` indexing adapter, slug, failure-mode
-  category, rationale.
+- **Personas / policies** — in user repo mode, personas stay inline in
+  the adapter and `policies.json` must not be written. In monorepo
+  fixture mode only, `policies.json` declares the persona catalog
+  referenced by `run-config.personas`.
+- **Manifest** — in fixture mode only, `manifest.json` indexes adapter,
+  slug, failure-mode category, and rationale. User repo mode writes no
+  fixture manifest.
 - **Replay surface (optional, separate path)** — when reproducing
   recorded state, scenarios swap the synthetic shock surface for
   explicit `initial-state.json`, `trajectory.json`, and
@@ -78,15 +78,18 @@ semantic concepts the engine does not yet evaluate.
 
 ## Inputs
 
-- **Required:** a Riptide adapter TOML (e.g.
-  `fixtures/adapters/<program>.toml`) that has already been generated
-  by `riptide-adapt` or written by hand, and that passes
-  `riptide adapt --adapter <path>`.
+- **Required:** a Riptide adapter TOML (for user repos,
+  `.riptide/adapters/<program>.toml`; for fixture work,
+  `fixtures/adapters/<program>.toml`) that has been drafted by
+  `riptide-adapt` or written by hand and passes the appropriate smoke.
+  For harness-required repos, that smoke is `riptide run --adapter
+  <path> --harness .riptide/harness --seeds 1 --seed-root 1337`, not
+  adapter-only `riptide adapt`.
 - **Required when setup is non-trivial:** a working harness from the
   `riptide-harness` skill. If the adapter needs SPL mints/vaults,
   PDAs, sibling programs, oracle accounts, or other concrete account
   bytes before tick 0, get `riptide run --adapter <path> --harness
-  .riptide/harness --seeds 1` passing before proposing larger
+  .riptide/harness --seeds 1 --seed-root 1337` passing before proposing larger
   scenarios.
 - **Required:** the program IDL the adapter references (either via
   `idl_path` in the adapter for generic programs, or
@@ -104,7 +107,8 @@ In user repo mode, write one file per proposed experiment:
 Use the same schema that `riptide init` writes: `agents`, `ticks`,
 `scenario`, `personas`, `output_path`, plus either `seed` or `seeds`.
 For generic adapters, `personas` must reference inline
-`[personas.*]` IDs from the adapter. Do not add `policies.json`.
+`[personas.*]` IDs from the adapter. Do not add `policies.json`,
+`manifest.json`, or `.riptide/personas/`.
 
 In monorepo fixture mode, write three files per proposed experiment to
 
@@ -196,9 +200,11 @@ Each proposal must include:
 - a one-line rationale that ties back to the classification step
   (so the reviewer can see *why* this experiment was picked)
 - a concrete `run-config.json` body
-- a concrete `policies.json` body consistent with
-  `run-config.personas`
-- a concrete `manifest.json`
+- in user repo mode: an explicit note that no `policies.json` or
+  `manifest.json` will be written because personas stay inline in the
+  adapter
+- in fixture mode: a concrete `policies.json` body consistent with
+  `run-config.personas`, plus a concrete `manifest.json`
 
 If you find yourself proposing the same experiment regardless of
 adapter, stop — re-read `classify.md` and check whether the
@@ -220,11 +226,11 @@ In monorepo fixture mode, write the three files per proposal to
 
 In user repo mode, validate each written scenario with a short run:
 
-    riptide run <experiment-slug> --adapter <adapter> --seeds 1 --seed-root 1337
+    riptide run <experiment-slug> --adapter <adapter> --harness .riptide/harness --seeds 1 --seed-root 1337
 
-Add `--harness .riptide/harness` when the adapter needed harness
-setup to pass its smoke. If the user repo scenario itself requests a
-larger `seeds` count, keep the validation override at `--seeds 1`.
+Omit `--harness .riptide/harness` only when the adapter is known to
+boot without setup. If the user repo scenario itself requests a larger
+`seeds` count, keep the validation override at `--seeds 1`.
 
 In monorepo fixture mode, validate every written scenario directory:
 

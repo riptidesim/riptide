@@ -53,7 +53,7 @@ export function createHarnessCommand(): Command {
           `\nNext: edit ${chalk.cyan(path.join(result.dir, "src", "main.rs"))}, then run:\n`
         );
         process.stderr.write(
-          `  ${chalk.cyan(`riptide run --adapter ${result.adapterPath} --harness ${result.dir}`)}\n`
+          `  ${chalk.cyan(`riptide run --adapter ${result.adapterPath} --harness ${result.dir} --seeds 1 --seed-root 1337`)}\n`
         );
       } catch (err) {
         process.stderr.write(chalk.red(`riptide harness: ${errMessage(err)}\n`));
@@ -217,8 +217,11 @@ token accounts, PDAs, or other setup that should not become Riptide core code.
 Run it through the CLI:
 
 \`\`\`sh
-riptide run --adapter ${adapterPath} --harness .
+riptide run --adapter ${adapterPath} --harness . --seeds 1 --seed-root 1337
 \`\`\`
+
+After the one-seed smoke passes, drop \`--seeds 1 --seed-root 1337\` for the
+full scenario sweep.
 `;
 }
 

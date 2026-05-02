@@ -2737,6 +2737,43 @@ offset = 64
     }
 
     #[test]
+    fn rejects_unknown_layout_decoder_kind() {
+        let toml_str = sample_decoder_toml(
+            r#"
+[accounts.vault.decoder]
+kind = "borsh"
+
+[accounts.vault.decoder.fields.amount]
+type = "u64"
+offset = 64
+"#,
+            "vault.amount",
+        );
+        let err = parse_adapter_str(&toml_str, "decoder.toml").unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("[accounts].vault.decoder.kind"), "got: {msg}");
+        assert!(msg.contains("unknown account decoder kind"), "got: {msg}");
+    }
+
+    #[test]
+    fn rejects_empty_layout_decoder_fields() {
+        let toml_str = sample_decoder_toml(
+            r#"
+[accounts.vault.decoder]
+kind = "layout"
+"#,
+            "vault.amount",
+        );
+        let err = parse_adapter_str(&toml_str, "decoder.toml").unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("[accounts].vault.decoder.fields"),
+            "got: {msg}"
+        );
+        assert!(msg.contains("at least one field"), "got: {msg}");
+    }
+
+    #[test]
     fn rejects_layout_field_past_declared_space() {
         let toml_str = sample_decoder_toml(
             r#"

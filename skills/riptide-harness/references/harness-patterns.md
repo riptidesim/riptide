@@ -157,7 +157,7 @@ The path is resolved from the harness process working directory. Use a
 relative path that works from the repo root when launched by:
 
 ```sh
-riptide run --adapter .riptide/adapters/<program>.toml --harness .riptide/harness
+riptide run --adapter .riptide/adapters/<program>.toml --harness .riptide/harness --seeds 1 --seed-root 1337
 ```
 
 ## Validation Checklist

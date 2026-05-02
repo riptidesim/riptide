@@ -132,10 +132,14 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
     for (const warning of result.warnings) {
       process.stderr.write(chalk.yellow(`  warning: ${warning}\n`));
     }
-    // Echo the same install-first sequence the README + docs/install.md
-    // describe: install → doctor → init (just ran) → lint → adapt → run.
+    // Echo the install-first sequence with the same first smoke the
+    // generated docs recommend: lint, set up harness when needed, then run
+    // one deterministic seed before the larger scenario battery. `adapt` is
+    // still useful for adapter-only repos, but it is not the main next step
+    // once account setup requires a harness.
     const adapterRel = `.riptide/adapters/${result.programName}.toml`;
     const harnessRel = ".riptide/harness";
+    const oneSeedRun = `riptide run --adapter ${adapterRel}${result.harnessCreated ? ` --harness ${harnessRel}` : ""} --seeds 1 --seed-root 1337`;
     process.stderr.write(
       `\nNext: edit ${chalk.cyan(adapterRel)} to match your program (TODO comments name every block; the untouched stub is not lint-clean), then:\n`
     );
@@ -152,10 +156,13 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
       );
     }
     process.stderr.write(
-      `  3. ${chalk.cyan(`riptide adapt --adapter ${adapterRel}`)}  ${dim("# end-to-end smoke against the local engine")}\n`
+      `  3. ${chalk.cyan(oneSeedRun)}  ${dim(result.harnessCreated ? "# first harnessed smoke" : "# first one-seed smoke; add --harness .riptide/harness when setup is needed")}\n`
     );
     process.stderr.write(
-      `  4. ${chalk.cyan(`riptide run --adapter ${adapterRel}${result.harnessCreated ? ` --harness ${harnessRel}` : ""}`)}  ${dim(result.harnessCreated ? "# runs with generated setup harness" : "# add --harness .riptide/harness when setup code is needed")}\n`
+      `  4. ${chalk.cyan(`riptide run --adapter ${adapterRel}${result.harnessCreated ? ` --harness ${harnessRel}` : ""}`)}  ${dim("# full scenario battery after the smoke passes")}\n`
+    );
+    process.stderr.write(
+      dim(`Optional adapter-only smoke for repos that do not need setup: ${chalk.cyan(`riptide adapt --adapter ${adapterRel}`)}\n`)
     );
     process.stderr.write(
       dim(result.seeds === 1

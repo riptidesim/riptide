@@ -22,8 +22,7 @@ Recommended flow:
 3. **This skill** creates or repairs `.riptide/harness/`.
 4. `riptide-scenarios` proposes broader experiments after a harnessed
    smoke run can boot.
-5. `riptide run --adapter <adapter> --harness .riptide/harness` runs
-   the simulation.
+5. `riptide run --adapter <adapter> --harness .riptide/harness --seeds 1 --seed-root 1337` performs the first harnessed smoke; drop the seed override for the full scenario battery.
 
 Use this skill when adapter validation succeeds but the program cannot
 boot with zeroed accounts, or when external state must be observed

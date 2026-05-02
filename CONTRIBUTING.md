@@ -146,8 +146,8 @@ riptide/
 │
 ├── fixtures/
 │   ├── adapters/                 # Adapter TOMLs (lending, perpetuals, amm, liquid-staking, stablecoin, resource-grinder)
-│   ├── personas/                 # Persona TOMLs (whale, leveraged-long, arbitrageur, stablecoin/*, …)
-│   ├── scenarios/                # Run-config bundles per-adapter per-experiment
+│   ├── personas/                 # Monorepo fixture persona TOMLs (user repos keep personas inline in adapter [personas.*])
+│   ├── scenarios/                # Monorepo fixture run-config/policies/manifest bundles
 │   ├── replays/                  # Failure-shape replay fixtures (lending-whale-bad-debt, liquid-staking-*, stablecoin-uxd-style-collateral-cascade)
 │   ├── idls/                     # Anchor IDL JSONs for each shipped program
 │   └── oracle_state_golden.bin   # Byte-layout SSOT for oracle state
@@ -204,7 +204,7 @@ An adapter wires a specific Solana program into the engine.
    - *Skill path:* install the `riptide-adapt` Claude Code skill (`skills/riptide-adapt/SKILL.md`). Invoke it in-session pointing at your program source or IDL. The skill reads the program, classifies it against the primitive library (lending / perps / AMM / generic), writes the adapter TOML, and runs `riptide adapt` as a smoke test. No API keys or endpoint config.
    - *Hand-written path:* copy the closest shipping adapter from `fixtures/adapters/` (`lending.toml`, `perpetuals.toml`, `amm.toml`, `liquid-staking.toml`, `stablecoin.toml`, or `resource-grinder.toml`) and edit `program_so`, `[[accounts]]`, `[[actions]]`, `[[observations]]`, and `[[invariants]]`.
 3. **Wire an oracle if the program needs one.** A generic adapter can declare a single `[[oracles]]` block bound to a `kind = "shared"` account. The harness bootstraps that account at tick 0 with admin-mock bytes and mutates it on every scenario/replay oracle update. The bound account can optionally declare `owner = { program_so = "<path>.so" }` (owner resolved from the companion `target/deploy/<name>-keypair.json`) for sibling-owned oracles such as `admin_mock_oracle`, or `owner = { pubkey = "<base58>" }` for a literal external owner. Omit `owner` and the simulated program owns the account. See [`docs/architecture.md#oracle-binding-for-generic-adapters`](docs/architecture.md#oracle-binding-for-generic-adapters) and the end-to-end proof at `engine/tests/perpetuals_sibling_oracle_proof.rs`. Two or more `[[oracles]]` entries on a generic adapter is currently a loader error — multi-oracle generic semantics remain a follow-up.
-4. **Smoke-test it:** `riptide adapt --adapter fixtures/adapters/<your-adapter>.toml` — confirms the engine boots it and observes a state delta.
+4. **Smoke-test it:** for monorepo fixtures, `riptide adapt --adapter fixtures/adapters/<your-adapter>.toml` confirms the adapter-only path boots and observes a state delta. For user repos that need setup, prefer `riptide run --adapter .riptide/adapters/<program>.toml --harness .riptide/harness --seeds 1 --seed-root 1337`.
 5. **Add harness setup if zeroed accounts are not enough.** Use the `riptide-harness` skill or run `riptide harness generate --adapter <adapter>` and edit `.riptide/harness/src/main.rs` for SPL mints/vaults, PDAs, sibling programs, and concrete account bytes.
 6. **Commit** the adapter under `fixtures/adapters/` and the IDL under `fixtures/idls/`.
 
@@ -214,12 +214,12 @@ The adapter is the contract between your program and the six-layer stack. Keep i
 
 ## Adding a Persona
 
-Personas are pure TOML — one file per persona in `fixtures/personas/`.
+For monorepo fixture work, personas are pure TOML — one file per persona in `fixtures/personas/`. User repos created by `riptide init` do not create `.riptide/personas/`; edit the inline `[personas.*]` tables in `.riptide/adapters/<program>.toml` instead.
 
 1. **Copy the closest existing persona:** `whale.toml` for lending, `leveraged-long.toml` for perps, `arbitrageur.toml` for AMM.
 2. **Edit the trigger DSL and action block.** Single comparison op + constant per rule today (e.g., `observation.utilization > 0.9 → withdraw_all`). Reference only your adapter's declared actions.
 3. **Smoke-test it** by running a small scratch simulation (see `scripts/amm-scratch.sh` for the pattern). A persona TOML that parses clean and emits at least one action per tick against its adapter is ready to ship.
-4. **Compose it** into a scenario under `fixtures/scenarios/<adapter>/<experiment>/`, or let `riptide-scenarios` reference it.
+4. **Compose it** into a fixture scenario under `fixtures/scenarios/<adapter>/<experiment>/`, or let `riptide-scenarios` reference it in fixture mode.
 
 Personas stay composable by staying small. If a persona needs branching control flow, it's probably two personas.
 
@@ -234,7 +234,7 @@ Taxonomy lives in `skills/riptide-scenarios/prompts/classify.md` (discrimination
    - an **IDL hook** — what instruction names trigger it
    So the classifier fires on the intended adapter class and stays quiet on the others.
 2. **Add a proposal template** in `propose.md`. Minimum a 1D sweep; ideally a 2D grid with full-cell materialization (see `whale-shock-grid`, `depositor-shock-grid`, `trade-size-volume-grid` for the pattern — every grid cell is a complete bootable sub-scenario).
-3. **Extend the Zod enum** in `cli/src/scenarios/validate.ts` with your new `failure_mode` value so `riptide scenarios --validate` accepts configs that reference it.
+3. **Extend the Zod enum** in `cli/src/scenarios/validate.ts` with your new `failure_mode` value so fixture-mode `riptide scenarios --validate` accepts configs that reference it. User-repo proposals validate through `riptide run <slug> --adapter <adapter> --harness .riptide/harness --seeds 1 --seed-root 1337`.
 4. **Run the cold-chain validation flow** (three-session pattern — setup → cold test → scoring) against your adapter and record the verdict under `docs/case-studies/` or `Obsidian Vault/Riptide/Experiments/` as the shipping bundles did.
 
 Taxonomy is where Riptide's discrimination power lives. A good category fires precisely on its class and explains itself to the next reader — resist generic categories.
@@ -316,6 +316,9 @@ cargo test -p riptide-engine --test replay_stablecoin_uxd_style_collateral_casca
 
 # CLI suite
 (cd cli && npm test)
+
+# Optional harnessed user-repo smoke (requires riptide-engine + programs/amm SBF artifacts)
+bash scripts/ci/harnessed-user-flow-smoke.sh
 ```
 
 **Byte-stable fixtures that must not drift:**

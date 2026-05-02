@@ -110,14 +110,17 @@ Inside your own Anchor repo:
 ```bash
 riptide init
 # edit .riptide/adapters/<program-name>.toml
-riptide harness generate --adapter .riptide/adapters/<program-name>.toml
 riptide lint <program-name>
-riptide adapt --adapter .riptide/adapters/<program-name>.toml
-# add .riptide/scenarios/your-scenario/run-config.json
-riptide run .riptide/scenarios/your-scenario/run-config.json --adapter .riptide/adapters/<program-name>.toml --harness .riptide/harness
+riptide harness generate --adapter .riptide/adapters/<program-name>.toml
+# first smoke for harness-required repos:
+riptide run --adapter .riptide/adapters/<program-name>.toml --harness .riptide/harness --seeds 1 --seed-root 1337
+# then add or refine .riptide/scenarios/<experiment>/run-config.json and run the full battery:
+riptide run --adapter .riptide/adapters/<program-name>.toml --harness .riptide/harness
 ```
 
-`riptide init` creates a version-controlled `.riptide/` tree with an adapter stub and a local getting-started note. The adapter/scenario/invariant TOML stays the main simulation contract. When your program needs custom account bytes, PDAs, SPL accounts, or sibling CPI programs, `riptide harness generate` adds a Rust setup crate that runs before tick 0. Riptide does not require core protocol integrations for that setup.
+`riptide init` creates a version-controlled `.riptide/` tree with an adapter stub and a local getting-started note. The adapter/scenario/invariant TOML stays the main simulation contract. When your program needs custom account bytes, PDAs, SPL accounts, or sibling CPI programs, `riptide harness generate` adds a Rust setup crate that runs before tick 0. Riptide does not require core protocol integrations for that setup. `riptide adapt --adapter ...` is still useful as an adapter-only smoke when zeroed setup is enough, but harnessed repos should validate the one-seed `riptide run --harness ...` path first.
+
+AMM-shaped user repos currently use `protocol = "generic"` and Riptide's generic SBF/IDL runtime; `amm.v1` semantics is future work.
 
 > [!TIP]
 > The `riptide-adapt`, `riptide-harness`, and `riptide-scenarios` skills can draft adapters, Rust setup harnesses, and starter experiments, but they are optional. Riptide runs plain files, not session state.
@@ -191,8 +194,8 @@ Read [Evidence packs](docs/pack.md) and [CI handoff](docs/ci-handoff.md) for the
 | [`engine/`](engine/) | Rust engine and LiteSVM runtime. |
 | [`cli/`](cli/) | Node.js CLI, dashboard server, adapter linting, orchestration. |
 | [`fixtures/adapters/`](fixtures/adapters/) | Shipping adapter TOMLs. |
-| [`fixtures/personas/`](fixtures/personas/) | Persona libraries. |
-| [`fixtures/scenarios/`](fixtures/scenarios/) | Scenario bundles and run configs. |
+| [`fixtures/personas/`](fixtures/personas/) | Monorepo fixture persona libraries. User repos created by `riptide init` keep personas inline in adapter `[personas.*]` tables. |
+| [`fixtures/scenarios/`](fixtures/scenarios/) | Monorepo fixture scenario bundles (`run-config.json`, and when needed fixture `policies.json` / `manifest.json`). User repos use `.riptide/scenarios/**/run-config.json`. |
 | [`fixtures/replays/`](fixtures/replays/) | Declared replay artifacts and committed packs. |
 | [`programs/`](programs/) | Minimal Solana programs used by the examples. |
 | [`docs/`](docs/) | Architecture, install, handoff, lineage, and case-study docs. |

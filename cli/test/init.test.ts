@@ -95,6 +95,23 @@ async function runCli(args: string[], cwd: string): Promise<{ code: number; stdo
   });
 }
 
+async function captureStderr(fn: () => Promise<void>): Promise<string> {
+  const originalWrite = process.stderr.write;
+  let stderr = "";
+  process.stderr.write = ((chunk: string | Uint8Array, encodingOrCallback?: BufferEncoding | ((err?: Error) => void), callback?: (err?: Error) => void) => {
+    stderr += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8");
+    const cb = typeof encodingOrCallback === "function" ? encodingOrCallback : callback;
+    if (cb) cb();
+    return true;
+  }) as typeof process.stderr.write;
+  try {
+    await fn();
+  } finally {
+    process.stderr.write = originalWrite;
+  }
+  return stderr;
+}
+
 test("init: empty temp dir fails by default", async () => {
   const cwd = await mkTempRepo();
   const exit = await runInit({ force: false, dir: cwd });
@@ -258,10 +275,115 @@ test("renderAdapterStub: protocol arg drives the protocol field + intent comment
   const ammBody = renderAdapterStub("foo-bar", "amm");
   assert.ok(ammBody.includes('protocol = "generic"'), "non-lending protocols use the generic engine path");
   assert.ok(ammBody.includes("Selected adapter type: amm"));
+  assert.ok(ammBody.includes('AMM currently uses protocol = "generic"'));
 
   const customBody = renderAdapterStub("foo-bar", "custom");
   assert.ok(customBody.includes('protocol = "generic"'));
   assert.ok(!customBody.includes("Selected adapter type:"));
+});
+
+test("scaffold: Anchor anchor_uniswap_v2 AMM repos use generic runtime paths", async () => {
+  const cwd = await mkTempRepo();
+  await writeAnchor(cwd, `[programs.localnet]
+anchor_uniswap_v2 = "11111111111111111111111111111111"
+`);
+
+  const result = await scaffold({
+    cwd,
+    force: false,
+    protocol: "amm"
+  });
+
+  assert.equal(result.programName, "anchor-uniswap-v2");
+  assert.ok(result.created.includes(".riptide/adapters/anchor-uniswap-v2.toml"));
+  assert.ok(result.created.includes(".riptide/scenarios/baseline/run-config.json"));
+  assert.ok(!existsSync(path.join(cwd, ".riptide", "personas")));
+  assert.match(result.warnings.join("\n"), /target\/deploy\/anchor_uniswap_v2\.so not found/);
+  assert.match(result.warnings.join("\n"), /target\/idl\/anchor_uniswap_v2\.json not found/);
+
+  const adapterBody = await readFile(
+    path.join(cwd, ".riptide", "adapters", "anchor-uniswap-v2.toml"),
+    "utf8"
+  );
+  assert.match(adapterBody, /Selected adapter type: amm/);
+  assert.match(adapterBody, /^protocol = "generic"$/m);
+  assert.match(adapterBody, /^program_so = "target\/deploy\/anchor_uniswap_v2\.so"$/m);
+  assert.match(adapterBody, /^idl_path = "target\/idl\/anchor_uniswap_v2\.json"$/m);
+  assert.match(adapterBody, /AMM currently uses protocol = "generic"/);
+
+  const runConfig = JSON.parse(
+    await readFile(
+      path.join(cwd, ".riptide", "scenarios", "baseline", "run-config.json"),
+      "utf8"
+    )
+  ) as { agents: number; ticks: number; seeds: number; personas: string[] };
+  assert.equal(runConfig.agents, 100);
+  assert.equal(runConfig.ticks, 30);
+  assert.equal(runConfig.seeds, 50);
+  assert.deepEqual(runConfig.personas, []);
+});
+
+test("renderGettingStarted: harnessed repos promote one-seed harness smoke", () => {
+  const body = renderGettingStarted("anchor-uniswap-v2", {
+    scenarios: ["baseline"],
+    harnessCreated: true,
+    seeds: 50,
+    protocol: "amm"
+  });
+
+  assert.match(
+    body,
+    /riptide run --adapter \.riptide\/adapters\/anchor-uniswap-v2\.toml --harness \.riptide\/harness --seeds 1 --seed-root 1337/
+  );
+  assert.doesNotMatch(body, /bare `riptide run` executes a 50-seed sweep/);
+  assert.match(body, /AMM currently uses `protocol = "generic"`/);
+});
+
+test("init: harnessed next steps recommend one-seed run before full sweep", async () => {
+  const cwd = await mkTempRepo();
+  await writeAnchor(cwd, `[programs.localnet]
+anchor_uniswap_v2 = "11111111111111111111111111111111"
+`);
+
+  const stderr = await captureStderr(async () => {
+    const exit = await runInit(
+      { force: false, dir: cwd },
+      {
+        isTTY: true,
+        promptWizard: async () => ({
+          programName: "anchor-uniswap-v2",
+          protocol: "amm",
+          harnessMode: "todo",
+          seeds: 50,
+          personas: [],
+          scenarios: [
+            {
+              name: "baseline",
+              scenario: "baseline",
+              agents: 10,
+              ticks: 5,
+              personas: []
+            }
+          ],
+          invariants: [],
+          agents: 10,
+          ticks: 5
+        })
+      }
+    );
+    assert.equal(exit, 0);
+  });
+
+  const smoke =
+    "riptide run --adapter .riptide/adapters/anchor-uniswap-v2.toml --harness .riptide/harness --seeds 1 --seed-root 1337";
+  const full =
+    "riptide run --adapter .riptide/adapters/anchor-uniswap-v2.toml --harness .riptide/harness";
+  assert.match(stderr, /1\. riptide lint anchor-uniswap-v2/);
+  assert.match(stderr, /2\. \.riptide\/harness\/src\/main\.rs/);
+  assert.ok(stderr.includes(smoke), stderr);
+  assert.match(stderr, /4\. riptide run --adapter \.riptide\/adapters\/anchor-uniswap-v2\.toml --harness \.riptide\/harness/);
+  assert.ok(stderr.indexOf(smoke) < stderr.lastIndexOf(full), stderr);
+  assert.match(stderr, /Optional adapter-only smoke/);
 });
 
 test("renderAdapterStub: selected persona blocks are embedded in the adapter", () => {
@@ -396,6 +518,10 @@ test("scaffold: one seed and harness mode create seeded run-config plus TODO har
   const gettingStarted = await readFile(path.join(cwd, ".riptide", "GETTING-STARTED.md"), "utf8");
   assert.match(gettingStarted, /"seed": 1337/);
   assert.match(gettingStarted, /--harness \.riptide\/harness/);
+  assert.match(gettingStarted, /--seeds 1 --seed-root 1337/);
+
+  const harnessReadme = await readFile(path.join(cwd, ".riptide", "harness", "README.md"), "utf8");
+  assert.match(harnessReadme, /--harness \.riptide\/harness --seeds 1 --seed-root 1337/);
 });
 
 test("scaffold: explicit scenario battery writes each run-config with scenario-specific sizing", async () => {
@@ -617,6 +743,7 @@ test("renderGettingStarted: references scaffolded scenarios; no-personas variant
   assert.ok(withBoth.includes('"seeds": 50'));
   assert.ok(withBoth.includes("50-seed sweep"));
   assert.ok(!withBoth.includes("personas/*.toml"));
+  assert.ok(!withBoth.includes("amm.v1"));
 
   const withHarness = renderGettingStarted("my-program", {
     scenarios: ["baseline"],

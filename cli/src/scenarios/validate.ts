@@ -1,13 +1,16 @@
-// `riptide scenarios --validate` — one-tick boot harness.
+// `riptide scenarios --validate` — one-tick boot harness for
+// monorepo fixture scenarios.
 //
-// This is the sibling of `riptide adapt`. The Claude Code
-// `riptide-scenarios` skill is the sole proposer of experiments: the
-// in-session agent reads the adapter + IDL, classifies plausible
-// failure modes, writes a `run-config.json` + `policies.json` +
-// `manifest.json` triple into
+// This is the fixture-mode sibling of `riptide adapt`. User repos
+// scaffolded by `riptide init` validate with `riptide run <slug>
+// --adapter <adapter> --harness .riptide/harness --seeds 1
+// --seed-root 1337`; they do not write fixture `policies.json` or
+// `manifest.json` sidecars. In monorepo fixture mode, the
+// `riptide-scenarios` skill writes a `run-config.json` +
+// `policies.json` + `manifest.json` triple into
 // `fixtures/scenarios/<adapter-stem>/<slug>/`, then shells out to
-// this command to verify that each generated triple boots cleanly
-// for one tick against the local engine.
+// this command to verify that each generated triple boots cleanly for
+// one tick against the local engine.
 //
 // Scope (intentionally minimal, mirrors `adapt/smoke.ts`):
 // 1. Resolve `<scenario>` to a directory containing the three files.

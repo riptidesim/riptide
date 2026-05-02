@@ -276,6 +276,9 @@ export function renderAdapterStub(
   // and humans see the user's intent without guessing.
   const protocolValue = protocol === "lending" ? "lending" : "generic";
   const intentLine = protocol === "custom" ? "" : `# Selected adapter type: ${protocol}\n`;
+  const genericRuntimeNote = protocol === "amm"
+    ? "# AMM currently uses protocol = \"generic\" and Riptide's generic SBF/IDL runtime; amm.v1 semantics is future work.\n"
+    : "";
   const runtimeSections = protocol === "lending"
     ? `# Lending uses Riptide's bundled lending primitive. Leave
 # program_so/idl_path unset unless you are intentionally switching this
@@ -302,9 +305,10 @@ idl_path = "target/idl/${soName}.json"
 #
 # This is a stub — fill in the sections below to wire your program into
 # Riptide. Every block has a TODO comment explaining what goes in it.
-# When you're done, run \`riptide adapt --adapter .riptide/adapters/${programName}.toml\`
-# to smoke-test the adapter round-trips against the engine.
-${intentLine}
+# When TODOs are filled, run \`riptide lint ${programName}\`.
+# For setup-dependent repos, smoke with \`riptide run --adapter .riptide/adapters/${programName}.toml --harness .riptide/harness --seeds 1 --seed-root 1337\`.
+# \`riptide adapt --adapter .riptide/adapters/${programName}.toml\` remains the adapter-only smoke when zeroed setup is enough.
+${intentLine}${genericRuntimeNote}
 protocol = "${protocolValue}"
 ${runtimeSections}
 
@@ -611,6 +615,7 @@ export interface GettingStartedOptions {
   hasBaselineScenario?: boolean;
   harnessCreated?: boolean;
   seeds?: number;
+  protocol?: Protocol;
 }
 
 export function renderGettingStarted(
@@ -620,12 +625,14 @@ export function renderGettingStarted(
   const { hasBaselineScenario = false } = options;
   const harnessCreated = options.harnessCreated ?? false;
   const seeds = resolveSeedCount(options.seeds);
+  const protocol = options.protocol ?? "custom";
   const scenarioNames = options.scenarios ?? (hasBaselineScenario ? ["baseline"] : []);
   const scenariosLine = scenarioNames.length > 0
     ? `- \`scenarios/\` — ready-to-run stress harness:\n${scenarioNames
         .map((name) => `  - \`scenarios/${name}/run-config.json\``)
         .join("\n")}\n`
     : `- \`scenarios/\` — create this yourself when you have a real experiment to run. Riptide discovers \`.riptide/scenarios/**/run-config.json\`.\n`;
+  const firstRunCommand = `riptide run --adapter .riptide/adapters/${programName}.toml${harnessCreated ? " --harness .riptide/harness" : ""} --seeds 1 --seed-root 1337`;
   const runCommand = scenarioNames.length > 0
     ? `riptide run --adapter .riptide/adapters/${programName}.toml${harnessCreated ? " --harness .riptide/harness" : ""}`
     : `riptide run .riptide/scenarios/your-scenario/run-config.json --adapter .riptide/adapters/${programName}.toml`;
@@ -633,11 +640,14 @@ export function renderGettingStarted(
     ? "- `harness/` — Rust setup crate for account bytes, sibling programs, SPL mints/vaults, PDAs, and other pre-tick-0 state.\n"
     : "";
   const harnessNextStep = harnessCreated
-    ? "5. Edit `.riptide/harness/src/main.rs` and fill in setup for account bytes, SPL mints/vaults, PDAs, or sibling programs.\n6. "
-    : "5. `riptide harness generate --adapter .riptide/adapters/" + programName + ".toml` — optional Rust setup for custom account bytes, SPL mints/vaults, PDAs, or sibling programs.\n6. ";
+    ? "5. Edit `.riptide/harness/src/main.rs` and fill in setup for account bytes, SPL mints/vaults, PDAs, or sibling programs.\n6. Run the one-seed harness smoke:\n\n   ```\n   " + firstRunCommand + "\n   ```\n\n7. Optional after the harness smoke passes: `riptide adapt --adapter .riptide/adapters/" + programName + ".toml` — adapter-only engine smoke for repos that do not need setup.\n8. "
+    : "5. `riptide harness generate --adapter .riptide/adapters/" + programName + ".toml` — Rust setup for custom account bytes, SPL mints/vaults, PDAs, or sibling programs.\n6. Run the one-seed smoke (`--harness .riptide/harness` once a harness exists):\n\n   ```\n   " + firstRunCommand + "\n   ```\n\n7. Optional after the smoke passes: `riptide adapt --adapter .riptide/adapters/" + programName + ".toml` — adapter-only engine smoke for repos that do not need setup.\n8. ";
   const seedCountNote = seeds === 1
-    ? `Generated run-configs include \`"seed": ${seedForSeedCount(1)}\`, so a bare \`riptide run\` executes one deterministic seed. Pass \`--seeds <N>\` when you want a larger sweep.`
-    : `Generated run-configs include \`"seeds": ${seeds}\`, so a bare \`riptide run\` executes a ${seeds}-seed sweep. Pass \`--seeds <N>\` when you want to override the scaffolded count.`;
+    ? `Generated run-configs include \`"seed": ${seedForSeedCount(1)}\`, so the scaffolded scenario pins one deterministic seed. Pass \`--seeds <N>\` when you want a larger sweep.`
+    : `Generated run-configs include \`"seeds": ${seeds}\`, so the full scenario battery is a ${seeds}-seed sweep. Start with \`--seeds 1 --seed-root 1337\` for the first smoke, then drop the override for the full sweep.`;
+  const ammRuntimeLine = protocol === "amm"
+    ? "- AMM currently uses `protocol = \"generic\"` and Riptide's generic SBF/IDL runtime; `amm.v1` semantics is future work.\n"
+    : "";
 
   return `# Getting started with Riptide
 
@@ -646,7 +656,7 @@ Riptide just scaffolded a \`.riptide/\` directory in your repo. Here's what's in
 ## Directory layout
 
 - \`adapters/${programName}.toml\` — the bridge between your Solana program and Riptide's engine. Every section has a TODO comment explaining what belongs in it.
-- \`adapters/${programName}.toml\` \`[personas.*]\` — inline persona archetypes selected during init. Edit \`action_weights\` and \`triggers\` there.
+${ammRuntimeLine}- \`adapters/${programName}.toml\` \`[personas.*]\` — inline persona archetypes selected during init. Edit \`action_weights\` and \`triggers\` there.
 - \`adapters/${programName}.toml\` \`[[invariants]]\` and \`[semantics]\` — declarative checks the engine evaluates after every tick. The default set fires real lending checks; uncomment template invariants once your \`[observations]\` are wired.
 ${scenariosLine}
 ${harnessLayoutLine}
@@ -656,8 +666,7 @@ ${harnessLayoutLine}
 2. Build your program so \`target/deploy/*.so\` and \`target/idl/*.json\` exist.
 3. Open \`.riptide/adapters/${programName}.toml\` and fill in the TODO blocks (accounts, instructions, state_mapping, actions, observations, personas, invariants, semantics). The untouched stub is intentionally not lint-clean.
 4. \`riptide lint ${programName}\` — static validation against the JSON IDL named in \`[lineage].idl_source\`.
-${harnessNextStep}\`riptide adapt --adapter .riptide/adapters/${programName}.toml\` — end-to-end smoke against the local engine.
-7. Run the scenario battery:
+${harnessNextStep}Run the full scenario battery:
 
    \`\`\`
    ${runCommand}
@@ -913,8 +922,11 @@ token accounts, PDAs, or other setup that should not become Riptide core code.
 Run it through the CLI:
 
 \`\`\`sh
-riptide run --adapter ${adapterRel} --harness .riptide/harness
+riptide run --adapter ${adapterRel} --harness .riptide/harness --seeds 1 --seed-root 1337
 \`\`\`
+
+After the one-seed smoke passes, drop \`--seeds 1 --seed-root 1337\` for the
+full scenario sweep.
 `;
 }
 
@@ -1019,7 +1031,8 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
     renderGettingStarted(programName, {
       scenarios: resolvedScenarios.map((scenario) => scenario.name),
       harnessCreated,
-      seeds
+      seeds,
+      protocol
     }),
     "utf8"
   );
