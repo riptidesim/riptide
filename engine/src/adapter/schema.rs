@@ -307,9 +307,9 @@ pub struct ActionDefinition {
 /// The adapter-loader accepts natural TOML primitives (integers, bools,
 /// quoted base58 strings) and the encoder coerces each literal into the
 /// byte layout the matching IDL arg declares. Supported target IDL
-/// types: `u64`/`i64`/`u32`/`u8`/`bool`/`pubkey`. Range overflow on
-/// encode is surfaced as an adapter error so a typo in the TOML fails
-/// loudly rather than silently wrapping.
+/// types: `u128`/`i128`/`u64`/`i64`/`u32`/`u8`/`bool`/`pubkey`.
+/// Range overflow on encode is surfaced as an adapter error so a typo
+/// in the TOML fails loudly rather than silently wrapping.
 ///
 /// Untagged so a TOML entry like `min_out = 0` naturally parses as
 /// `Int(0)`, `direction = false` as `Bool(false)`, and
@@ -433,6 +433,12 @@ pub struct Adapter {
     /// point the engine at a non-lending `.so` without extra CLI flags.
     #[serde(default)]
     pub program_so: Option<String>,
+
+    /// Optional program id override for generic adapters. When absent,
+    /// the engine uses the IDL top-level `address` field when present,
+    /// then falls back to the sibling deploy keypair convention.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub program_id: Option<String>,
 
     /// Optional path to the IDL / instruction catalog JSON. Required by
     /// the generic primitive.

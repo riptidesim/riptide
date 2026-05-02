@@ -467,8 +467,8 @@ interface RuntimePathFailure {
  * Static equivalent of `validate_resolved_paths` in the engine loader.
  * For generic adapters, verify that `program_so`, `idl_path`, and
  * every `[accounts.<name>.owner.program_so]` path resolves to an
- * existing file on disk, plus the `<.so>`-sibling keypair the engine
- * needs at bootstrap time.
+ * existing file on disk. Account-owner `program_so` entries still need
+ * a `<.so>`-sibling keypair so the engine can resolve the owner pubkey.
  *
  * Returns `null` when all checks pass (or the inferred runtime is
  * lending so this contract doesn't apply). Returns the first failure otherwise —

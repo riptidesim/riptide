@@ -105,6 +105,39 @@ function failResult(fires: Array<{ name: string; tick: number }>, wallClockS = 0
   };
 }
 
+function executionFailureResult(wallClockS = 0.1): RunOneResult {
+  return {
+    kind: "pass",
+    wallClockS,
+    artifactsDir: "/tmp/unused",
+    result: baseSimulationResult({
+      events: [
+        {
+          tick: 1,
+          agent_id: "agent-001",
+          persona_id: "cautious-yield-farmer",
+          persona_label: "Cautious Yield Farmer",
+          action: "deposit",
+          params: { amount: 1 },
+          outcome: "failed",
+          outcome_detail: "InstructionError(0, Custom(4100))"
+        }
+      ],
+      summary: {
+        invariants_fired: [
+          {
+            name: "no_bad_debt",
+            field: "bad_debt",
+            op: "==",
+            value: 0,
+            firings: 0
+          }
+        ]
+      }
+    })
+  };
+}
+
 function errorResult(error: string): RunOneResult {
   return { kind: "error", wallClockS: 0, error };
 }
@@ -404,6 +437,27 @@ test("runScenarios: writes .riptide/last-run.json with v1 schema", async () => {
   assert.equal(typeof parsed.finished_at, "string");
   assert.equal(parsed.signal_aborted, false);
   assert.equal(parsed.partial_abort, false);
+});
+
+test("runScenarios: all failed scenario actions mark the scenario failed", async () => {
+  const root = await tmpRoot("run-execution-failure");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  const scenarios: ResolvedScenario[] = [
+    { name: "alpha", runConfigPath: path.join(root, "a.json") }
+  ];
+
+  const summary = await runScenarios({
+    scenarios,
+    cwd: root,
+    runOne: async () => executionFailureResult(),
+    handleSignals: false
+  });
+
+  assert.equal(summary.pass, 0);
+  assert.equal(summary.fail, 1);
+  assert.equal(summary.scenarios[0]!.status, "fail");
+  assert.deepEqual(summary.scenarios[0]!.invariant_fires, []);
+  assert.equal(summary.scenarios[0]!.interpretation?.verdict, "failure-observed");
 });
 
 test("runScenarios: adapter semantic invariants count as declared inventory", async () => {

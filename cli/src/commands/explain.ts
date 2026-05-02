@@ -94,6 +94,7 @@ export function renderAdapterExplain(displayName: string, adapter: Adapter): str
   lines.push("Runtime:");
   lines.push(`  protocol: ${resolveAdapterRuntime(adapter)}`);
   lines.push(`  program_so: ${adapter.program_so ?? "(none)"}`);
+  lines.push(`  program_id: ${adapter.program_id ?? "(none; adapter/IDL/keypair inferred)"}`);
   lines.push(`  idl_path:   ${adapter.idl_path ?? "(none)"}`);
   lines.push("");
 

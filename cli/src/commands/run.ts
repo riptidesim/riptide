@@ -253,11 +253,21 @@ export function createRunCommand(): Command {
       // reason for non-zero is invariant fires. Setup errors, SIGINT,
       // and internal partial-aborts still surface their codes — this
       // flag's contract is narrow per engine parity.
-      if (allowInvariantViolations && code === EXIT_CODES.INVARIANT_FIRE) {
+      if (
+        allowInvariantViolations &&
+        code === EXIT_CODES.INVARIANT_FIRE &&
+        failedScenariosAreInvariantOnly(summary)
+      ) {
         process.exit(EXIT_CODES.SUCCESS);
       }
       process.exit(code);
     });
+}
+
+function failedScenariosAreInvariantOnly(summary: import("../run/loop.js").RunSummary): boolean {
+  return summary.scenarios
+    .filter((scenario) => scenario.status === "fail")
+    .every((scenario) => scenario.invariant_fires.length > 0);
 }
 
 /**

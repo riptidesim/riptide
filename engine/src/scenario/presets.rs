@@ -1,4 +1,4 @@
-use rand::{rngs::StdRng, RngExt};
+use rand::{rngs::StdRng, Rng};
 
 use super::{OracleUpdate, Scenario};
 

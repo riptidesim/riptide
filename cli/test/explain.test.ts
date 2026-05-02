@@ -190,6 +190,7 @@ test("renderAdapterExplain formats a parsed adapter byte-for-byte", () => {
     "Runtime:",
     "  protocol: generic",
     "  program_so: ../programs/demo/target/deploy/demo.so",
+    "  program_id: (none; adapter/IDL/keypair inferred)",
     "  idl_path:   ../idls/demo.json",
     "",
     "Accounts:",

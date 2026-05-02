@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import chalk from "chalk";
@@ -11,6 +11,7 @@ import { monorepoRootFromModule } from "../orchestrator/index.js";
 import { resolveAdapterRuntime, type Adapter } from "../schemas/adapter.js";
 
 const dim = (value: string) => chalk.hex("#A8A8A8")(value);
+const HARNESS_RUST_TOOLCHAIN = "1.91.1";
 
 export interface HarnessGenerateOptions {
   adapter?: string;
@@ -81,6 +82,7 @@ export async function generateHarness(
   const manifestPath = path.join(outDir, "Cargo.toml");
   const mainPath = path.join(srcDir, "main.rs");
   const readmePath = path.join(outDir, "README.md");
+  const rustToolchainPath = path.join(outDir, "rust-toolchain.toml");
   if (existsSync(manifestPath) && !options.force) {
     throw new Error(
       `${manifestPath} already exists. Pass --force to overwrite the generated harness files.`
@@ -95,6 +97,8 @@ export async function generateHarness(
   );
   await writeFile(mainPath, renderHarnessMain(resolved.adapter), "utf8");
   await writeFile(readmePath, renderHarnessReadme(resolved.path), "utf8");
+  await writeFile(rustToolchainPath, renderRustToolchainToml(), "utf8");
+  await copyMonorepoLockfileIfPresent(outDir);
   return { dir: outDir, manifestPath, adapterPath: resolved.path };
 }
 
@@ -160,6 +164,18 @@ function engineDependency(): string {
   return JSON.stringify(cliPackageVersion());
 }
 
+async function copyMonorepoLockfileIfPresent(outDir: string): Promise<void> {
+  const root = monorepoRootFromModule();
+  if (!root) {
+    return;
+  }
+  const lockPath = path.join(root, "Cargo.lock");
+  if (!existsSync(lockPath)) {
+    return;
+  }
+  await copyFile(lockPath, path.join(outDir, "Cargo.lock"));
+}
+
 function renderHarnessMain(adapter: Adapter): string {
   const accountChecks = Object.entries(adapter.accounts)
     .map(([name, def]) => {
@@ -222,6 +238,12 @@ riptide run --adapter ${adapterPath} --harness . --seeds 1 --seed-root 1337
 
 After the one-seed smoke passes, drop \`--seeds 1 --seed-root 1337\` for the
 full scenario sweep.
+`;
+}
+
+function renderRustToolchainToml(): string {
+  return `[toolchain]
+channel = "${HARNESS_RUST_TOOLCHAIN}"
 `;
 }
 

@@ -600,9 +600,10 @@ async function buildHarnessExecutable(input: {
   signal?: AbortSignal;
 }): Promise<string> {
   const executable = await harnessExecutablePath(input.manifestPath, input.cwd, input.env);
+  const cargoArgs = await harnessCargoBuildArgs(input.manifestPath);
   const { code, stderrTail, stderrFull } = await input.spawner(
     "cargo",
-    ["build", "--release", "--quiet", "--manifest-path", input.manifestPath],
+    cargoArgs,
     {
       silent: input.silent,
       signal: input.signal
@@ -625,6 +626,18 @@ async function buildHarnessExecutable(input: {
     );
   }
   return executable;
+}
+
+async function harnessCargoBuildArgs(manifestPath: string): Promise<string[]> {
+  const baseArgs = ["build", "--release", "--quiet", "--manifest-path", manifestPath];
+  const rustToolchainPath = path.join(path.dirname(manifestPath), "rust-toolchain.toml");
+  if (!existsSync(rustToolchainPath)) return baseArgs;
+
+  const raw = await readFile(rustToolchainPath, "utf8");
+  const parsed = TOML.parse(raw) as { toolchain?: { channel?: unknown } };
+  const channel = parsed.toolchain?.channel;
+  if (typeof channel !== "string" || channel.trim().length === 0) return baseArgs;
+  return [`+${channel.trim()}`, ...baseArgs];
 }
 
 async function harnessExecutablePath(

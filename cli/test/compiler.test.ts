@@ -6,7 +6,14 @@ import { FALLBACK_POLICIES, getFallbackPolicy } from "../src/compiler/fallback.j
 import { DEFAULT_PERSONAS } from "../src/config.js";
 
 test("all fallback policies are valid", () => {
-  assert.equal(Object.keys(FALLBACK_POLICIES).length, 5);
+  assert.deepEqual(Object.keys(FALLBACK_POLICIES).sort(), [
+    "aggressive-arb-bot",
+    "cautious-yield-farmer",
+    "degen-borrower",
+    "panic-whale",
+    "steady-lp",
+    "whale"
+  ]);
 });
 
 test("loads persona descriptions from toml", async () => {

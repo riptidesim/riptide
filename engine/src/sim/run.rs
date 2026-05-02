@@ -572,8 +572,11 @@ where
                 }
             }
 
-            let mut params_map: BTreeMap<String, Value> = BTreeMap::new();
-            params_map.insert("amount".into(), Value::from(amount));
+            let params_map = harness.action_event_params(
+                action.as_str(),
+                amount,
+                &agents[idx].policy.persona_args,
+            );
             let role_binding_attempted_instruction =
                 !matches!(outcome, SimOutcome::Skipped) && !matches!(action, RuntimeAction::NoOp);
             let role_binding_agent_idx = match &action {
@@ -979,8 +982,11 @@ where
                 last_role_binding_instruction = Some((action.as_str().to_string(), idx));
             }
 
-            let mut params_map: BTreeMap<String, Value> = BTreeMap::new();
-            params_map.insert("amount".into(), Value::from(amount));
+            let params_map = harness.action_event_params(
+                action.as_str(),
+                amount,
+                &agents[idx].policy.persona_args,
+            );
 
             let program_error = program_error_info(&errors, detail.as_deref());
             events.push(SimEvent {

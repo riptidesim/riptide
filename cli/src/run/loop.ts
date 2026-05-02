@@ -610,6 +610,9 @@ function recordForResult(
       declaredInvariants,
       artifactReadability: artifactReadability(cwd, record.artifacts_dir)
     });
+    if (record.interpretation.verdict === "failure-observed") {
+      record.status = "fail";
+    }
     return record;
   }
   if (result.kind === "fail") {

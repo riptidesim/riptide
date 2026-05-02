@@ -55,6 +55,29 @@ use crate::{
     types::{ObservationValue, TickSnapshot},
 };
 
+pub(crate) fn arg_literal_to_event_value(literal: &crate::adapter::ArgLiteral) -> Value {
+    match literal {
+        crate::adapter::ArgLiteral::Bool(value) => Value::Bool(*value),
+        crate::adapter::ArgLiteral::Int(value) => Value::from(*value),
+        crate::adapter::ArgLiteral::String(value) => Value::from(value.clone()),
+    }
+}
+
+pub(crate) fn default_action_event_params(
+    _action: &str,
+    amount: u64,
+    persona_args: &BTreeMap<String, crate::adapter::ArgLiteral>,
+) -> BTreeMap<String, Value> {
+    let mut params = BTreeMap::new();
+    params.insert("amount".into(), Value::from(amount));
+    for (key, value) in persona_args {
+        params
+            .entry(key.clone())
+            .or_insert_with(|| arg_literal_to_event_value(value));
+    }
+    params
+}
+
 /// Pool-wide observation. Units follow whatever the on-chain program
 /// uses — stable base units for deposits/borrows/bad_debt in the
 /// Solend fork.
@@ -226,6 +249,19 @@ pub trait Primitive {
     ) -> Result<(), PrimitiveError> {
         let _ = persona_args;
         self.execute_action(agent_idx, action, amount, target_idx)
+    }
+
+    /// Parameters recorded on the emitted `SimEvent` for an attempted
+    /// action. Lending-style primitives report the runtime amount.
+    /// Generic adapter implementations override this to report the IDL
+    /// args that were actually encoded for the program instruction.
+    fn action_event_params(
+        &self,
+        action: &str,
+        amount: u64,
+        persona_args: &std::collections::BTreeMap<String, crate::adapter::ArgLiteral>,
+    ) -> BTreeMap<String, Value> {
+        default_action_event_params(action, amount, persona_args)
     }
 
     /// Replay-mode action dispatch. Default contract:

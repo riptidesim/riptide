@@ -31,8 +31,9 @@
 // }
 //
 // Status mapping:
-// - "pass"    — scenario completed, zero invariant fires
-// - "fail"    — scenario completed, one or more invariant fires
+// - "pass"    — scenario completed, zero observed failures
+// - "fail"    — scenario completed, and an invariant fired or all
+//               scenario actions were rejected
 // - "error"   — engine exited non-zero mid-setup or mid-run, or the
 //               orchestrator itself failed (missing binary, wrong
 //               adapter, etc.). No trustworthy SimulationResult.

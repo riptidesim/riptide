@@ -3,8 +3,9 @@
 // pin test intentionally.
 //
 // Contract (R4.3 + R9.2):
-// - 0   : all discovered scenarios ran + zero invariants fired, zero errors
-// - 1   : one or more scenarios had at least one invariant fire
+// - 0   : all discovered scenarios ran + zero observed failures, zero errors
+// - 1   : one or more scenarios observed failure, either by invariant fire
+//         or by scenario actions failing with zero successful executions
 // - 2   : setup/runtime error — any scenario errored (wrong adapter,
 //         missing binary, engine exit 2, etc.) OR a global setup
 //         failure short-circuited the sweep before it started.

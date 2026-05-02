@@ -835,6 +835,7 @@ mod tests {
         let mut adapter = Adapter {
             protocol: Some(Protocol::Generic),
             program_so: None,
+            program_id: None,
             idl_path: None,
             accounts: Default::default(),
             actions: Default::default(),

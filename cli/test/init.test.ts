@@ -496,6 +496,11 @@ test("scaffold: one seed and harness mode create seeded run-config plus TODO har
   assert.ok(result.created.includes(".riptide/harness/Cargo.toml"));
   assert.ok(result.created.includes(".riptide/harness/src/main.rs"));
   assert.ok(result.created.includes(".riptide/harness/README.md"));
+  assert.ok(result.created.includes(".riptide/harness/rust-toolchain.toml"));
+  assert.match(
+    await readFile(path.join(cwd, ".riptide", "harness", "rust-toolchain.toml"), "utf8"),
+    /channel = "1\.91\.1"/
+  );
 
   const runConfig = JSON.parse(
     await readFile(

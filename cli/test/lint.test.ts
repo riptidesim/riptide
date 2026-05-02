@@ -718,6 +718,93 @@ test("runLint: clean JSON-IDL-backed adapter → exit 0", async () => {
   assert.match(out, /mapped-surface-clean/);
 });
 
+test("runLint: legacy Anchor IDL account type fields and nested paths → exit 0", async () => {
+  const legacyIdl = JSON.stringify({
+    version: "0.1.0",
+    name: "legacy",
+    instructions: [
+      {
+        name: "setValidatorScore",
+        accounts: [{ name: "state", isMut: true }],
+        args: [{ name: "score", type: "u32" }],
+      },
+      {
+        name: "changeAuthority",
+        accounts: [{ name: "state", isMut: true }],
+        args: [],
+      },
+    ],
+    accounts: [
+      {
+        name: "State",
+        type: {
+          kind: "struct",
+          fields: [
+            { name: "validatorSystem", type: { defined: "ValidatorSystem" } },
+            { name: "paused", type: "bool" },
+          ],
+        },
+      },
+    ],
+    types: [
+      {
+        name: "ValidatorSystem",
+        type: {
+          kind: "struct",
+          fields: [{ name: "totalValidatorScore", type: "u32" }],
+        },
+      },
+    ],
+  });
+  const adapterToml = `protocol = "generic"
+program_so = "./legacy.so"
+idl_path = "fixtures/idls/simple.json"
+
+[accounts.state]
+kind = "shared"
+space = 128
+
+[instructions]
+setValidatorScore = { action = "set_validator_score", amount = "score" }
+
+[state_mapping]
+"state.validatorSystem.totalValidatorScore" = "validator.total_score"
+
+[actions.set_validator_score]
+takes = ["score"]
+
+[observations]
+"validator.total_score" = "uint"
+
+[personas.manager]
+action_rate_multiplier = 1.0
+action_weights = { set_validator_score = 1.0 }
+triggers = []
+
+[lineage]
+idl_source = "fixtures/idls/simple.json"
+unsupported_fields = [
+  "instruction \`changeAuthority\` is outside this smoke",
+  "field \`state.validatorSystem\` is otherwise deterministic setup",
+  "field \`state.paused\` is outside this smoke",
+]
+`;
+  const { adapterPath, repoRoot } = await setupAdapterPair(adapterToml, legacyIdl);
+  let out = "";
+  const exit = await runLint(
+    adapterPath,
+    {},
+    {
+      repoRoot,
+      stdoutWrite: (c) => { out += c; },
+      stderrWrite: () => {},
+      color: false,
+    }
+  );
+  assert.equal(exit, 0, out);
+  assert.match(out, /mapped-surface-clean/);
+});
+
 test("runLint: broken instruction → exit 2 with named diagnostic", async () => {
   const { adapterPath, repoRoot } = await setupAdapterPair(
     BROKEN_INSTRUCTION_TOML("fixtures/idls/simple.json"),

@@ -1556,6 +1556,7 @@ mod tests {
         crate::adapter::Adapter {
             protocol: Some(crate::adapter::Protocol::Lending),
             program_so: None,
+            program_id: None,
             idl_path: None,
             accounts: BTreeMap::new(),
             instructions,

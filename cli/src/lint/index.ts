@@ -97,6 +97,7 @@ interface IdlAccount {
 interface JsonIdl {
   instructions: IdlInstruction[];
   accounts: IdlAccount[];
+  typeFieldsByName: Map<string, IdlAccountField[]>;
 }
 
 // ---------- public API ----------
@@ -383,13 +384,12 @@ export function lintAdapterAgainstJsonIdl(
       });
       continue;
     }
-    const fieldNames = new Set(idlAccount.fields.map((f) => f.name));
-    if (!fieldNames.has(field)) {
-      findings.push({
-        level: "fail",
-        code: "state-mapping-field-not-in-idl",
-        subject: `[state_mapping]."${key}"`,
-        message: `state_mapping key references \`${account}.${field}\` but account \`${account}\` has no such field in the JSON IDL.`,
+      if (!hasIdlFieldPath(idl, idlAccount, field)) {
+        findings.push({
+          level: "fail",
+          code: "state-mapping-field-not-in-idl",
+          subject: `[state_mapping]."${key}"`,
+          message: `state_mapping key references \`${account}.${field}\` but account \`${account}\` has no such field in the JSON IDL.`,
         hint: `Account \`${account}\` declares fields: ${formatList(idlAccount.fields.map((f) => f.name))}.`,
       });
       continue;
@@ -426,8 +426,7 @@ export function lintAdapterAgainstJsonIdl(
       });
       continue;
     }
-    const fieldNames = new Set(idlAccount.fields.map((f) => f.name));
-    if (!fieldNames.has(field)) {
+    if (!hasIdlFieldPath(idl, idlAccount, field)) {
       findings.push({
         level: "fail",
         code: "observation-field-not-in-idl",
@@ -475,8 +474,7 @@ export function lintAdapterAgainstJsonIdl(
       });
       continue;
     }
-    const fieldNames = new Set(idlAccount.fields.map((f) => f.name));
-    if (!fieldNames.has(field)) {
+    if (!hasIdlFieldPath(idl, idlAccount, field)) {
       findings.push({
         level: "fail",
         code: "invariant-field-not-in-idl",
@@ -495,7 +493,11 @@ export function lintAdapterAgainstJsonIdl(
   const uncoveredInstructions: string[] = [];
   for (const ix of idl.instructions) {
     if (mappedInstructions.includes(ix.name)) continue;
-    if (unsupportedText.includes(`\`${ix.name}\``) || unsupportedText.includes(`\`${ix.name}(`)) {
+    const ixNameLower = ix.name.toLowerCase();
+    if (
+      unsupportedText.includes(`\`${ixNameLower}\``) ||
+      unsupportedText.includes(`\`${ixNameLower}(`)
+    ) {
       recognizedUnsupportedInstructions.push(ix.name);
     } else {
       uncoveredInstructions.push(ix.name);
@@ -661,6 +663,31 @@ function findIdlAccount(
   return undefined;
 }
 
+function hasIdlFieldPath(idl: JsonIdl, account: IdlAccount, fieldPath: string): boolean {
+  let fields = account.fields;
+  const segments = fieldPath.split(".");
+  for (let idx = 0; idx < segments.length; idx += 1) {
+    const segment = segments[idx]!;
+    const field = fields.find((candidate) => candidate.name === segment);
+    if (field === undefined) return false;
+    if (idx === segments.length - 1) return true;
+    const defined = definedTypeName(field.type);
+    if (defined === null) return false;
+    fields = idl.typeFieldsByName.get(defined) ?? [];
+  }
+  return false;
+}
+
+function definedTypeName(type: unknown): string | null {
+  if (!type || typeof type !== "object") return null;
+  const defined = (type as { defined?: unknown }).defined;
+  if (typeof defined === "string") return defined;
+  if (defined && typeof defined === "object" && typeof (defined as { name?: unknown }).name === "string") {
+    return (defined as { name: string }).name;
+  }
+  return null;
+}
+
 function normalizeIdlName(value: string): string {
   return value.replace(/[_-]/g, "").toLowerCase();
 }
@@ -698,7 +725,7 @@ function parseJsonIdl(raw: string): JsonIdl {
       if (Array.isArray(e.args)) {
         for (const a of e.args) {
           if (a && typeof a === "object" && typeof (a as { name?: unknown }).name === "string") {
-            args.push({ name: (a as { name: string }).name });
+            args.push({ name: (a as { name: string }).name, type: (a as { type?: unknown }).type });
           }
         }
       }
@@ -727,28 +754,20 @@ function parseJsonIdl(raw: string): JsonIdl {
         : e.type && typeof e.type === "object" && Array.isArray((e.type as { fields?: unknown }).fields)
           ? (e.type as { fields: unknown[] }).fields
           : [];
-      const fields: IdlAccountField[] = [];
-      for (const f of fieldsRaw) {
-        if (f && typeof f === "object" && typeof (f as { name?: unknown }).name === "string") {
-          fields.push({ name: (f as { name: string }).name });
-        }
-      }
-      typeFieldsByName.set(e.name, fields);
+      typeFieldsByName.set(e.name, parseIdlFields(fieldsRaw));
     }
   }
   const accountsRaw = (parsed as { accounts?: unknown }).accounts;
   if (Array.isArray(accountsRaw)) {
     for (const entry of accountsRaw) {
       if (!entry || typeof entry !== "object") continue;
-      const e = entry as { name?: unknown; fields?: unknown };
+      const e = entry as { name?: unknown; fields?: unknown; type?: unknown };
       if (typeof e.name !== "string") continue;
       let fields: IdlAccountField[] = [];
       if (Array.isArray(e.fields)) {
-        for (const f of e.fields) {
-          if (f && typeof f === "object" && typeof (f as { name?: unknown }).name === "string") {
-            fields.push({ name: (f as { name: string }).name });
-          }
-        }
+        fields = parseIdlFields(e.fields);
+      } else if (e.type && typeof e.type === "object" && Array.isArray((e.type as { fields?: unknown }).fields)) {
+        fields = parseIdlFields((e.type as { fields: unknown[] }).fields);
       } else {
         fields = typeFieldsByName.get(e.name) ?? [];
       }
@@ -756,7 +775,17 @@ function parseJsonIdl(raw: string): JsonIdl {
     }
   }
 
-  return { instructions, accounts };
+  return { instructions, accounts, typeFieldsByName };
+}
+
+function parseIdlFields(fieldsRaw: unknown[]): IdlAccountField[] {
+  const fields: IdlAccountField[] = [];
+  for (const f of fieldsRaw) {
+    if (f && typeof f === "object" && typeof (f as { name?: unknown }).name === "string") {
+      fields.push({ name: (f as { name: string }).name, type: (f as { type?: unknown }).type });
+    }
+  }
+  return fields;
 }
 
 function formatList(names: string[]): string {

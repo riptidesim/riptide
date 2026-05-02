@@ -1522,6 +1522,9 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
         adapter.idl_path.as_deref(),
         "generic adapters must declare `idl_path`",
     )?;
+    if let Some(program_id) = adapter.program_id.as_deref() {
+        validate_pubkey_string(path, "program_id", "program id", program_id)?;
+    }
 
     if adapter.accounts.is_empty() {
         return Err(AdapterError::Validation {

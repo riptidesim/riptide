@@ -846,11 +846,17 @@ async function scaffoldHarness(input: {
     renderInitHarnessReadme(input.adapterRel),
     "utf8"
   );
+  await writeFile(
+    path.join(harnessDir, "rust-toolchain.toml"),
+    renderInitHarnessRustToolchainToml(),
+    "utf8"
+  );
 
   return [
     path.join(".riptide", "harness", "Cargo.toml"),
     path.join(".riptide", "harness", "src", "main.rs"),
-    path.join(".riptide", "harness", "README.md")
+    path.join(".riptide", "harness", "README.md"),
+    path.join(".riptide", "harness", "rust-toolchain.toml")
   ];
 }
 
@@ -927,6 +933,12 @@ riptide run --adapter ${adapterRel} --harness .riptide/harness --seeds 1 --seed-
 
 After the one-seed smoke passes, drop \`--seeds 1 --seed-root 1337\` for the
 full scenario sweep.
+`;
+}
+
+function renderInitHarnessRustToolchainToml(): string {
+  return `[toolchain]
+channel = "1.91.1"
 `;
 }
 

@@ -35,6 +35,15 @@ export const FALLBACK_POLICIES: Record<string, Policy> = {
     position_sizing: { strategy: "fixed", params: { amount: 5_000 } },
     max_exposure: 0.45
   }),
+  "whale": validatePolicy({
+    persona_id: "whale",
+    persona_label: "Whale",
+    risk_tolerance: 0.9,
+    action_weights: { deposit: 0.3, borrow: 1, withdraw: 0, repay: 0, liquidate: 0 },
+    triggers: [],
+    position_sizing: { strategy: "fixed", params: { amount: 25_000 } },
+    max_exposure: 0.95
+  }),
   "steady-lp": validatePolicy({
     persona_id: "steady-lp",
     persona_label: "Steady LP",

@@ -156,7 +156,7 @@ impl<'a> HarnessContext<'a> {
     pub fn load_program_from_so(&mut self, so_path: impl AsRef<Path>) -> Result<Pubkey> {
         let so_path = so_path.as_ref();
         let program_bytes = load_generic_program_bytes(so_path)?;
-        let program_id = resolve_generic_program_id(so_path)?;
+        let program_id = resolve_generic_program_id(so_path, None, None)?;
         self.harness
             .svm_mut()
             .add_program(program_id, &program_bytes)

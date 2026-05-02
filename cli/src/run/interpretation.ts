@@ -26,6 +26,7 @@ export type CoverageCheckStatus = "pass" | "warn" | "fail";
 export type CoverageCheckName =
   | "tick_progression"
   | "event_stream"
+  | "execution_outcomes"
   | "state_movement"
   | "invariant_inventory"
   | "semantics_evaluated"
@@ -120,7 +121,8 @@ export function interpretScenarioResult(input: InterpretScenarioInput): RunInter
   const verdict = classifyVerdict(
     coverage,
     invariantObservation.count,
-    invariantObservation.errorExpressionCount
+    invariantObservation.errorExpressionCount,
+    coverageChecks
   );
   const confidence = classifyConfidence(verdict, coverage, coverageChecks);
   const severity = classifySeverity(verdict);
@@ -133,7 +135,7 @@ export function interpretScenarioResult(input: InterpretScenarioInput): RunInter
     coverage,
     severity,
     summary: summaryFor(verdict, invariantObservation.count),
-    next_action: nextActionFor(verdict),
+    next_action: nextActionFor(verdict, invariantObservation.count),
     evidence,
     reasons,
     coverage_checks: coverageChecks
@@ -159,6 +161,7 @@ function setupErrorChecks(reason: string): CoverageCheck[] {
   return [
     { name: "tick_progression", status: "fail", detail },
     { name: "event_stream", status: "fail", detail },
+    { name: "execution_outcomes", status: "fail", detail },
     { name: "state_movement", status: "fail", detail },
     { name: "invariant_inventory", status: "fail", detail },
     { name: "agent_roster", status: "fail", detail },
@@ -174,6 +177,7 @@ function buildCoverageChecks(
   const checks: CoverageCheck[] = [
     checkTickProgression(input, result),
     checkEventStream(result),
+    checkExecutionOutcomes(result),
     checkStateMovement(input, result),
     checkInvariantInventory(input, result, invariantObservation),
     checkAgentRoster(result),
@@ -248,6 +252,45 @@ function checkEventStream(result: SimulationResult): CoverageCheck {
     name: "event_stream",
     status: "fail",
     detail: "scenario claimed agent action but emitted no scenario events"
+  };
+}
+
+function checkExecutionOutcomes(result: SimulationResult): CoverageCheck {
+  const scenarioEvents = result.events.filter((event) => isScenarioEvent(result, event));
+  if (scenarioEvents.length === 0) {
+    return {
+      name: "execution_outcomes",
+      status: "warn",
+      detail: "no scenario event outcomes to classify"
+    };
+  }
+
+  const successCount = scenarioEvents.filter((event) => event.outcome === "success").length;
+  const failedCount = scenarioEvents.filter((event) => event.outcome === "failed").length;
+  if (successCount === 0 && failedCount > 0) {
+    const detail = firstFailedOutcomeDetail(scenarioEvents);
+    return {
+      name: "execution_outcomes",
+      status: "fail",
+      detail:
+        `${failedCount} failed scenario event${failedCount === 1 ? "" : "s"} and zero successful executions` +
+        (detail ? `; first failure: ${detail}` : "")
+    };
+  }
+
+  if (failedCount > 0) {
+    return {
+      name: "execution_outcomes",
+      status: "warn",
+      detail:
+        `${successCount} successful and ${failedCount} failed scenario event${failedCount === 1 ? "" : "s"}`
+    };
+  }
+
+  return {
+    name: "execution_outcomes",
+    status: "pass",
+    detail: `${successCount} successful scenario event${successCount === 1 ? "" : "s"}`
   };
 }
 
@@ -482,6 +525,9 @@ function classifyCoverage(
   if (byName.get("tick_progression") === "fail") {
     return "unexercised";
   }
+  if (byName.get("execution_outcomes") === "fail") {
+    return "unexercised";
+  }
   if (byName.get("agent_roster") === "fail") {
     return "unexercised";
   }
@@ -500,10 +546,18 @@ function classifyCoverage(
 function classifyVerdict(
   coverage: Coverage,
   invariantFireCount: number,
-  errorExpressionInvariantFireCount: number
+  errorExpressionInvariantFireCount: number,
+  checks: CoverageCheck[]
 ): Verdict {
   if (coverage === "unknown") return "setup-error";
   if (errorExpressionInvariantFireCount > 0) return "failure-observed";
+  if (
+    checks.some(
+      (check) => check.name === "execution_outcomes" && check.status === "fail"
+    )
+  ) {
+    return "failure-observed";
+  }
   if (coverage === "unexercised") return "inconclusive";
   if (invariantFireCount > 0) return "failure-observed";
   return "no-failure-observed";
@@ -535,6 +589,9 @@ function classifySeverity(verdict: Verdict): Severity {
 function summaryFor(verdict: Verdict, invariantFireCount: number): string {
   switch (verdict) {
     case "failure-observed":
+      if (invariantFireCount === 0) {
+        return "Failure observed in this run: scenario execution failures recorded.";
+      }
       return (
         `Failure observed in this run: ${invariantFireCount} invariant ` +
         `fire${invariantFireCount === 1 ? "" : "s"} recorded.`
@@ -550,9 +607,12 @@ function summaryFor(verdict: Verdict, invariantFireCount: number): string {
   }
 }
 
-function nextActionFor(verdict: Verdict): string {
+function nextActionFor(verdict: Verdict, invariantFireCount: number): string {
   switch (verdict) {
     case "failure-observed":
+      if (invariantFireCount === 0) {
+        return "Review failed scenario events and their outcome_detail fields before changing the scenario or adapter.";
+      }
       return "Review the first invariant fire and inspect simulation artifacts before changing the scenario or adapter.";
     case "no-failure-observed":
       return "Review coverage checks and artifacts before using this run as evidence.";
@@ -746,6 +806,12 @@ function isScenarioEvent(result: SimulationResult, event: SimEvent): boolean {
   if (isReplayRun(result)) return event.persona_id !== "invariant";
   if (event.agent_id === "__engine__" || event.persona_id === "__engine__") return false;
   return event.persona_id !== "invariant" && event.persona_id !== "expression_invariant";
+}
+
+function firstFailedOutcomeDetail(events: SimEvent[]): string | null {
+  const event = events.find((entry) => entry.outcome === "failed" && entry.outcome_detail);
+  if (!event?.outcome_detail) return null;
+  return firstLine(event.outcome_detail);
 }
 
 function findNumericTimeseriesMovement(timeseries: TickSnapshot[]): string | null {

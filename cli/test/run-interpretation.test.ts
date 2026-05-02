@@ -171,7 +171,40 @@ test("classifies clean exercised runs as no failure observed", () => {
   assert.equal(interpretation.coverage, "exercised");
   assert.equal(interpretation.severity, "info");
   assert.equal(checkStatus(interpretation, "event_stream"), "pass");
+  assert.equal(checkStatus(interpretation, "execution_outcomes"), "pass");
   assert.equal(checkStatus(interpretation, "state_movement"), "pass");
+  assertNoForbiddenInterpretationText(interpretation);
+});
+
+test("classifies all rejected scenario executions as failure observed", () => {
+  const result = baseResult({
+    events: [
+      {
+        tick: 1,
+        agent_id: "agent-001",
+        persona_id: "cautious-yield-farmer",
+        persona_label: "Cautious Yield Farmer",
+        action: "deposit",
+        params: { amount: 25 },
+        outcome: "failed",
+        outcome_detail: "InstructionError(0, Custom(4100))"
+      }
+    ],
+    timeseries: [
+      { tick: 0, active_agents: 2, tvl: 100, utilization: 0.1 },
+      { tick: 4, active_agents: 2, tvl: 100, utilization: 0.1 }
+    ]
+  });
+
+  const interpretation = interpret(baseRecord(), result);
+
+  assert.equal(interpretation.verdict, "failure-observed");
+  assert.equal(interpretation.coverage, "unexercised");
+  assert.equal(checkStatus(interpretation, "event_stream"), "pass");
+  assert.equal(checkStatus(interpretation, "execution_outcomes"), "fail");
+  assert.match(interpretation.summary, /scenario execution failures recorded/);
+  assert.match(interpretation.next_action, /outcome_detail/);
+  assert.match(interpretation.reasons.join("\n"), /zero successful executions/);
   assertNoForbiddenInterpretationText(interpretation);
 });
 

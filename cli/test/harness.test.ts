@@ -48,10 +48,12 @@ test("harness generate writes a Rust crate with adapter account hints", async ()
 
   const cargoToml = await readFile(result.manifestPath, "utf8");
   const mainRs = await readFile(path.join(result.dir, "src", "main.rs"), "utf8");
+  const rustToolchain = await readFile(path.join(result.dir, "rust-toolchain.toml"), "utf8");
 
   assert.match(cargoToml, /name = "demo-harness"/);
   assert.match(cargoToml, /riptide-engine = /);
   assert.match(cargoToml, /riptide-engine = \{ path = /);
+  assert.match(rustToolchain, /channel = "1\.91\.1"/);
   assert.match(mainRs, /impl RiptideHarness for ProjectHarness/);
   assert.match(mainRs, /ctx\.require_declared_account\("pool"\)\?/);
   assert.match(mainRs, /ctx\.require_declared_account\("lp_position"\)\?/);

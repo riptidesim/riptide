@@ -198,8 +198,8 @@ export const InstructionMappingSchema = z.object({
   amount: z.string().min(1).optional(),
   // literal constants for non-runtime IDL args of a
   // multi-arg instruction. Keys are IDL arg names; values are
-  // Borsh-encodable literals (u64/i64/u32/u8 encoded as integers;
-  // bool as boolean; pubkey as base58 string). Empty by default so
+  // Borsh-encodable literals (u128/i128/u64/i64/u32/u8 encoded as
+  // integers; bool as boolean; pubkey as base58 string). Empty by default so
   // every single-arg adapter continues to parse byte-for-byte.
   args: z.record(z.string(), ArgLiteralSchema).default({})
 });
@@ -428,6 +428,7 @@ export const AdapterSchema = z.object({
   instructions: z.record(z.string(), InstructionMappingSchema),
   state_mapping: z.record(z.string(), z.string()),
   program_so: z.string().min(1).optional(),
+  program_id: z.string().min(1).optional(),
   idl_path: z.string().min(1).optional(),
   accounts: z.record(z.string(), AccountDefinitionSchema).default({}),
   actions: z.record(z.string(), ActionDefinitionSchema).default({}),
@@ -1314,6 +1315,9 @@ function validateLending(adapter: Adapter, path: string): void {
 function validateGeneric(adapter: Adapter, path: string): void {
   requireNonEmptyOption(path, "program_so", adapter.program_so, "generic adapters must declare `program_so`");
   requireNonEmptyOption(path, "idl_path", adapter.idl_path, "generic adapters must declare `idl_path`");
+  if (adapter.program_id !== undefined) {
+    validatePubkeyString(path, "program_id", "program id", adapter.program_id);
+  }
 
   requireNonEmptyBlock(path, "[accounts]", adapter.accounts, "generic adapters must declare at least one account binding");
   requireNonEmptyBlock(path, "[instructions]", adapter.instructions, "generic adapters must declare at least one instruction mapping");

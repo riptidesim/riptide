@@ -11,6 +11,7 @@
 use std::collections::BTreeMap;
 
 use anyhow::{anyhow, bail, Context, Result};
+use sha2::{Digest, Sha256};
 
 use crate::{
     adapter::{
@@ -46,6 +47,8 @@ use {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 pub struct GenericIdl {
+    #[serde(default)]
+    pub address: Option<String>,
     pub instructions: Vec<GenericInstruction>,
     #[serde(default)]
     pub accounts: Vec<GenericAccountType>,
@@ -56,6 +59,7 @@ pub struct GenericIdl {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 pub struct GenericInstruction {
     pub name: String,
+    #[serde(default)]
     pub discriminator: Vec<u8>,
     #[serde(default)]
     pub accounts: Vec<GenericInstructionAccount>,
@@ -66,9 +70,9 @@ pub struct GenericInstruction {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 pub struct GenericInstructionAccount {
     pub name: String,
-    #[serde(default)]
+    #[serde(default, alias = "isSigner")]
     pub signer: bool,
-    #[serde(default)]
+    #[serde(default, alias = "isMut")]
     pub writable: bool,
     #[serde(default)]
     pub address: Option<String>,
@@ -88,6 +92,8 @@ pub struct GenericAccountType {
     pub discriminator: Option<Vec<u8>>,
     #[serde(default)]
     pub fields: Vec<GenericField>,
+    #[serde(default, rename = "type")]
+    pub type_def: Option<GenericTypeDefinition>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
@@ -154,7 +160,16 @@ enum GenericValue {
 }
 
 pub fn parse_generic_idl_str(raw: &str) -> Result<GenericIdl> {
-    serde_json::from_str(raw).context("parse generic IDL JSON")
+    let raw_value: serde_json::Value =
+        serde_json::from_str(raw).context("parse generic IDL JSON")?;
+    let legacy_anchor_shape =
+        raw_value.get("version").is_some() || raw_value.get("metadata").is_some();
+    let mut idl: GenericIdl =
+        serde_json::from_value(raw_value).context("parse generic IDL JSON")?;
+    if legacy_anchor_shape {
+        normalize_legacy_anchor_discriminators(&mut idl);
+    }
+    Ok(idl)
 }
 
 pub fn load_generic_idl(path: &std::path::Path) -> Result<GenericIdl> {
@@ -318,6 +333,9 @@ fn account_fields<'a>(
     if !account.fields.is_empty() {
         return Some(&account.fields);
     }
+    if let Some(type_def) = account.type_def.as_ref() {
+        return Some(type_def.fields.as_slice());
+    }
     let defined = idl
         .types
         .iter()
@@ -337,6 +355,64 @@ fn normalize_idl_name(value: &str) -> String {
         .filter(|ch| *ch != '_' && *ch != '-')
         .flat_map(char::to_lowercase)
         .collect()
+}
+
+fn is_pubkey_type_name(value: &str) -> bool {
+    matches!(value, "pubkey" | "publicKey")
+}
+
+fn normalize_legacy_anchor_discriminators(idl: &mut GenericIdl) {
+    for instruction in &mut idl.instructions {
+        if instruction.discriminator.is_empty() {
+            instruction.discriminator =
+                anchor_discriminator("global", &to_anchor_snake_case(&instruction.name));
+        }
+    }
+    for account in &mut idl.accounts {
+        if account.discriminator.is_none() {
+            account.discriminator = Some(anchor_discriminator("account", &account.name));
+        }
+    }
+}
+
+fn anchor_discriminator(namespace: &str, name: &str) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    hasher.update(namespace.as_bytes());
+    hasher.update(b":");
+    hasher.update(name.as_bytes());
+    hasher.finalize()[..8].to_vec()
+}
+
+fn to_anchor_snake_case(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 4);
+    let mut previous_was_lower_or_digit = false;
+    for ch in value.chars() {
+        if ch == '-' || ch == ' ' {
+            if !out.ends_with('_') {
+                out.push('_');
+            }
+            previous_was_lower_or_digit = false;
+            continue;
+        }
+        if ch == '_' {
+            if !out.ends_with('_') {
+                out.push('_');
+            }
+            previous_was_lower_or_digit = false;
+            continue;
+        }
+        if ch.is_ascii_uppercase() {
+            if previous_was_lower_or_digit && !out.ends_with('_') {
+                out.push('_');
+            }
+            out.push(ch.to_ascii_lowercase());
+            previous_was_lower_or_digit = false;
+        } else {
+            out.push(ch);
+            previous_was_lower_or_digit = ch.is_ascii_lowercase() || ch.is_ascii_digit();
+        }
+    }
+    out
 }
 
 impl GenericDefinedType {
@@ -378,8 +454,8 @@ impl<'a> GenericInstructionBuilder<'a> {
     /// instruction.
     /// 2. **Adapter literal** — `mapping.args.<arg-name> = <literal>`
     /// declares a constant value the encoder emits for every
-    /// dispatch. Types: u64/i64/u32/u8/bool (naturally), pubkey
-    /// (base58 string).
+    /// dispatch. Types: u128/i128/u64/i64/u32/u8/bool (naturally),
+    /// pubkey (base58 string).
     /// 3. **Persona-supplied runtime value** —
     /// `mapping.args.<arg-name> = "@persona.<field>"` resolves
     /// at dispatch time against the executing agent's
@@ -390,9 +466,9 @@ impl<'a> GenericInstructionBuilder<'a> {
     /// one action per variant.
     ///
     /// Walks IDL args in declaration order (Borsh is position-
-    /// dependent). Supported Borsh types: `u64`, `i64`, `u32`, `u8`,
-    /// `bool`, `pubkey`. Wider scalars, Option, Vec, and user-
-    /// defined structs are out of scope for.
+    /// dependent). Supported Borsh types: `u128`, `i128`, `u64`, `i64`,
+    /// `u32`, `u8`, `bool`, `pubkey`. Option, Vec, and user-defined
+    /// structs are out of scope for.
     ///
     /// callers that passed a single `amount` and nothing
     /// else continue to work via the
@@ -461,6 +537,45 @@ impl<'a> GenericInstructionBuilder<'a> {
             std::sync::OnceLock::new();
         let empty = EMPTY.get_or_init(BTreeMap::new);
         self.build_action_data(action_name, amount, empty)
+    }
+
+    pub fn build_action_event_params(
+        &self,
+        action_name: &str,
+        amount: u64,
+        persona_args: &BTreeMap<String, ArgLiteral>,
+    ) -> Result<BTreeMap<String, serde_json::Value>> {
+        let (instruction_name, mapping, instruction) =
+            resolve_instruction_for_action(self.idl, self.adapter, action_name)?;
+
+        let mut params = BTreeMap::new();
+        for arg in &instruction.args {
+            if mapping.amount.as_deref() == Some(arg.name.as_str()) {
+                params.insert(arg.name.clone(), serde_json::Value::from(amount));
+                continue;
+            }
+            if let Some(binding) = mapping.args.get(&arg.name) {
+                let resolved = match binding {
+                    ArgLiteral::String(s) if s.starts_with("@persona.") => {
+                        let field = &s["@persona.".len()..];
+                        persona_args.get(field).ok_or_else(|| {
+                            anyhow!(
+                                "generic instruction `{instruction_name}` arg `{}` references \
+                                 `@persona.{field}` but the executing persona has no `persona_args.{field}` \
+                                 value. Declare it under `[personas.<id>.persona_args]` in the adapter.",
+                                arg.name
+                            )
+                        })?
+                    }
+                    other => other,
+                };
+                params.insert(
+                    arg.name.clone(),
+                    crate::primitive::lending::arg_literal_to_event_value(resolved),
+                );
+            }
+        }
+        Ok(params)
     }
 
     /// Replay-mode dispatch.
@@ -827,6 +942,16 @@ fn encode_literal_arg(
     arg_name: &str,
 ) -> Result<()> {
     match ty {
+        GenericTypeRef::Primitive(name) if name == "u128" => {
+            let value = literal_as_u128(literal, instruction_name, arg_name, "u128")?;
+            out.extend_from_slice(&value.to_le_bytes());
+            Ok(())
+        }
+        GenericTypeRef::Primitive(name) if name == "i128" => {
+            let value = literal_as_i128(literal, instruction_name, arg_name, "i128")?;
+            out.extend_from_slice(&value.to_le_bytes());
+            Ok(())
+        }
         GenericTypeRef::Primitive(name) if name == "u64" => {
             let value = literal_as_u64(literal, instruction_name, arg_name, "u64")?;
             out.extend_from_slice(&value.to_le_bytes());
@@ -870,22 +995,22 @@ fn encode_literal_arg(
             out.push(if value { 1 } else { 0 });
             Ok(())
         }
-        GenericTypeRef::Primitive(name) if name == "pubkey" => {
+        GenericTypeRef::Primitive(name) if is_pubkey_type_name(name) => {
             let encoded = match literal {
                 ArgLiteral::String(s) => bs58::decode(s).into_vec().map_err(|e| {
                     anyhow!(
-                        "instruction `{instruction_name}` arg `{arg_name}` declared as `pubkey` \
+                        "instruction `{instruction_name}` arg `{arg_name}` declared as `pubkey`/`publicKey` \
                          but literal `{s}` is not base58-decodable: {e}"
                     )
                 })?,
                 other => bail!(
-                    "instruction `{instruction_name}` arg `{arg_name}` declared as `pubkey` \
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `pubkey`/`publicKey` \
                      but literal was `{other:?}`; expected a base58-encoded 32-byte key"
                 ),
             };
             if encoded.len() != 32 {
                 bail!(
-                    "instruction `{instruction_name}` arg `{arg_name}` declared as `pubkey` \
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `pubkey`/`publicKey` \
                      but literal decoded to {} bytes (expected 32)",
                     encoded.len()
                 );
@@ -896,8 +1021,42 @@ fn encode_literal_arg(
         other => bail!(
             "instruction `{instruction_name}` arg `{arg_name}`: unsupported IDL arg type \
              `{other:?}` for literal binding. Supported: \
-             u64/i64/u32/u8/bool/pubkey — wider scalars, Option, Vec, and user-defined \
-             structs are out of scope."
+             u128/i128/u64/i64/u32/u8/bool/pubkey — Option, Vec, and user-defined structs \
+             are out of scope."
+        ),
+    }
+}
+
+fn literal_as_u128(
+    literal: &ArgLiteral,
+    instruction_name: &str,
+    arg_name: &str,
+    target_ty: &str,
+) -> Result<u128> {
+    match literal {
+        ArgLiteral::Int(v) if *v >= 0 => Ok(*v as u128),
+        ArgLiteral::Int(v) => bail!(
+            "instruction `{instruction_name}` arg `{arg_name}` declared as `{target_ty}` \
+             but literal `{v}` is negative"
+        ),
+        other => bail!(
+            "instruction `{instruction_name}` arg `{arg_name}` declared as `{target_ty}` \
+             but literal was `{other:?}`; expected a non-negative integer"
+        ),
+    }
+}
+
+fn literal_as_i128(
+    literal: &ArgLiteral,
+    instruction_name: &str,
+    arg_name: &str,
+    target_ty: &str,
+) -> Result<i128> {
+    match literal {
+        ArgLiteral::Int(v) => Ok(i128::from(*v)),
+        other => bail!(
+            "instruction `{instruction_name}` arg `{arg_name}` declared as `{target_ty}` \
+             but literal was `{other:?}`; expected an integer"
         ),
     }
 }
@@ -987,7 +1146,7 @@ fn decode_value(
         GenericTypeRef::Primitive(name) if name == "bool" => {
             Ok(GenericValue::Bool(cursor.read_bool()?))
         }
-        GenericTypeRef::Primitive(name) if name == "pubkey" => {
+        GenericTypeRef::Primitive(name) if is_pubkey_type_name(name) => {
             Ok(GenericValue::Pubkey(cursor.read_pubkey()?))
         }
         GenericTypeRef::Primitive(name) if name == "string" => {
@@ -1339,7 +1498,11 @@ impl GenericHarness {
             .with_sysvars()
             .with_lamports(base_lamports);
 
-        let program_id = resolve_generic_program_id(&config.program_so)?;
+        let program_id = resolve_generic_program_id(
+            &config.program_so,
+            config.adapter.program_id.as_deref(),
+            idl.address.as_deref(),
+        )?;
         svm.add_program(program_id, &program_bytes)
             .map_err(|error| anyhow!("failed to load generic program into LiteSVM: {error}"))?;
 
@@ -1593,7 +1756,7 @@ impl GenericHarness {
             })?
         } else if let Ok(pubkey) = well_known_pubkey(&account.name) {
             pubkey
-        } else if account.signer && account.name.eq_ignore_ascii_case("admin") {
+        } else if account.signer && is_admin_authority_signer_name(&account.name) {
             self.admin.pubkey()
         } else if account.signer && is_agent_authority_signer_name(&account.name) {
             self.agents
@@ -1608,19 +1771,26 @@ impl GenericHarness {
                 .cloned()
                 .collect();
             known.push("admin".into());
+            known.push("admin_authority".into());
             known.push("authority".into());
             known.push("agent".into());
             known.push("agent_authority".into());
+            known.push("manager_authority".into());
             known.push("owner".into());
+            known.push("payer".into());
+            known.push("token_authority".into());
             known.push("trader".into());
+            known.push("user".into());
+            known.push("user_authority".into());
             known.sort();
             known.dedup();
             bail!(
                 "MissingGenericAccountBinding(instruction={instruction_name}, account={}); \
                  IDL requires signer={} writable={}, but `{}` is not declared under \
                  `[accounts]`, not a recognized signer (`admin`, `authority`, `agent`, \
-                 `agent_authority`, `owner`, or `trader`), and not a well-known program/sysvar account. \
-                 Known bindings/signers: {:?}.",
+                 `admin_authority`, `agent_authority`, `manager_authority`, `owner`, \
+                 `payer`, `token_authority`, `trader`, `user`, or `user_authority`), \
+                 and not a well-known program/sysvar account. Known bindings/signers: {:?}.",
                 account.name,
                 account.signer,
                 account.writable,
@@ -1652,7 +1822,7 @@ impl GenericHarness {
         if instruction
             .accounts
             .iter()
-            .any(|account| account.signer && account.name.eq_ignore_ascii_case("admin"))
+            .any(|account| account.signer && is_admin_authority_signer_name(&account.name))
         {
             Ok(self.admin.insecure_clone())
         } else {
@@ -1669,6 +1839,7 @@ impl GenericHarness {
         payer: &Keypair,
         instruction: Instruction,
     ) -> Result<(), crate::primitive::PrimitiveError> {
+        self.svm.expire_blockhash();
         let blockhash = self.svm.latest_blockhash();
         let tx = Transaction::new_signed_with_payer(
             &[instruction],
@@ -1679,9 +1850,14 @@ impl GenericHarness {
         match self.svm.send_transaction(tx) {
             Ok(_) => Ok(()),
             Err(error) => match error.err {
-                TransactionError::InstructionError(_, _) => Err(
-                    crate::primitive::PrimitiveError::ProgramRejected(format!("{:?}", error.err)),
-                ),
+                TransactionError::InstructionError(_, _) => {
+                    let mut detail = format!("{:?}", error.err);
+                    if !error.meta.logs.is_empty() {
+                        detail.push_str("\nprogram logs:\n");
+                        detail.push_str(&error.meta.pretty_logs());
+                    }
+                    Err(crate::primitive::PrimitiveError::ProgramRejected(detail))
+                }
                 other => Err(crate::primitive::PrimitiveError::Infra(format!(
                     "{other:?}"
                 ))),
@@ -1878,6 +2054,21 @@ impl crate::primitive::Primitive for GenericHarness {
                 data,
             },
         )
+    }
+
+    fn action_event_params(
+        &self,
+        action: &str,
+        amount: u64,
+        persona_args: &BTreeMap<String, crate::adapter::ArgLiteral>,
+    ) -> BTreeMap<String, serde_json::Value> {
+        let builder = GenericInstructionBuilder::new(&self.idl, &self.adapter);
+        match builder.build_action_event_params(action, amount, persona_args) {
+            Ok(params) if !params.is_empty() => params,
+            _ => {
+                crate::primitive::lending::default_action_event_params(action, amount, persona_args)
+            }
+        }
     }
 
     fn on_scheduled_action(
@@ -3033,11 +3224,25 @@ fn spl_token_account_data(mint: Pubkey, authority: Pubkey, amount: u64) -> Vec<u
 
 #[cfg(any(feature = "litesvm-backend", test))]
 fn is_agent_authority_signer_name(value: &str) -> bool {
-    value.eq_ignore_ascii_case("authority")
-        || value.eq_ignore_ascii_case("agent")
-        || value.eq_ignore_ascii_case("agent_authority")
-        || value.eq_ignore_ascii_case("owner")
-        || value.eq_ignore_ascii_case("trader")
+    matches!(
+        normalize_idl_name(value).as_str(),
+        "authority"
+            | "agent"
+            | "agentauthority"
+            | "owner"
+            | "tokenauthority"
+            | "trader"
+            | "user"
+            | "userauthority"
+    )
+}
+
+#[cfg(any(feature = "litesvm-backend", test))]
+fn is_admin_authority_signer_name(value: &str) -> bool {
+    matches!(
+        normalize_idl_name(value).as_str(),
+        "admin" | "adminauthority" | "managerauthority" | "payer"
+    )
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
@@ -3168,7 +3373,16 @@ fn resolve_shared_account_owner(
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
-pub(crate) fn resolve_generic_program_id(program_so: &Path) -> Result<Pubkey> {
+pub(crate) fn resolve_generic_program_id(
+    program_so: &Path,
+    adapter_program_id: Option<&str>,
+    idl_program_id: Option<&str>,
+) -> Result<Pubkey> {
+    if let Some(program_id) = adapter_program_id.or(idl_program_id) {
+        return Pubkey::from_str(program_id).map_err(|error| {
+            anyhow!("generic program id `{program_id}` is not a valid base58 pubkey: {error}")
+        });
+    }
     let Some(keypair_path) = sibling_deploy_keypair_path(program_so) else {
         return Ok(Pubkey::new_unique());
     };
@@ -3285,6 +3499,35 @@ triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
         .unwrap()
     }
 
+    #[test]
+    fn resolve_program_id_prefers_adapter_override() {
+        let adapter_id = Pubkey::new_unique();
+        let idl_id = Pubkey::new_unique();
+
+        let resolved = resolve_generic_program_id(
+            Path::new("target/deploy/example.so"),
+            Some(&adapter_id.to_string()),
+            Some(&idl_id.to_string()),
+        )
+        .expect("adapter program id resolves");
+
+        assert_eq!(resolved, adapter_id);
+    }
+
+    #[test]
+    fn resolve_program_id_uses_idl_address_before_keypair_fallback() {
+        let idl_id = Pubkey::new_unique();
+
+        let resolved = resolve_generic_program_id(
+            Path::new("target/deploy/missing-keypair.so"),
+            None,
+            Some(&idl_id.to_string()),
+        )
+        .expect("IDL program id resolves");
+
+        assert_eq!(resolved, idl_id);
+    }
+
     fn anchor_binding_adapter() -> Adapter {
         parse_adapter_str(
             r#"
@@ -3353,6 +3596,192 @@ triggers = []
         let bytes = builder.build_action_data_single_arg("mine", 7).unwrap();
         assert_eq!(&bytes[..8], &[109, 105, 110, 101, 0, 0, 0, 0]);
         assert_eq!(u64::from_le_bytes(bytes[8..16].try_into().unwrap()), 7);
+    }
+
+    #[test]
+    fn parse_legacy_anchor_idl_synthesizes_discriminators() {
+        let idl = parse_generic_idl_str(
+            r#"
+{
+  "version": "0.1.0",
+  "name": "legacy_anchor",
+  "instructions": [
+    {
+      "name": "setValidatorScore",
+      "accounts": [
+        { "name": "managerAuthority", "isSigner": true, "isMut": false }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "State",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "totalScore", "type": "u32" }
+        ]
+      }
+    }
+  ]
+}
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            idl.instructions[0].discriminator,
+            vec![101, 41, 206, 33, 216, 111, 25, 78]
+        );
+        assert_eq!(
+            idl.accounts[0].discriminator.as_deref(),
+            Some(&[216, 146, 107, 94, 104, 75, 182, 177][..])
+        );
+        assert_eq!(
+            account_fields(&idl, &idl.accounts[0]).unwrap()[0].name,
+            "totalScore"
+        );
+        assert!(idl.instructions[0].accounts[0].signer);
+        assert!(!idl.instructions[0].accounts[0].writable);
+    }
+
+    #[test]
+    fn action_dispatch_encodes_wide_integer_literals() {
+        let idl = parse_generic_idl_str(
+            r#"
+{
+  "instructions": [
+    {
+      "name": "swap",
+      "discriminator": [115, 119, 97, 112, 0, 0, 0, 0],
+      "accounts": [],
+      "args": [
+        { "name": "amount", "type": "u64" },
+        { "name": "sqrt_price_limit", "type": "u128" },
+        { "name": "tick_limit", "type": "i128" },
+        { "name": "a_to_b", "type": "bool" }
+      ]
+    }
+  ],
+  "accounts": []
+}
+"#,
+        )
+        .unwrap();
+        let adapter = parse_adapter_str(
+            r#"
+protocol = "generic"
+program_so = "target/deploy/swap.so"
+idl_path = "target/idl/swap.json"
+
+[accounts.dummy]
+kind = "shared"
+space = 8
+
+[accounts.dummy.decoder]
+kind = "layout"
+
+[accounts.dummy.decoder.fields.amount]
+type = "u64"
+offset = 0
+
+[instructions]
+swap = { action = "swap", amount = "amount", args = { sqrt_price_limit = 4295048016, tick_limit = -17, a_to_b = true } }
+
+[state_mapping]
+"dummy.amount" = "dummy.amount"
+
+[actions.swap]
+takes = ["amount"]
+
+[observations]
+"dummy.amount" = "uint"
+
+[personas.swapper]
+action_rate_multiplier = 1
+action_weights = { swap = 1 }
+triggers = []
+"#,
+            "wide-literals.toml",
+        )
+        .unwrap();
+        let builder = GenericInstructionBuilder::new(&idl, &adapter);
+
+        let bytes = builder.build_action_data_single_arg("swap", 7).unwrap();
+        assert_eq!(&bytes[..8], &[115, 119, 97, 112, 0, 0, 0, 0]);
+        assert_eq!(u64::from_le_bytes(bytes[8..16].try_into().unwrap()), 7);
+        assert_eq!(
+            u128::from_le_bytes(bytes[16..32].try_into().unwrap()),
+            4_295_048_016
+        );
+        assert_eq!(i128::from_le_bytes(bytes[32..48].try_into().unwrap()), -17);
+        assert_eq!(bytes[48], 1);
+    }
+
+    #[test]
+    fn action_event_params_report_resolved_idl_args() {
+        let idl = parse_generic_idl_str(
+            r#"
+{
+  "instructions": [
+    {
+      "name": "add_collateral",
+      "discriminator": [1, 2, 3, 4, 5, 6, 7, 8],
+      "accounts": [],
+      "args": [{ "name": "collateral", "type": "u64" }]
+    }
+  ],
+  "accounts": []
+}
+"#,
+        )
+        .unwrap();
+        let adapter = parse_adapter_str(
+            r#"
+protocol = "generic"
+program_so = "target/deploy/perpetuals.so"
+idl_path = "target/idl/perpetuals.json"
+
+[accounts.dummy]
+kind = "shared"
+space = 8
+
+[instructions.add_collateral]
+action = "add_collateral"
+args = { collateral = "@persona.collateral" }
+
+[state_mapping]
+"dummy.amount" = "dummy.amount"
+
+[actions.add_collateral]
+takes = ["collateral"]
+
+[observations]
+"dummy.amount" = "uint"
+
+[personas.builder]
+action_rate_multiplier = 1
+action_weights = { add_collateral = 1 }
+triggers = []
+persona_args = { collateral = 5000 }
+"#,
+            "perps-event-params.toml",
+        )
+        .unwrap();
+        let builder = GenericInstructionBuilder::new(&idl, &adapter);
+        let mut persona_args = BTreeMap::new();
+        persona_args.insert("collateral".to_string(), ArgLiteral::Int(5000));
+
+        let params = builder
+            .build_action_event_params("add_collateral", 1, &persona_args)
+            .unwrap();
+
+        assert_eq!(
+            params.get("collateral"),
+            Some(&serde_json::Value::from(5000))
+        );
+        assert!(!params.contains_key("amount"));
     }
 
     #[test]
@@ -3764,6 +4193,7 @@ offset = 4
             agents,
             adapter,
             idl: GenericIdl {
+                address: None,
                 instructions: vec![instruction.clone()],
                 accounts: Vec::new(),
                 types: Vec::new(),
@@ -3812,6 +4242,101 @@ offset = 4
         assert_eq!(trader_meta.pubkey, harness.agents[1].pubkey());
         assert!(trader_meta.is_signer);
         assert!(!trader_meta.is_writable);
+
+        let token_authority_meta = harness
+            .resolve_account_meta(
+                "swap",
+                1,
+                &GenericInstructionAccount {
+                    name: "token_authority".into(),
+                    signer: true,
+                    writable: false,
+                    address: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(token_authority_meta.pubkey, harness.agents[1].pubkey());
+        assert!(token_authority_meta.is_signer);
+
+        let user_authority_meta = harness
+            .resolve_account_meta(
+                "swap",
+                0,
+                &GenericInstructionAccount {
+                    name: "user_authority".into(),
+                    signer: true,
+                    writable: false,
+                    address: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(user_authority_meta.pubkey, harness.agents[0].pubkey());
+        assert!(user_authority_meta.is_signer);
+
+        let user_meta = harness
+            .resolve_account_meta(
+                "swap",
+                0,
+                &GenericInstructionAccount {
+                    name: "user".into(),
+                    signer: true,
+                    writable: true,
+                    address: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(user_meta.pubkey, harness.agents[0].pubkey());
+        assert!(user_meta.is_signer);
+        assert!(user_meta.is_writable);
+
+        let manager_authority_meta = harness
+            .resolve_account_meta(
+                "set_validator_score",
+                0,
+                &GenericInstructionAccount {
+                    name: "manager_authority".into(),
+                    signer: true,
+                    writable: false,
+                    address: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(manager_authority_meta.pubkey, harness.admin.pubkey());
+        assert!(manager_authority_meta.is_signer);
+        assert!(!manager_authority_meta.is_writable);
+
+        let camel_manager_authority_meta = harness
+            .resolve_account_meta(
+                "setValidatorScore",
+                0,
+                &GenericInstructionAccount {
+                    name: "managerAuthority".into(),
+                    signer: true,
+                    writable: false,
+                    address: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(camel_manager_authority_meta.pubkey, harness.admin.pubkey());
+        assert!(camel_manager_authority_meta.is_signer);
+
+        let payer = harness
+            .payer_for_instruction(
+                0,
+                &GenericInstruction {
+                    name: "set_validator_score".into(),
+                    discriminator: Vec::new(),
+                    accounts: vec![GenericInstructionAccount {
+                        name: "managerAuthority".into(),
+                        signer: true,
+                        writable: false,
+                        address: None,
+                    }],
+                    args: Vec::new(),
+                },
+            )
+            .unwrap();
+        assert_eq!(payer.pubkey(), harness.admin.pubkey());
     }
 
     #[test]
@@ -3839,6 +4364,7 @@ offset = 4
             agents,
             adapter,
             idl: GenericIdl {
+                address: None,
                 instructions: Vec::new(),
                 accounts: Vec::new(),
                 types: Vec::new(),
@@ -3911,6 +4437,7 @@ offset = 4
             agents: Vec::new(),
             adapter,
             idl: GenericIdl {
+                address: None,
                 instructions: Vec::new(),
                 accounts: Vec::new(),
                 types: Vec::new(),
@@ -3987,6 +4514,7 @@ offset = 4
             agents,
             adapter,
             idl: GenericIdl {
+                address: None,
                 instructions: Vec::new(),
                 accounts: Vec::new(),
                 types: Vec::new(),
