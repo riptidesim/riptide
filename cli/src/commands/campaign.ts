@@ -178,6 +178,11 @@ function runJson(result: CampaignExecutionResult): Record<string, unknown> {
     created_configs: result.createdConfigs,
     reused_configs: result.reusedConfigs,
     runs_jsonl_path: result.runsJsonlPath,
+    campaign_summary_path: result.artifactPaths.summaryJsonPath,
+    campaign_summary_markdown_path: result.artifactPaths.summaryMarkdownPath,
+    parameters_csv_path: result.artifactPaths.parametersCsvPath,
+    retention_manifest_path: result.artifactPaths.retentionManifestPath,
+    retained_labels: result.retentionManifest.entries,
     last_run_path: result.runSummary.lastRunPath,
     run_collection_path: result.runSummary.runCollectionPath,
     records: result.records
@@ -224,8 +229,18 @@ function renderPlan(spec: CampaignSpec, plan: CampaignExpansionPlan): string {
 
 function renderRun(result: CampaignExecutionResult): string {
   const completed = result.runSummary.pass + result.runSummary.fail;
+  const retainedLabels = result.retentionManifest.entries
+    .map((entry) =>
+      entry.status === "selected"
+        ? `${entry.label}=${entry.run_id}`
+        : `${entry.label}=warning`
+    )
+    .join(", ");
   return [
-    `campaign run: ${result.plan.campaignId}`,
+    `campaign run: ${result.campaignSummary.campaign.name}`,
+    `  class: ${result.campaignSummary.campaign.class}`,
+    `  objective: ${result.campaignSummary.campaign.risk_objective}`,
+    `  campaign id: ${result.plan.campaignId}`,
     `  campaign digest: ${result.plan.campaignDigest}`,
     `  requested runs: ${result.plan.runs.length}`,
     `  completed runs: ${completed}`,
@@ -233,8 +248,11 @@ function renderRun(result: CampaignExecutionResult): string {
     `  setup errors: ${result.runSummary.error}`,
     `  skipped: ${result.runSummary.skipped}`,
     `  generated configs: ${result.createdConfigs} created, ${result.reusedConfigs} reused`,
+    `  retained labels: ${retainedLabels || "(none)"}`,
     `  output dir: ${result.plan.campaignRoot}`,
     `  runs log: ${result.runsJsonlPath}`,
+    `  summary: ${result.artifactPaths.summaryMarkdownPath}`,
+    `  retention manifest: ${result.artifactPaths.retentionManifestPath}`,
     "  claim boundary: no invariant violation observed means no violation observed in this campaign, not proof of complete safety.",
     ""
   ].join("\n");

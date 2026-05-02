@@ -12,6 +12,12 @@ import {
 import type { ScenarioRecord } from "../run/last-run.js";
 
 import {
+  writeCampaignArtifacts,
+  type CampaignArtifactPaths,
+  type CampaignRetentionManifest,
+  type CampaignSummaryJson
+} from "./aggregation.js";
+import {
   buildCampaignExpansion,
   type CampaignExpansionOptions,
   type CampaignExpansionPlan,
@@ -60,6 +66,9 @@ export interface CampaignExecutionResult {
   records: CampaignRunRecord[];
   runSummary: RunSummary;
   runsJsonlPath: string;
+  artifactPaths: CampaignArtifactPaths;
+  campaignSummary: CampaignSummaryJson;
+  retentionManifest: CampaignRetentionManifest;
   createdConfigs: number;
   reusedConfigs: number;
 }
@@ -103,12 +112,23 @@ export async function executeCampaign(
     cwd
   });
   const runsJsonlPath = await writeRunsJsonl(plan.campaignRoot, records);
+  const campaignArtifacts = await writeCampaignArtifacts({
+    spec,
+    plan,
+    records,
+    runSummary,
+    runsJsonlPath,
+    cwd
+  });
 
   return {
     plan,
     records,
     runSummary,
     runsJsonlPath,
+    artifactPaths: campaignArtifacts.paths,
+    campaignSummary: campaignArtifacts.summary,
+    retentionManifest: campaignArtifacts.retentionManifest,
     createdConfigs: materialized.created,
     reusedConfigs: materialized.reused
   };
