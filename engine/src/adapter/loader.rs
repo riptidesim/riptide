@@ -10,10 +10,11 @@ use solana_sdk::pubkey::Pubkey;
 
 use crate::adapter::schema::{
     is_valid_semantic_class, AccountDecoder, AccountKind, Adapter, CollectionFormula,
-    LayoutFieldType, Protocol, ReplayStateSource, SemanticClassRef, SemanticSourceBinding,
-    ACCOUNT_DECODER_PRESETS, LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS,
-    LENDING_V1_REQUIRED_ROLES, ORACLE_KINDS, SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
+    LayoutFieldType, Protocol, ReplayStateSource, SemanticSourceBinding, ACCOUNT_DECODER_PRESETS,
+    LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS, ORACLE_KINDS,
+    SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
 };
+use crate::adapter::schema::{semantic_class_requirements, SemanticClassRequirements};
 use crate::adapter::{errors::ErrorRegistryValidation, validate_error_entries};
 use crate::semantics::derived::{build_derived_order, DerivedObservationError};
 use crate::semantics::expr::parse as parse_semantic_expr;
@@ -72,7 +73,14 @@ pub enum AdapterError {
     MissingRequiredSemanticRole {
         path: String,
         key: String,
+        class: String,
         role: String,
+    },
+    MissingRequiredDerivedObservation {
+        path: String,
+        key: String,
+        class: String,
+        name: String,
     },
     DerivedObservationCycle {
         path: String,
@@ -204,12 +212,31 @@ impl fmt::Display for AdapterError {
                 escape_diagnostic(key),
                 escape_diagnostic(source)
             ),
-            Self::MissingRequiredSemanticRole { path, key, role } => write!(
+            Self::MissingRequiredSemanticRole {
+                path,
+                key,
+                class,
+                role,
+            } => write!(
                 f,
-                "{}: `{}`: missing required role `{}` for `lending.v1`",
+                "{}: `{}`: missing required role `{}` for `{}`",
                 escape_diagnostic(path),
                 escape_diagnostic(key),
-                escape_diagnostic(role)
+                escape_diagnostic(role),
+                escape_diagnostic(class)
+            ),
+            Self::MissingRequiredDerivedObservation {
+                path,
+                key,
+                class,
+                name,
+            } => write!(
+                f,
+                "{}: `{}`: missing required derived observation `{}` for `{}`",
+                escape_diagnostic(path),
+                escape_diagnostic(key),
+                escape_diagnostic(name),
+                escape_diagnostic(class)
             ),
             Self::DerivedObservationCycle { path, key, cycle } => write!(
                 f,
@@ -333,6 +360,7 @@ impl std::error::Error for AdapterError {
             | Self::DuplicateSemanticName { .. }
             | Self::UnknownSemanticSourceBinding { .. }
             | Self::MissingRequiredSemanticRole { .. }
+            | Self::MissingRequiredDerivedObservation { .. }
             | Self::DerivedObservationCycle { .. }
             | Self::UnknownSemanticIdentifier { .. }
             | Self::UnknownOracleRole { .. }
@@ -627,24 +655,13 @@ fn validate_semantics(adapter: &mut Adapter, path: &str) -> Result<(), AdapterEr
             value: class.to_string(),
         });
     }
-    if class != "lending.v1" {
-        return Err(AdapterError::UnknownSemanticClass {
+    let requirements =
+        semantic_class_requirements(class).ok_or_else(|| AdapterError::UnknownSemanticClass {
             path: path.to_string(),
             key: "[semantics].class".into(),
             name: class.to_string(),
-        });
-    }
-    semantics.class_ref = Some(SemanticClassRef::LendingV1);
-
-    for role in LENDING_V1_REQUIRED_ROLES {
-        if !semantics.roles.contains_key(*role) {
-            return Err(AdapterError::MissingRequiredSemanticRole {
-                path: path.to_string(),
-                key: "[semantics.roles]".into(),
-                role: (*role).to_string(),
-            });
-        }
-    }
+        })?;
+    semantics.class_ref = Some(requirements.class_ref);
 
     for (role_name, role) in semantics.roles.iter_mut() {
         check_semantic_name(path, &format!("[semantics.roles].{role_name}"), role_name)?;
@@ -678,6 +695,8 @@ fn validate_semantics(adapter: &mut Adapter, path: &str) -> Result<(), AdapterEr
         expression.span = Some(ast.span);
         expression.ast = Some(ast);
     }
+
+    validate_required_semantic_surface(path, semantics, requirements)?;
 
     let oracle_roles = semantics.oracles.keys().cloned().collect();
     semantics.derived_order = build_derived_order(
@@ -753,6 +772,36 @@ fn validate_semantics(adapter: &mut Adapter, path: &str) -> Result<(), AdapterEr
     Ok(())
 }
 
+fn validate_required_semantic_surface(
+    path: &str,
+    semantics: &crate::adapter::schema::Semantics,
+    requirements: &SemanticClassRequirements,
+) -> Result<(), AdapterError> {
+    for role in requirements.required_roles {
+        if !semantics.roles.contains_key(*role) {
+            return Err(AdapterError::MissingRequiredSemanticRole {
+                path: path.to_string(),
+                key: "[semantics.roles]".into(),
+                class: requirements.class.to_string(),
+                role: (*role).to_string(),
+            });
+        }
+    }
+
+    for name in requirements.required_derived {
+        if !semantics.derived.contains_key(*name) {
+            return Err(AdapterError::MissingRequiredDerivedObservation {
+                path: path.to_string(),
+                key: "[semantics.derived]".into(),
+                class: requirements.class.to_string(),
+                name: (*name).to_string(),
+            });
+        }
+    }
+
+    Ok(())
+}
+
 fn validate_semantics_oracles(
     semantics: &mut crate::adapter::schema::Semantics,
     path: &str,
@@ -763,14 +812,14 @@ fn validate_semantics_oracles(
             return Err(AdapterError::UnknownOracleRole {
                 path: path.to_string(),
                 key: format!("[semantics.oracles].{role}"),
-                role: role.to_string(),
+                role: role.clone(),
             });
         }
         if bindings.is_empty() {
             return Err(AdapterError::MultiOracleArityMismatch {
                 path: path.to_string(),
                 key: format!("[semantics.oracles].{role}"),
-                role: role.to_string(),
+                role: role.clone(),
                 expected: 1,
                 found: 0,
             });
@@ -790,14 +839,14 @@ fn validate_semantics_oracles(
             check_ident(path, &format!("{key}.staleness"), &binding.staleness)?;
             if let Some(weight) = binding.weight {
                 weight_count += 1;
-                weight_sum = weight_sum.saturating_add(weight as u128);
+                weight_sum += u128::from(weight);
             }
         }
         if weight_count > 0 && weight_count != bindings.len() {
             return Err(AdapterError::MultiOracleArityMismatch {
                 path: path.to_string(),
                 key: format!("[semantics.oracles].{role}.weight"),
-                role: role.to_string(),
+                role: role.clone(),
                 expected: bindings.len(),
                 found: weight_count,
             });
@@ -806,7 +855,7 @@ fn validate_semantics_oracles(
             return Err(AdapterError::MultiOracleWeightsAllZero {
                 path: path.to_string(),
                 key: format!("[semantics.oracles].{role}.weight"),
-                role: role.to_string(),
+                role: role.clone(),
             });
         }
     }
@@ -2333,7 +2382,9 @@ fn validate_trigger_condition(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapter::schema::{InstructionMapping, ObservationType, Protocol, LENDING_ACTIONS};
+    use crate::adapter::schema::{
+        InstructionMapping, ObservationType, Protocol, SemanticClassRef, LENDING_ACTIONS,
+    };
 
     fn sample_lending_toml() -> &'static str {
         r#"
@@ -2469,6 +2520,37 @@ health_factor = "collateral_value / max(debt_value, 1)"
         )
     }
 
+    fn sample_generic_semantic_class_toml(
+        class: &str,
+        omit_role: Option<&str>,
+        omit_derived: Option<&str>,
+    ) -> String {
+        let requirements = semantic_class_requirements(class).expect("known semantic class");
+        let mut toml = format!(
+            "{}\n[semantics]\nclass = \"{}\"\n\n",
+            sample_generic_toml(),
+            class
+        );
+
+        for role in requirements.required_roles {
+            if omit_role == Some(*role) {
+                continue;
+            }
+            toml.push_str(&format!(
+                "[semantics.roles.{role}]\nsource = \"account.player\"\nfields.amount = \"u128\"\n\n"
+            ));
+        }
+
+        toml.push_str("[semantics.derived]\n");
+        for name in requirements.required_derived {
+            if omit_derived == Some(*name) {
+                continue;
+            }
+            toml.push_str(&format!("{name} = \"1\"\n"));
+        }
+        toml
+    }
+
     #[test]
     fn parses_lending_adapter() {
         let adapter = parse_adapter_str(sample_lending_toml(), "test.toml").unwrap();
@@ -2594,6 +2676,93 @@ protocol = "lending"
             .derived_order
             .iter()
             .any(|name| name == "health_factor"));
+    }
+
+    #[test]
+    fn parses_new_semantic_classes_with_minimal_required_surface() {
+        let cases = [
+            ("amm.v1", SemanticClassRef::AmmV1),
+            ("perps-margin.v1", SemanticClassRef::PerpsMarginV1),
+            ("lst.v1", SemanticClassRef::LstV1),
+            ("stablecoin.v1", SemanticClassRef::StablecoinV1),
+        ];
+
+        for (class, class_ref) in cases {
+            let toml = sample_generic_semantic_class_toml(class, None, None);
+            let adapter = parse_adapter_str(&toml, &format!("{class}.toml"))
+                .unwrap_or_else(|err| panic!("{class} should parse: {err}"));
+            let semantics = adapter.semantics.expect("semantics present");
+
+            assert_eq!(semantics.class.as_deref(), Some(class));
+            assert_eq!(semantics.class_ref, Some(class_ref));
+            assert_eq!(
+                semantics.derived.len(),
+                semantic_class_requirements(class)
+                    .expect("known class")
+                    .required_derived
+                    .len()
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_new_semantic_classes_missing_required_role() {
+        for class in ["amm.v1", "perps-margin.v1", "lst.v1", "stablecoin.v1"] {
+            let requirements = semantic_class_requirements(class).expect("known class");
+            let missing = requirements.required_roles[0];
+            let toml = sample_generic_semantic_class_toml(class, Some(missing), None);
+            let err = parse_adapter_str(&toml, &format!("{class}-missing-role.toml"))
+                .expect_err("missing required role should fail");
+
+            let AdapterError::MissingRequiredSemanticRole {
+                class: actual_class,
+                role,
+                ..
+            } = err
+            else {
+                panic!("expected MissingRequiredSemanticRole for {class}, got {err}");
+            };
+            assert_eq!(actual_class, class);
+            assert_eq!(role, missing);
+        }
+    }
+
+    #[test]
+    fn rejects_new_semantic_classes_missing_required_derived_observation() {
+        for class in ["amm.v1", "perps-margin.v1", "lst.v1", "stablecoin.v1"] {
+            let requirements = semantic_class_requirements(class).expect("known class");
+            let missing = requirements.required_derived[0];
+            let toml = sample_generic_semantic_class_toml(class, None, Some(missing));
+            let err = parse_adapter_str(&toml, &format!("{class}-missing-derived.toml"))
+                .expect_err("missing required derived observation should fail");
+
+            let AdapterError::MissingRequiredDerivedObservation {
+                class: actual_class,
+                name,
+                ..
+            } = err
+            else {
+                panic!("expected MissingRequiredDerivedObservation for {class}, got {err}");
+            };
+            assert_eq!(actual_class, class);
+            assert_eq!(name, missing);
+        }
+    }
+
+    #[test]
+    fn rejects_lending_v1_missing_required_derived_observation() {
+        let toml = sample_generic_lending_v1_toml().replace(
+            "health_factor = \"collateral_value / max(debt_value, 1)\"\n",
+            "",
+        );
+        let err = parse_adapter_str(&toml, "generic-lending-missing-derived.toml")
+            .expect_err("lending.v1 missing required derived observation should fail");
+
+        let AdapterError::MissingRequiredDerivedObservation { class, name, .. } = err else {
+            panic!("expected MissingRequiredDerivedObservation, got {err}");
+        };
+        assert_eq!(class, "lending.v1");
+        assert_eq!(name, "health_factor");
     }
 
     #[test]

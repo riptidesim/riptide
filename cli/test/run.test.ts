@@ -459,6 +459,12 @@ fields.price = "i64"
 source = "account.position"
 fields.close_factor_bps = "u64"
 
+[semantics.derived]
+collateral_value = "position.health_factor"
+debt_value = "1"
+max_borrow_value = "position.health_factor"
+health_factor = "position.health_factor"
+
 [[semantics.invariants]]
 name = "health_factor_above_one"
 expr = "health_factor >= 1"

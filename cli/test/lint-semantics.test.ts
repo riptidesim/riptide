@@ -7,7 +7,13 @@ import path from "node:path";
 import { runAdapt } from "../src/commands/adapt.js";
 import { runLint } from "../src/commands/lint.js";
 import { lintSemantics } from "../src/lint/semantics.js";
-import type { Adapter, Semantics } from "../src/schemas/adapter.js";
+import {
+  SEMANTIC_CLASS_REQUIREMENTS,
+  SUPPORTED_SEMANTIC_CLASSES,
+  type Adapter,
+  type SemanticClass,
+  type Semantics,
+} from "../src/schemas/adapter.js";
 import type { SmokeTestResult } from "../src/adapt/smoke.js";
 
 const BASE_SEMANTICS: Semantics = {
@@ -107,6 +113,26 @@ function cloneSemantics(): Semantics {
   return structuredClone(BASE_SEMANTICS);
 }
 
+function minimalSemanticsForClass(className: SemanticClass): Semantics {
+  const requirements = SEMANTIC_CLASS_REQUIREMENTS[className];
+  return {
+    class: className,
+    roles: Object.fromEntries(
+      requirements.requiredRoles.map((role) => [
+        role,
+        { source: "account.reserve", fields: { amount: "u128" } },
+      ])
+    ),
+    derived: Object.fromEntries(
+      requirements.requiredDerived.map((name) => [name, "1"])
+    ),
+    invariants: [],
+    extensions: {},
+    oracles: {},
+    collections: {},
+  };
+}
+
 function findingCodes(findings: ReturnType<typeof lintSemantics>): string[] {
   return findings.map((finding) => finding.code);
 }
@@ -167,6 +193,43 @@ test("semantics lint: missing required derived observation fails", () => {
   assert.ok(findingCodes(findings).includes("semantics-missing-required-derived"));
   assert.match(findings.find((f) => f.code === "semantics-missing-required-derived")?.subject ?? "", /health_factor/);
 });
+
+for (const className of SUPPORTED_SEMANTIC_CLASSES.filter(
+  (value) => value !== "lending.v1"
+)) {
+  test(`semantics lint: accepts minimal ${className} semantic surface`, () => {
+    const findings = lintSemantics(baseAdapter(minimalSemanticsForClass(className)));
+
+    assert.equal(findings[0]?.code, "semantics-clean");
+    assert.ok(findings.every((finding) => finding.level !== "fail"));
+  });
+
+  test(`semantics lint: ${className} missing required role fails`, () => {
+    const semantics = minimalSemanticsForClass(className);
+    const missing = SEMANTIC_CLASS_REQUIREMENTS[className].requiredRoles[0]!;
+    delete semantics.roles[missing];
+
+    const findings = lintSemantics(baseAdapter(semantics));
+    const finding = findings.find((f) => f.code === "semantics-missing-required-role");
+
+    assert.ok(finding, `expected missing role finding, got ${JSON.stringify(findings)}`);
+    assert.match(finding.message, new RegExp(`missing required role \`${missing}\``));
+    assert.match(finding.message, new RegExp(className.replace(".", "\\.")));
+  });
+
+  test(`semantics lint: ${className} missing required derived observation fails`, () => {
+    const semantics = minimalSemanticsForClass(className);
+    const missing = SEMANTIC_CLASS_REQUIREMENTS[className].requiredDerived[0]!;
+    delete semantics.derived[missing];
+
+    const findings = lintSemantics(baseAdapter(semantics));
+    const finding = findings.find((f) => f.code === "semantics-missing-required-derived");
+
+    assert.ok(finding, `expected missing derived finding, got ${JSON.stringify(findings)}`);
+    assert.match(finding.subject, new RegExp(missing));
+    assert.match(finding.message, new RegExp(className.replace(".", "\\.")));
+  });
+}
 
 test("semantics lint: malformed derived expression fails", () => {
   const semantics = cloneSemantics();

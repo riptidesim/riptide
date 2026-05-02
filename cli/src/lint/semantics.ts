@@ -1,18 +1,12 @@
 import type { Adapter, Semantics } from "../schemas/adapter.js";
 import {
-  LENDING_V1_REQUIRED_ROLES,
   SEMANTIC_CLASS_RE,
+  SEMANTIC_CLASS_REQUIREMENTS,
   SEMANTIC_CLASS_RE_SOURCE,
   SUPPORTED_SEMANTIC_CLASSES,
+  isSupportedSemanticClass,
 } from "../schemas/adapter.js";
 import type { LintFinding } from "./index.js";
-
-const LENDING_V1_REQUIRED_DERIVED = [
-  "collateral_value",
-  "debt_value",
-  "max_borrow_value",
-  "health_factor",
-] as const;
 
 type ExprPath = string[];
 
@@ -26,7 +20,7 @@ export function lintSemantics(adapter: Adapter): LintFinding[] {
 
   const findings: LintFinding[] = [];
   lintSemanticClass(adapter, semantics, findings);
-  lintRequiredLendingV1Surface(semantics, findings);
+  lintRequiredSemanticSurface(semantics, findings);
   lintDerivedExpressions(semantics, findings);
   lintInvariantExpressions(semantics, findings);
 
@@ -36,7 +30,7 @@ export function lintSemantics(adapter: Adapter): LintFinding[] {
       code: "semantics-clean",
       subject: `[semantics].class = "${semantics.class ?? "(missing)"}"`,
       message:
-        "economic semantic class, required lending.v1 roles, required derived observations, expressions, and derived dependency graph are valid; runtime remains selected by program_so + idl_path or the protocol backcompat hint.",
+        `economic semantic class, required ${semantics.class} roles, required derived observations, expressions, and derived dependency graph are valid; runtime remains selected by program_so + idl_path or the protocol backcompat hint.`,
     });
   }
 
@@ -68,43 +62,44 @@ function lintSemanticClass(
     );
     return;
   }
-  if (!SUPPORTED_SEMANTIC_CLASSES.includes(semantics.class as "lending.v1")) {
+  if (!isSupportedSemanticClass(semantics.class)) {
     fail(
       findings,
       "semantics-unknown-class",
       "[semantics].class",
       `UnknownSemanticClass(${semantics.class}); supported semantic classes: ${SUPPORTED_SEMANTIC_CLASSES.join(", ")}.`,
-      'Use `class = "lending.v1"` or defer this adapter until its semantic class is implemented.'
+      `Use one of: ${SUPPORTED_SEMANTIC_CLASSES.join(", ")}.`
     );
     return;
   }
 }
 
-function lintRequiredLendingV1Surface(
+function lintRequiredSemanticSurface(
   semantics: Semantics,
   findings: LintFinding[]
 ): void {
-  if (semantics.class !== "lending.v1") return;
+  if (semantics.class === undefined || !isSupportedSemanticClass(semantics.class)) return;
 
-  for (const role of LENDING_V1_REQUIRED_ROLES) {
+  const requirements = SEMANTIC_CLASS_REQUIREMENTS[semantics.class];
+  for (const role of requirements.requiredRoles) {
     if (!(role in semantics.roles)) {
       fail(
         findings,
         "semantics-missing-required-role",
         `[semantics.roles].${role}`,
-        `missing required role \`${role}\` for \`lending.v1\`.`,
+        `missing required role \`${role}\` for \`${semantics.class}\`.`,
         `Add [semantics.roles.${role}] with a source binding and typed fields.`
       );
     }
   }
 
-  for (const name of LENDING_V1_REQUIRED_DERIVED) {
+  for (const name of requirements.requiredDerived) {
     if (!(name in semantics.derived)) {
       fail(
         findings,
         "semantics-missing-required-derived",
         `[semantics.derived].${name}`,
-        `missing required derived observation \`${name}\` for \`lending.v1\`.`,
+        `missing required derived observation \`${name}\` for \`${semantics.class}\`.`,
         `Add \`${name} = "<expression>"\` under [semantics.derived].`
       );
     }

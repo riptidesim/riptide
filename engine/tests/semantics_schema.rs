@@ -196,7 +196,7 @@ fn semantics_schema_rejects_malformed_class_string() {
 
 #[test]
 fn semantics_schema_rejects_unknown_class() {
-    let toml = valid_semantics_toml().replace("lending.v1", "amm.v1");
+    let toml = valid_semantics_toml().replace("lending.v1", "vault.v1");
     let err = parse_adapter_str(&toml, "semantics.toml").unwrap_err();
     assert!(matches!(err, AdapterError::UnknownSemanticClass { .. }));
 }

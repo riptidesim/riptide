@@ -27,13 +27,123 @@ export const LENDING_OBSERVATIONS = [
 // `engine/src/adapter/schema.rs::SEMANTIC_CLASS_RE`.
 export const SEMANTIC_CLASS_RE_SOURCE = "^[a-z][a-z0-9-]*\\.v[0-9]+$";
 export const SEMANTIC_CLASS_RE = new RegExp(SEMANTIC_CLASS_RE_SOURCE);
-export const SUPPORTED_SEMANTIC_CLASSES = ["lending.v1"] as const;
+export const SUPPORTED_SEMANTIC_CLASSES = [
+  "lending.v1",
+  "amm.v1",
+  "perps-margin.v1",
+  "lst.v1",
+  "stablecoin.v1",
+] as const;
+export type SemanticClass = (typeof SUPPORTED_SEMANTIC_CLASSES)[number];
 export const LENDING_V1_REQUIRED_ROLES = [
   "position",
   "reserve",
   "oracle",
   "liquidation_config",
 ] as const;
+export const LENDING_V1_REQUIRED_DERIVED = [
+  "collateral_value",
+  "debt_value",
+  "max_borrow_value",
+  "health_factor",
+] as const;
+export const AMM_V1_REQUIRED_ROLES = [
+  "pool",
+  "reserve_a",
+  "reserve_b",
+  "lp_supply",
+  "fee_config",
+] as const;
+export const AMM_V1_REQUIRED_DERIVED = [
+  "spot_price",
+  "liquidity_value",
+  "lp_share_value",
+  "reserve_ratio",
+  "constant_product",
+  "price_impact_bps",
+] as const;
+export const PERPS_MARGIN_V1_REQUIRED_ROLES = [
+  "margin_account",
+  "collateral",
+  "perp_position",
+  "oracle",
+  "funding_config",
+  "liquidation_config",
+  "insurance_fund",
+] as const;
+export const PERPS_MARGIN_V1_REQUIRED_DERIVED = [
+  "account_equity",
+  "unrealized_pnl",
+  "initial_margin_requirement",
+  "maintenance_margin_requirement",
+  "margin_ratio",
+  "liquidation_buffer",
+  "funding_payment",
+  "insurance_coverage",
+] as const;
+export const LST_V1_REQUIRED_ROLES = [
+  "pool",
+  "underlying_reserve",
+  "lst_mint",
+  "exchange_rate_config",
+  "withdrawal_queue",
+] as const;
+export const LST_V1_REQUIRED_DERIVED = [
+  "total_assets",
+  "lst_supply",
+  "exchange_rate",
+  "reserve_buffer",
+  "withdrawal_queue_pressure",
+  "claim_coverage_ratio",
+  "slash_loss_bps",
+] as const;
+export const STABLECOIN_V1_REQUIRED_ROLES = [
+  "collateral_pool",
+  "liabilities",
+  "oracle",
+  "redemption_queue",
+  "backing_module",
+  "peg_config",
+] as const;
+export const STABLECOIN_V1_REQUIRED_DERIVED = [
+  "collateral_value",
+  "liability_value",
+  "backing_ratio",
+  "collateralization_ratio",
+  "redemption_pressure",
+  "redemption_coverage_ratio",
+  "peg_deviation_bps",
+  "hedge_gap_value",
+] as const;
+export type SemanticClassRequirements = {
+  requiredRoles: readonly string[];
+  requiredDerived: readonly string[];
+};
+export const SEMANTIC_CLASS_REQUIREMENTS = {
+  "lending.v1": {
+    requiredRoles: LENDING_V1_REQUIRED_ROLES,
+    requiredDerived: LENDING_V1_REQUIRED_DERIVED,
+  },
+  "amm.v1": {
+    requiredRoles: AMM_V1_REQUIRED_ROLES,
+    requiredDerived: AMM_V1_REQUIRED_DERIVED,
+  },
+  "perps-margin.v1": {
+    requiredRoles: PERPS_MARGIN_V1_REQUIRED_ROLES,
+    requiredDerived: PERPS_MARGIN_V1_REQUIRED_DERIVED,
+  },
+  "lst.v1": {
+    requiredRoles: LST_V1_REQUIRED_ROLES,
+    requiredDerived: LST_V1_REQUIRED_DERIVED,
+  },
+  "stablecoin.v1": {
+    requiredRoles: STABLECOIN_V1_REQUIRED_ROLES,
+    requiredDerived: STABLECOIN_V1_REQUIRED_DERIVED,
+  },
+} as const satisfies Record<SemanticClass, SemanticClassRequirements>;
+export function isSupportedSemanticClass(value: string): value is SemanticClass {
+  return (SUPPORTED_SEMANTIC_CLASSES as readonly string[]).includes(value);
+}
 export const COLLECTION_FORMULAS = ["sum", "min", "max", "worst"] as const;
 export const REPLAY_STATE_SOURCES = ["fixture", "mainnet-rpc"] as const;
 
@@ -574,15 +684,23 @@ function validateSemantics(adapter: Adapter, path: string): void {
       `${path}: \`[semantics].class\`: malformed semantic class string \`${escapeDiagnostic(semantics.class)}\`; expected regex \`${SEMANTIC_CLASS_RE_SOURCE}\``
     );
   }
-  if (!SUPPORTED_SEMANTIC_CLASSES.includes(semantics.class as (typeof SUPPORTED_SEMANTIC_CLASSES)[number])) {
+  if (!isSupportedSemanticClass(semantics.class)) {
     throw new Error(
       `${path}: \`[semantics].class\`: UnknownSemanticClass(${escapeDiagnostic(semantics.class)}); supported semantic classes: ${JSON.stringify(SUPPORTED_SEMANTIC_CLASSES)}`
     );
   }
-  for (const role of LENDING_V1_REQUIRED_ROLES) {
+  const requirements = SEMANTIC_CLASS_REQUIREMENTS[semantics.class];
+  for (const role of requirements.requiredRoles) {
     if (!(role in semantics.roles)) {
       throw new Error(
-        `${path}: \`[semantics.roles]\`: missing required role \`${role}\` for \`lending.v1\``
+        `${path}: \`[semantics.roles]\`: missing required role \`${role}\` for \`${semantics.class}\``
+      );
+    }
+  }
+  for (const name of requirements.requiredDerived) {
+    if (!(name in semantics.derived)) {
+      throw new Error(
+        `${path}: \`[semantics.derived]\`: missing required derived observation \`${name}\` for \`${semantics.class}\``
       );
     }
   }

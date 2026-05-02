@@ -20,7 +20,10 @@ import {
   AdapterSchema,
   LENDING_ACTIONS,
   LENDING_OBSERVATIONS,
+  SEMANTIC_CLASS_REQUIREMENTS,
   SEMANTIC_CLASS_RE_SOURCE,
+  SUPPORTED_SEMANTIC_CLASSES,
+  type SemanticClass,
   resolveAdapterRuntime,
   validateAdapter,
 } from "../src/schemas/adapter.js";
@@ -250,6 +253,51 @@ function minimalGenericAdapterWithLendingSemantics(): unknown {
   };
 }
 
+function minimalGenericAdapterWithSemanticClass(className: SemanticClass): unknown {
+  const requirements = SEMANTIC_CLASS_REQUIREMENTS[className];
+  const roles = Object.fromEntries(
+    requirements.requiredRoles.map((role) => [
+      role,
+      { source: "account.position", fields: { amount: "u128" } },
+    ])
+  );
+  const derived = Object.fromEntries(
+    requirements.requiredDerived.map((name) => [name, "1"])
+  );
+
+  return {
+    protocol: "generic",
+    program_so: "target/deploy/semantic.so",
+    idl_path: "target/idl/semantic.json",
+    accounts: {
+      position: { kind: "agent", space: 128 },
+    },
+    instructions: {
+      observe: { action: "observe" },
+    },
+    state_mapping: {
+      "position.amount": "position.amount",
+    },
+    actions: {
+      observe: { takes: [] },
+    },
+    observations: {
+      "position.amount": "uint",
+    },
+    personas: {
+      observer: {
+        action_rate_multiplier: 1,
+        action_weights: { observe: 1 },
+      },
+    },
+    semantics: {
+      class: className,
+      roles,
+      derived,
+    },
+  };
+}
+
 test("AdapterSchema accepts semantics block and defaults invariant severity", () => {
   const adapter = validateAdapter(minimalLendingAdapterWithSemantics(), "semantics.toml");
 
@@ -269,6 +317,43 @@ test("AdapterSchema accepts generic SBF/IDL runtime with lending.v1 economic sem
   assert.equal(adapter.idl_path, "target/idl/lending.json");
   assert.equal(adapter.semantics?.class, "lending.v1");
 });
+
+for (const className of SUPPORTED_SEMANTIC_CLASSES.filter(
+  (value) => value !== "lending.v1"
+)) {
+  test(`AdapterSchema accepts minimal ${className} semantic surface`, () => {
+    const adapter = validateAdapter(
+      minimalGenericAdapterWithSemanticClass(className),
+      `${className}.toml`
+    );
+
+    assert.equal(adapter.semantics?.class, className);
+  });
+
+  test(`AdapterSchema rejects ${className} missing a required role`, () => {
+    const raw = minimalGenericAdapterWithSemanticClass(className) as any;
+    const missing = SEMANTIC_CLASS_REQUIREMENTS[className].requiredRoles[0]!;
+    delete raw.semantics.roles[missing];
+
+    assert.throws(
+      () => validateAdapter(raw, `${className}-missing-role.toml`),
+      new RegExp(`missing required role \`${missing}\` for \`${className.replace(".", "\\.")}\``)
+    );
+  });
+
+  test(`AdapterSchema rejects ${className} missing a required derived observation`, () => {
+    const raw = minimalGenericAdapterWithSemanticClass(className) as any;
+    const missing = SEMANTIC_CLASS_REQUIREMENTS[className].requiredDerived[0]!;
+    delete raw.semantics.derived[missing];
+
+    assert.throws(
+      () => validateAdapter(raw, `${className}-missing-derived.toml`),
+      new RegExp(
+        `missing required derived observation \`${missing}\` for \`${className.replace(".", "\\.")}\``
+      )
+    );
+  });
+}
 
 test("AdapterSchema infers generic runtime from program_so and idl_path when protocol is omitted", () => {
   const raw = minimalGenericAdapterWithLendingSemantics() as any;
@@ -315,7 +400,7 @@ test("AdapterSchema rejects malformed semantics shapes", () => {
     /malformed semantic class/
   );
   assert.throws(
-    () => validateAdapter(minimalLendingAdapterWithSemantics({ class: "amm.v1" }), "semantics.toml"),
+    () => validateAdapter(minimalLendingAdapterWithSemantics({ class: "vault.v1" }), "semantics.toml"),
     /UnknownSemanticClass/
   );
 

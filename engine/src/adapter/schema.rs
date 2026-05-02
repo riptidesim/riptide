@@ -545,14 +545,161 @@ fn has_non_empty_runtime_path(value: Option<&str>) -> bool {
 /// Regex string mirrored exactly by `cli/src/schemas/adapter.ts`.
 pub const SEMANTIC_CLASS_RE: &str = "^[a-z][a-z0-9-]*\\.v[0-9]+$";
 
-pub const SUPPORTED_SEMANTIC_CLASSES: &[&str] = &["lending.v1"];
+pub const SUPPORTED_SEMANTIC_CLASSES: &[&str] = &[
+    "lending.v1",
+    "amm.v1",
+    "perps-margin.v1",
+    "lst.v1",
+    "stablecoin.v1",
+];
 
 pub const LENDING_V1_REQUIRED_ROLES: &[&str] =
     &["position", "reserve", "oracle", "liquidation_config"];
 
+pub const LENDING_V1_REQUIRED_DERIVED: &[&str] = &[
+    "collateral_value",
+    "debt_value",
+    "max_borrow_value",
+    "health_factor",
+];
+
+pub const AMM_V1_REQUIRED_ROLES: &[&str] =
+    &["pool", "reserve_a", "reserve_b", "lp_supply", "fee_config"];
+
+pub const AMM_V1_REQUIRED_DERIVED: &[&str] = &[
+    "spot_price",
+    "liquidity_value",
+    "lp_share_value",
+    "reserve_ratio",
+    "constant_product",
+    "price_impact_bps",
+];
+
+pub const PERPS_MARGIN_V1_REQUIRED_ROLES: &[&str] = &[
+    "margin_account",
+    "collateral",
+    "perp_position",
+    "oracle",
+    "funding_config",
+    "liquidation_config",
+    "insurance_fund",
+];
+
+pub const PERPS_MARGIN_V1_REQUIRED_DERIVED: &[&str] = &[
+    "account_equity",
+    "unrealized_pnl",
+    "initial_margin_requirement",
+    "maintenance_margin_requirement",
+    "margin_ratio",
+    "liquidation_buffer",
+    "funding_payment",
+    "insurance_coverage",
+];
+
+pub const LST_V1_REQUIRED_ROLES: &[&str] = &[
+    "pool",
+    "underlying_reserve",
+    "lst_mint",
+    "exchange_rate_config",
+    "withdrawal_queue",
+];
+
+pub const LST_V1_REQUIRED_DERIVED: &[&str] = &[
+    "total_assets",
+    "lst_supply",
+    "exchange_rate",
+    "reserve_buffer",
+    "withdrawal_queue_pressure",
+    "claim_coverage_ratio",
+    "slash_loss_bps",
+];
+
+pub const STABLECOIN_V1_REQUIRED_ROLES: &[&str] = &[
+    "collateral_pool",
+    "liabilities",
+    "oracle",
+    "redemption_queue",
+    "backing_module",
+    "peg_config",
+];
+
+pub const STABLECOIN_V1_REQUIRED_DERIVED: &[&str] = &[
+    "collateral_value",
+    "liability_value",
+    "backing_ratio",
+    "collateralization_ratio",
+    "redemption_pressure",
+    "redemption_coverage_ratio",
+    "peg_deviation_bps",
+    "hedge_gap_value",
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SemanticClassRef {
     LendingV1,
+    AmmV1,
+    PerpsMarginV1,
+    LstV1,
+    StablecoinV1,
+}
+
+impl SemanticClassRef {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::LendingV1 => "lending.v1",
+            Self::AmmV1 => "amm.v1",
+            Self::PerpsMarginV1 => "perps-margin.v1",
+            Self::LstV1 => "lst.v1",
+            Self::StablecoinV1 => "stablecoin.v1",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SemanticClassRequirements {
+    pub class: &'static str,
+    pub class_ref: SemanticClassRef,
+    pub required_roles: &'static [&'static str],
+    pub required_derived: &'static [&'static str],
+}
+
+pub const SEMANTIC_CLASS_REQUIREMENTS: &[SemanticClassRequirements] = &[
+    SemanticClassRequirements {
+        class: "lending.v1",
+        class_ref: SemanticClassRef::LendingV1,
+        required_roles: LENDING_V1_REQUIRED_ROLES,
+        required_derived: LENDING_V1_REQUIRED_DERIVED,
+    },
+    SemanticClassRequirements {
+        class: "amm.v1",
+        class_ref: SemanticClassRef::AmmV1,
+        required_roles: AMM_V1_REQUIRED_ROLES,
+        required_derived: AMM_V1_REQUIRED_DERIVED,
+    },
+    SemanticClassRequirements {
+        class: "perps-margin.v1",
+        class_ref: SemanticClassRef::PerpsMarginV1,
+        required_roles: PERPS_MARGIN_V1_REQUIRED_ROLES,
+        required_derived: PERPS_MARGIN_V1_REQUIRED_DERIVED,
+    },
+    SemanticClassRequirements {
+        class: "lst.v1",
+        class_ref: SemanticClassRef::LstV1,
+        required_roles: LST_V1_REQUIRED_ROLES,
+        required_derived: LST_V1_REQUIRED_DERIVED,
+    },
+    SemanticClassRequirements {
+        class: "stablecoin.v1",
+        class_ref: SemanticClassRef::StablecoinV1,
+        required_roles: STABLECOIN_V1_REQUIRED_ROLES,
+        required_derived: STABLECOIN_V1_REQUIRED_DERIVED,
+    },
+];
+
+pub fn semantic_class_requirements(class: &str) -> Option<&'static SemanticClassRequirements> {
+    SEMANTIC_CLASS_REQUIREMENTS
+        .iter()
+        .find(|requirements| requirements.class == class)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
