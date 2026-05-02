@@ -427,6 +427,7 @@ async function runCell(input: {
     cellDir,
     runConfigPath,
     adapterPath: options.adapterPath,
+    harnessPath: options.harnessPath,
     statePackPath: resolveSweepStatePackPath(
       options.statePackPath,
       raw.state_pack,
@@ -519,6 +520,15 @@ async function writeCellRunConfig(input: {
   cellDir: string;
   runConfigPath: string;
   adapterPath?: string;
+  /**
+   * Absolute path to the harness directory or Cargo.toml the original
+   * sweep was launched with, when applicable. Persisted into the cell
+   * payload so `riptide run --replay <cell>` rebuilds determinism by
+   * spawning the harness binary instead of the plain engine — without
+   * this, replay drops harness setup hooks and the cell's canonical
+   * hash diverges silently.
+   */
+  harnessPath?: string;
   statePackPath?: string;
 }): Promise<void> {
   const parsed = buildSimulateOptions({
@@ -538,6 +548,9 @@ async function writeCellRunConfig(input: {
   };
   if (input.adapterPath) {
     payload.adapter = input.adapterPath;
+  }
+  if (input.harnessPath) {
+    payload.harness = input.harnessPath;
   }
   await writeFile(input.runConfigPath, JSON.stringify(payload, null, 2) + "\n", "utf8");
 }

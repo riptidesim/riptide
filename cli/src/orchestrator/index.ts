@@ -323,13 +323,15 @@ export async function runOrchestrator(
             simulationResult?: SimulationResult;
             exitCode?: number;
             stderrFull?: string;
+            isOrchestratorEngineFailure?: true;
           };
           error.simulationResult = parsed;
           error.exitCode = 1;
           error.stderrFull = stderrFull;
+          error.isOrchestratorEngineFailure = true;
           throw error;
         } catch (readErr) {
-          if ((readErr as Error).message?.startsWith("riptide-engine exited")) {
+          if ((readErr as { isOrchestratorEngineFailure?: boolean }).isOrchestratorEngineFailure) {
             throw readErr;
           }
           // fall through to the generic error below.
@@ -425,12 +427,17 @@ export async function runReplayOrchestrator(
           attachRawJson(parsed, rewritten);
           const error = new Error(
             `riptide-engine replay exited with code 1 — invariant violation(s) recorded.${suffix}`
-          ) as Error & { simulationResult?: SimulationResult; exitCode?: number };
+          ) as Error & {
+            simulationResult?: SimulationResult;
+            exitCode?: number;
+            isOrchestratorEngineFailure?: true;
+          };
           error.simulationResult = parsed;
           error.exitCode = 1;
+          error.isOrchestratorEngineFailure = true;
           throw error;
         } catch (readErr) {
-          if ((readErr as Error).message?.startsWith("riptide-engine replay exited")) {
+          if ((readErr as { isOrchestratorEngineFailure?: boolean }).isOrchestratorEngineFailure) {
             throw readErr;
           }
         }

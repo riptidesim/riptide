@@ -151,6 +151,7 @@ export function createRunCommand(): Command {
               typeof cliOpts.adapter === "string" && cliOpts.adapter.length > 0
                 ? path.resolve(cliOpts.adapter)
                 : undefined,
+            harnessOverride: harnessPath,
             monorepoRoot: monorepoRootFromModule() ?? null,
             silent: !verbose,
             allowInvariantViolations
@@ -324,6 +325,14 @@ interface RunCellReplayInput {
   cwd: string;
   cellDir: string;
   adapterOverride?: string;
+  /**
+   * Optional CLI-side override for the harness path. When unset, the
+   * replay reads the `harness` field persisted by the original sweep
+   * into the cell's run-config.json. The override is here for users
+   * who relocate a cell directory or want to swap harness binaries —
+   * the persisted field is the deterministic default.
+   */
+  harnessOverride?: string;
   monorepoRoot?: string | null;
   silent?: boolean;
   allowInvariantViolations?: boolean;
@@ -340,10 +349,17 @@ export interface RunCellReplayResult {
 export async function replayRunCell(input: RunCellReplayInput): Promise<RunCellReplayResult> {
   const runConfigPath = path.join(input.cellDir, "run-config.json");
   let scenarioName = path.basename(input.cellDir);
+  let persistedHarnessPath: string | undefined;
   try {
-    const raw = JSON.parse(readFileSync(runConfigPath, "utf8")) as { scenario?: unknown };
+    const raw = JSON.parse(readFileSync(runConfigPath, "utf8")) as {
+      scenario?: unknown;
+      harness?: unknown;
+    };
     if (typeof raw.scenario === "string" && raw.scenario.length > 0) {
       scenarioName = raw.scenario;
+    }
+    if (typeof raw.harness === "string" && raw.harness.length > 0) {
+      persistedHarnessPath = raw.harness;
     }
   } catch (err) {
     throw new Error(
@@ -371,11 +387,19 @@ export async function replayRunCell(input: RunCellReplayInput): Promise<RunCellR
     outputPathOverride: input.cellDir
   });
 
+  // Honor an explicit --harness override; otherwise use the path the
+  // original sweep persisted into the cell's run-config. Without this
+  // forwarding, harness sweep cells silently re-execute against the
+  // plain engine binary on replay — bootstrap accounts come up zeroed
+  // and the canonical hash diverges from the original cell.
+  const harnessPath = input.harnessOverride ?? persistedHarnessPath;
+
   const result = await runOrchestrator(build.runConfig, {
     llmUrl: build.simulateOptions.llm_url,
     adapterPath: build.simulateOptions.adapter_path,
     allowInvariantViolations: true,
-    silent: input.silent
+    silent: input.silent,
+    harnessPath
   });
   const artifactPath = await writeArtifacts(result, input.cellDir, {
     narrativeConfig: {
