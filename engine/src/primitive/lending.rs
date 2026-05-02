@@ -66,16 +66,32 @@ pub(crate) fn arg_literal_to_event_value(literal: &crate::adapter::ArgLiteral) -
 pub(crate) fn default_action_event_params(
     _action: &str,
     amount: u64,
-    persona_args: &BTreeMap<String, crate::adapter::ArgLiteral>,
+    _persona_args: &BTreeMap<String, crate::adapter::ArgLiteral>,
 ) -> BTreeMap<String, Value> {
     let mut params = BTreeMap::new();
     params.insert("amount".into(), Value::from(amount));
-    for (key, value) in persona_args {
-        params
-            .entry(key.clone())
-            .or_insert_with(|| arg_literal_to_event_value(value));
-    }
     params
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adapter::ArgLiteral;
+
+    #[test]
+    fn default_action_event_params_preserve_raw_amount_surface() {
+        let persona_args = BTreeMap::from([
+            ("amount_b".to_string(), ArgLiteral::Int(1000)),
+            ("direction".to_string(), ArgLiteral::Int(1)),
+        ]);
+
+        let params = default_action_event_params("swap", 42, &persona_args);
+
+        assert_eq!(params.len(), 1);
+        assert_eq!(params.get("amount"), Some(&Value::from(42)));
+        assert!(!params.contains_key("amount_b"));
+        assert!(!params.contains_key("direction"));
+    }
 }
 
 /// Pool-wide observation. Units follow whatever the on-chain program
@@ -252,9 +268,9 @@ pub trait Primitive {
     }
 
     /// Parameters recorded on the emitted `SimEvent` for an attempted
-    /// action. Lending-style primitives report the runtime amount.
-    /// Generic adapter implementations override this to report the IDL
-    /// args that were actually encoded for the program instruction.
+    /// action. The default keeps the durable raw event surface scoped to
+    /// the runtime amount; primitives can override this when a retuned
+    /// artifact surface explicitly wants richer params.
     fn action_event_params(
         &self,
         action: &str,

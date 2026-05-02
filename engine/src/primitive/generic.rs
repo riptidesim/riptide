@@ -162,8 +162,26 @@ enum GenericValue {
 pub fn parse_generic_idl_str(raw: &str) -> Result<GenericIdl> {
     let raw_value: serde_json::Value =
         serde_json::from_str(raw).context("parse generic IDL JSON")?;
+    let legacy_anchor_instructions = raw_value
+        .get("instructions")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|instructions| {
+            instructions
+                .iter()
+                .any(|instruction| instruction.get("discriminator").is_none())
+        });
+    let legacy_anchor_accounts = raw_value
+        .get("accounts")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|accounts| {
+            accounts.iter().any(|account| {
+                account.get("discriminator").is_none()
+                    && account.get("type").is_some()
+                    && account.get("fields").is_none()
+            })
+        });
     let legacy_anchor_shape =
-        raw_value.get("version").is_some() || raw_value.get("metadata").is_some();
+        raw_value.get("metadata").is_some() || legacy_anchor_instructions || legacy_anchor_accounts;
     let mut idl: GenericIdl =
         serde_json::from_value(raw_value).context("parse generic IDL JSON")?;
     if legacy_anchor_shape {
@@ -369,7 +387,10 @@ fn normalize_legacy_anchor_discriminators(idl: &mut GenericIdl) {
         }
     }
     for account in &mut idl.accounts {
-        if account.discriminator.is_none() {
+        if account.discriminator.is_none()
+            && account.type_def.is_some()
+            && account.fields.is_empty()
+        {
             account.discriminator = Some(anchor_discriminator("account", &account.name));
         }
     }
@@ -1850,14 +1871,9 @@ impl GenericHarness {
         match self.svm.send_transaction(tx) {
             Ok(_) => Ok(()),
             Err(error) => match error.err {
-                TransactionError::InstructionError(_, _) => {
-                    let mut detail = format!("{:?}", error.err);
-                    if !error.meta.logs.is_empty() {
-                        detail.push_str("\nprogram logs:\n");
-                        detail.push_str(&error.meta.pretty_logs());
-                    }
-                    Err(crate::primitive::PrimitiveError::ProgramRejected(detail))
-                }
+                TransactionError::InstructionError(_, _) => Err(
+                    crate::primitive::PrimitiveError::ProgramRejected(format!("{:?}", error.err)),
+                ),
                 other => Err(crate::primitive::PrimitiveError::Infra(format!(
                     "{other:?}"
                 ))),
@@ -2062,13 +2078,7 @@ impl crate::primitive::Primitive for GenericHarness {
         amount: u64,
         persona_args: &BTreeMap<String, crate::adapter::ArgLiteral>,
     ) -> BTreeMap<String, serde_json::Value> {
-        let builder = GenericInstructionBuilder::new(&self.idl, &self.adapter);
-        match builder.build_action_event_params(action, amount, persona_args) {
-            Ok(params) if !params.is_empty() => params,
-            _ => {
-                crate::primitive::lending::default_action_event_params(action, amount, persona_args)
-            }
-        }
+        crate::primitive::lending::default_action_event_params(action, amount, persona_args)
     }
 
     fn on_scheduled_action(
@@ -3644,6 +3654,116 @@ triggers = []
         );
         assert!(idl.instructions[0].accounts[0].signer);
         assert!(!idl.instructions[0].accounts[0].writable);
+    }
+
+    #[test]
+    fn parse_legacy_anchor_account_only_idl_synthesizes_discriminators() {
+        let idl = parse_generic_idl_str(
+            r#"
+{
+  "version": "0.1.0",
+  "name": "legacy_anchor_accounts",
+  "instructions": [],
+  "accounts": [
+    {
+      "name": "State",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "totalScore", "type": "u32" }
+        ]
+      }
+    }
+  ]
+}
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            idl.accounts[0].discriminator.as_deref(),
+            Some(&[216, 146, 107, 94, 104, 75, 182, 177][..])
+        );
+        assert_eq!(
+            account_fields(&idl, &idl.accounts[0]).unwrap()[0].name,
+            "totalScore"
+        );
+    }
+
+    #[test]
+    fn parse_versioned_fixture_idl_keeps_plain_borsh_accounts() {
+        let idl = parse_generic_idl_str(
+            r#"
+{
+  "version": "0.1.0",
+  "name": "plain_fixture",
+  "instructions": [
+    {
+      "name": "deposit",
+      "discriminator": [1],
+      "accounts": [
+        { "name": "position", "signer": false, "writable": true }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "position",
+      "fields": [
+        { "name": "is_initialized", "type": "bool" },
+        { "name": "collateral", "type": "u64" }
+      ]
+    }
+  ]
+}
+"#,
+        )
+        .unwrap();
+        let adapter = parse_adapter_str(
+            r#"
+protocol = "generic"
+program_so = "target/deploy/plain_fixture.so"
+idl_path = "target/idl/plain_fixture.json"
+
+[accounts.position]
+kind = "agent"
+space = 9
+
+[instructions]
+deposit = { action = "deposit" }
+
+[state_mapping]
+"position.is_initialized" = "position.is_initialized"
+"position.collateral" = "position.collateral"
+
+[actions.deposit]
+takes = []
+
+[observations]
+"position.is_initialized" = "bool"
+"position.collateral" = "uint"
+
+[personas.actor]
+action_rate_multiplier = 1
+action_weights = { deposit = 1 }
+triggers = []
+"#,
+            "plain-fixture.toml",
+        )
+        .unwrap();
+
+        assert_eq!(idl.instructions[0].discriminator, vec![1]);
+        assert!(idl.accounts[0].discriminator.is_none());
+        let observed = observe_account_state(&idl, &adapter, "position", &[0u8; 9]).unwrap();
+        assert_eq!(
+            observed.get("position.is_initialized"),
+            Some(&ObservationValue::Bool(false))
+        );
+        assert_eq!(
+            observed.get("position.collateral"),
+            Some(&ObservationValue::UInt(0))
+        );
     }
 
     #[test]
