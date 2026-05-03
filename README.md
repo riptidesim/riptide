@@ -15,7 +15,7 @@
 
 Riptide runs your compiled Solana program in LiteSVM, drives it with declared agent behavior, and shows where your protocol starts losing economic headroom. Use it to map parameter regions, replay declared trajectories, and turn invariants into CI gates before mainnet does the experiment for you.
 
-[Get started](#get-started) • [How it works](#how-it-works) • [Run examples](#run-examples) • [Evidence packs](#evidence-packs) • [Docs](#docs)
+[Get started](#get-started) • [How it works](#how-it-works) • [Run examples](#run-examples) • [Campaign Runner](#campaign-runner) • [Evidence packs](#evidence-packs) • [Docs](#docs)
 
 ![Riptide dashboard showing a lending stress-test run](docs/assets/dashboard-hero.png)
 
@@ -169,6 +169,21 @@ Common commands:
 
 Exit codes are CI-friendly: `0` all pass, `1` invariant fired, `2` setup error, `3` partial abort, `130` interrupted.
 
+## Campaign Runner
+
+Campaign Runner turns one Campaign TOML into a deterministic sweep of scenario families, sampled parameters, retained cases, and reviewer-ready summaries. Use it when a single smoke run is too quiet and you need to show the shape of a risk frontier across seeds and parameters.
+
+Run the shipped lending campaign:
+
+```bash
+riptide campaign validate fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml
+riptide campaign plan fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml --out /tmp/riptide-campaign-demo
+riptide campaign run fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml --out /tmp/riptide-campaign-demo
+riptide review /tmp/riptide-campaign-demo/campaign_2a93d0358025
+```
+
+The run writes `campaign-summary.md`, `campaign-summary.json`, `runs.jsonl`, `parameters.csv`, `retention-manifest.json`, and retained case directories under the campaign root. The Solend-shaped fixture is local simulation evidence over declared inputs; it is not a Solend mainnet replay and does not prove complete protocol safety. See [Campaign Runner](docs/campaigns.md) for the artifact map, trust boundary, and troubleshooting.
+
 ## Evidence Packs
 
 Every `riptide run` and `riptide replay` emits `.riptide/pack/<run-id>/`:
@@ -206,6 +221,7 @@ Read [Evidence packs](docs/pack.md) and [CI handoff](docs/ci-handoff.md) for the
 | Start here | When you need... |
 | --- | --- |
 | [Install](docs/install.md) | Supported setup, Docker, repository build commands, and upgrades. |
+| [Campaign Runner](docs/campaigns.md) | Validate, plan, run, and review deterministic campaign sweeps. |
 | [Architecture](docs/architecture.md) | The six-layer model, LiteSVM caveats, determinism, and adapter pipeline. |
 | [Vision](docs/vision.md) | The lab-not-oracle stance and what Riptide explicitly does not claim. |
 | [Solend-fork case study](docs/case-studies/lending.md) | The whale-share × shock grid and the load-bearing example. |

@@ -12,6 +12,7 @@ import { createLineageCommand } from "./commands/lineage.js";
 import { createLintCommand } from "./commands/lint.js";
 import { createListCommand } from "./commands/list.js";
 import { createPackStateCommand } from "./commands/pack-state.js";
+import { createReadinessCommand } from "./commands/readiness.js";
 import { createReviewCommand } from "./commands/review.js";
 import { createReplayCommand } from "./commands/replay.js";
 import { createRunCommand } from "./commands/run.js";
@@ -25,25 +26,50 @@ const program = new Command();
 program
   .name("riptide")
   .description(
-    "Riptide CLI — wire a Solana program (adapter), define actors (personas), declare a scenario or replay, run deterministically against LiteSVM, inspect evidence."
+    "Deterministic Solana simulations, campaigns, and reviewer-ready evidence."
   )
-  .version(cliPackageVersion());
+  .version(cliPackageVersion())
+  .addHelpCommand(false);
 
-program.addCommand(createRunCommand());
-program.addCommand(createCampaignCommand());
-program.addCommand(createReplayCommand());
-program.addCommand(createPackStateCommand());
-program.addCommand(createTemplateCommand());
-program.addCommand(createHarnessCommand());
-program.addCommand(createReviewCommand());
-program.addCommand(createScenariosCommand());
-program.addCommand(createAdaptCommand());
-program.addCommand(createInitCommand());
-program.addCommand(createExplainCommand());
-program.addCommand(createLineageCommand());
-program.addCommand(createLintCommand());
-program.addCommand(createDoctorCommand());
-program.addCommand(createListCommand());
+addRootCommand(createInitCommand(), "Scaffold .riptide/ in the current repo", "Start here:");
+addRootCommand(createReadinessCommand(), "Inspect local protocol evidence readiness", "Start here:");
+addRootCommand(createCampaignCommand(), "Validate, plan, and run campaign sweeps", "Start here:");
+addRootCommand(createRunCommand(), "Run scenarios or a single run-config", "Start here:");
+addRootCommand(createReviewCommand(), "Review an evidence pack or campaign root", "Start here:");
+addRootCommand(createDoctorCommand(), "Check toolchain, engine, and adapters", "Start here:");
+
+addRootCommand(createReplayCommand(), "Replay a declared trajectory", "Advanced/support:");
+addRootCommand(createHarnessCommand(), "Generate Rust setup harnesses", "Advanced/support:");
+addRootCommand(createLintCommand(), "Lint an adapter against its lineage IDL", "Advanced/support:");
+addRootCommand(createExplainCommand(), "Inspect a parsed adapter", "Advanced/support:");
+addRootCommand(createLineageCommand(), "Show adapter lineage and assumptions", "Advanced/support:");
+addRootCommand(createScenariosCommand(), "List or validate scenario presets", "Advanced/support:");
+addRootCommand(createListCommand(), "List discovered local scenarios", "Advanced/support:");
+addRootCommand(createAdaptCommand(), "Smoke-test an adapter against the engine", "Advanced/support:");
+addRootCommand(createTemplateCommand(), "Create transaction-template actions", "Advanced/support:");
+addRootCommand(createPackStateCommand(), "Capture current-state account packs", "Advanced/support:");
+
+program.addHelpText(
+  "after",
+  [
+    "",
+    "Examples:",
+    "  riptide init",
+    "  riptide readiness .",
+    "  riptide doctor",
+    "  riptide campaign validate fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml",
+    "  riptide campaign plan fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml --out /tmp/riptide-campaign-demo",
+    "  riptide campaign run fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml --out /tmp/riptide-campaign-demo",
+    "  riptide review /tmp/riptide-campaign-demo/campaign_2a93d0358025",
+    "",
+    "Run `riptide <command> --help` for command-specific options.",
+    ""
+  ].join("\n")
+);
+
+function addRootCommand(command: Command, summary: string, group: string): void {
+  program.addCommand(command.summary(summary).helpGroup(group));
+}
 
 program.parseAsync(process.argv).catch((error: unknown) => {
   // Default: message-first, action-oriented stderr line. The throwing

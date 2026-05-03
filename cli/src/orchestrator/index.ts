@@ -168,6 +168,7 @@ const ENGINE_REL_PATH = path.join("target", "release", "riptide-engine");
 const ENGINE_NPM_REL_PATH = path.join("bin", "riptide-engine");
 const STDERR_TAIL_BYTES = 8192;
 const harnessBuildCache = new Map<string, Promise<string>>();
+let defaultPolicyWarningEmitted = false;
 
 // Derive the monorepo root from *this file's* real location on disk. The
 // CLI ships as `<monorepo>/cli/dist/src/orchestrator/index.js`, so five
@@ -231,7 +232,16 @@ export async function runOrchestrator(
   const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
   const spawner = options.spawner ?? defaultSpawner;
-  const warn = options.warn ?? ((msg: string) => process.stderr.write(`${msg}\n`));
+  const rawWarn = options.warn ?? ((msg: string) => process.stderr.write(`${msg}\n`));
+  const warn = (msg: string) => {
+    if (msg === "LLM unavailable — using default policies") {
+      if (defaultPolicyWarningEmitted) return;
+      defaultPolicyWarningEmitted = true;
+      rawWarn("LLM unavailable — using default policies (shown once per command)");
+      return;
+    }
+    rawWarn(msg);
+  };
 
   const harnessManifest = options.harnessPath
     ? resolveHarnessManifest(options.harnessPath, cwd)

@@ -83,9 +83,25 @@ export function createCampaignCommand(): Command {
     .argument("<campaign.toml>", "Campaign TOML file")
     .option("--max-runs <n>", "Execute at most n generated runs without changing the campaign digest")
     .option("--out <dir>", "Artifact root directory (default: <cwd>/.riptide/campaigns)")
+    .option(
+      "--serve",
+      "Reserved for a future campaign dashboard. Campaign runs currently write reviewable artifacts; use `riptide review <campaign-root>` after the run.",
+      false
+    )
     .option("--json", "Emit a stable machine-readable run summary", false)
     .action(async (campaignPath: string, options: Record<string, unknown>) => {
       const json = Boolean(options.json);
+      if (Boolean(options.serve)) {
+        const message =
+          "riptide campaign run --serve is not supported yet. Run the campaign without --serve, then inspect the output with `riptide review <campaign-root>`. For the scenario dashboard, use `riptide run --serve`.";
+        if (json) {
+          writeJson({ ok: false, error: message });
+        } else {
+          process.stderr.write(`${message}\n`);
+        }
+        process.exitCode = 2;
+        return;
+      }
       try {
         const spec = await readCampaignTomlFile(campaignPath);
         const result = await executeCampaign(spec, {

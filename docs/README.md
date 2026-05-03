@@ -7,6 +7,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 | Read | Use it for |
 | --- | --- |
 | [Install](install.md) | Hosted installer, repository build path, Docker, manual rebuilds, and upgrade notes. |
+| [Campaign Runner](campaigns.md) | Run deterministic campaign sweeps with retained evidence and review handoff. |
 | [Architecture](architecture.md) | Understand the adapter/persona/scenario stack, LiteSVM runtime, determinism, and dashboard artifacts. |
 | [Vision](vision.md) | Understand the lab-not-oracle stance, what Riptide claims, and what it explicitly does not claim. |
 | [Solend-fork case study](case-studies/lending.md) | See the whale-share × price-shock grid that anchors the main product story. |
@@ -15,6 +16,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 
 | Read | Use it for |
 | --- | --- |
+| [Campaign Runner](campaigns.md) | Validate retained campaign roots with `riptide review` and rerun selected cases. |
 | [Evidence packs](pack.md) | Learn the `.riptide/pack/<run-id>/` shape emitted by `riptide run` and `riptide replay`. |
 | [Reviewer command](reviewer.md) | Validate a pack with `riptide review` without rerunning the engine. |
 | [CI handoff](ci-handoff.md) | Pin a replay proof in GitHub Actions with a canonical hash. |

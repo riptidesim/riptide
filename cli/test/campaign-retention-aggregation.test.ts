@@ -64,12 +64,21 @@ test("campaign retention aggregation: writes summaries and selects retained labe
       invariant_failed_runs: number;
       setup_errors: number;
     };
+    campaign: { output_dir: string };
+    artifacts: Record<string, string>;
     first_failure_ticks: { min: number | null };
     lending: { total_bad_debt: { max: number | null } } | null;
   };
   assert.equal(summary.totals.completed_runs, 4);
   assert.equal(summary.totals.invariant_failed_runs, 1);
   assert.equal(summary.totals.setup_errors, 1);
+  assert.match(summary.campaign.output_dir, /^\.riptide\/campaigns\/campaign_[a-f0-9]{12}$/);
+  assert.deepEqual(summary.artifacts, {
+    runs_jsonl: "runs.jsonl",
+    parameters_csv: "parameters.csv",
+    retention_manifest: "retention-manifest.json",
+    markdown_summary: "campaign-summary.md"
+  });
   assert.equal(summary.first_failure_ticks.min, 2);
   assert.equal(summary.lending?.total_bad_debt.max, 1200);
 

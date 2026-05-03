@@ -375,14 +375,20 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
     loaded.value.resolved.path
   );
   if (runtimeCheck !== null) {
+    const optionalFixtureRuntime = isOptionalFixtureRuntimeFailure(d.source, runtimeCheck);
+    const fixtureStatus = optionalFixtureRuntime ? "warn" : "fail";
     return {
       name: d.name,
       path: d.path,
       source: d.source,
-      load: "fail",
-      lint: "fail",
-      note: runtimeCheck.note,
-      hint: runtimeCheck.hint,
+      load: fixtureStatus,
+      lint: fixtureStatus,
+      note: optionalFixtureRuntime
+        ? `optional fixture runtime artifact not built — ${runtimeCheck.note}`
+        : runtimeCheck.note,
+      hint: optionalFixtureRuntime
+        ? "run `./install.sh` or build this fixture before running it; doctor treats missing fixture binaries as a bounded skip for first-run health"
+        : runtimeCheck.hint,
     };
   }
 
@@ -458,9 +464,33 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
 
 // ---------- runtime-path existence (mirrors engine/src/adapter/loader.rs) ----------
 
+type RuntimePathFailureKind =
+  | "missing-program-so"
+  | "missing-idl-path"
+  | "missing-owner-program-so"
+  | "invalid-owner-program-so"
+  | "missing-owner-keypair";
+
 interface RuntimePathFailure {
+  kind: RuntimePathFailureKind;
   note: string;
   hint: string;
+}
+
+function isOptionalFixtureRuntimeFailure(
+  source: AdapterDiscoverySource,
+  failure: RuntimePathFailure
+): boolean {
+  if (source !== "monorepo-fixtures") return false;
+  return isOptionalFixtureRuntimeFailureKind(failure.kind);
+}
+
+function isOptionalFixtureRuntimeFailureKind(kind: RuntimePathFailureKind): boolean {
+  return (
+    kind === "missing-program-so" ||
+    kind === "missing-owner-program-so" ||
+    kind === "missing-owner-keypair"
+  );
 }
 
 /**
@@ -477,25 +507,29 @@ interface RuntimePathFailure {
 function checkGenericRuntimePaths(adapter: Adapter, adapterPath: string): RuntimePathFailure | null {
   if (resolveAdapterRuntime(adapter) !== "generic") return null;
 
+  const failures: RuntimePathFailure[] = [];
+
   if (adapter.program_so !== undefined) {
     const resolved = resolveRuntimePath(adapter.program_so, adapterPath);
     if (!existsSync(resolved)) {
-      return {
+      failures.push({
+        kind: "missing-program-so",
         note: `program_so not found on disk: ${resolved}`,
         hint:
           "run `cargo build-sbf --manifest-path <program>/Cargo.toml` to produce the .so, or fix `program_so` in the adapter TOML",
-      };
+      });
     }
   }
 
   if (adapter.idl_path !== undefined) {
     const resolved = resolveRuntimePath(adapter.idl_path, adapterPath);
     if (!existsSync(resolved)) {
-      return {
+      failures.push({
+        kind: "missing-idl-path",
         note: `idl_path not found on disk: ${resolved}`,
         hint:
           "regenerate the IDL (anchor build, or commit the JSON IDL at fixtures/idls/) or fix `idl_path` in the adapter TOML",
-      };
+      });
     }
   }
 
@@ -504,33 +538,42 @@ function checkGenericRuntimePaths(adapter: Adapter, adapterPath: string): Runtim
     if (ownerSo === undefined) continue;
     const resolved = resolveRuntimePath(ownerSo, adapterPath);
     if (!existsSync(resolved)) {
-      return {
+      failures.push({
+        kind: "missing-owner-program-so",
         note: `[accounts.${accountName}].owner.program_so not found on disk: ${resolved}`,
         hint:
           "build the sibling program with `cargo build-sbf` or fix the owner.program_so path in the adapter TOML",
-      };
+      });
+      continue;
     }
     // The engine also requires the companion `-keypair.json` next to
     // the `.so`. Mirror that check so doctor catches the same pre-boot
     // failure the engine does.
     const keypair = siblingDeployKeypairPath(resolved);
     if (keypair === null) {
-      return {
+      failures.push({
+        kind: "invalid-owner-program-so",
         note: `[accounts.${accountName}].owner.program_so has an unparseable stem: ${resolved}`,
         hint:
           "rename the sibling `.so` to `<program>.so` so the companion `<program>-keypair.json` can be derived",
-      };
+      });
+      continue;
     }
     if (!existsSync(keypair)) {
-      return {
+      failures.push({
+        kind: "missing-owner-keypair",
         note: `[accounts.${accountName}].owner sibling keypair not found: ${keypair}`,
         hint:
           "rebuild the sibling program with `cargo build-sbf` (which generates the keypair) or restore the keypair file",
-      };
+      });
     }
   }
 
-  return null;
+  return (
+    failures.find((failure) => !isOptionalFixtureRuntimeFailureKind(failure.kind)) ??
+    failures[0] ??
+    null
+  );
 }
 
 function resolveRuntimePath(raw: string, adapterPath: string): string {

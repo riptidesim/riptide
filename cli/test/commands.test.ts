@@ -43,6 +43,36 @@ test("simulate command is not registered", async () => {
   assert.match(stderr, /unknown command 'simulate'/);
 });
 
+test("commands: root help is compact, ordered for first-hour use, and example-driven", async () => {
+  const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "--help"], {
+    cwd: process.cwd()
+  });
+
+  assert.match(stdout, /Deterministic Solana simulations, campaigns, and reviewer-ready evidence\./);
+  assert.match(stdout, /Start here:/);
+  assert.match(stdout, /Advanced\/support:/);
+  assert.match(stdout, /Examples:/);
+  assert.match(stdout, /riptide campaign validate fixtures\/campaigns\/lending\/solend-shape-liquidation-safety\/campaign\.toml/);
+  assert.match(stdout, /riptide <command> --help/);
+  assert.doesNotMatch(stdout, /complete protocol safety/i);
+
+  const ordered = [
+    "init",
+    "readiness",
+    "campaign",
+    "run",
+    "review",
+    "doctor"
+  ].map((command) => {
+    const index = stdout.indexOf(`  ${command}`);
+    assert.notEqual(index, -1, `${command} missing from root help:\n${stdout}`);
+    return index;
+  });
+  assert.deepEqual([...ordered].sort((a, b) => a - b), ordered);
+
+  assert.ok(stdout.split("\n").length < 80, stdout);
+});
+
 test("scenarios prints the stub list", async () => {
   const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "scenarios"], {
     cwd: process.cwd()
@@ -178,8 +208,30 @@ test("campaign commands: help documents run controls and bounded evidence langua
   );
   assert.match(runHelp.stdout, /--max-runs <n>/);
   assert.match(runHelp.stdout, /--out <dir>/);
+  assert.match(runHelp.stdout, /--serve/);
   assert.match(runHelp.stdout, /--json/);
   assert.match(runHelp.stdout, /existing riptide run\s+path/i);
+});
+
+test("campaign commands: run --serve fails intentionally with a useful message", async () => {
+  let stderr = "";
+  let code: number | string | undefined;
+  try {
+    await execFileAsync(
+      process.execPath,
+      [cliEntrypoint, "campaign", "run", "campaign.toml", "--serve"],
+      { cwd: process.cwd() }
+    );
+  } catch (err) {
+    const execErr = err as { stderr?: string; code?: number | string };
+    stderr = execErr.stderr ?? "";
+    code = execErr.code;
+  }
+
+  assert.equal(code, 2);
+  assert.match(stderr, /campaign run --serve is not supported yet/);
+  assert.match(stderr, /riptide review <campaign-root>/);
+  assert.match(stderr, /riptide run --serve/);
 });
 
 async function campaignFixtureRoot(label: string): Promise<string> {

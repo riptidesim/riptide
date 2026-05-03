@@ -881,13 +881,13 @@ function buildCampaignSummary(input: {
       seed_policy: seedPolicyDisplay(input.spec.seedPolicy),
       replay_retention: input.spec.replayRetention,
       adapter: input.spec.adapter.digestPath,
-      output_dir: input.plan.campaignRoot
+      output_dir: relativizeIfInside(input.cwd, input.plan.campaignRoot)
     },
     artifacts: {
-      runs_jsonl: input.paths.runsJsonlPath,
-      parameters_csv: input.paths.parametersCsvPath,
-      retention_manifest: input.paths.retentionManifestPath,
-      markdown_summary: input.paths.summaryMarkdownPath
+      runs_jsonl: relativizeIfInside(input.plan.campaignRoot, input.paths.runsJsonlPath),
+      parameters_csv: relativizeIfInside(input.plan.campaignRoot, input.paths.parametersCsvPath),
+      retention_manifest: relativizeIfInside(input.plan.campaignRoot, input.paths.retentionManifestPath),
+      markdown_summary: relativizeIfInside(input.plan.campaignRoot, input.paths.summaryMarkdownPath)
     },
     totals: {
       requested_runs: input.plan.runs.length,
@@ -1234,7 +1234,12 @@ function recommendation(summary: CampaignSummaryJson): string {
 
 function keyRiskSignal(summary: CampaignSummaryJson): string {
   const selected = summary.retention.selected;
-  const badDebt = selected.find((entry) => (entry.risk_signals.total_bad_debt ?? 0) > 0);
+  const badDebt = selected
+    .filter((entry) => (entry.risk_signals.total_bad_debt ?? 0) > 0)
+    .sort(
+      (left, right) =>
+        (right.risk_signals.total_bad_debt ?? 0) - (left.risk_signals.total_bad_debt ?? 0)
+    )[0];
   if (badDebt) {
     return (
       `Retained case \`${badDebt.label}\` -> \`${badDebt.run_id}\` produced ` +

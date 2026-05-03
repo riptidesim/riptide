@@ -635,6 +635,63 @@ test("runDoctor: adapter present + no IDL on disk → idl-unreadable FAIL", asyn
   assert.match(out, /lint=fail/);
 });
 
+test("runDoctor: monorepo fixture with missing program_so → bounded optional-runtime WARN", async () => {
+  const { cwd } = await setupRepo({ layout: "monorepo", writeStubSo: false });
+  let out = "";
+  const exit = await runDoctor(
+    {},
+    {
+      cwd,
+      stdoutWrite: (c) => { out += c; },
+      stderrWrite: () => {},
+      color: false,
+      buildReport: (input) =>
+        buildDoctorReport({
+          ...input,
+          probeTool: fakeProbe(HEALTHY_VERSIONS),
+          resolveEngine: async () => "/fake/target/release/riptide-engine",
+        }),
+    }
+  );
+  assert.equal(exit, 1, `expected 1 (WARN), got ${exit}. stdout:\n${out}`);
+  assert.match(out, /load=warn/);
+  assert.match(out, /lint=warn/);
+  assert.match(out, /optional fixture runtime artifact not built/);
+  assert.match(out, /program_so not found on disk/);
+  assert.match(out, /Verdict: WARN/);
+});
+
+test("runDoctor: monorepo fixture with missing idl_path → load=fail", async () => {
+  const brokenIdl = cleanAdapterToml("/nonexistent/simple.json");
+  const { cwd } = await setupRepo({
+    layout: "monorepo",
+    adapterToml: brokenIdl,
+    writeStubSo: false,
+  });
+  let out = "";
+  const exit = await runDoctor(
+    {},
+    {
+      cwd,
+      stdoutWrite: (c) => { out += c; },
+      stderrWrite: () => {},
+      color: false,
+      buildReport: (input) =>
+        buildDoctorReport({
+          ...input,
+          probeTool: fakeProbe(HEALTHY_VERSIONS),
+          resolveEngine: async () => "/fake/target/release/riptide-engine",
+        }),
+    }
+  );
+  assert.equal(exit, 2, `expected 2 (FAIL), got ${exit}. stdout:\n${out}`);
+  assert.match(out, /load=fail/);
+  assert.match(out, /lint=fail/);
+  assert.match(out, /idl_path not found on disk/);
+  assert.doesNotMatch(out, /optional fixture runtime artifact not built/);
+  assert.match(out, /Verdict: FAIL/);
+});
+
 test("runDoctor: empty repo (no adapters anywhere) → exit 1 with init hint", async () => {
   const { cwd } = await setupRepo({ layout: "empty", idlContents: null });
   let out = "";
@@ -662,7 +719,7 @@ test("runDoctor: empty repo (no adapters anywhere) → exit 1 with init hint", a
   assert.match(out, /Verdict: WARN/);
 });
 
-test("runDoctor: shipping monorepo fixtures are machine-check clean", async () => {
+test("runDoctor: shipping monorepo fixtures are pass or bounded optional-runtime warnings", async () => {
   // Use the real shipping monorepo fixtures by pointing cwd at it.
   const cwd = path.resolve(process.cwd(), "..");
   let out = "";
@@ -678,14 +735,20 @@ test("runDoctor: shipping monorepo fixtures are machine-check clean", async () =
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-        }),
+      }),
     }
   );
-  assert.equal(exit, 0, `expected 0 on shipping monorepo, got ${exit}. stdout:\n${out}`);
+  assert.ok(exit === 0 || exit === 1, `expected 0/1 on shipping monorepo, got ${exit}. stdout:\n${out}`);
   assert.match(out, /lending/);
-  assert.match(out, /Verdict: PASS/);
-  assert.doesNotMatch(out, /lint=warn/);
+  assert.doesNotMatch(out, /Verdict: FAIL/);
+  assert.doesNotMatch(out, /lint=fail/);
   assert.doesNotMatch(out, /load=fail/);
+  if (exit === 1) {
+    assert.match(out, /optional fixture runtime artifact not built/);
+    assert.match(out, /Verdict: WARN/);
+  } else {
+    assert.match(out, /Verdict: PASS/);
+  }
 });
 
 // ---- review regression: runtime-path existence (mirrors engine loader) ----

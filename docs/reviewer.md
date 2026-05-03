@@ -1,6 +1,16 @@
 # Reviewer Command
 
-`riptide review <pack-path>` validates a Riptide evidence pack without running the engine, touching the network, or mutating the pack. It reads the pack manifest, resolves the input and output path indexes, verifies the canonical hash from the indexed `simulation_result`, checks that `rerun.sh` is POSIX-sh parseable with `sh -n`, and emits a reviewer-facing markdown summary.
+`riptide review <path>` validates Riptide evidence without running the engine, touching the network, or mutating the input. The path can be an evidence pack, a campaign root, or a retained campaign case.
+
+For campaign evidence:
+
+```sh
+riptide review /tmp/riptide-campaign-demo/campaign_2a93d0358025
+```
+
+The campaign review reads `campaign-summary.json`, `retention-manifest.json`, and retained `case.json` files, then maps retained labels to run IDs, sampled parameters, risk results, and rerun commands. See [Campaign Runner](campaigns.md) for the full campaign artifact map.
+
+For a single evidence pack, `riptide review <pack-path>` reads the pack manifest, resolves the input and output path indexes, verifies the canonical hash from the indexed `simulation_result`, checks that `rerun.sh` is POSIX-sh parseable with `sh -n`, and emits a reviewer-facing markdown summary.
 
 ```sh
 riptide review fixtures/replays/lending-whale-bad-debt/
