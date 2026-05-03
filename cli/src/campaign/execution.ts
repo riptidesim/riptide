@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -87,11 +88,29 @@ export async function executeCampaign(
   const cwd = path.resolve(options.cwd ?? process.cwd());
   const plan = await buildCampaignExpansion(spec, { ...options, cwd });
   const materialized = await materializeGeneratedConfigs(plan);
+  const generatedPolicies = await materializeGeneratedPolicySidecars(spec, plan);
 
-  const scenarios = plan.runs.map((run) => ({
-    name: run.runId,
-    runConfigPath: run.runConfigPath
-  }));
+  const scenarios = plan.runs.map((run) => {
+    const sourcePoliciesPath = path.join(
+      spec.scenarios.definitions[run.scenarioFamily]!.source.resolved,
+      "policies.json"
+    );
+    return {
+      name: run.runId,
+      runConfigPath: run.runConfigPath,
+      ...(generatedPolicies.has(run.runId)
+        ? { policiesPathOverride: generatedPolicies.get(run.runId)! }
+        : existsSync(sourcePoliciesPath)
+          ? { policiesPathOverride: sourcePoliciesPath }
+          : {}),
+      packRunIdOverride: `${plan.campaignId}-${run.runId}`,
+      reproCommandOverride: buildCampaignRerunCommand({
+        cwd,
+        runConfigPath: run.runConfigPath,
+        adapterPath: spec.adapter.resolved
+      })
+    };
+  });
 
   const runSummary = await runScenarios({
     scenarios,
@@ -163,6 +182,28 @@ async function materializeGeneratedConfigs(plan: CampaignExpansionPlan): Promise
   }
 
   return { created, reused, configStatuses };
+}
+
+async function materializeGeneratedPolicySidecars(
+  spec: CampaignSpec,
+  plan: CampaignExpansionPlan
+): Promise<Map<string, string>> {
+  const policiesByRunId = new Map<string, string>();
+  for (const run of plan.runs) {
+    const sourcePoliciesPath = path.join(
+      spec.scenarios.definitions[run.scenarioFamily]!.source.resolved,
+      "policies.json"
+    );
+    if (!existsSync(sourcePoliciesPath)) continue;
+    const target = path.join(run.runDir, "policies.json");
+    await writeDeterministicFile({
+      path: target,
+      expected: await readFile(sourcePoliciesPath, "utf8"),
+      label: `generated policy sidecar for ${run.runId}`
+    });
+    policiesByRunId.set(run.runId, target);
+  }
+  return policiesByRunId;
 }
 
 async function writeDeterministicFile(input: {
@@ -281,4 +322,26 @@ function relativizeIfInside(cwd: string, value: string): string {
   if (rel === "") return ".";
   if (!rel.startsWith("..") && !path.isAbsolute(rel)) return rel;
   return value;
+}
+
+function buildCampaignRerunCommand(input: {
+  cwd: string;
+  runConfigPath: string;
+  adapterPath: string;
+}): string {
+  const runConfig = relativizeIfInside(input.cwd, input.runConfigPath);
+  const adapter = relativizeIfInside(input.cwd, input.adapterPath);
+  return [
+    "exec",
+    "riptide",
+    "run",
+    posixQuote(runConfig),
+    "--adapter",
+    posixQuote(adapter)
+  ].join(" ");
+}
+
+function posixQuote(value: string): string {
+  if (/^[-_./A-Za-z0-9]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }

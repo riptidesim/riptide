@@ -37,6 +37,8 @@ export interface EmitPackInput {
   commandHint?: string;
   /** Optional friendly adapter name for the pack manifest. */
   adapterDisplay?: string;
+  /** Optional stable pack id. Defaults to a slug derived from run_config.scenario. */
+  packRunId?: string;
   /** Silent mode suppresses stderr pass-through (used by jest-style run loop). */
   silent?: boolean;
 }
@@ -69,7 +71,7 @@ export async function emitPack(input: EmitPackInput): Promise<EmitPackResult> {
 
   const result = JSON.parse(await readFile(input.simulationResultPath, "utf8")) as SimulationResult;
   const scenario = result.run_config?.scenario ?? "run";
-  const runId = deriveRunId(scenario);
+  const runId = deriveRunId(input.packRunId ?? scenario);
   const packDir = path.join(input.cwd, ".riptide", "pack", runId);
 
   const args: string[] = [

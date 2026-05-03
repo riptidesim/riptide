@@ -1,8 +1,9 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { SimulationResult } from "../compiler/schema.js";
 import type { RunSummary } from "../run/loop.js";
+import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
 
 import type { CampaignExpansionPlan, CampaignRunPlan } from "./expansion.js";
 import type { CampaignRunRecord } from "./execution.js";
@@ -145,15 +146,37 @@ export interface CampaignRetentionSelection {
   status: "selected";
   run_id: string;
   run_index: number;
+  scenario_family: string;
+  sampled_parameters: Record<string, JsonScalar>;
   reason: string;
   score: number | null;
+  tie_breaker: string | null;
+  risk_signals: CampaignRetentionRiskSignals;
+  rerun_command: string;
+  case_digest?: string;
   paths: {
     run_dir: string;
     run_config: string;
     metadata: string;
+    case_dir: string;
+    case_manifest: string;
+    rerun_sh: string;
     simulation_result?: string;
     report?: string;
   };
+}
+
+export interface CampaignRetentionRiskSignals {
+  status: CampaignRunRecord["status"];
+  first_failure_tick: number | null;
+  invariant_names: string[];
+  semantic_signal_names: string[];
+  total_bad_debt: number | null;
+  total_liquidations: number | null;
+  max_utilization: number | null;
+  min_tvl: number | null;
+  min_available_liquidity: number | null;
+  risk_score: number;
 }
 
 export interface CampaignRetentionWarning {
@@ -183,6 +206,7 @@ interface CampaignRunMetrics {
   firstFailureTick: number | null;
   invariantFireCount: number;
   invariantNames: string[];
+  semanticSignalNames: string[];
   totalBadDebt: number | null;
   totalLiquidations: number | null;
   finalTvl: number | null;
@@ -212,6 +236,12 @@ export async function writeCampaignArtifacts(
     parametersCsvPath: path.join(input.plan.campaignRoot, "parameters.csv"),
     retentionManifestPath: path.join(input.plan.campaignRoot, "retention-manifest.json")
   };
+  await writeRetainedCaseArtifacts({
+    spec: input.spec,
+    plan: input.plan,
+    retentionManifest,
+    cwd: input.cwd
+  });
   const summary = buildCampaignSummary({
     spec: input.spec,
     plan: input.plan,
@@ -323,6 +353,7 @@ function metricsForRecord(
 ): CampaignRunMetrics {
   const firstFailureTick = firstFailureTickFor(record, result);
   const invariantNames = invariantNamesFor(record, result);
+  const semanticSignalNames = semanticSignalNamesFor(result);
   const invariantFireCount = invariantNames.length > 0
     ? Math.max(record.invariant_fires.length, invariantNames.length)
     : record.invariant_fires.length;
@@ -358,6 +389,7 @@ function metricsForRecord(
     firstFailureTick,
     invariantFireCount,
     invariantNames,
+    semanticSignalNames,
     totalBadDebt,
     totalLiquidations,
     finalTvl,
@@ -368,6 +400,7 @@ function metricsForRecord(
       status: record.status,
       firstFailureTick,
       invariantFireCount,
+      semanticSignalCount: semanticSignalNames.length,
       totalBadDebt,
       maxUtilization,
       minTvl,
@@ -413,7 +446,16 @@ function invariantNamesFor(
     if (name && firings > 0) names.add(name);
   }
   for (const row of expressionInvariantRows(summary)) {
-    if (expressionInvariantFiringCount(row) > 0) names.add(row.name);
+    if (row.severity === "error" && expressionInvariantFiringCount(row) > 0) names.add(row.name);
+  }
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+function semanticSignalNamesFor(result: SimulationResult | null): string[] {
+  const names = new Set<string>();
+  const summary = asRecord(result?.summary);
+  for (const row of expressionInvariantRows(summary)) {
+    if (row.severity === "warn" && expressionInvariantFiringCount(row) > 0) names.add(row.name);
   }
   return [...names].sort((a, b) => a.localeCompare(b));
 }
@@ -422,6 +464,7 @@ function riskScore(input: {
   status: CampaignRunRecord["status"];
   firstFailureTick: number | null;
   invariantFireCount: number;
+  semanticSignalCount: number;
   totalBadDebt: number | null;
   maxUtilization: number | null;
   minTvl: number | null;
@@ -431,12 +474,19 @@ function riskScore(input: {
   const badDebtScore = input.totalBadDebt ?? 0;
   const utilizationScore = (input.maxUtilization ?? 0) * 1_000;
   const invariantScore = input.invariantFireCount * 10_000;
+  const semanticSignalScore = input.semanticSignalCount * 10_000;
   const earlyFailureScore =
     input.firstFailureTick === null ? 0 : 5_000 / Math.max(1, input.firstFailureTick + 1);
   const liquidityFloor = input.minAvailableLiquidity ?? input.minTvl;
   const liquidityScore = liquidityFloor === null ? 0 : 1_000 / Math.max(1, liquidityFloor);
   return roundNumber(
-    failurePenalty + badDebtScore + utilizationScore + invariantScore + earlyFailureScore + liquidityScore
+    failurePenalty +
+      badDebtScore +
+      utilizationScore +
+      invariantScore +
+      semanticSignalScore +
+      earlyFailureScore +
+      liquidityScore
   );
 }
 
@@ -477,48 +527,87 @@ function selectRetentionLabel(
 ): CampaignRetentionEntry {
   const completed = input.enriched.filter((run) => run.metrics.completed);
   if (label === "first_failure") {
-    const selected = completed
+    const candidates = completed
       .filter((run) => run.metrics.firstFailureTick !== null)
       .sort((a, b) =>
         compareNumbers(a.metrics.firstFailureTick!, b.metrics.firstFailureTick!) ||
         compareNumbers(a.plan.runIndex, b.plan.runIndex)
-      )[0];
+      );
+    const selected = candidates[0];
     if (!selected) return warning(label, "no invariant failure tick was observed within this campaign");
-    return selection(label, selected, input.cwd, "earliest invariant failure tick observed within this campaign", selected.metrics.firstFailureTick);
+    const tieBreaker = tieBreakerFor(
+      candidates,
+      selected,
+      (run) => run.metrics.firstFailureTick,
+      "the earliest failure tick"
+    );
+    return selection(
+      label,
+      selected,
+      input.plan,
+      input.cwd,
+      withTie("earliest invariant failure tick observed within this campaign", tieBreaker),
+      selected.metrics.firstFailureTick,
+      tieBreaker
+    );
   }
 
   if (label === "worst_bad_debt") {
     if (input.spec.semanticClass !== "lending.v1") {
       return warning(label, `unsupported for class ${input.spec.semanticClass}; bad-debt metrics are lending.v1-specific in v1`);
     }
-    const selected = completed
+    const candidates = completed
       .filter((run) => run.metrics.totalBadDebt !== null)
       .sort((a, b) =>
         compareNumbersDesc(a.metrics.totalBadDebt!, b.metrics.totalBadDebt!) ||
         compareNumbers(a.plan.runIndex, b.plan.runIndex)
-      )[0];
+      );
+    const selected = candidates[0];
     if (!selected) return warning(label, "no completed run exposed a lending bad-debt metric");
-    return selection(label, selected, input.cwd, "highest lending bad debt observed within this campaign", selected.metrics.totalBadDebt);
+    const tieBreaker = tieBreakerFor(
+      candidates,
+      selected,
+      (run) => run.metrics.totalBadDebt,
+      "the same bad-debt score"
+    );
+    return selection(
+      label,
+      selected,
+      input.plan,
+      input.cwd,
+      withTie("highest lending bad debt observed within this campaign", tieBreaker),
+      selected.metrics.totalBadDebt,
+      tieBreaker
+    );
   }
 
   if (label === "worst_liquidity") {
     if (input.spec.semanticClass !== "lending.v1") {
       return warning(label, `unsupported for class ${input.spec.semanticClass}; liquidity-stress metrics are lending.v1-specific in v1`);
     }
-    const selected = completed
+    const candidates = completed
       .filter((run) => run.metrics.maxUtilization !== null || run.metrics.minTvl !== null)
       .sort((a, b) =>
         compareNumbersDesc(a.metrics.maxUtilization ?? -Infinity, b.metrics.maxUtilization ?? -Infinity) ||
         compareNumbers(a.metrics.minTvl ?? Infinity, b.metrics.minTvl ?? Infinity) ||
         compareNumbers(a.plan.runIndex, b.plan.runIndex)
-      )[0];
+      );
+    const selected = candidates[0];
     if (!selected) return warning(label, "no completed run exposed lending liquidity metrics");
+    const tieBreaker = tieBreakerFor(
+      candidates,
+      selected,
+      (run) => `${run.metrics.maxUtilization ?? ""}:${run.metrics.minTvl ?? ""}`,
+      "the same utilization and TVL score"
+    );
     return selection(
       label,
       selected,
+      input.plan,
       input.cwd,
-      "highest utilization, then lowest TVL, observed within this campaign",
-      selected.metrics.maxUtilization ?? selected.metrics.minTvl
+      withTie("highest utilization, then lowest TVL, observed within this campaign", tieBreaker),
+      selected.metrics.maxUtilization ?? selected.metrics.minTvl,
+      tieBreaker
     );
   }
 
@@ -529,7 +618,21 @@ function selectRetentionLabel(
       compareNumbers(a.plan.runIndex, b.plan.runIndex)
     );
     const selected = sorted[Math.floor((sorted.length - 1) / 2)]!;
-    return selection(label, selected, input.cwd, "middle completed run by deterministic campaign risk score", selected.metrics.riskScore);
+    const tieBreaker = tieBreakerFor(
+      sorted,
+      selected,
+      (run) => run.metrics.riskScore,
+      "the same deterministic risk score"
+    );
+    return selection(
+      label,
+      selected,
+      input.plan,
+      input.cwd,
+      withTie("middle completed run by deterministic campaign risk score", tieBreaker),
+      selected.metrics.riskScore,
+      tieBreaker
+    );
   }
 
   if (completed.length < 3) {
@@ -537,35 +640,213 @@ function selectRetentionLabel(
   }
   const scores = completed.map((run) => run.metrics.riskScore).sort((a, b) => a - b);
   const median = medianNumber(scores) ?? 0;
-  const selected = [...completed].sort((a, b) =>
-    compareNumbersDesc(Math.abs(a.metrics.riskScore - median), Math.abs(b.metrics.riskScore - median)) ||
+  const distance = (run: EnrichedRun) => roundNumber(Math.abs(run.metrics.riskScore - median));
+  const outlierCandidates = [...completed].sort((a, b) =>
+    compareNumbersDesc(distance(a), distance(b)) ||
     compareNumbers(a.plan.runIndex, b.plan.runIndex)
-  )[0]!;
-  return selection(label, selected, input.cwd, "largest absolute distance from the median campaign risk score", selected.metrics.riskScore);
+  );
+  const selected = outlierCandidates[0]!;
+  const tieBreaker = tieBreakerFor(
+    outlierCandidates,
+    selected,
+    distance,
+    "the same distance from median risk score"
+  );
+  return selection(
+    label,
+    selected,
+    input.plan,
+    input.cwd,
+    withTie("largest absolute distance from the median campaign risk score", tieBreaker),
+    selected.metrics.riskScore,
+    tieBreaker
+  );
 }
 
 function selection(
   label: RetentionLabel,
   run: EnrichedRun,
+  plan: CampaignExpansionPlan,
   cwd: string,
   reason: string,
-  score: number | null
+  score: number | null,
+  tieBreaker: string | null
 ): CampaignRetentionSelection {
+  const caseDir = retainedCaseDir(plan.campaignRoot, label, run.record.run_id);
   return {
     label,
     status: "selected",
     run_id: run.record.run_id,
     run_index: run.record.run_index,
+    scenario_family: run.record.scenario_family,
+    sampled_parameters: run.plan.sampledParameters,
     reason,
     score: score === null ? null : roundNumber(score),
+    tie_breaker: tieBreaker,
+    risk_signals: riskSignalsFor(run),
+    rerun_command: buildRetainedRerunCommand(cwd, run.record.run_config_path, plan),
     paths: {
-      run_dir: relativizeIfInside(cwd, run.plan.runDir),
-      run_config: relativizeIfInside(cwd, path.resolve(cwd, run.record.run_config_path)),
-      metadata: relativizeIfInside(cwd, run.record.metadata_path),
-      ...(run.record.simulation_result_path ? { simulation_result: run.record.simulation_result_path } : {}),
-      ...(run.record.report_path ? { report: run.record.report_path } : {})
+      run_dir: relativizeIfInside(plan.campaignRoot, run.plan.runDir),
+      run_config: relativizeInsideCampaignRoot(plan, cwd, run.record.run_config_path),
+      metadata: relativizeInsideCampaignRoot(plan, cwd, run.record.metadata_path),
+      case_dir: relativizeIfInside(plan.campaignRoot, caseDir),
+      case_manifest: relativizeIfInside(plan.campaignRoot, path.join(caseDir, "case.json")),
+      rerun_sh: relativizeIfInside(plan.campaignRoot, path.join(caseDir, "rerun.sh")),
+      ...(run.record.simulation_result_path
+        ? { simulation_result: relativizeInsideCampaignRoot(plan, cwd, run.record.simulation_result_path) }
+        : {}),
+      ...(run.record.report_path
+        ? { report: relativizeInsideCampaignRoot(plan, cwd, run.record.report_path) }
+        : {})
     }
   };
+}
+
+function riskSignalsFor(run: EnrichedRun): CampaignRetentionRiskSignals {
+  return {
+    status: run.record.status,
+    first_failure_tick: run.metrics.firstFailureTick,
+    invariant_names: run.metrics.invariantNames,
+    semantic_signal_names: run.metrics.semanticSignalNames,
+    total_bad_debt: run.metrics.totalBadDebt,
+    total_liquidations: run.metrics.totalLiquidations,
+    max_utilization: run.metrics.maxUtilization,
+    min_tvl: run.metrics.minTvl,
+    min_available_liquidity: run.metrics.minAvailableLiquidity,
+    risk_score: run.metrics.riskScore
+  };
+}
+
+function tieBreakerFor<T>(
+  candidates: EnrichedRun[],
+  selected: EnrichedRun,
+  valueFor: (run: EnrichedRun) => T,
+  scoreLabel: string
+): string | null {
+  const selectedValue = valueFor(selected);
+  const tied = candidates.filter((run) => valueFor(run) === selectedValue);
+  if (tied.length <= 1) return null;
+  return `${tied.length} runs shared ${scoreLabel}; selected lowest run index ${selected.plan.runIndex}`;
+}
+
+function withTie(reason: string, tieBreaker: string | null): string {
+  return tieBreaker ? `${reason}; tie: ${tieBreaker}` : reason;
+}
+
+function retainedCaseDir(
+  campaignRoot: string,
+  label: RetentionLabel,
+  runId: string
+): string {
+  return path.join(campaignRoot, "retained", `${label}-${runId}`);
+}
+
+function relativizeInsideCampaignRoot(
+  plan: CampaignExpansionPlan,
+  cwd: string,
+  value: string
+): string {
+  return relativizeIfInside(plan.campaignRoot, path.resolve(cwd, value));
+}
+
+function buildRetainedRerunCommand(
+  cwd: string,
+  runConfigPath: string,
+  _plan: CampaignExpansionPlan
+): string {
+  return ["exec", "riptide", "run", posixQuote(relativizeIfInside(cwd, runConfigPath))].join(" ");
+}
+
+async function writeRetainedCaseArtifacts(input: {
+  spec: CampaignSpec;
+  plan: CampaignExpansionPlan;
+  retentionManifest: CampaignRetentionManifest;
+  cwd: string;
+}): Promise<void> {
+  for (const entry of input.retentionManifest.entries) {
+    if (entry.status !== "selected") continue;
+    const caseDir = retainedCaseDir(input.plan.campaignRoot, entry.label, entry.run_id);
+    await mkdir(caseDir, { recursive: true });
+    const caseRecordBase: Record<string, JsonValue> = {
+      schema_version: "campaign-retained-case.v1",
+      campaign_id: input.plan.campaignId,
+      campaign_digest: input.plan.campaignDigest,
+      campaign_name: input.spec.name,
+      class: input.spec.semanticClass,
+      risk_objective: input.spec.riskObjective,
+      label: entry.label,
+      run_id: entry.run_id,
+      run_index: entry.run_index,
+      scenario_family: entry.scenario_family,
+      sampled_parameters: entry.sampled_parameters,
+      reason: entry.reason,
+      tie_breaker: entry.tie_breaker,
+      score: entry.score,
+      risk_signals: riskSignalsJson(entry.risk_signals),
+      paths: pathsJson(entry.paths),
+      rerun_command: entry.rerun_command,
+      review_command: `riptide review ${posixQuote(relativizeIfInside(input.cwd, input.plan.campaignRoot))}`
+    };
+    const caseDigest = sha256Hex(
+      `riptide-campaign-retained-case-v1\n${canonicalJson(caseRecordBase)}`
+    );
+    entry.case_digest = caseDigest;
+    const caseRecord: JsonValue = {
+      ...caseRecordBase,
+      case_digest: caseDigest
+    };
+    await writeFile(path.join(caseDir, "case.json"), canonicalJson(caseRecord), "utf8");
+    await writeFile(
+      path.join(caseDir, "rerun.sh"),
+      renderRerunScript(input.cwd, entry.rerun_command),
+      "utf8"
+    );
+    await chmod(path.join(caseDir, "rerun.sh"), 0o755);
+  }
+}
+
+function renderRerunScript(cwd: string, command: string): string {
+  return [
+    "#!/usr/bin/env sh",
+    "set -eu",
+    `cd ${posixQuote(cwd)}`,
+    command,
+    ""
+  ].join("\n");
+}
+
+function riskSignalsJson(signals: CampaignRetentionRiskSignals): JsonValue {
+  return {
+    status: signals.status,
+    first_failure_tick: signals.first_failure_tick,
+    invariant_names: signals.invariant_names,
+    semantic_signal_names: signals.semantic_signal_names,
+    total_bad_debt: signals.total_bad_debt,
+    total_liquidations: signals.total_liquidations,
+    max_utilization: signals.max_utilization,
+    min_tvl: signals.min_tvl,
+    min_available_liquidity: signals.min_available_liquidity,
+    risk_score: signals.risk_score
+  };
+}
+
+function pathsJson(paths: CampaignRetentionSelection["paths"]): JsonValue {
+  const out: Record<string, JsonValue> = {
+    run_dir: paths.run_dir,
+    run_config: paths.run_config,
+    metadata: paths.metadata,
+    case_dir: paths.case_dir,
+    case_manifest: paths.case_manifest,
+    rerun_sh: paths.rerun_sh
+  };
+  if (paths.simulation_result !== undefined) out.simulation_result = paths.simulation_result;
+  if (paths.report !== undefined) out.report = paths.report;
+  return out;
+}
+
+function posixQuote(value: string): string {
+  if (/^[-_./A-Za-z0-9]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function warning(label: RetentionLabel, message: string): CampaignRetentionWarning {
@@ -839,16 +1120,25 @@ function renderCampaignSummaryMarkdown(
   ];
 
   if (summary.totals.invariant_failed_runs === 0) {
-    lines.push(
-      "No invariant violation was observed within this campaign. That means only that the declared campaign inputs did not produce an invariant violation in this run budget.",
-      ""
-    );
+    if (hasMeaningfulLendingRisk(summary)) {
+      lines.push(
+        "No error-severity invariant violation was observed, but lending risk metrics did move. Treat the retained risk case as campaign-scoped evidence, not as a safety proof.",
+        ""
+      );
+    } else {
+      lines.push(
+        "No invariant violation was observed within this campaign. That means only that the declared campaign inputs did not produce an invariant violation in this run budget.",
+        ""
+      );
+    }
   } else {
     lines.push(
       "One or more invariant failures were observed within this campaign. Inspect the retained runs before changing the scenario, adapter, or protocol assumptions.",
       ""
     );
   }
+
+  lines.push("## Key Risk Signal", "", keyRiskSignal(summary), "");
 
   lines.push("## Scenario Families", "", "| Family | Planned | Completed | Failed | Setup errors | First failure tick | Bad debt max | Max utilization | Min TVL |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|");
   for (const [family, row] of Object.entries(summary.scenario_families)) {
@@ -860,6 +1150,7 @@ function renderCampaignSummaryMarkdown(
 
   lines.push("## Parameters", "", "| Parameter | Distribution | Unit | Samples | Observed range |", "|---|---|---|---:|---|");
   for (const [name, parameter] of Object.entries(summary.parameters)) {
+    if (parameter.sampled_count === 0) continue;
     lines.push(
       `| ${name} | ${parameter.distribution} | ${parameter.unit ?? ""} | ${parameter.sampled_count} | ${rangeDisplay(parameter.min, parameter.max)} |`
     );
@@ -884,14 +1175,16 @@ function renderCampaignSummaryMarkdown(
   lines.push(
     "## Retained Evidence",
     "",
-    "| Label | Status | Run | Reason |",
-    "|---|---|---|---|"
+    "| Label | Status | Run | Score | Risk signals | Reason |",
+    "|---|---|---|---:|---|---|"
   );
   for (const entry of retentionManifest.entries) {
     if (entry.status === "selected") {
-      lines.push(`| ${entry.label} | selected | \`${entry.run_id}\` | ${entry.reason} |`);
+      lines.push(
+        `| ${entry.label} | selected | \`${entry.run_id}\` | ${displayValue(entry.score)} | ${riskSignalDisplay(entry)} | ${entry.reason} |`
+      );
     } else {
-      lines.push(`| ${entry.label} | warning |  | ${entry.warning} |`);
+      lines.push(`| ${entry.label} | warning |  |  |  | ${entry.warning} |`);
     }
   }
   lines.push("");
@@ -910,6 +1203,8 @@ function renderCampaignSummaryMarkdown(
     `- \`parameters.csv\``,
     `- \`runs.jsonl\``,
     `- \`retention-manifest.json\``,
+    `- \`retained/<label>-<run-id>/case.json\``,
+    `- \`retained/<label>-<run-id>/rerun.sh\``,
     "",
     "## Recommendation",
     "",
@@ -928,7 +1223,96 @@ function recommendation(summary: CampaignSummaryJson): string {
   if (summary.totals.invariant_failed_runs > 0) {
     return "Review retained failure evidence, then decide whether to tighten invariants, broaden scenarios, or change protocol assumptions.";
   }
+  if ((summary.lending?.total_bad_debt.max ?? 0) > 0) {
+    return "Review retained bad-debt evidence and rerun the selected case before changing scenario or protocol assumptions.";
+  }
+  if ((summary.lending?.total_liquidations.max ?? 0) > 0) {
+    return "Review retained liquidation-pressure evidence and decide whether the stress frontier needs a larger budget.";
+  }
   return "Use this as campaign-scoped evidence only; broaden scenario families, budgets, and retained reads before making release decisions.";
+}
+
+function keyRiskSignal(summary: CampaignSummaryJson): string {
+  const selected = summary.retention.selected;
+  const badDebt = selected.find((entry) => (entry.risk_signals.total_bad_debt ?? 0) > 0);
+  if (badDebt) {
+    return (
+      `Retained case \`${badDebt.label}\` -> \`${badDebt.run_id}\` produced ` +
+      `bad debt ${displayValue(badDebt.risk_signals.total_bad_debt)} with ` +
+      `${displayValue(badDebt.risk_signals.total_liquidations)} liquidation(s). ` +
+      `Parameters: ${sampledParametersDisplay(badDebt.sampled_parameters)}.`
+    );
+  }
+  const invariant = selected.find((entry) => entry.risk_signals.invariant_names.length > 0);
+  if (invariant) {
+    return (
+      `Retained case \`${invariant.label}\` -> \`${invariant.run_id}\` recorded invariant signal ` +
+      `${invariant.risk_signals.invariant_names.join(", ")}. ` +
+      `Parameters: ${sampledParametersDisplay(invariant.sampled_parameters)}.`
+    );
+  }
+  const semanticSignal = selected.find((entry) => entry.risk_signals.semantic_signal_names.length > 0);
+  if (semanticSignal) {
+    return (
+      `Retained case \`${semanticSignal.label}\` -> \`${semanticSignal.run_id}\` recorded warn signal ` +
+      `${semanticSignal.risk_signals.semantic_signal_names.join(", ")}. ` +
+      `Parameters: ${sampledParametersDisplay(semanticSignal.sampled_parameters)}.`
+    );
+  }
+  const liquidation = selected.find((entry) => (entry.risk_signals.total_liquidations ?? 0) > 0);
+  if (liquidation) {
+    return (
+      `Retained case \`${liquidation.label}\` -> \`${liquidation.run_id}\` recorded ` +
+      `${displayValue(liquidation.risk_signals.total_liquidations)} liquidation(s) without realized bad debt. ` +
+      `Parameters: ${sampledParametersDisplay(liquidation.sampled_parameters)}.`
+    );
+  }
+  const liquidity = selected.find((entry) => (entry.risk_signals.max_utilization ?? 0) > 1);
+  if (liquidity) {
+    return (
+      `Retained case \`${liquidity.label}\` -> \`${liquidity.run_id}\` reached utilization ` +
+      `${displayValue(liquidity.risk_signals.max_utilization)}. ` +
+      `Parameters: ${sampledParametersDisplay(liquidity.sampled_parameters)}.`
+    );
+  }
+  if (summary.totals.setup_errors > 0) {
+    return `${summary.totals.setup_errors} setup error(s) prevented complete campaign evidence.`;
+  }
+  return "No non-zero lending risk metric or invariant failure was retained in this campaign run.";
+}
+
+function hasMeaningfulLendingRisk(summary: CampaignSummaryJson): boolean {
+  return (
+    (summary.lending?.total_bad_debt.max ?? 0) > 0 ||
+    (summary.lending?.total_liquidations.max ?? 0) > 0 ||
+    (summary.lending?.liquidity_stress.max_utilization_observed ?? 0) > 1
+  );
+}
+
+function riskSignalDisplay(entry: CampaignRetentionSelection): string {
+  const signals = entry.risk_signals;
+  const parts: string[] = [];
+  if (signals.invariant_names.length > 0) {
+    parts.push(`invariants=${signals.invariant_names.join("+")}`);
+  }
+  if (signals.semantic_signal_names.length > 0) {
+    parts.push(`warn_signals=${signals.semantic_signal_names.join("+")}`);
+  }
+  if (signals.total_bad_debt !== null) parts.push(`bad_debt=${displayValue(signals.total_bad_debt)}`);
+  if (signals.total_liquidations !== null) {
+    parts.push(`liquidations=${displayValue(signals.total_liquidations)}`);
+  }
+  if (signals.max_utilization !== null) {
+    parts.push(`max_utilization=${displayValue(signals.max_utilization)}`);
+  }
+  if (signals.min_tvl !== null) parts.push(`min_tvl=${displayValue(signals.min_tvl)}`);
+  return parts.length > 0 ? parts.join(", ") : "no numeric risk metric";
+}
+
+function sampledParametersDisplay(parameters: Record<string, JsonScalar>): string {
+  const entries = Object.entries(parameters).sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length === 0) return "(none)";
+  return entries.map(([key, value]) => `${key}=${scalarDisplay(value)}`).join(", ");
 }
 
 function expressionInvariantRows(summary: JsonRecord | null): Array<{

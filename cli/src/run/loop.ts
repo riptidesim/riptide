@@ -146,6 +146,9 @@ export type ResolveResult =
 export interface ResolvedScenario {
   name: string;
   runConfigPath: string;
+  policiesPathOverride?: string;
+  packRunIdOverride?: string;
+  reproCommandOverride?: string;
 }
 
 export interface ResolveInput {
@@ -331,6 +334,8 @@ export interface RunOneContext {
   policiesPathOverride?: string;
   /** Reproduction command written into reports and packs. */
   reproCommandOverride?: string;
+  /** Stable pack id override. Campaign runs use this to avoid per-scenario pack clobbering. */
+  packRunIdOverride?: string;
   /** Absolute path to the current-state pack to hydrate before tick 0. */
   statePackPath?: string;
   /** Generated Rust harness crate or Cargo.toml for this scenario. */
@@ -504,6 +509,9 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
             adapterSource: adapterResolution?.kind === "ok" ? adapterResolution.source : undefined,
             silent: input.silent !== false,
             outputDir: input.outputDir,
+            policiesPathOverride: scenario.policiesPathOverride,
+            reproCommandOverride: scenario.reproCommandOverride,
+            packRunIdOverride: scenario.packRunIdOverride,
             statePackPath: input.statePackOverride,
             harnessPath: input.harnessPath,
             // Single-cell sweep still honors --seed-root: forward it as
@@ -520,6 +528,9 @@ export async function runScenarios(input: RunScenariosInput): Promise<RunSummary
           adapterSource: adapterResolution?.kind === "ok" ? adapterResolution.source : undefined,
           silent: input.silent !== false,
           outputDir: input.outputDir,
+          policiesPathOverride: scenario.policiesPathOverride,
+          reproCommandOverride: scenario.reproCommandOverride,
+          packRunIdOverride: scenario.packRunIdOverride,
           statePackPath: input.statePackOverride,
           harnessPath: input.harnessPath
         });
@@ -973,6 +984,7 @@ async function defaultRunOne(ctx: RunOneContext): Promise<RunOneResult> {
       adapterPath: build.simulateOptions.adapter_path,
       policiesPath,
       commandHint: packCommand,
+      packRunId: ctx.packRunIdOverride,
       silent: silent
     });
   } catch (err) {

@@ -1,12 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
 import { collectInvariantFires } from "../src/review/markdown.js";
+import { executeCampaign, parseCampaignToml } from "../src/campaign/index.js";
+import type { SimulationResult } from "../src/compiler/schema.js";
+import {
+  resolveArtifactsDir,
+  type RunOneContext
+} from "../src/run/loop.js";
 
 const execFileAsync = promisify(execFile);
 const cliEntrypoint = path.resolve(process.cwd(), "dist/src/index.js");
@@ -40,6 +46,54 @@ test("review --json emits validation, invariant, digest, canonical hash, and raw
   assert.equal(Array.isArray(payload.validation), true);
   assert.equal(Array.isArray(payload.invariant_fires), true);
   assert.match(String((payload.manifest as Record<string, unknown>).digest), /^[a-f0-9]{64}$/);
+});
+
+test("review accepts a campaign root and maps retained cases to risk and rerun evidence", async () => {
+  const root = await campaignReviewFixtureRoot();
+  const spec = parseCampaignToml(
+    await readFile(path.join(root, "campaign.toml"), "utf8"),
+    path.join(root, "campaign.toml")
+  );
+  const result = await executeCampaign(spec, {
+    cwd: root,
+    maxRuns: 3,
+    runOne: async (ctx) => {
+      const index = resultRunIndex(ctx.scenario.runConfigPath);
+      const simulation = campaignSimulationResult(index, {
+        totalBadDebt: index === 1 ? 2500 : 0,
+        totalLiquidations: index === 1 ? 3 : 0,
+        maxUtilization: index === 1 ? 7.5 : 1.1,
+        minTvl: index === 1 ? 700 : 1000
+      });
+      const artifactsDir = await writeCampaignArtifacts(ctx, simulation);
+      return { kind: "pass", wallClockS: 0.01, artifactsDir, result: simulation };
+    }
+  });
+
+  const { stdout, stderr } = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "review", result.plan.campaignRoot, "--quiet"],
+    { cwd: root }
+  );
+
+  assert.equal(stderr, "");
+  assert.match(stdout, /# Campaign Review: campaign-review-fixture/);
+  assert.match(stdout, /worst_bad_debt/);
+  assert.match(stdout, /bad_debt=2500/);
+  assert.match(stdout, /warn_signals=collection_worst_health_factor/);
+  assert.doesNotMatch(stdout, /invariants=collection_worst_health_factor/);
+  assert.match(stdout, /rerun\.sh is present and sh -n parseable/);
+
+  const otherCwd = await mkdtemp(path.join(os.tmpdir(), "riptide-review-other-cwd-"));
+  const { stdout: otherStdout, stderr: otherStderr } = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "review", result.plan.campaignRoot, "--quiet"],
+    { cwd: otherCwd }
+  );
+
+  assert.equal(otherStderr, "");
+  assert.match(otherStdout, /# Campaign Review: campaign-review-fixture/);
+  assert.match(otherStdout, /bad_debt=2500/);
 });
 
 test("review collects fired semantic expression invariants before legacy rows", () => {
@@ -306,6 +360,176 @@ test("review exits 2 on canonical hash mismatch", async () => {
     }
   );
 });
+
+async function campaignReviewFixtureRoot(): Promise<string> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-review-campaign-"));
+  await mkdir(path.join(root, "fixtures", "adapters"), { recursive: true });
+  await mkdir(path.join(root, "fixtures", "personas"), { recursive: true });
+  await mkdir(path.join(root, "fixtures", "scenarios", "lending", "stress"), {
+    recursive: true
+  });
+  await writeFile(path.join(root, "fixtures", "adapters", "lending.toml"), "", "utf8");
+  await writeFile(path.join(root, "fixtures", "personas", "whale.toml"), "", "utf8");
+  await writeFile(
+    path.join(root, "fixtures", "scenarios", "lending", "stress", "run-config.json"),
+    JSON.stringify(
+      {
+        agents: 1,
+        ticks: 4,
+        scenario: "price-shock",
+        personas: ["whale"],
+        validator_url: "unused",
+        output_path: "template-output"
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  await writeFile(
+    path.join(root, "campaign.toml"),
+    `
+[campaign]
+name = "campaign-review-fixture"
+adapter = "fixtures/adapters/lending.toml"
+class = "lending.v1"
+risk_objective = "liquidation-safety"
+run_budget = 3
+seed_policy = "fixed:20260502"
+replay_retention = ["worst_bad_debt", "median"]
+
+[campaign.scenarios]
+selection = "weighted"
+families = ["stress"]
+
+[campaign.scenarios.stress]
+source = "fixtures/scenarios/lending/stress"
+weight = 1
+parameters = ["shock_profile"]
+
+[campaign.personas]
+base = "fixtures/personas"
+families = []
+
+[campaign.parameters.shock_profile]
+distribution = "fixed"
+value = "price-shock"
+`,
+    "utf8"
+  );
+  return root;
+}
+
+async function writeCampaignArtifacts(
+  ctx: RunOneContext,
+  result: SimulationResult
+): Promise<string> {
+  const artifactsDir = resolveArtifactsDir(ctx);
+  await mkdir(artifactsDir, { recursive: true });
+  await writeFile(
+    path.join(artifactsDir, "simulation-result.json"),
+    JSON.stringify(result, null, 2) + "\n",
+    "utf8"
+  );
+  await writeFile(path.join(artifactsDir, "report.md"), "# Report\n", "utf8");
+  return artifactsDir;
+}
+
+function campaignSimulationResult(
+  index: number,
+  metrics: {
+    totalBadDebt: number;
+    totalLiquidations: number;
+    maxUtilization: number;
+    minTvl: number;
+  }
+): SimulationResult {
+  return {
+    run_config: {
+      agents: 1,
+      ticks: 4,
+      scenario: "unit",
+      seed: index + 1,
+      personas: ["whale"],
+      validator_url: "unused",
+      output_path: ".riptide/runs/unit"
+    },
+    seed: index + 1,
+    total_ticks: 4,
+    timeseries: [
+      {
+        tick: 0,
+        active_agents: 1,
+        tvl: 1000,
+        utilization: 0,
+        cumulative_bad_debt: 0,
+        cumulative_liquidations: 0
+      },
+      {
+        tick: 4,
+        active_agents: 1,
+        tvl: metrics.minTvl,
+        utilization: metrics.maxUtilization,
+        cumulative_bad_debt: metrics.totalBadDebt,
+        cumulative_liquidations: metrics.totalLiquidations
+      }
+    ],
+    events: [
+      {
+        tick: 1,
+        agent_id: "agent-001",
+        persona_id: "whale",
+        persona_label: "Whale",
+        action: "deposit",
+        params: { amount: 1 },
+        outcome: "success"
+      }
+    ],
+    agents: [
+      {
+        agent_id: "agent-001",
+        persona_id: "whale",
+        persona_label: "Whale",
+        status: "active",
+        final_balance: 100,
+        pnl: 0,
+        total_actions: 1,
+        triggers_activated: 0
+      }
+    ],
+    summary: {
+      agents_active: 1,
+      agents_liquidated: metrics.totalLiquidations > 0 ? 1 : 0,
+      agents_depleted: 0,
+      final_tvl: metrics.minTvl,
+      final_utilization: metrics.maxUtilization,
+      total_bad_debt: metrics.totalBadDebt,
+      total_liquidations: metrics.totalLiquidations,
+      invariants_fired: [
+        { name: "bad_debt_bound", field: "bad_debt", op: "<=", value: 0, firings: 0 }
+      ],
+      expression_invariants: [
+        {
+          name: "collection_worst_health_factor",
+          expr: "collection.worst_health_factor > 1.0",
+          severity: "warn",
+          first_tick: index === 1 ? 2 : null,
+          firing_count: index === 1 ? 1 : 0,
+          observed: index === 1 ? [{ tick: 2, values: { "collection.worst_health_factor": 1 } }] : [],
+          first_fired_tick: index === 1 ? 2 : null,
+          firings: index === 1 ? 1 : 0
+        }
+      ]
+    },
+    simulation_boundaries: ["unit test"]
+  };
+}
+
+function resultRunIndex(runConfigPath: string): number {
+  const runDir = path.basename(path.dirname(runConfigPath));
+  const match = /^run_(\d{6})_/.exec(runDir);
+  return match ? Number(match[1]) : -1;
+}
 
 async function copyPack(prefix: string): Promise<string> {
   const tmpParent = await mkdtemp(path.join(os.tmpdir(), prefix));

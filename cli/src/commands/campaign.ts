@@ -265,6 +265,7 @@ function renderRun(result: CampaignExecutionResult): string {
     `  invariant failures: ${result.runSummary.fail}`,
     `  setup errors: ${result.runSummary.error}`,
     `  skipped: ${result.runSummary.skipped}`,
+    `  risk signals: ${campaignRiskLine(result)}`,
     `  generated configs: ${result.createdConfigs} created, ${result.reusedConfigs} reused`,
     `  retained labels: ${retainedLabels || "(none)"}`,
     `  output dir: ${result.plan.campaignRoot}`,
@@ -274,6 +275,20 @@ function renderRun(result: CampaignExecutionResult): string {
     "  claim boundary: no invariant violation observed means no violation observed in this campaign, not proof of complete safety.",
     ""
   ].join("\n");
+}
+
+function campaignRiskLine(result: CampaignExecutionResult): string {
+  const lending = result.campaignSummary.lending;
+  if (!lending) return "not available for this campaign class";
+  return [
+    `bad debt max=${formatRiskValue(lending.total_bad_debt.max)}`,
+    `liquidations max=${formatRiskValue(lending.total_liquidations.max)}`,
+    `max utilization=${formatRiskValue(lending.liquidity_stress.max_utilization_observed)}`
+  ].join(", ");
+}
+
+function formatRiskValue(value: number | null): string {
+  return value === null ? "n/a" : String(Math.round(value * 1_000_000) / 1_000_000);
 }
 
 function scenarioMix(plan: CampaignExpansionPlan): Record<string, number> {

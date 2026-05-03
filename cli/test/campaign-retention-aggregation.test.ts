@@ -80,6 +80,11 @@ test("campaign retention aggregation: writes summaries and selects retained labe
       label: string;
       status: "selected" | "warning";
       run_index?: number;
+      reason?: string;
+      tie_breaker?: string | null;
+      case_digest?: string;
+      risk_signals?: { total_bad_debt?: number | null; max_utilization?: number | null };
+      paths?: { case_manifest?: string; rerun_sh?: string };
       warning?: string;
     }>;
   };
@@ -89,6 +94,15 @@ test("campaign retention aggregation: writes summaries and selects retained labe
   assert.equal(byLabel.get("worst_liquidity")?.run_index, 2);
   assert.equal(byLabel.get("median")?.status, "selected");
   assert.equal(byLabel.get("surprising_outlier")?.status, "selected");
+  const badDebt = byLabel.get("worst_bad_debt")!;
+  assert.match(badDebt.reason ?? "", /tie: 2 runs shared the same bad-debt score/);
+  assert.equal(badDebt.tie_breaker, "2 runs shared the same bad-debt score; selected lowest run index 0");
+  assert.equal(badDebt.risk_signals?.total_bad_debt, 1200);
+  assert.match(badDebt.case_digest ?? "", /^[a-f0-9]{64}$/);
+  const caseManifestPath = path.resolve(result.plan.campaignRoot, badDebt.paths?.case_manifest ?? "");
+  const rerunPath = path.resolve(result.plan.campaignRoot, badDebt.paths?.rerun_sh ?? "");
+  assert.match(await readFile(caseManifestPath, "utf8"), /campaign-retained-case\.v1/);
+  assert.match(await readFile(rerunPath, "utf8"), /riptide run/);
 
   const csv = await readFile(result.artifactPaths.parametersCsvPath, "utf8");
   assert.match(csv.split("\n")[0]!, /total_bad_debt,max_utilization,min_tvl/);
@@ -96,6 +110,8 @@ test("campaign retention aggregation: writes summaries and selects retained labe
 
   const markdown = await readFile(result.artifactPaths.summaryMarkdownPath, "utf8");
   assert.match(markdown, /observations within this campaign/i);
+  assert.match(markdown, /Key Risk Signal/);
+  assert.match(markdown, /Retained case `worst_bad_debt`/);
   assert.doesNotMatch(markdown, /protocol is safe/i);
 
   const combined = [
