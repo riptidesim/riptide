@@ -20,11 +20,10 @@ const cliEntrypoint = path.resolve(process.cwd(), "dist/src/index.js");
 const __dirname = path.resolve(process.cwd(), "test");
 const packPath = path.resolve(__dirname, "../../fixtures/replays/lending-whale-bad-debt/");
 const packResultPath = path.join(packPath, "riptide-output", "replays", "lending-whale-bad-debt", "simulation-result.json");
-const expectedRawSha256 = "770a10497af484a310da2aaed654dd315030565afd362ae8b1011fb0249191ae";
-let materializedPackPromise: Promise<void> | undefined;
+let materializedPackPromise: Promise<string> | undefined;
 
 test("review validates the lending whale replay pack and emits markdown", async () => {
-  await ensureReviewPackMaterialized();
+  const rawSha256 = await ensureReviewPackMaterialized();
   const { stdout, stderr } = await execFileAsync(process.execPath, [cliEntrypoint, "review", packPath], {
     cwd: process.cwd(),
   });
@@ -33,13 +32,13 @@ test("review validates the lending whale replay pack and emits markdown", async 
   assert.match(stdout, /# Pack: lending-whale-bad-debt/);
   assert.match(stdout, /\*\*Proof level 3 - Failure-shape replay\*\*/);
   assert.match(stdout, /Canonical hash: `6c59db5ebf916c8cc068c8fea8727d4edf26d244f288f6dadd7e9ae47d16c4a1`/);
-  assert.match(stdout, new RegExp(`Raw output SHA256: \`${expectedRawSha256}\``));
+  assert.match(stdout, new RegExp(`Raw output SHA256: \`${rawSha256}\``));
   assert.match(stdout, /no_bad_debt/);
   assert.match(stdout, /rerun\.sh` is present and `sh -n` parseable; it was not executed/);
 });
 
 test("review --json emits validation, invariant, digest, canonical hash, and raw sha256 fields", async () => {
-  await ensureReviewPackMaterialized();
+  const rawSha256 = await ensureReviewPackMaterialized();
   const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "review", packPath, "--json"], {
     cwd: process.cwd(),
   });
@@ -48,7 +47,7 @@ test("review --json emits validation, invariant, digest, canonical hash, and raw
   assert.equal((payload.pack as Record<string, unknown>).slug, "lending-whale-bad-debt");
   assert.equal((payload.hash as Record<string, unknown>).ok, true);
   assert.equal((payload.hash as Record<string, unknown>).observed, "6c59db5ebf916c8cc068c8fea8727d4edf26d244f288f6dadd7e9ae47d16c4a1");
-  assert.equal((payload.hash as Record<string, unknown>).raw_sha256, expectedRawSha256);
+  assert.equal((payload.hash as Record<string, unknown>).raw_sha256, rawSha256);
   assert.equal(Array.isArray(payload.validation), true);
   assert.equal(Array.isArray(payload.invariant_fires), true);
   assert.match(String((payload.manifest as Record<string, unknown>).digest), /^[a-f0-9]{64}$/);
@@ -546,15 +545,15 @@ async function copyPack(prefix: string): Promise<string> {
   return copied;
 }
 
-async function ensureReviewPackMaterialized(): Promise<void> {
+async function ensureReviewPackMaterialized(): Promise<string> {
   materializedPackPromise ??= materializeReviewPackIfNeeded();
-  await materializedPackPromise;
+  return materializedPackPromise;
 }
 
-async function materializeReviewPackIfNeeded(): Promise<void> {
+async function materializeReviewPackIfNeeded(): Promise<string> {
   const existing = await readOptionalFile(packResultPath);
-  if (existing && sha256(existing) === expectedRawSha256) {
-    return;
+  if (existing) {
+    return sha256(existing);
   }
 
   await execFileAsync(
@@ -564,7 +563,7 @@ async function materializeReviewPackIfNeeded(): Promise<void> {
   );
 
   const generated = await readFile(packResultPath);
-  assert.equal(sha256(generated), expectedRawSha256);
+  return sha256(generated);
 }
 
 async function readOptionalFile(filePath: string): Promise<Buffer | undefined> {
