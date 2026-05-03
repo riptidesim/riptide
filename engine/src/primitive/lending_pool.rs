@@ -1539,6 +1539,7 @@ mod tests {
                     action: name.to_string(),
                     amount: Some("amount".to_string()),
                     args: BTreeMap::new(),
+                    bindings: BTreeMap::new(),
                 },
             );
         }

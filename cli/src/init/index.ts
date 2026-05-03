@@ -82,6 +82,28 @@ interface PersonaArtifact {
   adapterBlock: string;
 }
 
+export interface InitIdlField {
+  name: string;
+  type: unknown;
+  observationType?: string;
+}
+
+export interface InitIdlAccount {
+  name: string;
+  size?: number;
+  fields: InitIdlField[];
+}
+
+export interface InitIdlInstruction {
+  name: string;
+  args: InitIdlField[];
+}
+
+export interface InitIdlFacts {
+  accounts: InitIdlAccount[];
+  instructions: InitIdlInstruction[];
+}
+
 export function preflightScaffold(
   options: Pick<ScaffoldOptions, "cwd" | "force" | "blank">
 ): ProgramDetection | undefined {
@@ -200,6 +222,56 @@ function missingArtifactWarnings(cwd: string, programName: string): string[] {
   return warnings;
 }
 
+function loadInitIdlFacts(cwd: string, programName: string, warnings: string[]): InitIdlFacts | undefined {
+  const soName = programName.replace(/-/g, "_");
+  const idlPath = path.join(cwd, "target", "idl", `${soName}.json`);
+  if (!existsSync(idlPath)) return undefined;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(idlPath, "utf8"));
+  } catch (err) {
+    warnings.push(`target/idl/${soName}.json could not be parsed for init inference: ${errMessage(err)}.`);
+    return undefined;
+  }
+
+  const root = objectRecord(parsed);
+  if (!root) return undefined;
+
+  const accounts = Array.isArray(root.accounts)
+    ? root.accounts.flatMap((entry): InitIdlAccount[] => {
+        const account = objectRecord(entry);
+        const name = stringValue(account?.name);
+        if (!account || !name) return [];
+        return [{
+          name,
+          size: positiveIntegerValue(account.size) ?? undefined,
+          fields: idlFields(account)
+        }];
+      })
+    : [];
+
+  const instructions = Array.isArray(root.instructions)
+    ? root.instructions.flatMap((entry): InitIdlInstruction[] => {
+        const instruction = objectRecord(entry);
+        const name = stringValue(instruction?.name);
+        if (!instruction || !name) return [];
+        const args = Array.isArray(instruction.args)
+          ? instruction.args.flatMap((arg): InitIdlField[] => {
+              const record = objectRecord(arg);
+              const argName = stringValue(record?.name);
+              return record && argName ? [{ name: argName, type: record.type }] : [];
+            })
+          : [];
+        return [{ name, args }];
+      })
+    : [];
+
+  return accounts.length > 0 || instructions.length > 0
+    ? { accounts, instructions }
+    : undefined;
+}
+
 function normalizeProgramName(value: string): string {
   const normalized = value.trim().replace(/_/g, "-");
   if (!/^[a-z][a-z0-9-]*$/.test(normalized)) {
@@ -262,6 +334,7 @@ function extractProgramKeys(raw: string, tableHeader: string): string[] {
 export interface RenderAdapterStubOptions {
   personaBlocks?: string[];
   invariants?: InitInvariantConfig[];
+  idlFacts?: InitIdlFacts;
 }
 
 export function renderAdapterStub(
@@ -284,20 +357,10 @@ export function renderAdapterStub(
 # program_so/idl_path unset unless you are intentionally switching this
 # adapter to the generic SBF/IDL runtime.
 `
-    : `program_so = "target/deploy/${soName}.so"
-idl_path = "target/idl/${soName}.json"
-
-# TODO: declare every account type the engine should track.
-# - \`kind = "agent"\` for accounts owned by a single simulated user
-#   (wallet, position, token account, etc.)
-# - \`kind = "shared"\` for global / pool / config accounts
-# - \`space\` is the account byte size — match your Rust \`#[account]\` layout
-[accounts]
-# [accounts.player]
-# kind = "agent"
-# space = 64
-`;
-  const coreSections = renderAdapterCoreSections(protocol);
+    : renderGenericRuntimeSections(soName, options.idlFacts);
+  const coreSections = protocol === "lending"
+    ? renderAdapterCoreSections(protocol)
+    : renderGenericCoreSections(options.idlFacts);
   const personasSection = renderPersonasSection(options.personaBlocks ?? []);
   const invariantsSection = renderInvariantsSection(options.invariants ?? []);
   const semanticsSection = renderSemanticsSection(options.invariants ?? [], protocol);
@@ -306,14 +369,57 @@ idl_path = "target/idl/${soName}.json"
 # This is a stub — fill in the sections below to wire your program into
 # Riptide. Every block has a TODO comment explaining what goes in it.
 # When TODOs are filled, run \`riptide lint ${programName}\`.
-# For setup-dependent repos, smoke with \`riptide run --adapter .riptide/adapters/${programName}.toml --harness .riptide/harness --seeds 1 --seed-root 1337\`.
-# \`riptide adapt --adapter .riptide/adapters/${programName}.toml\` remains the adapter-only smoke when zeroed setup is enough.
+# First smoke: \`riptide run --adapter .riptide/adapters/${programName}.toml --seeds 1 --seed-root 1337\`.
+# If setup-dependent accounts are needed later, run \`riptide harness generate --adapter .riptide/adapters/${programName}.toml\`.
 ${intentLine}${genericRuntimeNote}
 protocol = "${protocolValue}"
 ${runtimeSections}
 
 ${coreSections}
 ${personasSection}${invariantsSection}${semanticsSection}`;
+}
+
+function renderGenericRuntimeSections(soName: string, idlFacts?: InitIdlFacts): string {
+  return `program_so = "target/deploy/${soName}.so"
+idl_path = "target/idl/${soName}.json"
+
+${renderGenericAccountsSection(idlFacts)}`;
+}
+
+function renderGenericAccountsSection(idlFacts?: InitIdlFacts): string {
+  const accounts = idlFacts?.accounts ?? [];
+  const sized = accounts.filter((account) => account.size !== undefined);
+  const unsized = accounts.filter((account) => account.size === undefined);
+  if (sized.length === 0) {
+    return `# TODO: declare every account type the engine should track.
+# - \`kind = "agent"\` for accounts owned by a single simulated user
+#   (wallet, position, token account, etc.)
+# - \`kind = "shared"\` for global / pool / config accounts
+# - \`space\` is the account byte size. Use \`space = "auto"\` only when
+#   target/idl declares accounts[].size; otherwise set explicit bytes.
+[accounts]
+# [accounts.player]
+# kind = "agent"
+# space = 64
+`;
+  }
+
+  const liveBlocks = sized.map((account) => `[accounts.${tomlKey(account.name)}]
+# TODO: confirm kind; init guessed from the IDL account name.
+kind = "${guessAccountKind(account.name)}"
+space = "auto"`).join("\n\n");
+
+  const todoBlocks = unsized.length === 0
+    ? ""
+    : `\n\n# TODO: these IDL accounts do not declare accounts[].size, so Riptide
+# cannot use space = "auto". Uncomment each account you need and set bytes.
+${unsized.map((account) => `# [accounts.${tomlKey(account.name)}]
+# kind = "${guessAccountKind(account.name)}"
+# space = <bytes>`).join("\n\n")}`;
+
+  return `# IDL-backed account candidates from target/idl. Confirm kind before running.
+${liveBlocks}${todoBlocks}
+`;
 }
 
 function renderAdapterCoreSections(protocol: Protocol): string {
@@ -390,6 +496,107 @@ liquidated = "bool"
 [observations]
 # "player.balance" = "uint"
 `;
+}
+
+function renderGenericCoreSections(idlFacts?: InitIdlFacts): string {
+  const instructions = idlFacts?.instructions ?? [];
+  const runnableInstructions = instructions.filter((instruction) => instruction.args.length <= 1);
+  const todoInstructions = instructions.filter((instruction) => instruction.args.length > 1);
+  const autoAccounts = (idlFacts?.accounts ?? [])
+    .filter((account) => account.size !== undefined && account.fields.some((field) => field.observationType !== undefined))
+    .map((account) => account.name);
+
+  if (runnableInstructions.length === 0 && autoAccounts.length === 0) {
+    return renderAdapterCoreSections("custom");
+  }
+
+  const instructionSection = runnableInstructions.length === 0
+    ? `# TODO: map IDL instructions you want agents to invoke.
+[instructions]
+`
+    : runnableInstructions.map((instruction) => renderInferredInstruction(instruction)).join("\n\n");
+
+  const todoInstructionSection = todoInstructions.length === 0
+    ? ""
+    : `\n\n# TODO: multi-arg IDL instructions need explicit non-runtime bindings.
+${todoInstructions.map((instruction) => renderTodoInstruction(instruction)).join("\n\n")}`;
+
+  const actionSection = runnableInstructions.length === 0
+    ? `# TODO: define runtime-dispatchable actions after binding instructions.
+[actions]
+`
+    : runnableInstructions.map((instruction) => `[actions.${tomlKey(instruction.name)}]
+label = ${tomlString(titleizeAction(instruction.name))}
+takes = [${instruction.args.map((arg) => tomlString(arg.name)).join(", ")}]`).join("\n\n");
+
+  const observationSection = autoAccounts.length === 0
+    ? `# TODO: map on-chain state fields to observation keys so invariants + the
+# dashboard can read them. LHS is \`<account>.<field>\` from your program,
+# RHS is the Riptide observation key.
+[state_mapping]
+# "player.balance" = "player.balance"
+
+# TODO: declare observations for each state-mapping key. Types:
+# "uint" / "int" / "float" / "bool" / "pubkey" / "map".
+[observations]
+# "player.balance" = "uint"`
+    : `[state_mapping]
+
+# Opt-in IDL field observations. Remove accounts you do not want exposed.
+[observations.auto]
+accounts = [${autoAccounts.map(tomlString).join(", ")}]`;
+
+  return `# IDL-backed instruction candidates from target/idl.
+${instructionSection}${todoInstructionSection}
+
+${actionSection}
+
+${observationSection}
+`;
+}
+
+function renderInferredInstruction(instruction: InitIdlInstruction): string {
+  if (instruction.args.length === 0) {
+    return `[instructions.${tomlKey(instruction.name)}]
+action = ${tomlString(instruction.name)}`;
+  }
+  const arg = instruction.args[0]!;
+  return `[instructions.${tomlKey(instruction.name)}]
+action = ${tomlString(instruction.name)}
+
+[instructions.${tomlKey(instruction.name)}.bindings]
+${tomlKey(arg.name)} = "@runtime.amount"`;
+}
+
+function renderTodoInstruction(instruction: InitIdlInstruction): string {
+  const lines = [
+    `# [instructions.${tomlKey(instruction.name)}]`,
+    `# action = ${tomlString(instruction.name)}`,
+    `#`,
+    `# [instructions.${tomlKey(instruction.name)}.bindings]`,
+    ...instruction.args.map((arg, index) => {
+      const value = index === 0 ? "\"@runtime.amount\"" : "\"TODO\"";
+      return `# ${tomlKey(arg.name)} = ${value}`;
+    }),
+    `#`,
+    `# [actions.${tomlKey(instruction.name)}]`,
+    `# label = ${tomlString(titleizeAction(instruction.name))}`,
+    `# takes = [${instruction.args.map((arg) => tomlString(arg.name)).join(", ")}]`
+  ];
+  return lines.join("\n");
+}
+
+function guessAccountKind(accountName: string): "agent" | "shared" {
+  return /user|owner|authority|wallet|position|obligation|trader|player/i.test(accountName)
+    ? "agent"
+    : "shared";
+}
+
+function titleizeAction(name: string): string {
+  return name
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function renderPersonasSection(personaBlocks: string[]): string {
@@ -578,12 +785,41 @@ function objectRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function idlFields(account: Record<string, unknown>): InitIdlField[] {
+  const direct = Array.isArray(account.fields) ? account.fields : undefined;
+  const type = objectRecord(account.type);
+  const nested = Array.isArray(type?.fields) ? type.fields : undefined;
+  return (direct ?? nested ?? []).flatMap((field): InitIdlField[] => {
+    const record = objectRecord(field);
+    const name = stringValue(record?.name);
+    if (!record || !name) return [];
+    return [{
+      name,
+      type: record.type,
+      observationType: observationTypeForInitType(record.type)
+    }];
+  });
+}
+
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 function numberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function positiveIntegerValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
+}
+
+function observationTypeForInitType(type: unknown): string | undefined {
+  if (typeof type !== "string") return undefined;
+  if (type === "bool") return "bool";
+  if (type === "pubkey" || type === "publicKey") return "pubkey";
+  if (type.startsWith("i")) return "int";
+  if (type.startsWith("u")) return "uint";
+  return undefined;
 }
 
 function titleizePersona(slug: string): string {
@@ -641,7 +877,7 @@ export function renderGettingStarted(
     : "";
   const harnessNextStep = harnessCreated
     ? "5. Edit `.riptide/harness/src/main.rs` and fill in setup for account bytes, SPL mints/vaults, PDAs, or sibling programs.\n6. Run the one-seed harness smoke:\n\n   ```\n   " + firstRunCommand + "\n   ```\n\n7. Optional after the harness smoke passes: `riptide adapt --adapter .riptide/adapters/" + programName + ".toml` — adapter-only engine smoke for repos that do not need setup.\n8. "
-    : "5. `riptide harness generate --adapter .riptide/adapters/" + programName + ".toml` — Rust setup for custom account bytes, SPL mints/vaults, PDAs, or sibling programs.\n6. Run the one-seed smoke (`--harness .riptide/harness` once a harness exists):\n\n   ```\n   " + firstRunCommand + "\n   ```\n\n7. Optional after the smoke passes: `riptide adapt --adapter .riptide/adapters/" + programName + ".toml` — adapter-only engine smoke for repos that do not need setup.\n8. ";
+    : "5. Run the one-seed smoke:\n\n   ```\n   " + firstRunCommand + "\n   ```\n\n6. Optional only if the smoke shows you need custom pre-tick-0 setup: `riptide harness generate --adapter .riptide/adapters/" + programName + ".toml`, then rerun with `--harness .riptide/harness`.\n7. Optional after the smoke passes: `riptide adapt --adapter .riptide/adapters/" + programName + ".toml` — adapter-only engine smoke for repos that do not need setup.\n8. ";
   const seedCountNote = seeds === 1
     ? `Generated run-configs include \`"seed": ${seedForSeedCount(1)}\`, so the scaffolded scenario pins one deterministic seed. Pass \`--seeds <N>\` when you want a larger sweep.`
     : `Generated run-configs include \`"seeds": ${seeds}\`, so the full scenario battery is a ${seeds}-seed sweep. Start with \`--seeds 1 --seed-root 1337\` for the first smoke, then drop the override for the full sweep.`;
@@ -706,10 +942,21 @@ export function renderRunConfig(input: RunConfigInput): string {
     ...(seed === undefined ? {} : { seed }),
     ...(seed === undefined && seeds !== undefined ? { seeds } : {}),
     scenario: input.scenario,
-    personas: input.personas,
+    personas: renderPersonaSelection(input.personas, input.agents),
     output_path: input.outputPath
   };
   return JSON.stringify(config, null, 2) + "\n";
+}
+
+function renderPersonaSelection(personas: string[], agents: number): string[] | Record<string, number> {
+  if (personas.length === 0) return [];
+  const counts: Record<string, number> = {};
+  for (const persona of personas) counts[persona] = 0;
+  for (let i = 0; i < agents; i += 1) {
+    const persona = personas[i % personas.length]!;
+    counts[persona] = (counts[persona] ?? 0) + 1;
+  }
+  return counts;
 }
 
 function resolveScaffoldScenarios(
@@ -973,6 +1220,9 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
   const programName = normalizeProgramName(options.programName ?? detection.programName);
   const warnings = options.blank ? detection.warnings : missingArtifactWarnings(cwd, programName);
   const protocol: Protocol = options.protocol ?? "custom";
+  const idlFacts = protocol === "lending"
+    ? undefined
+    : loadInitIdlFacts(cwd, programName, warnings);
   const personaSlugs = options.personas ?? [];
   const agents = options.agents ?? 100;
   const ticks = options.ticks ?? 30;
@@ -1009,7 +1259,8 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
     path.join(riptideDir, "adapters", `${programName}.toml`),
     renderAdapterStub(programName, protocol, {
       personaBlocks: personaArtifacts.map((artifact) => artifact.adapterBlock),
-      invariants
+      invariants,
+      idlFacts
     }),
     "utf8"
   );

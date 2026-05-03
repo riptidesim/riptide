@@ -1,6 +1,6 @@
 // Interactive prompts for `riptide init`.
 //
-// Nine questions, every one defaulted so Enter-through accepts the
+// Eight questions, every one defaulted so Enter-through accepts the
 // current state without ambiguity. The command layer handles the TTY
 // gate and falls back to defaults under --yes / --quiet / non-TTY.
 
@@ -24,7 +24,6 @@ import {
   type InvariantCatalogEntry
 } from "./invariants-catalog.js";
 import {
-  defaultHarnessModeForProtocol,
   DEFAULT_INIT_SEEDS,
   seedForSeedCount,
   type InitHarnessMode
@@ -42,7 +41,7 @@ export interface WizardDefaults {
 export interface WizardAnswers {
   programName: string;
   protocol: Protocol;
-  harnessMode: InitHarnessMode;
+  harnessMode?: InitHarnessMode;
   seeds: number;
   personas: string[];
   scenarios: InitScenarioConfig[];
@@ -75,25 +74,6 @@ export async function runWizard(defaults: WizardDefaults): Promise<WizardAnswers
       name: choice.label
     }))
   })) as Protocol;
-
-  const harnessMode = (await select({
-    message: "Custom setup before tick 0:",
-    default: defaults.harnessMode ?? defaultHarnessModeForProtocol(protocol),
-    choices: [
-      {
-        value: "generate",
-        name: "Yes, generate a Rust harness for SPL/PDAs/external accounts"
-      },
-      {
-        value: "todo",
-        name: "Not sure, generate a TODO harness"
-      },
-      {
-        value: "none",
-        name: "No, adapter-only"
-      }
-    ]
-  })) as InitHarnessMode;
 
   const presets = personaChoicesFor(protocol);
   let personas: string[] = [];
@@ -222,7 +202,6 @@ export async function runWizard(defaults: WizardDefaults): Promise<WizardAnswers
   return {
     programName: programName.trim(),
     protocol,
-    harnessMode,
     seeds: resolvedSeeds,
     personas,
     scenarios: scenarioCatalog

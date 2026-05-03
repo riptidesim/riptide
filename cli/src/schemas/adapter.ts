@@ -4,6 +4,9 @@
 // `engine/src/adapter/schema.rs` and the loader validation in
 // `engine/src/adapter/loader.rs`.
 
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+
 import { z } from "zod";
 import { ProgramErrorEntrySchema } from "./errors.js";
 
@@ -201,9 +204,13 @@ export const InstructionMappingSchema = z.object({
   // Borsh-encodable literals (u128/i128/u64/i64/u32/u8 encoded as
   // integers; bool as boolean; pubkey as base58 string). Empty by default so
   // every single-arg adapter continues to parse byte-for-byte.
-  args: z.record(z.string(), ArgLiteralSchema).default({})
+  args: z.record(z.string(), ArgLiteralSchema).default({}),
+  bindings: z.record(z.string(), ArgLiteralSchema).optional()
 });
-export type InstructionMapping = z.infer<typeof InstructionMappingSchema>;
+type ParsedInstructionMapping = z.infer<typeof InstructionMappingSchema>;
+export type InstructionMapping = Omit<ParsedInstructionMapping, "bindings"> & {
+  bindings?: ParsedInstructionMapping["bindings"];
+};
 
 export const AccountKindSchema = z.enum(["agent", "shared"]);
 
@@ -260,7 +267,7 @@ export type AccountDecoder = z.infer<typeof AccountDecoderSchema>;
 
 export const AccountDefinitionSchema = z.object({
   kind: AccountKindSchema,
-  space: z.number().int().positive(),
+  space: z.union([z.number().int().nonnegative(), z.literal("auto")]).optional(),
   address: z.string().min(1).optional(),
   pda: PdaDefinitionSchema.optional(),
   owner: AccountOwnerSchema.optional(),
@@ -277,9 +284,13 @@ const ObservationShapeSchema = z.object({
   label: z.string().min(1).optional(),
   type: ObservationTypeSchema,
 });
+const AutoObservationDefinitionSchema = z.object({
+  accounts: z.array(z.string().min(1)).default([]),
+}).strict();
 export const ObservationDefinitionSchema = z.union([
   ObservationTypeSchema,
   ObservationShapeSchema,
+  AutoObservationDefinitionSchema,
 ]);
 
 export const PersonaTriggerSchema = z.object({
@@ -441,7 +452,15 @@ export const AdapterSchema = z.object({
   errors: z.array(ProgramErrorEntrySchema).default([]),
   lineage: AdapterLineageSchema.optional(),
 });
-export type Adapter = z.infer<typeof AdapterSchema>;
+export type RawAdapter = z.infer<typeof AdapterSchema>;
+export type AccountDefinition = Omit<z.infer<typeof AccountDefinitionSchema>, "space"> & {
+  space: number;
+};
+export type Adapter = Omit<RawAdapter, "accounts" | "observations" | "instructions"> & {
+  accounts: Record<string, AccountDefinition>;
+  instructions: Record<string, InstructionMapping>;
+  observations: Record<string, z.infer<typeof ObservationDefinitionSchema>>;
+};
 
 export interface AdapterValidationError {
   path: string;
@@ -595,7 +614,7 @@ function validateAdapterIdentifiers(adapter: Adapter, path: string): void {
     for (const segment of obsName.split(".")) {
       checkIdentifier(path, scope, segment);
     }
-    if (typeof definition === "object" && definition.label !== undefined) {
+    if (isObservationShapeDefinition(definition) && definition.label !== undefined) {
       checkLabel(path, `${scope}.label`, definition.label);
     }
   }
@@ -623,25 +642,28 @@ export function validateAdapter(raw: unknown, path: string): Adapter {
   }
   const adapter = parsed.data;
 
-  validateAdapterIdentifiers(adapter, path);
-  validateLineage(adapter, path);
-  validateSemantics(adapter, path);
-  validateErrors(adapter, path);
-  validateAccountBindings(adapter, path);
-  validateAccountOwners(adapter, path);
-  validateAccountDecoders(adapter, path);
+  normalizeGenericInference(adapter, path);
+  const normalized = adapter as Adapter;
 
-  const runtime = validateRuntimeSelection(adapter, path);
+  validateAdapterIdentifiers(normalized, path);
+  validateLineage(normalized, path);
+  validateSemantics(normalized, path);
+  validateErrors(normalized, path);
+  validateAccountBindings(normalized, path);
+  validateAccountOwners(normalized, path);
+  validateAccountDecoders(normalized, path);
+
+  const runtime = validateRuntimeSelection(normalized, path);
   if (runtime === "lending") {
-    validateLending(adapter, path);
+    validateLending(normalized, path);
   } else {
-    validateGeneric(adapter, path);
+    validateGeneric(normalized, path);
   }
 
-  validateOracles(adapter, path, runtime);
-  validateScheduledActions(adapter, path, runtime);
+  validateOracles(normalized, path, runtime);
+  validateScheduledActions(normalized, path, runtime);
 
-  return adapter;
+  return normalized;
 }
 
 function validateRuntimeSelection(adapter: Adapter, path: string): Protocol {
@@ -650,6 +672,317 @@ function validateRuntimeSelection(adapter: Adapter, path: string): Protocol {
   throw new Error(
     `${path}: \`protocol\`: missing runtime selection; declare \`program_so\` + \`idl_path\` for the generic SBF/IDL runtime, or set \`protocol = "lending"\` / \`protocol = "generic"\` as a backcompat runtime hint`
   );
+}
+
+interface IdlFieldFact {
+  name: string;
+  observationType?: z.infer<typeof ObservationTypeSchema>;
+}
+
+interface IdlFacts {
+  accounts: Map<string, { size?: number; fields: IdlFieldFact[] }>;
+  instructions: Map<string, { args: string[] }>;
+}
+
+function normalizeGenericInference(adapter: RawAdapter, adapterPath: string): void {
+  if (inferAdapterRuntime(adapter) !== "generic") return;
+
+  const needsIdl =
+    Object.values(adapter.accounts).some((account) => account.space === undefined || account.space === "auto") ||
+    Object.values(adapter.instructions).some((mapping) => Object.keys(mapping.bindings ?? {}).length > 0) ||
+    hasAutoObservations(adapter) ||
+    Object.keys(adapter.actions).length === 0;
+
+  const idlFacts = loadIdlFacts(adapter, adapterPath, needsIdl);
+
+  if (idlFacts) {
+    normalizeAccountSpaces(adapter, adapterPath, idlFacts);
+    normalizeInstructionBindings(adapter, adapterPath, idlFacts);
+    normalizeAutoObservations(adapter, adapterPath, idlFacts);
+  } else {
+    const autoAccount = Object.entries(adapter.accounts).find(
+      ([, account]) => account.space === undefined || account.space === "auto"
+    );
+    if (autoAccount) {
+      throw new Error(
+        `${adapterPath}: \`[accounts].${autoAccount[0]}.space\`: could not infer account space because \`idl_path\` is missing or unreadable; set \`space = <bytes>\` explicitly or provide a readable JSON IDL`
+      );
+    }
+  }
+}
+
+function hasAutoObservations(adapter: RawAdapter): boolean {
+  const auto = adapter.observations.auto;
+  return isAutoObservationDefinition(auto);
+}
+
+function isAutoObservationDefinition(value: unknown): value is { accounts: string[] } {
+  return value !== null && typeof value === "object" && !Array.isArray(value) && "accounts" in value && !("type" in value);
+}
+
+function isObservationShapeDefinition(
+  value: unknown
+): value is { type: z.infer<typeof ObservationTypeSchema>; label?: string } {
+  return value !== null && typeof value === "object" && !Array.isArray(value) && "type" in value;
+}
+
+function loadIdlFacts(adapter: RawAdapter, adapterPath: string, required: boolean): IdlFacts | null {
+  if (typeof adapter.idl_path !== "string" || adapter.idl_path.trim().length === 0) {
+    if (required) {
+      throw new Error(
+        `${adapterPath}: \`idl_path\`: IDL-backed inference requires a readable JSON IDL path`
+      );
+    }
+    return null;
+  }
+  const resolved = resolveRuntimePath(adapter.idl_path, adapterPath);
+  if (!existsSync(resolved)) {
+    if (required) {
+      throw new Error(
+        `${adapterPath}: \`idl_path\`: IDL-backed inference could not read ${resolved}; build/regenerate the IDL or use explicit adapter fields`
+      );
+    }
+    return null;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(resolved, "utf8"));
+  } catch (err) {
+    throw new Error(
+      `${adapterPath}: \`idl_path\`: failed to parse JSON IDL at ${resolved}: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+  return collectIdlFacts(parsed);
+}
+
+function resolveRuntimePath(raw: string, adapterPath: string): string {
+  if (path.isAbsolute(raw)) return raw;
+  const adapterDir = path.dirname(path.resolve(adapterPath));
+  const adapterRelative = path.resolve(adapterDir, raw);
+  if (existsSync(adapterRelative)) return adapterRelative;
+  const repoRoot = userRepoRootForRiptideAdapter(adapterPath);
+  return repoRoot ? path.resolve(repoRoot, raw) : adapterRelative;
+}
+
+function userRepoRootForRiptideAdapter(adapterPath: string): string | null {
+  const adapterDir = path.dirname(path.resolve(adapterPath));
+  const riptideDir = path.dirname(adapterDir);
+  if (path.basename(adapterDir) !== "adapters" || path.basename(riptideDir) !== ".riptide") {
+    return null;
+  }
+  return path.dirname(riptideDir);
+}
+
+function collectIdlFacts(idl: unknown): IdlFacts {
+  const root = asRecord(idl);
+  const accounts = new Map<string, { size?: number; fields: IdlFieldFact[] }>();
+  const instructions = new Map<string, { args: string[] }>();
+  const rawAccounts = Array.isArray(root?.accounts) ? root.accounts : [];
+  for (const entry of rawAccounts) {
+    const account = asRecord(entry);
+    if (!account) continue;
+    const name = stringValue(account?.name);
+    if (!name) continue;
+    const fields = idlFields(account).map((field) => ({
+      name: field.name,
+      observationType: observationTypeForIdlType(field.type)
+    }));
+    accounts.set(normalizeIdlName(name), {
+      size: numberValue(account?.size),
+      fields
+    });
+  }
+  const rawInstructions = Array.isArray(root?.instructions) ? root.instructions : [];
+  for (const entry of rawInstructions) {
+    const instruction = asRecord(entry);
+    const name = stringValue(instruction?.name);
+    if (!name) continue;
+    const args = Array.isArray(instruction?.args)
+      ? instruction.args
+          .map((arg) => stringValue(asRecord(arg)?.name))
+          .filter((arg): arg is string => Boolean(arg))
+      : [];
+    instructions.set(normalizeIdlName(name), { args });
+  }
+  return { accounts, instructions };
+}
+
+function normalizeAccountSpaces(adapter: RawAdapter, adapterPath: string, idlFacts: IdlFacts): void {
+  for (const [name, account] of Object.entries(adapter.accounts)) {
+    if (account.space !== undefined && account.space !== "auto") continue;
+    const fact = idlFacts.accounts.get(normalizeIdlName(name));
+    if (fact?.size === undefined) {
+      throw new Error(
+        `${adapterPath}: \`[accounts].${name}.space\`: could not infer account space from \`idl_path\`; set \`space = <bytes>\` explicitly for dynamic or non-Anchor accounts`
+      );
+    }
+    account.space = fact.size;
+  }
+}
+
+function normalizeInstructionBindings(adapter: RawAdapter, adapterPath: string, idlFacts: IdlFacts): void {
+  for (const [ixName, mapping] of Object.entries(adapter.instructions)) {
+    for (const [argName, binding] of Object.entries(mapping.bindings ?? {})) {
+      if (binding === "@runtime.amount") {
+        if (mapping.amount !== undefined && mapping.amount !== argName) {
+          throw new Error(
+            `${adapterPath}: \`[instructions].${ixName}.bindings.${argName}\`: mapping already binds runtime amount to \`${mapping.amount}\`; only one \`@runtime.amount\` binding is allowed`
+          );
+        }
+        if (mapping.args[argName] !== undefined) {
+          throw new Error(
+            `${adapterPath}: \`[instructions].${ixName}.bindings.${argName}\`: arg is already bound as a literal in \`args\`; remove one binding`
+          );
+        }
+        mapping.amount = argName;
+      } else {
+        if (typeof binding === "string" && binding.startsWith("@runtime.")) {
+          throw new Error(
+            `${adapterPath}: \`[instructions].${ixName}.bindings.${argName}\`: unsupported runtime binding \`${binding}\`; expected \`@runtime.amount\``
+          );
+        }
+        if (typeof binding === "string" && binding.startsWith("@persona.")) {
+          const personaKey = binding.slice("@persona.".length);
+          if (!isSafeAdapterIdentifier(personaKey)) {
+            throw new Error(
+              `${adapterPath}: \`[instructions].${ixName}.bindings.${argName}\`: persona binding \`${binding}\` must reference a safe persona key matching \`[A-Za-z0-9_.-]+\``
+            );
+          }
+        }
+        if (mapping.amount === argName) {
+          throw new Error(
+            `${adapterPath}: \`[instructions].${ixName}.bindings.${argName}\`: arg is already bound to runtime amount; remove the literal binding`
+          );
+        }
+        mapping.args[argName] = binding;
+      }
+    }
+    delete mapping.bindings;
+
+    const idlArgs = idlFacts.instructions.get(normalizeIdlName(ixName))?.args;
+    if (idlArgs && idlArgs.length === 1 && mapping.amount === undefined && Object.keys(mapping.args).length === 0) {
+      mapping.amount = idlArgs[0];
+    }
+    if (idlArgs) {
+      const action = adapter.actions[mapping.action] ?? { takes: [] };
+      if (action.takes.length === 0) {
+        action.takes = [...idlArgs];
+      }
+      adapter.actions[mapping.action] = action;
+      validateInstructionArgsAgainstIdl(adapter, adapterPath, ixName, mapping, idlArgs);
+    }
+  }
+}
+
+function validateInstructionArgsAgainstIdl(
+  adapter: RawAdapter,
+  adapterPath: string,
+  ixName: string,
+  mapping: ParsedInstructionMapping,
+  idlArgs: string[]
+): void {
+  const idlArgSet = new Set(idlArgs);
+  if (mapping.amount !== undefined && !idlArgSet.has(mapping.amount)) {
+    throw new Error(
+      `${adapterPath}: \`[instructions].${ixName}.amount\`: arg \`${mapping.amount}\` is not declared by the IDL instruction \`${ixName}\`; expected one of ${JSON.stringify(idlArgs)}`
+    );
+  }
+  for (const argName of Object.keys(mapping.args)) {
+    if (!idlArgSet.has(argName)) {
+      throw new Error(
+        `${adapterPath}: \`[instructions].${ixName}.args.${argName}\`: arg \`${argName}\` is not declared by the IDL instruction \`${ixName}\`; expected one of ${JSON.stringify(idlArgs)}`
+      );
+    }
+  }
+  for (const argName of idlArgs) {
+    const inAmount = mapping.amount === argName;
+    const inArgs = Object.prototype.hasOwnProperty.call(mapping.args, argName);
+    if (!inAmount && !inArgs) {
+      throw new Error(
+        `${adapterPath}: \`[instructions].${ixName}\`: IDL arg \`${argName}\` is not bound; declare \`bindings.${argName}\`, \`amount = "${argName}"\`, or \`args.${argName}\``
+      );
+    }
+    if (inAmount && inArgs) {
+      throw new Error(
+        `${adapterPath}: \`[instructions].${ixName}\`: IDL arg \`${argName}\` is bound both as runtime amount and as a literal/persona arg; remove one binding`
+      );
+    }
+  }
+
+  const action = adapter.actions[mapping.action];
+  if (action !== undefined && action.takes.length > 0) {
+    const takesSet = new Set(action.takes);
+    for (const argName of idlArgs) {
+      if (!takesSet.has(argName)) {
+        throw new Error(
+          `${adapterPath}: \`[actions].${mapping.action}.takes\`: action omits IDL arg \`${argName}\` required by \`[instructions].${ixName}\`; include every IDL arg or leave \`takes\` empty for IDL-backed inference`
+        );
+      }
+    }
+  }
+}
+
+function normalizeAutoObservations(adapter: RawAdapter, adapterPath: string, idlFacts: IdlFacts): void {
+  const auto = adapter.observations.auto;
+  if (!isAutoObservationDefinition(auto)) return;
+  delete adapter.observations.auto;
+  for (const accountName of auto.accounts) {
+    const fact = idlFacts.accounts.get(normalizeIdlName(accountName));
+    if (!fact) {
+      throw new Error(
+        `${adapterPath}: \`[observations.auto].accounts\`: unknown IDL account \`${accountName}\``
+      );
+    }
+    for (const field of fact.fields) {
+      if (!field.observationType) continue;
+      const key = `${accountName}.${field.name}`;
+      adapter.state_mapping[key] ??= key;
+      adapter.observations[key] ??= field.observationType;
+    }
+  }
+}
+
+function normalizeIdlName(value: string): string {
+  return value.replace(/-/g, "_").toLowerCase();
+}
+
+function idlFields(account: Record<string, unknown> | null): Array<{ name: string; type: unknown }> {
+  const direct = account?.fields;
+  if (Array.isArray(direct)) return fieldFacts(direct);
+  const type = asRecord(account?.type);
+  if (Array.isArray(type?.fields)) return fieldFacts(type.fields);
+  return [];
+}
+
+function fieldFacts(fields: unknown[]): Array<{ name: string; type: unknown }> {
+  return fields.flatMap((field) => {
+    const record = asRecord(field);
+    const name = stringValue(record?.name);
+    return name ? [{ name, type: record?.type }] : [];
+  });
+}
+
+function observationTypeForIdlType(type: unknown): z.infer<typeof ObservationTypeSchema> | undefined {
+  if (typeof type !== "string") return undefined;
+  if (type === "bool") return "bool";
+  if (type === "pubkey" || type === "publicKey") return "pubkey";
+  if (type.startsWith("i")) return "int";
+  if (type.startsWith("u")) return "uint";
+  return undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
 function validateErrors(adapter: Adapter, path: string): void {
@@ -1324,6 +1657,13 @@ function validateGeneric(adapter: Adapter, path: string): void {
   requireNonEmptyBlock(path, "[actions]", adapter.actions, "generic adapters must declare at least one action");
   requireNonEmptyBlock(path, "[observations]", adapter.observations, "generic adapters must declare at least one observation");
   requireNonEmptyBlock(path, "[personas]", adapter.personas, "generic adapters must declare at least one persona");
+  for (const [accountName, account] of Object.entries(adapter.accounts)) {
+    if (typeof account.space !== "number" || !Number.isInteger(account.space) || account.space <= 0) {
+      throw new Error(
+        `${path}: \`[accounts].${accountName}.space\`: account space could not be resolved; set \`space = <bytes>\` or \`space = "auto"\` with a readable \`idl_path\``
+      );
+    }
+  }
 
   for (const [ixName, mapping] of Object.entries(adapter.instructions)) {
     if (!(mapping.action in adapter.actions)) {

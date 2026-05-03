@@ -32,11 +32,12 @@ const FULL_ADAPTER: Adapter = {
     },
   },
   instructions: {
-    deposit: { action: "deposit", amount: "collateral_amount", args: {} },
+    deposit: { action: "deposit", amount: "collateral_amount", args: {}, bindings: {} },
     borrow: {
       action: "borrow",
       amount: "debt_amount",
       args: { interest_index_bps: 0 },
+      bindings: {},
     },
   },
   state_mapping: {

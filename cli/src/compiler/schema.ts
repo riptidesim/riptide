@@ -58,13 +58,51 @@ export const PersonaIdSchema = z
   .max(64)
   .regex(/^[a-z0-9][a-z0-9-]*$/, "persona id must be lowercase alphanumerics and dashes");
 
+export const PersonaSelectionSchema = z.union([
+  z.array(PersonaIdSchema),
+  z.record(PersonaIdSchema, z.number().int().nonnegative())
+]);
+export type PersonaSelection = z.input<typeof PersonaSelectionSchema>;
+
+export function normalizePersonaSelection(
+  value: PersonaSelection,
+  agents?: number
+): string[] {
+  if (Array.isArray(value)) return [...value];
+
+  const total = personaSelectionCount(value);
+  const expanded: string[] = [];
+  for (const [personaId, count] of Object.entries(value)) {
+    for (let i = 0; i < count; i += 1) {
+      expanded.push(personaId);
+    }
+  }
+  if (agents !== undefined && total !== agents) {
+    throw new Error(
+      `run-config personas count map expands to ${total} agents, but agents is ${agents}`
+    );
+  }
+  return expanded;
+}
+
+export function personaSelectionCount(value: Record<string, number>): number {
+  return Object.values(value).reduce((sum, count) => sum + count, 0);
+}
+
+export function personaSelectionToCliString(
+  value: PersonaSelection,
+  agents?: number
+): string {
+  return normalizePersonaSelection(value, agents).join(",");
+}
+
 export const RunConfigSchema = z.object({
   agents: z.number().int().positive(),
   ticks: z.number().int().positive(),
   scenario: z.string().min(1),
   seed: z.number().int().nonnegative().optional(),
   seeds: z.number().int().positive().optional(),
-  personas: z.array(PersonaIdSchema),
+  personas: PersonaSelectionSchema,
   // Serde on the engine side accepts any string here (LiteSVM runs ignore
   // the field; only the validator-parity path connects to the URL). The
   // CLI used to enforce `.url()`, but shipping run-configs authored before
@@ -74,7 +112,23 @@ export const RunConfigSchema = z.object({
   validator_url: z.string().min(1),
   output_path: z.string().min(1),
   state_pack: z.string().min(1).optional()
-});
+})
+  .superRefine((config, ctx) => {
+    if (!Array.isArray(config.personas)) {
+      const total = personaSelectionCount(config.personas);
+      if (total !== config.agents) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["personas"],
+          message: `persona count map expands to ${total} agents, but agents is ${config.agents}`
+        });
+      }
+    }
+  })
+  .transform((config) => ({
+    ...config,
+    personas: normalizePersonaSelection(config.personas, config.agents)
+  }));
 
 export const SimEventSchema = z.object({
   tick: z.number().int().nonnegative(),

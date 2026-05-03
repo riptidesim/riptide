@@ -33,6 +33,52 @@ test("RunConfigSchema validates the shared run config fixture", async () => {
   assert.equal(runConfig.personas.length, 2);
 });
 
+test("RunConfigSchema accepts persona count maps and expands them deterministically", () => {
+  const runConfig = RunConfigSchema.parse({
+    agents: 3,
+    ticks: 1,
+    scenario: "baseline",
+    personas: {
+      whale: 2,
+      liquidator: 1
+    },
+    validator_url: "unused",
+    output_path: "out"
+  });
+
+  assert.deepEqual(runConfig.personas, ["whale", "whale", "liquidator"]);
+});
+
+test("RunConfigSchema rejects persona count maps that do not match agents", () => {
+  const parsed = RunConfigSchema.safeParse({
+    agents: 3,
+    ticks: 1,
+    scenario: "baseline",
+    personas: {
+      whale: 2
+    },
+    validator_url: "unused",
+    output_path: "out"
+  });
+
+  assert.equal(parsed.success, false);
+});
+
+test("RunConfigSchema rejects all-zero persona count maps when agents are required", () => {
+  const parsed = RunConfigSchema.safeParse({
+    agents: 3,
+    ticks: 1,
+    scenario: "baseline",
+    personas: {
+      whale: 0
+    },
+    validator_url: "unused",
+    output_path: "out"
+  });
+
+  assert.equal(parsed.success, false);
+});
+
 test("SimulationResultSchema validates the shared simulation result fixture", async () => {
   const fixture = await readFixture("simulation-result.sample.json");
   const result = SimulationResultSchema.parse(fixture);

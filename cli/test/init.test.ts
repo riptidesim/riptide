@@ -228,6 +228,77 @@ test("detectProgram: matching target artifacts identify a non-Anchor program", a
   assert.equal(detected.source, "artifacts");
 });
 
+test("scaffold: generic init prefills compact IDL-backed adapter hints", async () => {
+  const cwd = await mkTempRepo();
+  await mkdir(path.join(cwd, "target", "deploy"), { recursive: true });
+  await mkdir(path.join(cwd, "target", "idl"), { recursive: true });
+  await writeFile(path.join(cwd, "target", "deploy", "raw_program.so"), "so", "utf8");
+  await writeFile(
+    path.join(cwd, "target", "idl", "raw_program.json"),
+    JSON.stringify({
+      instructions: [
+        { name: "mine", args: [{ name: "amount", type: "u64" }] },
+        {
+          name: "swap",
+          args: [
+            { name: "amount_in", type: "u64" },
+            { name: "min_out", type: "u64" },
+          ],
+        },
+      ],
+      accounts: [
+        {
+          name: "pool",
+          size: 64,
+          type: {
+            fields: [
+              { name: "reserve_a", type: "u64" },
+              { name: "active", type: "bool" },
+            ],
+          },
+        },
+      ],
+    }),
+    "utf8"
+  );
+
+  const result = await scaffold({
+    cwd,
+    force: false,
+    protocol: "custom"
+  });
+
+  assert.equal(result.programName, "raw-program");
+  const adapterBody = await readFile(path.join(cwd, ".riptide", "adapters", "raw-program.toml"), "utf8");
+  assert.match(adapterBody, /^\[accounts\.pool\]$/m);
+  assert.match(adapterBody, /^space = "auto"$/m);
+  assert.match(adapterBody, /^\[instructions\.mine\.bindings\]$/m);
+  assert.match(adapterBody, /^amount = "@runtime\.amount"$/m);
+  assert.match(adapterBody, /^\[actions\.mine\]$/m);
+  assert.match(adapterBody, /^\[observations\.auto\]$/m);
+  assert.match(adapterBody, /^accounts = \["pool"\]$/m);
+  assert.match(adapterBody, /# \[instructions\.swap\]/);
+});
+
+test("init: --profile aliases --protocol for non-interactive scaffolds", async () => {
+  const cwd = await mkTempRepo();
+  const exit = await runInit({
+    force: false,
+    dir: cwd,
+    blank: true,
+    name: "profile-program",
+    profile: "amm",
+    yes: true
+  });
+  assert.equal(exit, 0);
+
+  const adapterBody = await readFile(
+    path.join(cwd, ".riptide", "adapters", "profile-program.toml"),
+    "utf8"
+  );
+  assert.match(adapterBody, /Selected adapter type: amm/);
+});
+
 test("inferProgramName: Anchor.toml names one program, otherwise null", async () => {
   const empty = await mkTempRepo();
   assert.equal(inferProgramName(empty), null);
@@ -339,7 +410,7 @@ test("renderGettingStarted: harnessed repos promote one-seed harness smoke", () 
   assert.match(body, /AMM currently uses `protocol = "generic"`/);
 });
 
-test("init: harnessed next steps recommend one-seed run before full sweep", async () => {
+test("init: next steps keep harness as an optional escalation", async () => {
   const cwd = await mkTempRepo();
   await writeAnchor(cwd, `[programs.localnet]
 anchor_uniswap_v2 = "11111111111111111111111111111111"
@@ -353,7 +424,6 @@ anchor_uniswap_v2 = "11111111111111111111111111111111"
         promptWizard: async () => ({
           programName: "anchor-uniswap-v2",
           protocol: "amm",
-          harnessMode: "todo",
           seeds: 50,
           personas: [],
           scenarios: [
@@ -375,14 +445,15 @@ anchor_uniswap_v2 = "11111111111111111111111111111111"
   });
 
   const smoke =
-    "riptide run --adapter .riptide/adapters/anchor-uniswap-v2.toml --harness .riptide/harness --seeds 1 --seed-root 1337";
+    "riptide run --adapter .riptide/adapters/anchor-uniswap-v2.toml --seeds 1 --seed-root 1337";
   const full =
-    "riptide run --adapter .riptide/adapters/anchor-uniswap-v2.toml --harness .riptide/harness";
+    "riptide run --adapter .riptide/adapters/anchor-uniswap-v2.toml";
   assert.match(stderr, /1\. riptide lint anchor-uniswap-v2/);
-  assert.match(stderr, /2\. \.riptide\/harness\/src\/main\.rs/);
+  assert.doesNotMatch(stderr, /2\. \.riptide\/harness\/src\/main\.rs/);
   assert.ok(stderr.includes(smoke), stderr);
-  assert.match(stderr, /4\. riptide run --adapter \.riptide\/adapters\/anchor-uniswap-v2\.toml --harness \.riptide\/harness/);
+  assert.match(stderr, /3\. riptide run --adapter \.riptide\/adapters\/anchor-uniswap-v2\.toml/);
   assert.ok(stderr.indexOf(smoke) < stderr.lastIndexOf(full), stderr);
+  assert.match(stderr, /Optional setup layer only when needed/);
   assert.match(stderr, /Optional adapter-only smoke/);
 });
 
@@ -462,11 +533,11 @@ test("scaffold: protocol + personas → matching persona blocks are inlined in t
   const runConfig = JSON.parse(runConfigBody) as {
     agents: number;
     ticks: number;
-    personas: string[];
+    personas: Record<string, number>;
   };
   assert.equal(runConfig.agents, 15);
   assert.equal(runConfig.ticks, 25);
-  assert.deepEqual(runConfig.personas, ["swapper", "arbitrageur"]);
+  assert.deepEqual(runConfig.personas, { swapper: 8, arbitrageur: 7 });
 
   // Created list does not include duplicate persona files.
   assert.equal(result.created.some((rel) => rel.startsWith(".riptide/personas/")), false);
@@ -561,22 +632,26 @@ test("scaffold: explicit scenario battery writes each run-config with scenario-s
       path.join(cwd, ".riptide", "scenarios", "baseline", "run-config.json"),
       "utf8"
     )
-  ) as { agents: number; ticks: number; scenario: string; personas: string[] };
+  ) as { agents: number; ticks: number; scenario: string; personas: Record<string, number> };
   assert.equal(baseline.scenario, "baseline");
   assert.equal(baseline.agents, 12);
   assert.equal(baseline.ticks, 34);
-  assert.deepEqual(baseline.personas, ["steady-lp"]);
+  assert.deepEqual(baseline.personas, { "steady-lp": 12 });
 
   const oracleShock = JSON.parse(
     await readFile(
       path.join(cwd, ".riptide", "scenarios", "oracle-price-shock", "run-config.json"),
       "utf8"
     )
-  ) as { agents: number; ticks: number; scenario: string; personas: string[] };
+  ) as { agents: number; ticks: number; scenario: string; personas: Record<string, number> };
   assert.equal(oracleShock.scenario, "price-shock");
   assert.equal(oracleShock.agents, 50);
   assert.equal(oracleShock.ticks, 60);
-  assert.deepEqual(oracleShock.personas, ["steady-lp", "panic-whale", "degen-borrower"]);
+  assert.deepEqual(oracleShock.personas, {
+    "steady-lp": 17,
+    "panic-whale": 17,
+    "degen-borrower": 16
+  });
   assert.equal("validator_url" in oracleShock, false);
 
   assert.ok(result.created.includes(".riptide/scenarios/baseline/run-config.json"));
@@ -684,10 +759,10 @@ test("scaffold: lending protocol embeds selected policy personas and starter act
       path.join(cwd, ".riptide", "scenarios", "baseline", "run-config.json"),
       "utf8"
     )
-  ) as { agents: number; ticks: number; personas: string[] };
+  ) as { agents: number; ticks: number; personas: Record<string, number> };
   assert.equal(runConfig.agents, 1000);
   assert.equal(runConfig.ticks, 30);
-  assert.deepEqual(runConfig.personas, ["steady-lp", "whale"]);
+  assert.deepEqual(runConfig.personas, { "steady-lp": 500, whale: 500 });
 });
 
 test("renderRunConfig: emits canonical seedless shape without validator_url", () => {
@@ -772,7 +847,6 @@ test("init: wizard answers thread into scaffold output (injected promptWizard)",
   const fakeAnswers: WizardAnswers = {
     programName: "widget-factory",
     protocol: "amm",
-    harnessMode: "none",
     seeds: 50,
     personas: ["swapper"],
     scenarios: [
@@ -815,10 +889,10 @@ test("init: wizard answers thread into scaffold output (injected promptWizard)",
       path.join(cwd, ".riptide", "scenarios", "baseline", "run-config.json"),
       "utf8"
     )
-  ) as { agents: number; ticks: number; personas: string[] };
+  ) as { agents: number; ticks: number; personas: Record<string, number> };
   assert.equal(runConfig.agents, 7);
   assert.equal(runConfig.ticks, 12);
-  assert.deepEqual(runConfig.personas, ["swapper"]);
+  assert.deepEqual(runConfig.personas, { swapper: 7 });
 });
 
 test("init: --yes skips the wizard even when isTTY is true", async () => {
@@ -875,10 +949,14 @@ test("init: --yes with lending protocol scaffolds required plus recommended scen
 
   const oracleShock = JSON.parse(await readFile(oracleShockPath, "utf8")) as {
     scenario: string;
-    personas: string[];
+    personas: Record<string, number>;
   };
   assert.equal(oracleShock.scenario, "price-shock");
-  assert.deepEqual(oracleShock.personas, ["steady-lp", "panic-whale", "degen-borrower"]);
+  assert.deepEqual(oracleShock.personas, {
+    "steady-lp": 17,
+    "panic-whale": 17,
+    "degen-borrower": 16
+  });
 
   const adapterBody = await readFile(path.join(cwd, ".riptide", "adapters", "lending.toml"), "utf8");
   assert.match(adapterBody, /^\[\[invariants\]\]$/m);

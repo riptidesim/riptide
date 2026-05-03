@@ -12,7 +12,8 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import TOML from "toml";
 
@@ -38,6 +39,13 @@ async function loadFixture(): Promise<unknown> {
   );
   const raw = await readFile(fixturePath, "utf8");
   return TOML.parse(raw);
+}
+
+async function writeTempIdl(body: unknown): Promise<{ dir: string; idlPath: string }> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "riptide-adapter-test-"));
+  const idlPath = path.join(dir, "program.json");
+  await writeFile(idlPath, JSON.stringify(body, null, 2), "utf8");
+  return { dir, idlPath };
 }
 
 test("AdapterSchema accepts the shipped lending fixture", async () => {
@@ -150,6 +158,220 @@ test("AdapterSchema accepts a generic adapter shape", () => {
   assert.equal(adapter.program_so, raw.program_so);
   assert.equal(adapter.idl_path, raw.idl_path);
   assert.equal(adapter.accounts.player.kind, "agent");
+});
+
+test("validateAdapter expands IDL-backed space, bindings, actions, and auto observations", async () => {
+  const { idlPath } = await writeTempIdl({
+    instructions: [
+      {
+        name: "mine",
+        args: [{ name: "amount", type: "u64" }],
+      },
+    ],
+    accounts: [
+      {
+        name: "player",
+        size: 64,
+        fields: [
+          { name: "wood", type: "u64" },
+          { name: "active", type: "bool" },
+        ],
+      },
+    ],
+  });
+
+  const adapter = validateAdapter(
+    {
+      protocol: "generic",
+      program_so: "target/deploy/game.so",
+      idl_path: idlPath,
+      accounts: {
+        player: { kind: "agent", space: "auto" },
+      },
+      instructions: {
+        mine: {
+          action: "mine",
+          bindings: { amount: "@runtime.amount" },
+        },
+      },
+      state_mapping: {},
+      observations: {
+        auto: { accounts: ["player"] },
+      },
+      personas: {
+        miner: {
+          action_weights: { mine: 1 },
+          triggers: [],
+        },
+      },
+    },
+    "adapter.toml"
+  );
+
+  assert.equal(adapter.accounts.player?.space, 64);
+  assert.equal(adapter.instructions.mine?.amount, "amount");
+  assert.deepEqual(adapter.actions.mine?.takes, ["amount"]);
+  assert.equal(adapter.state_mapping["player.wood"], "player.wood");
+  assert.equal(adapter.observations["player.wood"], "uint");
+  assert.equal(adapter.observations["player.active"], "bool");
+});
+
+test("validateAdapter rejects auto account space when the IDL omits accounts[].size", async () => {
+  const { idlPath } = await writeTempIdl({
+    instructions: [
+      {
+        name: "mine",
+        args: [{ name: "amount", type: "u64" }],
+      },
+    ],
+    accounts: [
+      {
+        name: "player",
+        fields: [{ name: "wood", type: "u64" }],
+      },
+    ],
+  });
+
+  assert.throws(
+    () => validateAdapter(
+      {
+        protocol: "generic",
+        program_so: "target/deploy/game.so",
+        idl_path: idlPath,
+        accounts: {
+          player: { kind: "agent", space: "auto" },
+        },
+        instructions: {
+          mine: { action: "mine", bindings: { amount: "@runtime.amount" } },
+        },
+        state_mapping: {
+          "player.wood": "player.wood",
+        },
+        observations: {
+          "player.wood": "uint",
+        },
+        personas: {
+          miner: {
+            action_weights: { mine: 1 },
+            triggers: [],
+          },
+        },
+      },
+      "adapter.toml"
+    ),
+    /could not infer account space from `idl_path`/
+  );
+});
+
+test("validateAdapter rejects binding shorthand that does not cover every IDL arg", async () => {
+  const { idlPath } = await writeTempIdl({
+    instructions: [
+      {
+        name: "swap",
+        args: [
+          { name: "amount", type: "u64" },
+          { name: "side", type: "bool" },
+        ],
+      },
+    ],
+    accounts: [
+      {
+        name: "pool",
+        size: 8,
+        fields: [{ name: "balance", type: "u64" }],
+      },
+    ],
+  });
+
+  assert.throws(
+    () => validateAdapter(
+      {
+        protocol: "generic",
+        program_so: "target/deploy/game.so",
+        idl_path: idlPath,
+        accounts: {
+          pool: { kind: "shared", space: 8 },
+        },
+        instructions: {
+          swap: { action: "swap", bindings: { amount: "@runtime.amount" } },
+        },
+        state_mapping: {
+          "pool.balance": "pool.balance",
+        },
+        actions: {
+          swap: { takes: ["amount"] },
+        },
+        observations: {
+          "pool.balance": "uint",
+        },
+        personas: {
+          trader: {
+            action_weights: { swap: 1 },
+            triggers: [],
+          },
+        },
+      },
+      "adapter.toml"
+    ),
+    /IDL arg `side` is not bound/
+  );
+});
+
+test("validateAdapter rejects unsafe persona binding identifiers", async () => {
+  const { idlPath } = await writeTempIdl({
+    instructions: [
+      {
+        name: "open_position",
+        args: [
+          { name: "notional", type: "u64" },
+          { name: "leverage_bps", type: "u64" },
+        ],
+      },
+    ],
+    accounts: [
+      {
+        name: "position",
+        size: 8,
+        fields: [{ name: "notional", type: "u64" }],
+      },
+    ],
+  });
+
+  assert.throws(
+    () => validateAdapter(
+      {
+        protocol: "generic",
+        program_so: "target/deploy/perps.so",
+        idl_path: idlPath,
+        accounts: {
+          position: { kind: "agent", space: 8 },
+        },
+        instructions: {
+          open_position: {
+            action: "open_position",
+            bindings: {
+              notional: "@runtime.amount",
+              leverage_bps: "@persona.bad key",
+            },
+          },
+        },
+        state_mapping: {
+          "position.notional": "position.notional",
+        },
+        observations: {
+          "position.notional": "uint",
+        },
+        personas: {
+          trader: {
+            action_weights: { open_position: 1 },
+            triggers: [],
+          },
+        },
+      },
+      "adapter.toml"
+    ),
+    /persona binding `@persona\.bad key` must reference a safe persona key/
+  );
 });
 
 function minimalLendingAdapterWithSemantics(overrides: Record<string, unknown> = {}): unknown {

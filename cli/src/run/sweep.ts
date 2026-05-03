@@ -4,7 +4,11 @@ import os from "node:os";
 import path from "node:path";
 
 import { buildSimulateOptions, toRunConfig } from "../config.js";
-import type { SimulationResult } from "../compiler/schema.js";
+import {
+  personaSelectionToCliString,
+  type PersonaSelection,
+  type SimulationResult
+} from "../compiler/schema.js";
 import { renderSweepNarrative } from "../report/sweep-narrative.js";
 
 import type { InvariantFire } from "./last-run.js";
@@ -48,7 +52,7 @@ interface RawRunConfigFile {
   scenario?: string;
   seed?: number;
   seeds?: number;
-  personas?: string[];
+  personas?: PersonaSelection;
   output_path?: string;
   validator_url?: string;
   state_pack?: string;
@@ -401,7 +405,7 @@ function assertSweepableConfig(raw: RawRunConfigFile, runConfigPath: string): vo
     typeof raw.agents !== "number" ||
     typeof raw.ticks !== "number" ||
     typeof raw.scenario !== "string" ||
-    !Array.isArray(raw.personas)
+    raw.personas === undefined
   ) {
     throw new Error(
       `run-config at ${runConfigPath} missing one of: agents, ticks, scenario, personas`
@@ -536,7 +540,9 @@ async function writeCellRunConfig(input: {
     ticks: input.raw.ticks,
     scenario: input.raw.scenario,
     seed: input.seed,
-    personas: input.raw.personas?.join(","),
+    personas: input.raw.personas === undefined
+      ? undefined
+      : personaSelectionToCliString(input.raw.personas, input.raw.agents),
     validatorUrl: input.raw.validator_url,
     adapter: input.adapterPath,
     output: input.cellDir,

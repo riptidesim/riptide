@@ -111,14 +111,12 @@ Inside your own Anchor repo:
 riptide init
 # edit .riptide/adapters/<program-name>.toml
 riptide lint <program-name>
-riptide harness generate --adapter .riptide/adapters/<program-name>.toml
-# first smoke for harness-required repos:
-riptide run --adapter .riptide/adapters/<program-name>.toml --harness .riptide/harness --seeds 1 --seed-root 1337
+riptide run --adapter .riptide/adapters/<program-name>.toml --seeds 1 --seed-root 1337
 # then add or refine .riptide/scenarios/<experiment>/run-config.json and run the full battery:
-riptide run --adapter .riptide/adapters/<program-name>.toml --harness .riptide/harness
+riptide run --adapter .riptide/adapters/<program-name>.toml
 ```
 
-`riptide init` creates a version-controlled `.riptide/` tree with an adapter stub and a local getting-started note. The adapter/scenario/invariant TOML stays the main simulation contract. When your program needs custom account bytes, PDAs, SPL accounts, or sibling CPI programs, `riptide harness generate` adds a Rust setup crate that runs before tick 0. Riptide does not require core protocol integrations for that setup. `riptide adapt --adapter ...` is still useful as an adapter-only smoke when zeroed setup is enough, but harnessed repos should validate the one-seed `riptide run --harness ...` path first.
+`riptide init` creates a version-controlled `.riptide/` tree with an adapter stub, scenario run-configs, inline persona presets, and a local getting-started note. Use `--profile <profile>` (`lending`, `amm`, `perpetuals`, `liquid-staking`, `stablecoin`, or `custom`) to select a starter profile non-interactively. The adapter/scenario/invariant TOML stays the main simulation contract. When `target/idl/<program>.json` is present, init now prefills IDL-backed shorthand such as `space = "auto"`, compact instruction `bindings`, and opt-in `[observations.auto]` blocks where it can infer them. When your program needs custom account bytes, PDAs, SPL accounts, or sibling CPI programs, run `riptide harness generate --adapter ...` explicitly; the generated harness is an optional setup layer, not part of the default init path.
 
 AMM-shaped user repos currently use `protocol = "generic"` and Riptide's generic SBF/IDL runtime; `amm.v1` semantics is future work.
 

@@ -67,17 +67,18 @@ and `cli/src/schemas/adapter.ts` (Zod). The shipping adapter shape is:
   targeting a bundled primitive, such as the fresh `riptide init
   --protocol lending` stub and the canonical lending fixture.
 - `[accounts.<name>]` — one block per account the bootstrap needs to
-  create. `kind = "agent" | "shared"`, `space = <bytes>`, plus
+  create. `kind = "agent" | "shared"`, `space = <bytes>` or
+  `space = "auto"` when `idl_path` exposes an unambiguous account size, plus
   optional `address` (well-known alias or base58 literal), `pda`
   (`{ seeds = [...] }` with the `literal:` / `account:` /
   `signer:agent` / `signer:admin` / `program:` / `pubkey:` prefix
   DSL), and `owner` (`{ program_so = "..." }` or
   `{ pubkey = "<base58>" }`, mutually exclusive, shared-only).
-- `[instructions]` — `<ix> = { action = "...", amount = "<arg>",
-  args = { <other_arg> = <literal>, ... } }`. The runtime `amount` is
-  optional. `args` is for literal-bound non-runtime args of multi-arg
-  Borsh instructions; `@persona.<key>` references resolve against
-  `persona_args` at dispatch.
+- `[instructions]` — either `<ix> = { action = "...", amount = "<arg>",
+  args = { <other_arg> = <literal>, ... } }` or an expanded
+  `[instructions.<ix>.bindings]` table. Use
+  `bindings.<arg> = "@runtime.amount"` for the runtime amount and
+  literals / `@persona.<key>` for other args.
 - `[state_mapping]` — `"<account>.<field>" = "<observation>"`.
 - `[actions.<name>]` — `label`, `takes = [<ordered_arg_names>]`. The
   `takes` list now supports any number of args; each name must bind

@@ -35,7 +35,7 @@ Only modify blocks where you have a concrete improvement to apply.
     [accounts.<name>]
     # One block per account type the simulator needs at bootstrap.
     kind = "agent" | "shared"
-    space = <positive integer>
+    space = "auto" # prefer when idl_path exposes IDL.accounts[name].size; use <positive integer> for dynamic/non-Anchor accounts
 
     # Optional, on top of kind/space:
     #   address = "system_program" | "spl_token"
@@ -170,7 +170,7 @@ validation:
    `# TODO: <what to verify>` comment on that line. Examples:
 
        mine = { action = "mine", amount = "amount" } # TODO: verify arg name in IDL
-       space = 128 # TODO: confirm actual account size
+       space = "auto" # TODO: confirm IDL account size is correct, or replace with explicit bytes
 
 3. Declare at least one `[accounts.*]` block, at least one
    `[instructions]` mapping, at least one `[actions.*]` block, at

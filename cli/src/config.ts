@@ -5,16 +5,47 @@ import path from "node:path";
 import TOML from "toml";
 import { z } from "zod";
 
-import { RunConfigSchema, type RunConfig } from "./compiler/schema.js";
+import {
+  PersonaSelectionSchema,
+  normalizePersonaSelection,
+  personaSelectionCount,
+  type RunConfig
+} from "./compiler/schema.js";
 import { resolveAdapterRuntime, validateAdapter } from "./schemas/adapter.js";
 
-export const SimulateOptionsSchema = RunConfigSchema.extend({
+export const SimulateOptionsSchema = z.object({
+  agents: z.number().int().positive(),
+  ticks: z.number().int().positive(),
+  scenario: z.string().min(1),
+  seed: z.number().int().nonnegative().optional(),
+  seeds: z.number().int().positive().optional(),
+  personas: PersonaSelectionSchema,
+  // Keep this in lockstep with RunConfigSchema: older fixtures use "unused".
+  validator_url: z.string().min(1),
+  output_path: z.string().min(1),
+  state_pack: z.string().min(1).optional(),
   llm_url: z.string().url().optional(),
   // Absolute path to a pre-validated adapter TOML. Populated by
   // `buildSimulateOptions` after running the raw path through
   // `validateAdapter` — never trust the raw CLI string past that point.
   adapter_path: z.string().min(1).optional()
-});
+})
+  .superRefine((config, ctx) => {
+    if (!Array.isArray(config.personas)) {
+      const total = personaSelectionCount(config.personas);
+      if (total !== config.agents) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["personas"],
+          message: `persona count map expands to ${total} agents, but agents is ${config.agents}`
+        });
+      }
+    }
+  })
+  .transform((config) => ({
+    ...config,
+    personas: normalizePersonaSelection(config.personas, config.agents)
+  }));
 
 export type SimulateOptions = z.infer<typeof SimulateOptionsSchema>;
 

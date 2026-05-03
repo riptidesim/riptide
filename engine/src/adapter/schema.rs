@@ -53,6 +53,11 @@ pub struct InstructionMapping {
     /// single-arg and zero-arg adapter keeps parsing byte-for-byte.
     #[serde(default)]
     pub args: std::collections::BTreeMap<String, ArgLiteral>,
+    /// Compact binding form. Loader normalization expands
+    /// `bindings.<arg> = "@runtime.amount"` into `amount = "<arg>"`
+    /// and every other binding into `args.<arg> = <literal>`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub bindings: std::collections::BTreeMap<String, ArgLiteral>,
 }
 
 /// How a generic adapter account is instantiated at bootstrap time.
@@ -75,6 +80,7 @@ pub enum AccountKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AccountDefinition {
     pub kind: AccountKind,
+    #[serde(default, deserialize_with = "deserialize_account_space")]
     pub space: usize,
     /// Optional deterministic address binding. Accepts either a
     /// well-known alias such as `system_program`, `spl_token`,
@@ -102,6 +108,26 @@ pub struct AccountDefinition {
     /// offset layout represented by the table form.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decoder: Option<AccountDecoder>,
+}
+
+fn deserialize_account_space<'de, D>(deserializer: D) -> Result<usize, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum RawSpace {
+        Number(usize),
+        String(String),
+    }
+
+    match RawSpace::deserialize(deserializer)? {
+        RawSpace::Number(value) => Ok(value),
+        RawSpace::String(value) if value == "auto" => Ok(0),
+        RawSpace::String(value) => Err(serde::de::Error::custom(format!(
+            "account space string must be \"auto\", got {value:?}"
+        ))),
+    }
 }
 
 /// Minimal deterministic PDA declaration for generic account bindings.
@@ -343,6 +369,12 @@ pub struct ObservationShape {
     pub kind: ObservationType,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutoObservationDefinition {
+    #[serde(default)]
+    pub accounts: Vec<String>,
+}
+
 /// Generic observation definition.
 ///
 /// The compact TOML form is:
@@ -356,6 +388,7 @@ pub struct ObservationShape {
 pub enum ObservationDefinition {
     Type(ObservationType),
     Detailed(ObservationShape),
+    Auto(AutoObservationDefinition),
 }
 
 impl ObservationDefinition {
@@ -363,6 +396,14 @@ impl ObservationDefinition {
         match self {
             Self::Type(kind) => *kind,
             Self::Detailed(shape) => shape.kind,
+            Self::Auto(_) => ObservationType::Map,
+        }
+    }
+
+    pub fn as_auto(&self) -> Option<&AutoObservationDefinition> {
+        match self {
+            Self::Auto(auto) => Some(auto),
+            _ => None,
         }
     }
 }

@@ -14,7 +14,11 @@ import path from "node:path";
 import TOML from "toml";
 
 import { buildSimulateOptions, toRunConfig, type SimulateOptions } from "../config.js";
-import type { RunConfig } from "../compiler/schema.js";
+import {
+  personaSelectionToCliString,
+  type PersonaSelection,
+  type RunConfig
+} from "../compiler/schema.js";
 import {
   discoverScenarios,
   type DiscoveredScenario,
@@ -762,7 +766,7 @@ interface RawRunConfigFile {
   scenario?: string;
   seed?: number;
   seeds?: number;
-  personas?: string[];
+  personas?: PersonaSelection;
   output_path?: string;
   validator_url?: string;
   state_pack?: string;
@@ -821,7 +825,7 @@ export function buildScenarioRun(inputs: ScenarioRunInputs): ScenarioRunBuild {
     typeof parsed.agents !== "number" ||
     typeof parsed.ticks !== "number" ||
     typeof parsed.scenario !== "string" ||
-    !Array.isArray(parsed.personas)
+    parsed.personas === undefined
   ) {
     throw new Error(
       `run-config at ${inputs.runConfigPath} missing one of: agents, ticks, scenario, personas`
@@ -845,7 +849,7 @@ export function buildScenarioRun(inputs: ScenarioRunInputs): ScenarioRunBuild {
     ticks: parsed.ticks,
     scenario: parsed.scenario,
     seed: inputs.seedOverride ?? parsed.seed,
-    personas: parsed.personas.join(","),
+    personas: personaSelectionToCliString(parsed.personas, parsed.agents),
     // Forward the scenario-declared validator_url verbatim.
     // buildSimulateOptions' fallback chain (argv → $RIPTIDE_RPC_URL →
     // default localhost) still kicks in only when the scenario file

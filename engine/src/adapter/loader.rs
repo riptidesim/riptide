@@ -9,10 +9,11 @@ use std::{collections::BTreeSet, fmt, path::Path, str::FromStr};
 use solana_sdk::pubkey::Pubkey;
 
 use crate::adapter::schema::{
-    is_valid_semantic_class, AccountDecoder, AccountKind, Adapter, CollectionFormula,
-    LayoutFieldType, Protocol, ReplayStateSource, SemanticSourceBinding, ACCOUNT_DECODER_PRESETS,
-    LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS, ORACLE_KINDS,
-    SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
+    is_valid_semantic_class, AccountDecoder, AccountKind, ActionDefinition, Adapter, ArgLiteral,
+    CollectionFormula, InstructionMapping, LayoutFieldType, ObservationDefinition,
+    ObservationType, Protocol, ReplayStateSource, SemanticSourceBinding,
+    ACCOUNT_DECODER_PRESETS, LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS,
+    ORACLE_KINDS, SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
 };
 use crate::adapter::schema::{semantic_class_requirements, SemanticClassRequirements};
 use crate::adapter::{errors::ErrorRegistryValidation, validate_error_entries};
@@ -387,8 +388,8 @@ pub fn load_adapter(path: &Path) -> Result<Adapter, AdapterError> {
         source,
     })?;
 
-    validate(&mut adapter, &path_str)?;
     resolve_generic_paths(&mut adapter, path);
+    validate(&mut adapter, &path_str)?;
     validate_resolved_paths(&adapter, &path_str)?;
     Ok(adapter)
 }
@@ -536,7 +537,10 @@ pub(crate) fn sibling_deploy_keypair_path(
 /// is variable-length (vec/option/defined) — in that case the loader
 /// can't assert a tight minimum and falls back to the generic floor.
 fn idl_fixed_min_size(idl_account: &serde_json::Value) -> Option<usize> {
-    let fields = idl_account.get("fields").and_then(|v| v.as_array())?;
+    let fields = idl_field_values(idl_account);
+    if fields.is_empty() {
+        return None;
+    }
     let mut total: usize = 0;
     for field in fields {
         let ty = field.get("type")?;
@@ -544,6 +548,20 @@ fn idl_fixed_min_size(idl_account: &serde_json::Value) -> Option<usize> {
         total = total.checked_add(size)?;
     }
     Some(total)
+}
+
+fn idl_field_values(idl_account: &serde_json::Value) -> Vec<&serde_json::Value> {
+    if let Some(fields) = idl_account.get("fields").and_then(|v| v.as_array()) {
+        return fields.iter().collect();
+    }
+    if let Some(fields) = idl_account
+        .get("type")
+        .and_then(|v| v.get("fields"))
+        .and_then(|v| v.as_array())
+    {
+        return fields.iter().collect();
+    }
+    Vec::new()
 }
 
 /// Primitive field size lookup. Returns `None` for any non-primitive
@@ -563,6 +581,21 @@ fn primitive_type_size(ty: &serde_json::Value) -> Option<usize> {
     None
 }
 
+fn observation_type_for_idl_type(ty: &serde_json::Value) -> Option<ObservationType> {
+    let name = ty.as_str()?;
+    match name {
+        "bool" => Some(ObservationType::Bool),
+        "pubkey" | "publicKey" => Some(ObservationType::Pubkey),
+        value if value.starts_with('i') => Some(ObservationType::Int),
+        value if value.starts_with('u') => Some(ObservationType::UInt),
+        _ => None,
+    }
+}
+
+fn normalize_idl_name(value: &str) -> String {
+    value.replace('-', "_").to_ascii_lowercase()
+}
+
 /// Parse adapter TOML from a string without touching the filesystem.
 /// Used by unit tests; also useful for the `riptide adapt` generator
 /// to validate generated output before writing.
@@ -576,6 +609,10 @@ pub fn parse_adapter_str(toml_str: &str, virtual_path: &str) -> Result<Adapter, 
 }
 
 fn validate(adapter: &mut Adapter, path: &str) -> Result<(), AdapterError> {
+    let runtime = validate_runtime_selection(adapter, path)?;
+    if matches!(runtime, Protocol::Generic) {
+        normalize_generic_inference(adapter, path)?;
+    }
     // Reject identifiers that could inject control sequences into
     // operator-visible output. Adapter
     // TOML is loaded from untrusted sources (hand-authored by third
@@ -589,7 +626,6 @@ fn validate(adapter: &mut Adapter, path: &str) -> Result<(), AdapterError> {
     validate_errors(adapter, path)?;
     validate_lineage(adapter, path)?;
     validate_semantics(adapter, path)?;
-    let runtime = validate_runtime_selection(adapter, path)?;
     match runtime {
         Protocol::Lending => validate_lending(adapter, path),
         Protocol::Generic => validate_generic(adapter, path),
@@ -602,6 +638,354 @@ fn validate_runtime_selection(adapter: &Adapter, path: &str) -> Result<Protocol,
         key: "protocol".into(),
         reason: "missing runtime selection; declare `program_so` + `idl_path` for the generic SBF/IDL runtime, or set `protocol = \"lending\"` / `protocol = \"generic\"` as a backcompat runtime hint".into(),
     })
+}
+
+#[derive(Debug, Clone)]
+struct IdlFacts {
+    account_sizes: std::collections::BTreeMap<String, usize>,
+    account_fields: std::collections::BTreeMap<String, Vec<(String, ObservationType)>>,
+    instruction_args: std::collections::BTreeMap<String, Vec<String>>,
+}
+
+fn normalize_generic_inference(adapter: &mut Adapter, path: &str) -> Result<(), AdapterError> {
+    let needs_idl = adapter.accounts.values().any(|account| account.space == 0)
+        || adapter
+            .instructions
+            .values()
+            .any(|mapping| !mapping.bindings.is_empty())
+        || adapter
+            .observations
+            .get("auto")
+            .and_then(|obs| obs.as_auto())
+            .is_some()
+        || adapter.actions.is_empty();
+
+    let facts = match load_idl_facts(adapter, path, needs_idl)? {
+        Some(facts) => facts,
+        None => {
+            if let Some((name, _)) = adapter
+                .accounts
+                .iter()
+                .find(|(_, account)| account.space == 0)
+            {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[accounts].{name}.space"),
+                    reason: "could not infer account space because `idl_path` is missing or unreadable; set `space = <bytes>` explicitly or provide a readable JSON IDL".into(),
+                });
+            }
+            return Ok(());
+        }
+    };
+
+    for (name, account) in adapter.accounts.iter_mut() {
+        if account.space != 0 {
+            continue;
+        }
+        let key = normalize_idl_name(name);
+        let Some(space) = facts.account_sizes.get(&key).copied() else {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[accounts].{name}.space"),
+                reason: "could not infer account space from `idl_path`; set `space = <bytes>` explicitly for dynamic or non-Anchor accounts".into(),
+            });
+        };
+        account.space = space;
+    }
+
+    for (ix_name, mapping) in adapter.instructions.iter_mut() {
+        let bindings = std::mem::take(&mut mapping.bindings);
+        for (arg_name, binding) in bindings {
+            match &binding {
+                ArgLiteral::String(value) if value == "@runtime.amount" => {
+                    if let Some(existing) = mapping.amount.as_deref() {
+                        if existing != arg_name {
+                            return Err(AdapterError::Validation {
+                                path: path.to_string(),
+                                key: format!("[instructions].{ix_name}.bindings.{arg_name}"),
+                                reason: format!("mapping already binds runtime amount to `{existing}`; only one `@runtime.amount` binding is allowed"),
+                            });
+                        }
+                    }
+                    if mapping.args.contains_key(&arg_name) {
+                        return Err(AdapterError::Validation {
+                            path: path.to_string(),
+                            key: format!("[instructions].{ix_name}.bindings.{arg_name}"),
+                            reason:
+                                "arg is already bound as a literal in `args`; remove one binding"
+                                    .into(),
+                        });
+                    }
+                    mapping.amount = Some(arg_name);
+                }
+                ArgLiteral::String(value) if value.starts_with("@runtime.") => {
+                    return Err(AdapterError::Validation {
+                        path: path.to_string(),
+                        key: format!("[instructions].{ix_name}.bindings.{arg_name}"),
+                        reason: format!(
+                            "unsupported runtime binding `{value}`; expected `@runtime.amount`"
+                        ),
+                    });
+                }
+                _ => {
+                    if let ArgLiteral::String(value) = &binding {
+                        if let Some(field) = value.strip_prefix("@persona.") {
+                            if !is_safe_adapter_identifier(field) {
+                                return Err(AdapterError::Validation {
+                                    path: path.to_string(),
+                                    key: format!(
+                                        "[instructions].{ix_name}.bindings.{arg_name}"
+                                    ),
+                                    reason: format!(
+                                        "persona binding `{value}` must reference a safe persona key matching `[A-Za-z0-9_.-]+`"
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                    if mapping.amount.as_deref() == Some(arg_name.as_str()) {
+                        return Err(AdapterError::Validation {
+                            path: path.to_string(),
+                            key: format!("[instructions].{ix_name}.bindings.{arg_name}"),
+                            reason:
+                                "arg is already bound to runtime amount; remove the literal binding"
+                                    .into(),
+                        });
+                    }
+                    mapping.args.insert(arg_name, binding);
+                }
+            }
+        }
+
+        if let Some(idl_args) = facts.instruction_args.get(&normalize_idl_name(ix_name)) {
+            if idl_args.len() == 1 && mapping.amount.is_none() && mapping.args.is_empty() {
+                mapping.amount = idl_args.first().cloned();
+            }
+            let action = adapter
+                .actions
+                .entry(mapping.action.clone())
+                .or_insert_with(ActionDefinition::default);
+            if action.takes.is_empty() {
+                action.takes = idl_args.clone();
+            }
+            validate_instruction_args_against_idl(
+                path,
+                ix_name,
+                &mapping.action,
+                &action.takes,
+                mapping,
+                idl_args,
+            )?;
+        }
+    }
+
+    if let Some(auto) = adapter
+        .observations
+        .get("auto")
+        .and_then(|obs| obs.as_auto())
+        .cloned()
+    {
+        adapter.observations.remove("auto");
+        for account_name in auto.accounts {
+            let key = normalize_idl_name(&account_name);
+            let Some(fields) = facts.account_fields.get(&key) else {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: "[observations.auto].accounts".into(),
+                    reason: format!("unknown IDL account `{account_name}`"),
+                });
+            };
+            for (field_name, obs_type) in fields {
+                let logical = format!("{account_name}.{field_name}");
+                adapter
+                    .state_mapping
+                    .entry(logical.clone())
+                    .or_insert_with(|| logical.clone());
+                adapter
+                    .observations
+                    .entry(logical)
+                    .or_insert(ObservationDefinition::Type(*obs_type));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn load_idl_facts(
+    adapter: &Adapter,
+    path: &str,
+    required: bool,
+) -> Result<Option<IdlFacts>, AdapterError> {
+    let Some(idl_path) = adapter.idl_path.as_deref() else {
+        if required {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: "idl_path".into(),
+                reason: "IDL-backed inference requires a readable JSON IDL path".into(),
+            });
+        }
+        return Ok(None);
+    };
+    let idl_path_ref = std::path::Path::new(idl_path);
+    if !idl_path_ref.exists() {
+        if required {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: "idl_path".into(),
+                reason: format!("IDL-backed inference could not read {idl_path}; build/regenerate the IDL or use explicit adapter fields"),
+            });
+        }
+        return Ok(None);
+    }
+    let raw = std::fs::read_to_string(idl_path_ref).map_err(|source| AdapterError::Io {
+        path: idl_path.to_string(),
+        source,
+    })?;
+    let value: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|err| AdapterError::Validation {
+            path: path.to_string(),
+            key: "idl_path".into(),
+            reason: format!("failed to parse JSON IDL at {idl_path}: {err}"),
+        })?;
+    Ok(Some(collect_idl_facts(&value)))
+}
+
+fn collect_idl_facts(value: &serde_json::Value) -> IdlFacts {
+    let mut account_sizes = std::collections::BTreeMap::new();
+    let mut account_fields = std::collections::BTreeMap::new();
+    let mut instruction_args = std::collections::BTreeMap::new();
+
+    if let Some(accounts) = value.get("accounts").and_then(|v| v.as_array()) {
+        for account in accounts {
+            let Some(name) = account.get("name").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let key = normalize_idl_name(name);
+            if let Some(size) = account
+                .get("size")
+                .and_then(|v| v.as_u64())
+                .and_then(|v| usize::try_from(v).ok())
+            {
+                account_sizes.insert(key.clone(), size);
+            }
+            let fields = idl_field_values(account)
+                .into_iter()
+                .filter_map(|field| {
+                    let name = field.get("name").and_then(|v| v.as_str())?.to_string();
+                    let ty = observation_type_for_idl_type(field.get("type")?)?;
+                    Some((name, ty))
+                })
+                .collect::<Vec<_>>();
+            account_fields.insert(key, fields);
+        }
+    }
+
+    if let Some(instructions) = value.get("instructions").and_then(|v| v.as_array()) {
+        for instruction in instructions {
+            let Some(name) = instruction.get("name").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let args = instruction
+                .get("args")
+                .and_then(|v| v.as_array())
+                .map(|args| {
+                    args.iter()
+                        .filter_map(|arg| {
+                            arg.get("name").and_then(|v| v.as_str()).map(str::to_string)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            instruction_args.insert(normalize_idl_name(name), args);
+        }
+    }
+
+    IdlFacts {
+        account_sizes,
+        account_fields,
+        instruction_args,
+    }
+}
+
+fn validate_instruction_args_against_idl(
+    path: &str,
+    ix_name: &str,
+    action_name: &str,
+    action_takes: &[String],
+    mapping: &InstructionMapping,
+    idl_args: &[String],
+) -> Result<(), AdapterError> {
+    let idl_arg_set: std::collections::BTreeSet<&str> =
+        idl_args.iter().map(String::as_str).collect();
+
+    if let Some(amount) = mapping.amount.as_deref() {
+        if !idl_arg_set.contains(amount) {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[instructions].{ix_name}.amount"),
+                reason: format!(
+                    "arg `{amount}` is not declared by the IDL instruction `{ix_name}`; expected one of {idl_args:?}"
+                ),
+            });
+        }
+    }
+
+    for arg_name in mapping.args.keys() {
+        if !idl_arg_set.contains(arg_name.as_str()) {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[instructions].{ix_name}.args.{arg_name}"),
+                reason: format!(
+                    "arg `{arg_name}` is not declared by the IDL instruction `{ix_name}`; expected one of {idl_args:?}"
+                ),
+            });
+        }
+    }
+
+    for arg_name in idl_args {
+        let in_amount = mapping.amount.as_deref() == Some(arg_name.as_str());
+        let in_args = mapping.args.contains_key(arg_name);
+        if !in_amount && !in_args {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[instructions].{ix_name}"),
+                reason: format!(
+                    "IDL arg `{arg_name}` is not bound; declare `bindings.{arg_name}`, \
+                     `amount = \"{arg_name}\"`, or `args.{arg_name}`"
+                ),
+            });
+        }
+        if in_amount && in_args {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[instructions].{ix_name}"),
+                reason: format!(
+                    "IDL arg `{arg_name}` is bound both as runtime amount and as a \
+                     literal/persona arg; remove one binding"
+                ),
+            });
+        }
+    }
+
+    if !action_takes.is_empty() {
+        let takes_set: std::collections::BTreeSet<&str> =
+            action_takes.iter().map(String::as_str).collect();
+        for arg_name in idl_args {
+            if !takes_set.contains(arg_name.as_str()) {
+                return Err(AdapterError::Validation {
+                    path: path.to_string(),
+                    key: format!("[actions].{action_name}.takes"),
+                    reason: format!(
+                        "action omits IDL arg `{arg_name}` required by `[instructions].{ix_name}`; \
+                         include every IDL arg or leave `takes` empty for IDL-backed inference"
+                    ),
+                });
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn validate_errors(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
@@ -2566,6 +2950,7 @@ health_factor = "collateral_value / max(debt_value, 1)"
                 action: "deposit".to_string(),
                 amount: Some("amount".to_string()),
                 args: std::collections::BTreeMap::new(),
+                bindings: std::collections::BTreeMap::new(),
             })
         );
         assert_eq!(adapter.state_mapping.len(), 6);
@@ -3391,5 +3776,227 @@ inferred_assumptions = [\"{rejected_entry}\"]
             message.contains("[lineage].inferred_assumptions"),
             "error must name the offending key: {message}",
         );
+    }
+
+    #[test]
+    fn generic_inference_expands_space_bindings_actions_and_auto_observations() {
+        let dir = std::env::temp_dir().join(format!(
+            "riptide-loader-idl-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let idl_path = dir.join("program.json");
+        std::fs::write(
+            &idl_path,
+            r#"{
+  "instructions": [
+    { "name": "mine", "args": [{ "name": "amount", "type": "u64" }] }
+  ],
+  "accounts": [
+    {
+      "name": "player",
+      "size": 64,
+      "fields": [
+        { "name": "wood", "type": "u64" },
+        { "name": "active", "type": "bool" }
+      ]
+    }
+  ]
+}"#,
+        )
+        .unwrap();
+
+        let toml = format!(
+            r#"
+protocol = "generic"
+program_so = "target/deploy/game.so"
+idl_path = "{}"
+
+[accounts.player]
+kind = "agent"
+space = "auto"
+
+[instructions.mine]
+action = "mine"
+
+[instructions.mine.bindings]
+amount = "@runtime.amount"
+
+[state_mapping]
+
+[observations.auto]
+accounts = ["player"]
+
+[personas.miner]
+action_weights = {{ mine = 1 }}
+triggers = []
+"#,
+            idl_path.display()
+        );
+
+        let adapter = parse_adapter_str(&toml, "generic-inference.toml")
+            .expect("IDL-backed shorthand should normalize");
+        assert_eq!(adapter.accounts["player"].space, 64);
+        assert_eq!(
+            adapter.instructions["mine"].amount.as_deref(),
+            Some("amount")
+        );
+        assert_eq!(adapter.actions["mine"].takes, vec!["amount"]);
+        assert_eq!(
+            adapter.state_mapping["player.wood"],
+            "player.wood".to_string()
+        );
+        assert!(matches!(
+            adapter.observations["player.wood"],
+            ObservationDefinition::Type(ObservationType::UInt)
+        ));
+        assert!(matches!(
+            adapter.observations["player.active"],
+            ObservationDefinition::Type(ObservationType::Bool)
+        ));
+    }
+
+    #[test]
+    fn generic_inference_rejects_auto_space_without_idl_size() {
+        let dir = std::env::temp_dir().join(format!(
+            "riptide-loader-auto-space-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let idl_path = dir.join("program.json");
+        std::fs::write(
+            &idl_path,
+            r#"{
+  "instructions": [
+    { "name": "mine", "args": [{ "name": "amount", "type": "u64" }] }
+  ],
+  "accounts": [
+    {
+      "name": "player",
+      "fields": [
+        { "name": "wood", "type": "u64" }
+      ]
+    }
+  ]
+}"#,
+        )
+        .unwrap();
+
+        let toml = format!(
+            r#"
+protocol = "generic"
+program_so = "target/deploy/game.so"
+idl_path = "{}"
+
+[accounts.player]
+kind = "agent"
+space = "auto"
+
+[instructions.mine]
+action = "mine"
+
+[instructions.mine.bindings]
+amount = "@runtime.amount"
+
+[state_mapping]
+"player.wood" = "player.wood"
+
+[observations]
+"player.wood" = "uint"
+
+[personas.miner]
+action_weights = {{ mine = 1 }}
+triggers = []
+"#,
+            idl_path.display()
+        );
+
+        let err = parse_adapter_str(&toml, "auto-space-missing-size.toml")
+            .expect_err("space = auto must require IDL accounts[].size");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("could not infer account space from `idl_path`"),
+            "got: {msg}"
+        );
+    }
+
+    #[test]
+    fn generic_inference_rejects_missing_idl_arg_binding() {
+        let dir = std::env::temp_dir().join(format!(
+            "riptide-loader-idl-arg-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let idl_path = dir.join("program.json");
+        std::fs::write(
+            &idl_path,
+            r#"{
+  "instructions": [
+    {
+      "name": "swap",
+      "args": [
+        { "name": "amount", "type": "u64" },
+        { "name": "side", "type": "bool" }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "pool",
+      "size": 8,
+      "fields": [
+        { "name": "balance", "type": "u64" }
+      ]
+    }
+  ]
+}"#,
+        )
+        .unwrap();
+
+        let toml = format!(
+            r#"
+protocol = "generic"
+program_so = "target/deploy/game.so"
+idl_path = "{}"
+
+[accounts.pool]
+kind = "shared"
+space = 8
+
+[instructions.swap]
+action = "swap"
+
+[instructions.swap.bindings]
+amount = "@runtime.amount"
+
+[state_mapping]
+"pool.balance" = "pool.balance"
+
+[actions.swap]
+takes = ["amount"]
+
+[observations]
+"pool.balance" = "uint"
+
+[personas.trader]
+action_weights = {{ swap = 1 }}
+triggers = []
+"#,
+            idl_path.display()
+        );
+
+        let err = parse_adapter_str(&toml, "missing-idl-arg.toml")
+            .expect_err("all IDL args must be bound before dispatch");
+        let msg = err.to_string();
+        assert!(msg.contains("IDL arg `side` is not bound"), "got: {msg}");
     }
 }

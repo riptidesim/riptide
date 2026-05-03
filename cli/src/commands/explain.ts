@@ -228,6 +228,10 @@ function renderObservation(
     return `${name} ${observation}`;
   }
 
+  if ("accounts" in observation) {
+    return `${name} auto accounts=${formatStringArray(observation.accounts)}`;
+  }
+
   const parts: string[] = [observation.type];
   if (observation.label !== undefined) {
     parts.push(`label=${formatStringLiteral(observation.label)}`);

@@ -66,7 +66,7 @@ also include:
     # and one agent `position` / `obligation` account, plus the oracle
     # account if you map it.
     kind = "agent" | "shared"
-    space = <positive integer>
+    space = "auto" # prefer when idl_path exposes IDL.accounts[name].size; use <positive integer> for dynamic/non-Anchor accounts
     # Optional: address / pda / owner (same DSL as generic — see
     # generate-generic.md). Lending adapters typically declare PDAs
     # for the reserve and per-agent obligation accounts.

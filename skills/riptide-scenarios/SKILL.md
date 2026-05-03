@@ -106,9 +106,12 @@ In user repo mode, write one file per proposed experiment:
 
 Use the same schema that `riptide init` writes: `agents`, `ticks`,
 `scenario`, `personas`, `output_path`, plus either `seed` or `seeds`.
-For generic adapters, `personas` must reference inline
-`[personas.*]` IDs from the adapter. Do not add `policies.json`,
-`manifest.json`, or `.riptide/personas/`.
+Prefer the compact count-map form (`"personas": { "whale": 5 }`) when
+the scenario is choosing a concrete mix; an empty array is still valid
+when the adapter-inline persona catalog should round-robin by default.
+For generic adapters, persona ids must reference inline `[personas.*]`
+IDs from the adapter. Do not add `policies.json`, `manifest.json`, or
+`.riptide/personas/`.
 
 In monorepo fixture mode, write three files per proposed experiment to
 

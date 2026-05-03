@@ -124,11 +124,9 @@ Then fill in the generated adapter and run:
 
 ```bash
 riptide lint <program-name>
-riptide harness generate --adapter .riptide/adapters/<program-name>.toml
-# first smoke for harness-required repos:
-riptide run --adapter .riptide/adapters/<program-name>.toml --harness .riptide/harness --seeds 1 --seed-root 1337
+riptide run --adapter .riptide/adapters/<program-name>.toml --seeds 1 --seed-root 1337
 # then add/refine scenarios and run the full battery:
-riptide run --adapter .riptide/adapters/<program-name>.toml --harness .riptide/harness
+riptide run --adapter .riptide/adapters/<program-name>.toml
 ```
 
 What each command does:
@@ -136,11 +134,11 @@ What each command does:
 | Command | Role |
 | --- | --- |
 | `riptide doctor` | Static health check. No build, no network, no simulation. |
-| `riptide init` | Creates `.riptide/adapters/<program>.toml` and a short getting-started note. It does not invent personas or scenarios. |
-| `riptide harness generate` | Creates a Rust setup crate for account bytes, PDAs, SPL accounts, and sibling programs your adapter needs before tick 0. |
+| `riptide init` | Creates `.riptide/adapters/<program>.toml`, scenario run-configs, inline persona presets, and a short getting-started note. Add `--profile <profile>` for a non-interactive starter profile. |
+| `riptide harness generate` | Optional escalation: creates a Rust setup crate for account bytes, PDAs, SPL accounts, and sibling programs your adapter needs before tick 0. |
 | `riptide explain <adapter>` | Pretty-prints a parsed adapter: protocol, runtime, accounts, instructions, observations, personas, invariants, semantics, and oracles. |
 | `riptide lint` | Machine-checks JSON-IDL-backed adapter references. Non-JSON lineage warns honestly. |
-| `riptide adapt` | Adapter-only smoke against the local engine; for harness-required repos, prefer the one-seed `riptide run --harness` smoke first. |
+| `riptide adapt` | Adapter-only smoke against the local engine; use `riptide run --harness` only after you explicitly add a harness setup layer. |
 | `riptide run --serve` | Runs discovered scenarios and opens the dashboard for the run collection. |
 
 ## Upgrade

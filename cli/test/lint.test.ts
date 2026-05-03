@@ -513,11 +513,11 @@ function semanticsBreadthAdapter(semantics: Semantics): Adapter {
   return {
     protocol: "lending",
     instructions: {
-      deposit: { action: "deposit", amount: "amount", args: {} },
-      borrow: { action: "borrow", amount: "amount", args: {} },
-      repay: { action: "repay", amount: "amount", args: {} },
-      withdraw: { action: "withdraw", amount: "amount", args: {} },
-      liquidate: { action: "liquidate", amount: "repay_amount", args: {} },
+      deposit: { action: "deposit", amount: "amount", args: {}, bindings: {} },
+      borrow: { action: "borrow", amount: "amount", args: {}, bindings: {} },
+      repay: { action: "repay", amount: "amount", args: {}, bindings: {} },
+      withdraw: { action: "withdraw", amount: "amount", args: {}, bindings: {} },
+      liquidate: { action: "liquidate", amount: "repay_amount", args: {}, bindings: {} },
     },
     state_mapping: {},
     accounts: {},

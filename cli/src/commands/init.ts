@@ -6,8 +6,8 @@
 // exists and --force was not passed; exits 0 on successful scaffold.
 //
 // On a TTY the command opens a short wizard (program name, protocol,
-// setup harness, inline personas, scenarios, invariants, agents,
-// ticks, seeds). Under --yes, --quiet, or a non-TTY stdout the wizard is skipped and catalog
+// inline personas, scenarios, invariants, agents, ticks, seeds). Under
+// --yes, --quiet, or a non-TTY stdout the wizard is skipped and catalog
 // defaults apply.
 
 import chalk from "chalk";
@@ -47,6 +47,7 @@ export interface InitOptions {
   blank?: boolean;
   name?: string;
   protocol?: Protocol;
+  profile?: Protocol;
   yes?: boolean;
 }
 
@@ -71,6 +72,10 @@ export function createInitCommand(deps: InitDeps = {}): Command {
       "--protocol <protocol>",
       "Adapter protocol to scaffold (amm, lending, perpetuals, liquid-staking, stablecoin, custom)"
     )
+    .option(
+      "--profile <profile>",
+      "Alias for --protocol; selects the init profile to scaffold"
+    )
     .option("--yes", "Skip the interactive wizard and accept defaults", false)
     .option("--quiet", "Suppress interactive banner (also skips the wizard)", false);
 
@@ -85,7 +90,7 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
   const cwd = path.resolve(options.dir);
 
   try {
-    const optionProtocol = normalizeProtocolOption(options.protocol);
+    const optionProtocol = normalizeProfileOptions(options.protocol, options.profile);
     const detected = preflightScaffold({
       cwd,
       force: options.force,
@@ -93,7 +98,7 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
     });
     const wizardAnswers = await maybeRunWizard(cwd, options, deps, detected, optionProtocol);
     const protocol = wizardAnswers?.protocol ?? optionProtocol ?? "custom";
-    const harnessMode = wizardAnswers?.harnessMode;
+    const harnessMode = undefined;
     const seeds = wizardAnswers?.seeds;
     const personas = wizardAnswers?.personas ?? [];
     const agents = wizardAnswers?.agents;
@@ -146,20 +151,14 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
     process.stderr.write(
       `  1. ${chalk.cyan(`riptide lint ${result.programName}`)}  ${dim("# static validation against the JSON IDL named in [lineage].idl_source")}\n`
     );
-    if (result.harnessCreated) {
-      process.stderr.write(
-        `  2. ${chalk.cyan(`${harnessRel}/src/main.rs`)}  ${dim("# fill in account/program setup before tick 0")}\n`
-      );
-    } else {
-      process.stderr.write(
-        `  2. ${chalk.cyan(`riptide harness generate --adapter ${adapterRel}`)}  ${dim("# optional Rust setup for custom accounts/CPIs")}\n`
-      );
-    }
     process.stderr.write(
-      `  3. ${chalk.cyan(oneSeedRun)}  ${dim(result.harnessCreated ? "# first harnessed smoke" : "# first one-seed smoke; add --harness .riptide/harness when setup is needed")}\n`
+      `  2. ${chalk.cyan(oneSeedRun)}  ${dim(result.harnessCreated ? "# first harnessed smoke" : "# first one-seed smoke")}\n`
     );
     process.stderr.write(
-      `  4. ${chalk.cyan(`riptide run --adapter ${adapterRel}${result.harnessCreated ? ` --harness ${harnessRel}` : ""}`)}  ${dim("# full scenario battery after the smoke passes")}\n`
+      `  3. ${chalk.cyan(`riptide run --adapter ${adapterRel}${result.harnessCreated ? ` --harness ${harnessRel}` : ""}`)}  ${dim("# full scenario battery after the smoke passes")}\n`
+    );
+    process.stderr.write(
+      dim(`Optional setup layer only when needed: ${chalk.cyan(`riptide harness generate --adapter ${adapterRel}`)}, then add ${chalk.cyan(`--harness ${harnessRel}`)} to run commands.\n`)
     );
     process.stderr.write(
       dim(`Optional adapter-only smoke for repos that do not need setup: ${chalk.cyan(`riptide adapt --adapter ${adapterRel}`)}\n`)
@@ -288,6 +287,24 @@ function normalizeProtocolOption(value: Protocol | undefined): Protocol | undefi
   throw new ProgramDetectionError(
     `invalid protocol ${JSON.stringify(value)}. Expected one of: ${[...known].join(", ")}.`
   );
+}
+
+function normalizeProfileOptions(
+  protocol: Protocol | undefined,
+  profile: Protocol | undefined
+): Protocol | undefined {
+  const normalizedProtocol = normalizeProtocolOption(protocol);
+  const normalizedProfile = normalizeProtocolOption(profile);
+  if (
+    normalizedProtocol !== undefined &&
+    normalizedProfile !== undefined &&
+    normalizedProtocol !== normalizedProfile
+  ) {
+    throw new ProgramDetectionError(
+      `conflicting init profile options: --protocol ${JSON.stringify(normalizedProtocol)} and --profile ${JSON.stringify(normalizedProfile)}. Pick one.`
+    );
+  }
+  return normalizedProfile ?? normalizedProtocol;
 }
 
 function errMessage(err: unknown): string {
