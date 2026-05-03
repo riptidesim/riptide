@@ -2,7 +2,7 @@
 #
 # This is not a Solend mainnet replay and does not claim protocol safety.
 # It reuses shipped lending scenario templates and records sampled campaign
-# coordinates around oracle shock, whale concentration, and utilization.
+# coordinates around shock profile, oracle-lag duration, and whale concentration.
 
 [campaign]
 name = "solend-shape-liquidation-safety"
@@ -30,34 +30,26 @@ families = [
 [campaign.scenarios.oracle_lag_baseline]
 source = "../../../scenarios/lending/oracle-lag-baseline"
 weight = 2
-parameters = ["oracle_shock_bps", "oracle_lag_ticks"]
+parameters = ["shock_profile", "oracle_lag_ticks"]
 
 [campaign.scenarios.whale_shock_grid]
 source = "../../../scenarios/lending/whale-shock-grid"
 weight = 2
-parameters = ["oracle_shock_bps", "whale_share_bps"]
+parameters = ["shock_profile", "whale_share_bps"]
 
 [campaign.scenarios.whale_share_sweep]
 source = "../../../scenarios/lending/whale-share-sweep"
 weight = 1
-parameters = ["oracle_shock_bps", "whale_share_bps"]
+parameters = ["shock_profile", "whale_share_bps"]
 
 [campaign.personas]
 base = "../../../personas"
-families = ["template_personas"]
+families = []
 
-# Count zero preserves each shipped scenario template's persona mix.
-# The family remains explicit so the campaign contract records the choice.
-[campaign.personas.template_personas]
-source = "whale.toml"
-count = "template_persona_override_count"
-
-[campaign.parameters.oracle_shock_bps]
-distribution = "uniform"
-min = 1500
-max = 6000
-integer = true
-unit = "bps"
+[campaign.parameters.shock_profile]
+distribution = "discrete"
+values = ["price-shock", "bank-run"]
+weights = [2, 1]
 
 [campaign.parameters.oracle_lag_ticks]
 distribution = "discrete"
@@ -71,7 +63,3 @@ min = 500
 max = 3000
 integer = true
 unit = "bps"
-
-[campaign.parameters.template_persona_override_count]
-distribution = "fixed"
-value = 0

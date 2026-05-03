@@ -161,6 +161,7 @@ function planJson(spec: CampaignSpec, plan: CampaignExpansionPlan): Record<strin
       run_id: run.runId,
       run_seed: run.runSeed,
       scenario_family: run.scenarioFamily,
+      sampled_parameters: run.sampledParameters,
       run_config_digest: run.runConfigDigest,
       run_config_path: run.runConfigPath
     }))
@@ -182,6 +183,16 @@ function runJson(result: CampaignExecutionResult): Record<string, unknown> {
     campaign_summary_markdown_path: result.artifactPaths.summaryMarkdownPath,
     parameters_csv_path: result.artifactPaths.parametersCsvPath,
     retention_manifest_path: result.artifactPaths.retentionManifestPath,
+    runs: result.records.map((record) => ({
+      run_index: record.run_index,
+      run_id: record.run_id,
+      run_seed: record.run_seed,
+      scenario_family: record.scenario_family,
+      sampled_parameters: record.sampled_parameters,
+      status: record.status,
+      run_config_digest: record.run_config_digest,
+      run_config_path: record.run_config_path
+    })),
     retained_labels: result.retentionManifest.entries,
     last_run_path: result.runSummary.lastRunPath,
     run_collection_path: result.runSummary.runCollectionPath,
@@ -220,6 +231,13 @@ function renderPlan(spec: CampaignSpec, plan: CampaignExpansionPlan): string {
   ];
   for (const [family, count] of Object.entries(mix)) {
     lines.push(`    ${family}: ${count}`);
+  }
+  lines.push("  planned run coordinates:");
+  for (const run of plan.runs) {
+    lines.push(
+      `    ${run.runId}: seed=${run.runSeed} family=${run.scenarioFamily} ` +
+        `params=${formatSampledParameters(run.sampledParameters)}`
+    );
   }
   lines.push("  simulations executed: 0");
   lines.push("  claim boundary: planned observations are scoped to this campaign's declared inputs.");
@@ -264,6 +282,19 @@ function scenarioMix(plan: CampaignExpansionPlan): Record<string, number> {
     counts[run.scenarioFamily] = (counts[run.scenarioFamily] ?? 0) + 1;
   }
   return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function formatSampledParameters(parameters: Record<string, unknown>): string {
+  const entries = Object.entries(parameters);
+  if (entries.length === 0) return "(none)";
+  return entries
+    .map(([key, value]) => `${key}=${formatParameterValue(value)}`)
+    .join(", ");
+}
+
+function formatParameterValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  return JSON.stringify(value);
 }
 
 function handleCampaignError(

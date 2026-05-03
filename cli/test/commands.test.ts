@@ -103,6 +103,63 @@ test("campaign commands: validate and plan expose stable JSON without executing 
   );
 });
 
+test("campaign materialization expansion: plan output exposes run coordinates and sampled parameters", async () => {
+  const campaignPath = path.resolve(
+    process.cwd(),
+    "..",
+    "fixtures",
+    "campaigns",
+    "lending",
+    "solend-shape-liquidation-safety",
+    "campaign.toml"
+  );
+  const outRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-campaign-plan-output-"));
+
+  const human = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "campaign", "plan", campaignPath, "--max-runs", "1", "--out", outRoot],
+    { cwd: path.resolve(process.cwd(), "..") }
+  );
+  assert.match(human.stdout, /planned run coordinates:/);
+  assert.match(
+    human.stdout,
+    /run_000000_[a-f0-9]{12}: seed=\d+ family=oracle_lag_baseline params=shock_profile=price-shock, oracle_lag_ticks=2/
+  );
+
+  const json = await execFileAsync(
+    process.execPath,
+    [
+      cliEntrypoint,
+      "campaign",
+      "plan",
+      campaignPath,
+      "--max-runs",
+      "1",
+      "--out",
+      outRoot,
+      "--json"
+    ],
+    { cwd: path.resolve(process.cwd(), "..") }
+  );
+  const parsed = JSON.parse(json.stdout) as {
+    plan: {
+      runs: Array<{
+        run_id: string;
+        run_seed: string;
+        scenario_family: string;
+        sampled_parameters: Record<string, unknown>;
+      }>;
+    };
+  };
+  assert.equal(parsed.plan.runs[0]?.run_id.startsWith("run_000000_"), true);
+  assert.match(parsed.plan.runs[0]?.run_seed ?? "", /^\d+$/);
+  assert.equal(parsed.plan.runs[0]?.scenario_family, "oracle_lag_baseline");
+  assert.deepEqual(parsed.plan.runs[0]?.sampled_parameters, {
+    shock_profile: "price-shock",
+    oracle_lag_ticks: 2
+  });
+});
+
 test("campaign commands: help documents run controls and bounded evidence language", async () => {
   const campaignHelp = await execFileAsync(
     process.execPath,
@@ -172,7 +229,7 @@ families = ["oracle_shock"]
 [campaign.scenarios.oracle_shock]
 source = "fixtures/scenarios/lending/oracle-lag-baseline"
 weight = 1
-parameters = ["shock_bps"]
+parameters = ["shock_profile"]
 
 [campaign.personas]
 base = "fixtures/personas"
@@ -182,12 +239,9 @@ families = ["retail_borrowers"]
 source = "whale.toml"
 count = "borrower_count"
 
-[campaign.parameters.shock_bps]
-distribution = "uniform"
-min = 100
-max = 500
-integer = true
-unit = "bps"
+[campaign.parameters.shock_profile]
+distribution = "fixed"
+value = "price-shock"
 
 [campaign.parameters.borrower_count]
 distribution = "fixed"

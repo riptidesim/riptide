@@ -92,7 +92,7 @@ test("campaign retention aggregation: writes summaries and selects retained labe
 
   const csv = await readFile(result.artifactPaths.parametersCsvPath, "utf8");
   assert.match(csv.split("\n")[0]!, /total_bad_debt,max_utilization,min_tvl/);
-  assert.match(csv.split("\n")[0]!, /shock_bps/);
+  assert.match(csv.split("\n")[0]!, /shock_profile/);
 
   const markdown = await readFile(result.artifactPaths.summaryMarkdownPath, "utf8");
   assert.match(markdown, /observations within this campaign/i);
@@ -291,7 +291,7 @@ families = ["oracle_shock"]
 [campaign.scenarios.oracle_shock]
 source = "fixtures/scenarios/lending/oracle-lag-baseline"
 weight = 1
-parameters = ["shock_bps"]
+parameters = ["shock_profile"]
 
 [campaign.personas]
 base = "fixtures/personas"
@@ -301,12 +301,9 @@ families = ["retail_borrowers"]
 source = "whale.toml"
 count = "borrower_count"
 
-[campaign.parameters.shock_bps]
-distribution = "uniform"
-min = 100
-max = 500
-integer = true
-unit = "bps"
+[campaign.parameters.shock_profile]
+distribution = "fixed"
+value = "price-shock"
 
 [campaign.parameters.borrower_count]
 distribution = "fixed"

@@ -27,6 +27,12 @@ export const RETENTION_LABELS = [
 
 export const DEFAULT_REPLAY_RETENTION = [...RETENTION_LABELS];
 
+export const MATERIALIZED_SCENARIO_PARAMETERS = [
+  "shock_profile",
+  "oracle_lag_ticks",
+  "whale_share_bps"
+] as const;
+
 export type RiskObjective =
   | (typeof BUILTIN_RISK_OBJECTIVES)[number]
   | `custom:${string}`;
@@ -355,7 +361,12 @@ function parsePersonas(
   if (!raw) return undefined;
   const baseRaw = readString(raw, "base", "campaign.personas.base", diagnostics);
   const base = baseRaw ? resolveCampaignPath(baseRaw, campaignDir) : missingPathRef(campaignDir);
-  const families = readStringArray(raw, "families", "campaign.personas.families", diagnostics);
+  const families = readStringArrayAllowEmpty(
+    raw,
+    "families",
+    "campaign.personas.families",
+    diagnostics
+  );
   validateUniqueStrings(families, "campaign.personas.families", diagnostics);
 
   const allowedKeys = new Set(["base", "families", ...(families ?? [])]);
@@ -529,6 +540,47 @@ function validateParameterUses(
 ): void {
   if (!scenarios || !personas) return;
 
+  const materializedScenarioParameters = new Set<string>(MATERIALIZED_SCENARIO_PARAMETERS);
+  for (const [familyName, family] of Object.entries(scenarios.definitions)) {
+    for (const parameterName of family.parameters) {
+      const distribution = parameters[parameterName];
+      if (distribution && !materializedScenarioParameters.has(parameterName)) {
+        diagnostics.push({
+          path: `campaign.scenarios.${familyName}.parameters`,
+          message:
+            `parameter ${JSON.stringify(parameterName)} is visible in campaign plan/run output ` +
+            "but Campaign v1 does not materialize it into generated run configs; " +
+            `use one of ${MATERIALIZED_SCENARIO_PARAMETERS.map((name) => JSON.stringify(name)).join(", ")} or remove it`
+        });
+      }
+      if (!distribution) continue;
+      if (parameterName === "shock_profile" && !distributionEmitsNonemptyString(distribution)) {
+        diagnostics.push({
+          path: `campaign.parameters.${parameterName}`,
+          message: "shock_profile must always emit a non-empty string scenario name"
+        });
+      }
+      if (
+        parameterName === "oracle_lag_ticks" &&
+        !distributionEmitsNonnegativeInteger(distribution)
+      ) {
+        diagnostics.push({
+          path: `campaign.parameters.${parameterName}`,
+          message: "oracle_lag_ticks must always emit a nonnegative integer tick count"
+        });
+      }
+      if (
+        parameterName === "whale_share_bps" &&
+        !distributionEmitsIntegerInRange(distribution, 0, 10_000)
+      ) {
+        diagnostics.push({
+          path: `campaign.parameters.${parameterName}`,
+          message: "whale_share_bps must always emit an integer between 0 and 10000"
+        });
+      }
+    }
+  }
+
   for (const [familyName, family] of Object.entries(personas.definitions)) {
     const countDistribution = parameters[family.count];
     if (countDistribution && !distributionEmitsNonnegativeInteger(countDistribution)) {
@@ -541,6 +593,14 @@ function validateParameterUses(
       ["scale_deposits_by", family.scaleDepositsBy],
       ["scale_borrows_by", family.scaleBorrowsBy]
     ] as const) {
+      if (parameterName !== "fixed_one") {
+        diagnostics.push({
+          path: `campaign.personas.${familyName}.${field}`,
+          message:
+            `${field} is not materialized into generated run configs in Campaign v1; ` +
+            "remove it or leave the default fixed_one"
+        });
+      }
       const distribution = parameters[parameterName];
       if (distribution && !distributionEmitsNonnegativeNumber(distribution)) {
         diagnostics.push({
@@ -809,6 +869,19 @@ function readStringArray(
   return parseStringArray(record[key], keyPath, diagnostics);
 }
 
+function readStringArrayAllowEmpty(
+  record: Record<string, unknown>,
+  key: string,
+  keyPath: string,
+  diagnostics: CampaignDiagnostic[]
+): string[] | undefined {
+  if (!hasKey(record, key)) {
+    diagnostics.push({ path: keyPath, message: "missing required string array" });
+    return undefined;
+  }
+  return parseStringArray(record[key], keyPath, diagnostics, true);
+}
+
 function readOptionalStringArray(
   record: Record<string, unknown>,
   key: string,
@@ -823,7 +896,8 @@ function readOptionalStringArray(
 function parseStringArray(
   value: unknown,
   keyPath: string,
-  diagnostics: CampaignDiagnostic[]
+  diagnostics: CampaignDiagnostic[],
+  allowEmpty = false
 ): string[] | undefined {
   if (!Array.isArray(value)) {
     diagnostics.push({ path: keyPath, message: "expected an array of strings" });
@@ -840,7 +914,7 @@ function parseStringArray(
     }
     result.push(entry);
   }
-  if (result.length === 0) {
+  if (result.length === 0 && !allowEmpty) {
     diagnostics.push({ path: keyPath, message: "expected at least one entry" });
   }
   return result;
@@ -1053,6 +1127,45 @@ function distributionEmitsNonnegativeNumber(distribution: ParameterDistribution)
     return distribution.values.every((value) => typeof value === "number" && value >= 0);
   }
   return distribution.min >= 0;
+}
+
+function distributionEmitsNonemptyString(distribution: ParameterDistribution): boolean {
+  if (distribution.distribution === "fixed") {
+    return typeof distribution.value === "string" && distribution.value.length > 0;
+  }
+  if (distribution.distribution === "discrete") {
+    return distribution.values.every((value) => typeof value === "string" && value.length > 0);
+  }
+  return false;
+}
+
+function distributionEmitsIntegerInRange(
+  distribution: ParameterDistribution,
+  min: number,
+  max: number
+): boolean {
+  if (distribution.distribution === "fixed") {
+    return typeof distribution.value === "number" &&
+      Number.isSafeInteger(distribution.value) &&
+      distribution.value >= min &&
+      distribution.value <= max;
+  }
+  if (distribution.distribution === "discrete") {
+    return distribution.values.every(
+      (value) =>
+        typeof value === "number" &&
+        Number.isSafeInteger(value) &&
+        value >= min &&
+        value <= max
+    );
+  }
+  return (
+    distribution.integer &&
+    Number.isSafeInteger(distribution.min) &&
+    Number.isSafeInteger(distribution.max) &&
+    distribution.min >= min &&
+    distribution.max <= max
+  );
 }
 
 function withOptionalUnit<T extends ParameterDistribution>(

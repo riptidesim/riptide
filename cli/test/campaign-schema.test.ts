@@ -26,7 +26,7 @@ families = ["oracle_shock"]
 
 [campaign.scenarios.oracle_shock]
 source = "fixtures/scenarios/lending/oracle-lag-baseline"
-parameters = ["shock_bps"]
+parameters = ["shock_profile"]
 
 [campaign.personas]
 base = "fixtures/personas"
@@ -36,12 +36,9 @@ families = ["retail_borrowers"]
 source = "whale.toml"
 count = "borrower_count"
 
-[campaign.parameters.shock_bps]
-distribution = "uniform"
-min = 100
-max = 500
-integer = true
-unit = "bps"
+[campaign.parameters.shock_profile]
+distribution = "fixed"
+value = "price-shock"
 
 [campaign.parameters.borrower_count]
 distribution = "fixed"
@@ -107,7 +104,7 @@ families = ["oracle_shock"]
 
 [campaign.scenarios.oracle_shock]
 source = "fixtures/scenarios/lending/oracle-lag-baseline"
-parameters = ["shock_bps"]
+parameters = ["whale_share_bps"]
 
 [campaign.personas]
 base = "fixtures/personas"
@@ -117,7 +114,7 @@ families = ["retail_borrowers"]
 source = "whale.toml"
 count = "borrower_count"
 
-[campaign.parameters.shock_bps]
+[campaign.parameters.whale_share_bps]
 distribution = "uniform"
 min = 500
 max = 100
@@ -129,9 +126,68 @@ values = [1, 2]
 weights = [1]
 `);
 
-  assertHasDiagnostic(diagnostics, "campaign.parameters.shock_bps.values", /unknown key/);
-  assertHasDiagnostic(diagnostics, "campaign.parameters.shock_bps.max", /greater than or equal/);
+  assertHasDiagnostic(diagnostics, "campaign.parameters.whale_share_bps.values", /unknown key/);
+  assertHasDiagnostic(diagnostics, "campaign.parameters.whale_share_bps.max", /greater than or equal/);
   assertHasDiagnostic(diagnostics, "campaign.parameters.borrower_count.weights", /length must match/);
+});
+
+test("campaign schema: rejects scenario parameters that would be visible but not materialized", () => {
+  const diagnostics = diagnosticsFor(validCampaignToml().replace(
+    'parameters = ["shock_profile"]',
+    'parameters = ["cosmetic_bps"]'
+  ).replace(
+    '[campaign.parameters.shock_profile]\ndistribution = "fixed"\nvalue = "price-shock"',
+    '[campaign.parameters.cosmetic_bps]\ndistribution = "fixed"\nvalue = 123'
+  ));
+
+  assertHasDiagnostic(
+    diagnostics,
+    "campaign.scenarios.oracle_shock.parameters",
+    /does not materialize it into generated run configs/
+  );
+});
+
+test("campaign schema: rejects materialized scenario parameters with incompatible distributions", () => {
+  const shockDiagnostics = diagnosticsFor(validCampaignToml().replace(
+    'value = "price-shock"',
+    "value = 123"
+  ));
+  assertHasDiagnostic(
+    shockDiagnostics,
+    "campaign.parameters.shock_profile",
+    /non-empty string/
+  );
+
+  const whaleDiagnostics = diagnosticsFor(validCampaignToml().replace(
+    'parameters = ["shock_profile"]',
+    'parameters = ["whale_share_bps"]'
+  ).replace(
+    '[campaign.parameters.shock_profile]\ndistribution = "fixed"\nvalue = "price-shock"',
+    '[campaign.parameters.whale_share_bps]\ndistribution = "fixed"\nvalue = 12000'
+  ));
+  assertHasDiagnostic(
+    whaleDiagnostics,
+    "campaign.parameters.whale_share_bps",
+    /between 0 and 10000/
+  );
+});
+
+test("campaign schema: rejects persona scale parameters until they affect generated configs", () => {
+  const diagnostics = diagnosticsFor(validCampaignToml().replace(
+    'count = "borrower_count"',
+    'count = "borrower_count"\nscale_deposits_by = "deposit_scale"'
+  ) + `
+
+[campaign.parameters.deposit_scale]
+distribution = "fixed"
+value = 1
+`);
+
+  assertHasDiagnostic(
+    diagnostics,
+    "campaign.personas.retail_borrowers.scale_deposits_by",
+    /not materialized into generated run configs/
+  );
 });
 
 test("campaign schema: rejects unknown keys and bad family references", () => {

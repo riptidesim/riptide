@@ -43,12 +43,62 @@ test("campaign expansion determinism: canonical digest, run seeds, run IDs, and 
   assert.notEqual(first.runs[0]?.runId, first.runs[1]?.runId);
   assert.ok(!first.canonicalCampaignJson.includes(root), "canonical campaign JSON must not bake host paths for relative inputs");
   assert.deepEqual(Object.keys(first.runs[0]!.sampledParameters), [
-    "shock_bps",
-    "borrower_count",
-    "deposit_scale",
-    "borrow_scale",
-    "fixed_one"
+    "shock_profile",
+    "borrower_count"
   ]);
+});
+
+test("campaign materialization expansion: sampled coordinates change effective generated run config fields", async () => {
+  const root = await materializationFixtureRoot();
+  const spec = parseCampaignToml(
+    materializationCampaignToml(),
+    path.join(root, "campaign.toml")
+  );
+
+  const plan = await buildCampaignExpansion(spec, { cwd: root, maxRuns: 16 });
+  const effectiveSignatures = new Set<string>();
+  const observedScenarios = new Set<string>();
+
+  for (const run of plan.runs) {
+    const config = JSON.parse(run.runConfigJson) as {
+      agents: number;
+      campaign: { sampled_parameters: Record<string, unknown> };
+      personas: string[];
+      scenario: string;
+      ticks: number;
+    };
+    const params = config.campaign.sampled_parameters;
+    const whaleShareBps = Number(params.whale_share_bps);
+    const expectedWhales = Math.max(
+      1,
+      Math.min(10, Math.round((10 * whaleShareBps) / 10_000))
+    );
+
+    assert.equal(config.scenario, params.shock_profile);
+    observedScenarios.add(config.scenario);
+    assert.equal(config.ticks, 20 + Number(params.oracle_lag_ticks));
+    assert.equal(config.agents, config.personas.length);
+    assert.equal(config.personas.filter((persona) => persona === "whale").length, expectedWhales);
+    assert.equal(
+      config.personas.filter((persona) => persona === "steady-lp").length,
+      config.agents - expectedWhales
+    );
+
+    effectiveSignatures.add(
+      JSON.stringify({
+        agents: config.agents,
+        personas: config.personas,
+        scenario: config.scenario,
+        ticks: config.ticks
+      })
+    );
+  }
+
+  assert.ok(
+    effectiveSignatures.size >= 2,
+    "sampled parameters must alter effective run config fields, not only campaign metadata"
+  );
+  assert.deepEqual([...observedScenarios].sort(), ["bank-run", "price-shock"]);
 });
 
 test("campaign expansion determinism: range seed policies stay inside the declared range", async () => {
@@ -159,6 +209,39 @@ async function campaignFixtureRoot(): Promise<string> {
   return root;
 }
 
+async function materializationFixtureRoot(): Promise<string> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-campaign-materialization-"));
+  await mkdir(path.join(root, "fixtures", "adapters"), { recursive: true });
+  await mkdir(path.join(root, "fixtures", "personas"), { recursive: true });
+  await mkdir(path.join(root, "fixtures", "scenarios", "lending", "stress"), {
+    recursive: true
+  });
+  await writeFile(
+    path.join(root, "fixtures", "adapters", "lending.toml"),
+    "# lending adapter fixture\n",
+    "utf8"
+  );
+  await writeFile(path.join(root, "fixtures", "personas", "whale.toml"), "", "utf8");
+  await writeFile(path.join(root, "fixtures", "personas", "steady-lp.toml"), "", "utf8");
+  await writeFile(
+    path.join(root, "fixtures", "scenarios", "lending", "stress", "run-config.json"),
+    JSON.stringify(
+      {
+        agents: 10,
+        ticks: 20,
+        scenario: "price-shock",
+        personas: Array.from({ length: 10 }, () => "steady-lp"),
+        validator_url: "unused",
+        output_path: "template-output"
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+  return root;
+}
+
 function campaignToml(): string {
   return `
 [campaign]
@@ -176,7 +259,7 @@ families = ["oracle_shock"]
 [campaign.scenarios.oracle_shock]
 source = "fixtures/scenarios/lending/oracle-lag-baseline"
 weight = 1
-parameters = ["shock_bps"]
+parameters = ["shock_profile"]
 
 [campaign.personas]
 base = "fixtures/personas"
@@ -185,26 +268,55 @@ families = ["retail_borrowers"]
 [campaign.personas.retail_borrowers]
 source = "whale.toml"
 count = "borrower_count"
-scale_deposits_by = "deposit_scale"
-scale_borrows_by = "borrow_scale"
 
-[campaign.parameters.shock_bps]
-distribution = "uniform"
-min = 100
-max = 500
-integer = true
-unit = "bps"
+[campaign.parameters.shock_profile]
+distribution = "fixed"
+value = "price-shock"
 
 [campaign.parameters.borrower_count]
 distribution = "fixed"
 value = 2
+`;
+}
 
-[campaign.parameters.deposit_scale]
-distribution = "fixed"
-value = 1
+function materializationCampaignToml(): string {
+  return `
+[campaign]
+name = "materialization-campaign"
+adapter = "fixtures/adapters/lending.toml"
+class = "lending.v1"
+risk_objective = "liquidation-safety"
+run_budget = 16
+seed_policy = "fixed:20260426"
 
-[campaign.parameters.borrow_scale]
-distribution = "fixed"
-value = 0
+[campaign.scenarios]
+selection = "weighted"
+families = ["stress"]
+
+[campaign.scenarios.stress]
+source = "fixtures/scenarios/lending/stress"
+weight = 1
+parameters = ["shock_profile", "oracle_lag_ticks", "whale_share_bps"]
+
+[campaign.personas]
+base = "fixtures/personas"
+families = []
+
+[campaign.parameters.shock_profile]
+distribution = "discrete"
+values = ["price-shock", "bank-run"]
+weights = [1, 1]
+
+[campaign.parameters.oracle_lag_ticks]
+distribution = "discrete"
+values = [0, 2, 4]
+weights = [1, 1, 1]
+unit = "ticks"
+
+[campaign.parameters.whale_share_bps]
+distribution = "discrete"
+values = [500, 3000]
+weights = [1, 1]
+unit = "bps"
 `;
 }

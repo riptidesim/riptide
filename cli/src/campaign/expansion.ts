@@ -214,28 +214,17 @@ async function buildRunPlan(input: {
   const personaSelections = spec.personas.families.map((familyName) => {
     const family = spec.personas.definitions[familyName]!;
     const countValue = sampleParameter(family.count);
-    const scaleDeposits = sampleParameter(family.scaleDepositsBy);
-    const scaleBorrows = sampleParameter(family.scaleBorrowsBy);
     return {
       family: familyName,
       source: family.source.digestPath,
       countParameter: family.count,
       count: jsonScalarToCount(countValue),
       scaleDepositsBy: family.scaleDepositsBy,
-      scaleDeposits,
+      scaleDeposits: 1,
       scaleBorrowsBy: family.scaleBorrowsBy,
-      scaleBorrows
+      scaleBorrows: 1
     };
   });
-
-  for (const parameter of Object.keys(spec.parameters).sort()) {
-    if (
-      spec.parameters[parameter]?.distribution === "fixed" &&
-      !Object.prototype.hasOwnProperty.call(sampledParameters, parameter)
-    ) {
-      sampleParameter(parameter);
-    }
-  }
 
   const baseRunConfig = await readBaseRunConfig(scenarioFamily.source);
   const engineSeed = engineSeedFromRunSeed(runSeed);
@@ -311,11 +300,15 @@ function buildGeneratedRunConfig(input: {
   personaSelections: PersonaRunSelection[];
 }): JsonValue {
   const personas = expandPersonaIds(input.personaSelections);
-  const basePersonas = readStringArrayFromJson(input.baseRunConfig.personas);
+  const baseRunConfig = materializeSampledRunConfigFields(
+    input.baseRunConfig,
+    input.sampledParameters
+  );
+  const basePersonas = readStringArrayFromJson(baseRunConfig.personas);
   const selectedPersonas = personas.length > 0 ? personas : basePersonas;
   const agents = selectedPersonas.length > 0
     ? selectedPersonas.length
-    : readPositiveIntegerFromJson(input.baseRunConfig.agents) ?? 1;
+    : readPositiveIntegerFromJson(baseRunConfig.agents) ?? 1;
   const outputPath = normalizePath(path.relative(input.cwd, input.runDir));
   const adapterPath = normalizePath(path.relative(input.runDir, input.spec.adapter.resolved));
   const config: Record<string, JsonValue> = {
@@ -343,15 +336,69 @@ function buildGeneratedRunConfig(input: {
     },
     output_path: outputPath,
     personas: selectedPersonas,
-    scenario: readStringFromJson(input.baseRunConfig.scenario) ?? slugify(input.scenarioFamilyName),
+    scenario: readStringFromJson(baseRunConfig.scenario) ?? slugify(input.scenarioFamilyName),
     seed: input.engineSeed,
-    ticks: readPositiveIntegerFromJson(input.baseRunConfig.ticks) ?? 50,
-    validator_url: readStringFromJson(input.baseRunConfig.validator_url) ?? "unused"
+    ticks: readPositiveIntegerFromJson(baseRunConfig.ticks) ?? 50,
+    validator_url: readStringFromJson(baseRunConfig.validator_url) ?? "unused"
   };
 
-  const statePack = readStringFromJson(input.baseRunConfig.state_pack);
+  const statePack = readStringFromJson(baseRunConfig.state_pack);
   if (statePack) config.state_pack = statePack;
   return config;
+}
+
+function materializeSampledRunConfigFields(
+  baseRunConfig: Record<string, unknown>,
+  sampledParameters: Record<string, JsonScalar>
+): Record<string, unknown> {
+  const config = { ...baseRunConfig };
+
+  const shockProfile = sampledParameters.shock_profile;
+  if (typeof shockProfile === "string" && shockProfile.length > 0) {
+    config.scenario = shockProfile;
+  }
+
+  const lagTicks = nonnegativeInteger(sampledParameters.oracle_lag_ticks);
+  if (lagTicks !== undefined) {
+    const baseTicks = readPositiveIntegerFromJson(config.ticks) ?? 50;
+    config.ticks = baseTicks + lagTicks;
+  }
+
+  const whaleShareBps = nonnegativeInteger(sampledParameters.whale_share_bps);
+  if (whaleShareBps !== undefined) {
+    const basePersonas = readStringArrayFromJson(config.personas);
+    const baseAgents =
+      readPositiveIntegerFromJson(config.agents) ??
+      (basePersonas.length > 0 ? basePersonas.length : 1);
+    const personas = materializeWhaleShare(basePersonas, baseAgents, whaleShareBps);
+    config.personas = personas;
+    config.agents = personas.length;
+  }
+
+  return config;
+}
+
+function materializeWhaleShare(
+  basePersonas: string[],
+  baseAgents: number,
+  whaleShareBps: number
+): string[] {
+  const agents = Math.max(1, baseAgents);
+  const boundedBps = Math.max(0, Math.min(10_000, whaleShareBps));
+  const whaleCount = Math.max(1, Math.min(agents, Math.round((agents * boundedBps) / 10_000)));
+  const nonWhalePersona =
+    basePersonas.find((persona) => persona !== "whale") ??
+    "steady-lp";
+  return [
+    ...Array.from({ length: whaleCount }, () => "whale"),
+    ...Array.from({ length: agents - whaleCount }, () => nonWhalePersona)
+  ];
+}
+
+function nonnegativeInteger(value: JsonScalar | undefined): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined;
 }
 
 function selectScenarioFamily(spec: CampaignSpec, rng: CampaignRng): string {
