@@ -20,17 +20,30 @@ test("campaign run resume: executes generated configs through the run path and w
   const root = await campaignFixtureRoot("execute");
   const spec = parseCampaignToml(await readFile(path.join(root, "campaign.toml"), "utf8"), path.join(root, "campaign.toml"));
   const seen: string[] = [];
+  const harnessPath = path.join(root, ".riptide", "harness");
+  const seenHarnessPaths: Array<string | undefined> = [];
+  const seenRerunCommands: Array<string | undefined> = [];
 
   const result = await executeCampaign(spec, {
     cwd: root,
+    harnessPath,
     maxRuns: 2,
     runOne: async (ctx) => {
       seen.push(ctx.scenario.name);
+      seenHarnessPaths.push(ctx.harnessPath);
+      seenRerunCommands.push(ctx.reproCommandOverride);
       return writeFakeArtifacts(ctx);
     }
   });
 
   assert.deepEqual(seen, result.plan.runs.map((run) => run.runId));
+  assert.deepEqual(seenHarnessPaths, [harnessPath, harnessPath]);
+  assert.ok(seenRerunCommands.every((command) => command?.includes("--harness .riptide/harness")));
+  assert.ok(
+    result.retentionManifest.entries
+      .filter((entry) => entry.status === "selected")
+      .every((entry) => entry.rerun_command.includes("--harness .riptide/harness"))
+  );
   assert.equal(result.createdConfigs, 2);
   assert.equal(result.reusedConfigs, 0);
   assert.equal(result.runSummary.pass, 2);

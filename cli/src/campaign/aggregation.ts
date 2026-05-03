@@ -204,6 +204,7 @@ interface WriteCampaignArtifactsInput {
   runSummary: RunSummary;
   runsJsonlPath: string;
   cwd: string;
+  harnessPath?: string;
 }
 
 interface EnrichedRun {
@@ -239,7 +240,8 @@ export async function writeCampaignArtifacts(
     spec: input.spec,
     plan: input.plan,
     enriched,
-    cwd: input.cwd
+    cwd: input.cwd,
+    harnessPath: input.harnessPath
   });
   const paths: CampaignArtifactPaths = {
     runsJsonlPath: input.runsJsonlPath,
@@ -507,6 +509,7 @@ function buildRetentionManifest(input: {
   plan: CampaignExpansionPlan;
   enriched: EnrichedRun[];
   cwd: string;
+  harnessPath?: string;
 }): CampaignRetentionManifest {
   const requested = input.spec.replayRetention.length > 0
     ? input.spec.replayRetention
@@ -535,6 +538,7 @@ function selectRetentionLabel(
     plan: CampaignExpansionPlan;
     enriched: EnrichedRun[];
     cwd: string;
+    harnessPath?: string;
   }
 ): CampaignRetentionEntry {
   const completed = input.enriched.filter((run) => run.metrics.completed);
@@ -558,6 +562,7 @@ function selectRetentionLabel(
       selected,
       input.plan,
       input.cwd,
+      input.harnessPath,
       withTie("earliest invariant failure tick observed within this campaign", tieBreaker),
       selected.metrics.firstFailureTick,
       tieBreaker
@@ -587,6 +592,7 @@ function selectRetentionLabel(
       selected,
       input.plan,
       input.cwd,
+      input.harnessPath,
       withTie("highest lending bad debt observed within this campaign", tieBreaker),
       selected.metrics.totalBadDebt,
       tieBreaker
@@ -617,6 +623,7 @@ function selectRetentionLabel(
       selected,
       input.plan,
       input.cwd,
+      input.harnessPath,
       withTie("highest utilization, then lowest TVL, observed within this campaign", tieBreaker),
       selected.metrics.maxUtilization ?? selected.metrics.minTvl,
       tieBreaker
@@ -641,6 +648,7 @@ function selectRetentionLabel(
       selected,
       input.plan,
       input.cwd,
+      input.harnessPath,
       withTie("middle completed run by deterministic campaign risk score", tieBreaker),
       selected.metrics.riskScore,
       tieBreaker
@@ -669,6 +677,7 @@ function selectRetentionLabel(
     selected,
     input.plan,
     input.cwd,
+    input.harnessPath,
     withTie("largest absolute distance from the median campaign risk score", tieBreaker),
     selected.metrics.riskScore,
     tieBreaker
@@ -680,6 +689,7 @@ function selection(
   run: EnrichedRun,
   plan: CampaignExpansionPlan,
   cwd: string,
+  harnessPath: string | undefined,
   reason: string,
   score: number | null,
   tieBreaker: string | null
@@ -696,7 +706,7 @@ function selection(
     score: score === null ? null : roundNumber(score),
     tie_breaker: tieBreaker,
     risk_signals: riskSignalsFor(run),
-    rerun_command: buildRetainedRerunCommand(cwd, run.record.run_config_path, plan),
+    rerun_command: buildRetainedRerunCommand(cwd, run.record.run_config_path, harnessPath),
     paths: {
       run_dir: relativizeIfInside(plan.campaignRoot, run.plan.runDir),
       run_config: relativizeInsideCampaignRoot(plan, cwd, run.record.run_config_path),
@@ -764,9 +774,13 @@ function relativizeInsideCampaignRoot(
 function buildRetainedRerunCommand(
   cwd: string,
   runConfigPath: string,
-  _plan: CampaignExpansionPlan
+  harnessPath: string | undefined
 ): string {
-  return ["exec", "riptide", "run", posixQuote(relativizeIfInside(cwd, runConfigPath))].join(" ");
+  const command = ["exec", "riptide", "run", posixQuote(relativizeIfInside(cwd, runConfigPath))];
+  if (harnessPath) {
+    command.push("--harness", posixQuote(relativizeIfInside(cwd, harnessPath)));
+  }
+  return command.join(" ");
 }
 
 async function writeRetainedCaseArtifacts(input: {

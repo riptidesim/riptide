@@ -28,6 +28,7 @@ import type { CampaignSpec, JsonScalar } from "./schema.js";
 
 export interface ExecuteCampaignOptions extends CampaignExpansionOptions {
   silent?: boolean;
+  harnessPath?: string;
   runOne?: (ctx: RunOneContext) => Promise<RunOneResult>;
   onRunEvent?: (event: RunEvent) => void;
 }
@@ -86,6 +87,7 @@ export async function executeCampaign(
   options: ExecuteCampaignOptions = {}
 ): Promise<CampaignExecutionResult> {
   const cwd = path.resolve(options.cwd ?? process.cwd());
+  const harnessPath = options.harnessPath ? path.resolve(cwd, options.harnessPath) : undefined;
   const plan = await buildCampaignExpansion(spec, { ...options, cwd });
   const materialized = await materializeGeneratedConfigs(plan);
   const generatedPolicies = await materializeGeneratedPolicySidecars(spec, plan);
@@ -107,7 +109,8 @@ export async function executeCampaign(
       reproCommandOverride: buildCampaignRerunCommand({
         cwd,
         runConfigPath: run.runConfigPath,
-        adapterPath: spec.adapter.resolved
+        adapterPath: spec.adapter.resolved,
+        harnessPath
       })
     };
   });
@@ -119,6 +122,7 @@ export async function executeCampaign(
     silent: options.silent !== false,
     outputDir: path.join(plan.campaignRoot, "runs"),
     selectedSourcePath: spec.filePath,
+    harnessPath,
     runOne: options.runOne,
     onEvent: options.onRunEvent
   });
@@ -137,7 +141,8 @@ export async function executeCampaign(
     records,
     runSummary,
     runsJsonlPath,
-    cwd
+    cwd,
+    harnessPath
   });
 
   return {
@@ -328,17 +333,22 @@ function buildCampaignRerunCommand(input: {
   cwd: string;
   runConfigPath: string;
   adapterPath: string;
+  harnessPath?: string;
 }): string {
   const runConfig = relativizeIfInside(input.cwd, input.runConfigPath);
   const adapter = relativizeIfInside(input.cwd, input.adapterPath);
-  return [
+  const command = [
     "exec",
     "riptide",
     "run",
     posixQuote(runConfig),
     "--adapter",
     posixQuote(adapter)
-  ].join(" ");
+  ];
+  if (input.harnessPath) {
+    command.push("--harness", posixQuote(relativizeIfInside(input.cwd, input.harnessPath)));
+  }
+  return command.join(" ");
 }
 
 function posixQuote(value: string): string {

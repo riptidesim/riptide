@@ -84,6 +84,10 @@ export function createCampaignCommand(): Command {
     .option("--max-runs <n>", "Execute at most n generated runs without changing the campaign digest")
     .option("--out <dir>", "Artifact root directory (default: <cwd>/.riptide/campaigns)")
     .option(
+      "--harness <path>",
+      "Run every generated campaign scenario through this Rust harness crate or Cargo.toml"
+    )
+    .option(
       "--serve",
       "Reserved for a future campaign dashboard. Campaign runs currently write reviewable artifacts; use `riptide review <campaign-root>` after the run.",
       false
@@ -106,6 +110,7 @@ export function createCampaignCommand(): Command {
         const spec = await readCampaignTomlFile(campaignPath);
         const result = await executeCampaign(spec, {
           ...expansionOptions(options),
+          ...campaignRunOptions(options),
           silent: true
         });
         if (json) {
@@ -142,6 +147,18 @@ function expansionOptions(options: Record<string, unknown>): {
   return {
     ...(maxRuns !== undefined ? { maxRuns } : {}),
     ...(outputRoot !== undefined ? { outputRoot } : {})
+  };
+}
+
+function campaignRunOptions(options: Record<string, unknown>): {
+  harnessPath?: string;
+} {
+  const harnessPath =
+    typeof options.harness === "string" && options.harness.length > 0
+      ? path.resolve(options.harness)
+      : undefined;
+  return {
+    ...(harnessPath !== undefined ? { harnessPath } : {})
   };
 }
 
