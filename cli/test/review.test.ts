@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cp, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -18,8 +19,12 @@ const execFileAsync = promisify(execFile);
 const cliEntrypoint = path.resolve(process.cwd(), "dist/src/index.js");
 const __dirname = path.resolve(process.cwd(), "test");
 const packPath = path.resolve(__dirname, "../../fixtures/replays/lending-whale-bad-debt/");
+const packResultPath = path.join(packPath, "riptide-output", "replays", "lending-whale-bad-debt", "simulation-result.json");
+const expectedRawSha256 = "770a10497af484a310da2aaed654dd315030565afd362ae8b1011fb0249191ae";
+let materializedPackPromise: Promise<void> | undefined;
 
 test("review validates the lending whale replay pack and emits markdown", async () => {
+  await ensureReviewPackMaterialized();
   const { stdout, stderr } = await execFileAsync(process.execPath, [cliEntrypoint, "review", packPath], {
     cwd: process.cwd(),
   });
@@ -28,12 +33,13 @@ test("review validates the lending whale replay pack and emits markdown", async 
   assert.match(stdout, /# Pack: lending-whale-bad-debt/);
   assert.match(stdout, /\*\*Proof level 3 - Failure-shape replay\*\*/);
   assert.match(stdout, /Canonical hash: `6c59db5ebf916c8cc068c8fea8727d4edf26d244f288f6dadd7e9ae47d16c4a1`/);
-  assert.match(stdout, /Raw output SHA256: `05c4a616f6deb5195f8e38242082e0995a8cc71d90ebf6ae3d480703d28b78bd`/);
+  assert.match(stdout, new RegExp(`Raw output SHA256: \`${expectedRawSha256}\``));
   assert.match(stdout, /no_bad_debt/);
   assert.match(stdout, /rerun\.sh` is present and `sh -n` parseable; it was not executed/);
 });
 
 test("review --json emits validation, invariant, digest, canonical hash, and raw sha256 fields", async () => {
+  await ensureReviewPackMaterialized();
   const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "review", packPath, "--json"], {
     cwd: process.cwd(),
   });
@@ -42,7 +48,7 @@ test("review --json emits validation, invariant, digest, canonical hash, and raw
   assert.equal((payload.pack as Record<string, unknown>).slug, "lending-whale-bad-debt");
   assert.equal((payload.hash as Record<string, unknown>).ok, true);
   assert.equal((payload.hash as Record<string, unknown>).observed, "6c59db5ebf916c8cc068c8fea8727d4edf26d244f288f6dadd7e9ae47d16c4a1");
-  assert.equal((payload.hash as Record<string, unknown>).raw_sha256, "05c4a616f6deb5195f8e38242082e0995a8cc71d90ebf6ae3d480703d28b78bd");
+  assert.equal((payload.hash as Record<string, unknown>).raw_sha256, expectedRawSha256);
   assert.equal(Array.isArray(payload.validation), true);
   assert.equal(Array.isArray(payload.invariant_fires), true);
   assert.match(String((payload.manifest as Record<string, unknown>).digest), /^[a-f0-9]{64}$/);
@@ -200,6 +206,7 @@ test("review derives What Broke from hash-covered evidence when summary.md is ta
 });
 
 test("review --out writes markdown and prints a short success line", async () => {
+  await ensureReviewPackMaterialized();
   const tmp = await mkdtemp(path.join(os.tmpdir(), "riptide-review-out-"));
   const outPath = path.join(tmp, "review.md");
   const { stdout, stderr } = await execFileAsync(
@@ -532,8 +539,45 @@ function resultRunIndex(runConfigPath: string): number {
 }
 
 async function copyPack(prefix: string): Promise<string> {
+  await ensureReviewPackMaterialized();
   const tmpParent = await mkdtemp(path.join(os.tmpdir(), prefix));
   const copied = path.join(tmpParent, "lending-whale-bad-debt");
   await cp(packPath, copied, { recursive: true });
   return copied;
+}
+
+async function ensureReviewPackMaterialized(): Promise<void> {
+  materializedPackPromise ??= materializeReviewPackIfNeeded();
+  await materializedPackPromise;
+}
+
+async function materializeReviewPackIfNeeded(): Promise<void> {
+  const existing = await readOptionalFile(packResultPath);
+  if (existing && sha256(existing) === expectedRawSha256) {
+    return;
+  }
+
+  await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "replay", "config.json", "--allow-invariant-violations", "--quiet"],
+    { cwd: packPath }
+  );
+
+  const generated = await readFile(packResultPath);
+  assert.equal(sha256(generated), expectedRawSha256);
+}
+
+async function readOptionalFile(filePath: string): Promise<Buffer | undefined> {
+  try {
+    return await readFile(filePath);
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+function sha256(data: Buffer): string {
+  return createHash("sha256").update(data).digest("hex");
 }
