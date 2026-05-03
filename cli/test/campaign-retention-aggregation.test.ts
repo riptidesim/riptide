@@ -163,6 +163,52 @@ test("campaign retention aggregation: unsupported or absent labels warn without 
   assert.match(result.retentionManifest.warnings.join("\n"), /at least three completed runs/);
 });
 
+test("campaign retention aggregation: case digests are stable across output roots", async () => {
+  const root = await campaignFixtureRoot("portable-digest");
+  const spec = parseCampaignToml(
+    await readFile(path.join(root, "campaign.toml"), "utf8"),
+    path.join(root, "campaign.toml")
+  );
+  const runOne = async (ctx: RunOneContext): Promise<RunOneResult> => {
+    const index = resultRunIndex(ctx.scenario.runConfigPath);
+    const simulation = simulationResult(index, {
+      totalBadDebt: index === 0 ? 1200 : 0,
+      maxUtilization: index + 1,
+      minTvl: 1000 - index
+    });
+    const artifactsDir = await writeArtifacts(ctx, simulation);
+    return { kind: "pass", wallClockS: 0.01, artifactsDir, result: simulation };
+  };
+
+  const first = await executeCampaign(spec, {
+    cwd: root,
+    outputRoot: path.join(root, "out-a"),
+    maxRuns: 5,
+    runOne
+  });
+  const second = await executeCampaign(spec, {
+    cwd: root,
+    outputRoot: path.join(root, "out-b"),
+    maxRuns: 5,
+    runOne
+  });
+
+  const firstByLabel = selectedEntriesByLabel(first.retentionManifest);
+  const secondByLabel = selectedEntriesByLabel(second.retentionManifest);
+  assert.notEqual(
+    firstByLabel.get("worst_bad_debt")?.rerun_command,
+    secondByLabel.get("worst_bad_debt")?.rerun_command,
+    "rerun commands remain output-root specific reviewer instructions"
+  );
+  for (const [label, firstEntry] of firstByLabel) {
+    assert.equal(
+      firstEntry.case_digest,
+      secondByLabel.get(label)?.case_digest,
+      `${label} digest should ignore output-root-specific commands`
+    );
+  }
+});
+
 async function writeArtifacts(
   ctx: RunOneContext,
   result: SimulationResult
@@ -340,4 +386,19 @@ function resultRunIndex(runConfigPath: string): number {
   const runDir = path.basename(path.dirname(runConfigPath));
   const match = /^run_(\d{6})_/.exec(runDir);
   return match ? Number(match[1]) : -1;
+}
+
+function selectedEntriesByLabel(manifest: {
+  entries: Array<{
+    label: string;
+    status: "selected" | "warning";
+    case_digest?: string;
+    rerun_command?: string;
+  }>;
+}): Map<string, { case_digest?: string; rerun_command?: string }> {
+  return new Map(
+    manifest.entries
+      .filter((entry) => entry.status === "selected")
+      .map((entry) => [entry.label, entry])
+  );
 }

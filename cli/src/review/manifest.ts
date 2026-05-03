@@ -43,7 +43,7 @@ export interface PackPathEntry {
   key: string;
   raw: string;
   resolved: string;
-  base: "pack_root";
+  base: "pack_root" | "repo_root";
 }
 
 export interface LoadedPackManifest {
@@ -71,6 +71,7 @@ export class ReviewValidationError extends Error {
 
 export async function loadPackManifest(packPath: string): Promise<LoadedPackManifest> {
   const packRoot = path.resolve(packPath);
+  const repoRoot = findRepoRoot(packRoot);
   const validationResults: ValidationResult[] = [];
   const manifestPath = path.join(packRoot, "manifest.json");
 
@@ -123,10 +124,10 @@ export async function loadPackManifest(packPath: string): Promise<LoadedPackMani
 
   const resolvedPaths: PackPathEntry[] = [];
   for (const [key, raw] of flattenPathIndex("inputs", inputIndex)) {
-    resolvedPaths.push(resolveIndexedPath(packRoot, key, raw));
+    resolvedPaths.push(resolveIndexedPath(packRoot, repoRoot, key, raw));
   }
   for (const [key, raw] of flattenPathIndex("outputs", outputIndex)) {
-    resolvedPaths.push(resolveIndexedPath(packRoot, key, raw));
+    resolvedPaths.push(resolveIndexedPath(packRoot, repoRoot, key, raw));
   }
 
   validationResults.push({
@@ -142,6 +143,7 @@ export async function loadPackManifest(packPath: string): Promise<LoadedPackMani
   );
   const simulationResultPath = resolveIndexedPath(
     packRoot,
+    repoRoot,
     "outputs.simulation_result",
     simulationResultRaw ?? "outputs/simulation-result.json",
   ).resolved;
@@ -206,49 +208,117 @@ function flattenPathIndex(prefix: string, value: unknown): Array<[string, string
   return rows;
 }
 
-function resolveIndexedPath(packRoot: string, key: string, raw: string): PackPathEntry {
+function resolveIndexedPath(
+  packRoot: string,
+  repoRoot: string | null,
+  key: string,
+  raw: string
+): PackPathEntry {
   if (path.isAbsolute(raw)) {
     throw new ReviewValidationError(
       `absolute indexed paths are not allowed\n  field: ${key}\n  path: ${raw}\n  next: keep inputs/paths.json and outputs/paths.json entries relative to the pack root`
     );
   }
 
-  const resolved = path.resolve(packRoot, raw);
-  if (!isWithinPackRoot(packRoot, resolved)) {
+  const packResolved = path.resolve(packRoot, raw);
+  if (!isWithinRoot(packRoot, packResolved)) {
     throw new ReviewValidationError(
-      `indexed path escapes pack root\n  field: ${key}\n  path: ${raw}\n  resolved: ${resolved}\n  pack root: ${packRoot}\n  next: keep pack indexes self-contained and relative to the pack root`
+      `indexed path escapes pack root\n  field: ${key}\n  path: ${raw}\n  resolved: ${packResolved}\n  pack root: ${packRoot}\n  next: keep pack indexes self-contained and relative to the pack root`
     );
   }
 
-  if (!existsSync(resolved)) {
-    throw new ReviewValidationError(
-      `indexed path does not exist\n  field: ${key}\n  expected: ${resolved}\n  next: check ${key.startsWith("inputs") ? "inputs/paths.json" : "outputs/paths.json"} and keep pack paths relative to the pack root`
-    );
+  if (existsSync(packResolved)) {
+    return canonicalizeIndexedPath({
+      root: packRoot,
+      resolved: packResolved,
+      key,
+      raw,
+      base: "pack_root"
+    });
   }
 
+  const repoResolved = repoRoot ? path.resolve(repoRoot, raw) : null;
+  if (repoRoot && repoResolved && existsSync(repoResolved)) {
+    if (!isWithinRoot(repoRoot, repoResolved)) {
+      throw new ReviewValidationError(
+        `indexed path escapes repo root\n  field: ${key}\n  path: ${raw}\n  resolved: ${repoResolved}\n  repo root: ${repoRoot}\n  next: keep repo-relative pack indexes inside the checkout`
+      );
+    }
+    return canonicalizeIndexedPath({
+      root: repoRoot,
+      resolved: repoResolved,
+      key,
+      raw,
+      base: "repo_root"
+    });
+  }
+
+  if (!existsSync(packResolved)) {
+    throw new ReviewValidationError(
+      `indexed path does not exist\n  field: ${key}\n  expected: ${packResolved}` +
+        (repoResolved ? `\n  repo-relative candidate: ${repoResolved}` : "") +
+        `\n  next: ${missingIndexedPathNext(packRoot, key)}`
+    );
+  }
+  throw new ReviewValidationError(
+    `indexed path could not be resolved\n  field: ${key}\n  path: ${raw}`
+  );
+}
+
+function canonicalizeIndexedPath(input: {
+  root: string;
+  resolved: string;
+  key: string;
+  raw: string;
+  base: PackPathEntry["base"];
+}): PackPathEntry {
   let canonicalRoot: string;
   let canonicalPath: string;
   try {
-    canonicalRoot = realpathSync(packRoot);
-    canonicalPath = realpathSync(resolved);
+    canonicalRoot = realpathSync(input.root);
+    canonicalPath = realpathSync(input.resolved);
   } catch (error) {
     throw new ReviewValidationError(
-      `indexed path could not be canonicalized\n  field: ${key}\n  path: ${raw}\n  resolved: ${resolved}\n  reason: ${errorMessage(error)}\n  next: restore the pack file as a regular readable path`
+      `indexed path could not be canonicalized\n  field: ${input.key}\n  path: ${input.raw}\n  resolved: ${input.resolved}\n  reason: ${errorMessage(error)}\n  next: restore the pack file as a regular readable path`
     );
   }
 
-  if (!isWithinPackRoot(canonicalRoot, canonicalPath)) {
+  if (!isWithinRoot(canonicalRoot, canonicalPath)) {
     throw new ReviewValidationError(
-      `indexed path resolves inside the pack root lexically but canonicalizes outside it — refusing to follow a symlink escape\n  field: ${key}\n  path: ${raw}\n  lexical: ${resolved}\n  canonical: ${canonicalPath}\n  pack root: ${canonicalRoot}\n  next: keep pack indexes self-contained and relative to the pack root`
+      `indexed path resolves inside the ${input.base} lexically but canonicalizes outside it — refusing to follow a symlink escape\n  field: ${input.key}\n  path: ${input.raw}\n  lexical: ${input.resolved}\n  canonical: ${canonicalPath}\n  ${input.base}: ${canonicalRoot}\n  next: keep pack indexes inside their declared root`
     );
   }
 
-  return { key, raw, resolved: canonicalPath, base: "pack_root" };
+  return { key: input.key, raw: input.raw, resolved: canonicalPath, base: input.base };
 }
 
-function isWithinPackRoot(packRoot: string, candidate: string): boolean {
-  const relative = path.relative(packRoot, candidate);
+function isWithinRoot(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function findRepoRoot(start: string): string | null {
+  let current = path.resolve(start);
+  while (true) {
+    if (existsSync(path.join(current, ".git"))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+function missingIndexedPathNext(packRoot: string, key: string): string {
+  const indexPath = key.startsWith("inputs") ? "inputs/paths.json" : "outputs/paths.json";
+  if (key.startsWith("outputs") && existsSync(path.join(packRoot, "config.json"))) {
+    const rerunHint = existsSync(path.join(packRoot, "rerun.sh"))
+      ? " or execute the pack's rerun.sh"
+      : "";
+    return `this replay pack references generated output that is not present; run \`riptide replay ${path.join(
+      packRoot,
+      "config.json"
+    )} --allow-invariant-violations\`${rerunHint}, then retry review`;
+  }
+  return `check ${indexPath} and keep pack paths relative to the pack root or repo root`;
 }
 
 function firstString(

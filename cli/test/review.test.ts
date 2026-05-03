@@ -53,6 +53,52 @@ test("review --json emits validation, invariant, digest, canonical hash, and raw
   assert.match(String((payload.manifest as Record<string, unknown>).digest), /^[a-f0-9]{64}$/);
 });
 
+test("review accepts repo-relative pack path indexes emitted by replay packs", async () => {
+  await ensureReviewPackMaterialized();
+  const repoRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-review-repo-relative-"));
+  await mkdir(path.join(repoRoot, ".git"));
+  const replayPack = path.join(repoRoot, "fixtures", "replays", "lending-whale-bad-debt");
+  await mkdir(path.dirname(replayPack), { recursive: true });
+  await cp(packPath, replayPack, { recursive: true });
+
+  const repoRelative = {
+    adapter: "fixtures/replays/lending-whale-bad-debt/adapter.toml",
+    config: "fixtures/replays/lending-whale-bad-debt/config.json",
+    simulationResult:
+      "fixtures/replays/lending-whale-bad-debt/riptide-output/replays/lending-whale-bad-debt/simulation-result.json"
+  };
+  await writeFile(
+    path.join(replayPack, "inputs", "paths.json"),
+    JSON.stringify({ adapter: repoRelative.adapter, config: repoRelative.config }, null, 2) + "\n",
+    "utf8"
+  );
+  await writeFile(
+    path.join(replayPack, "outputs", "paths.json"),
+    JSON.stringify({ simulation_result: repoRelative.simulationResult }, null, 2) + "\n",
+    "utf8"
+  );
+  const manifestPath = path.join(replayPack, "manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+  manifest.adapter = repoRelative.adapter;
+  manifest.inputs = { adapter: repoRelative.adapter, config: repoRelative.config };
+  manifest.outputs = { simulation_result: repoRelative.simulationResult, last_run: null };
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n", "utf8");
+
+  const { stdout, stderr } = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "review", replayPack],
+    { cwd: repoRoot }
+  );
+
+  assert.equal(stderr, "");
+  assert.match(stdout, /# Pack: lending-whale-bad-debt/);
+  assert.match(
+    stdout,
+    /Canonical hash: `6c59db5ebf916c8cc068c8fea8727d4edf26d244f288f6dadd7e9ae47d16c4a1`/
+  );
+  assert.match(stdout, /Hash verification: passed/);
+});
+
 test("review accepts a campaign root and maps retained cases to risk and rerun evidence", async () => {
   const root = await campaignReviewFixtureRoot();
   const spec = parseCampaignToml(
@@ -297,6 +343,32 @@ test("review exits 2 when an indexed path symlink canonicalizes outside the pack
       assert.equal(err.code, 2);
       assert.match(err.stderr ?? "", /canonicalizes outside it/);
       assert.match(err.stderr ?? "", /field: outputs\.simulation_result/);
+      return true;
+    }
+  );
+});
+
+test("review tells fresh-clone users to run replay when generated output is absent", async () => {
+  const copied = await copyPack("riptide-review-missing-output-");
+  await writeFile(
+    path.join(copied, "outputs", "paths.json"),
+    JSON.stringify(
+      { simulation_result: "riptide-output/replays/lending-whale-bad-debt/missing.json" },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliEntrypoint, "review", copied], {
+      cwd: process.cwd()
+    }),
+    (error: unknown) => {
+      const err = error as { code?: number; stderr?: string };
+      assert.equal(err.code, 2);
+      assert.match(err.stderr ?? "", /this replay pack references generated output that is not present/);
+      assert.match(err.stderr ?? "", /riptide replay .*config\.json --allow-invariant-violations/);
       return true;
     }
   );

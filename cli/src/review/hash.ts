@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 import type { ReviewManifest, ValidationResult } from "./manifest.js";
 import { ReviewValidationError } from "./manifest.js";
+import { monorepoRootFromModule, resolveEngineBinary } from "../orchestrator/index.js";
 
 export interface HashVerification {
   expected: string;
@@ -28,8 +32,12 @@ export async function verifyCanonicalHash(
     );
   }
 
-  const observed = canonicalSimulationResultHash(raw.toString("utf8"));
+  const tsObserved = canonicalSimulationResultHash(raw.toString("utf8"));
   const expected = manifest.canonical_hash ?? "";
+  const engineObserved = expected === tsObserved
+    ? undefined
+    : await canonicalSimulationResultHashWithEngine(simulationResultPath).catch(() => undefined);
+  const observed = engineObserved ?? tsObserved;
   const verification: HashVerification = {
     expected,
     observed,
@@ -52,6 +60,59 @@ export async function verifyCanonicalHash(
   });
 
   return { result: parsed, verification };
+}
+
+async function canonicalSimulationResultHashWithEngine(
+  simulationResultPath: string
+): Promise<string> {
+  const enginePath = await resolveEngineBinary(
+    process.env,
+    process.cwd(),
+    monorepoRootFromModule() ?? null
+  );
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "riptide-review-hash-"));
+  const packDir = path.join(tmp, "pack");
+  try {
+    const { code, stderr } = await execEnginePack(enginePath, [
+      "pack",
+      "--result",
+      simulationResultPath,
+      "--pack-dir",
+      packDir,
+      "--repo-root",
+      path.dirname(simulationResultPath),
+      "--simulation-result",
+      simulationResultPath
+    ]);
+    if (code !== 0) {
+      throw new Error(`riptide-engine pack exited ${code}: ${stderr.trim()}`);
+    }
+    const manifest = JSON.parse(
+      await readFile(path.join(packDir, "manifest.json"), "utf8")
+    ) as { canonical_hash?: unknown };
+    if (typeof manifest.canonical_hash !== "string" || manifest.canonical_hash.length === 0) {
+      throw new Error("riptide-engine pack did not emit canonical_hash");
+    }
+    return manifest.canonical_hash;
+  } finally {
+    await rm(tmp, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+function execEnginePack(
+  enginePath: string,
+  args: string[]
+): Promise<{ code: number; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(enginePath, args, { stdio: ["ignore", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => resolve({ code: code ?? 1, stderr }));
+  });
 }
 
 export function canonicalSimulationResultHash(raw: string): string {

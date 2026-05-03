@@ -179,6 +179,18 @@ export interface CampaignRetentionRiskSignals {
   risk_score: number;
 }
 
+export function canonicalRetainedCaseDigestPayload(
+  caseRecord: Record<string, JsonValue>
+): Record<string, JsonValue> {
+  const {
+    case_digest: _caseDigest,
+    rerun_command: _rerunCommand,
+    review_command: _reviewCommand,
+    ...canonical
+  } = caseRecord;
+  return canonical;
+}
+
 export interface CampaignRetentionWarning {
   label: RetentionLabel;
   status: "warning";
@@ -788,7 +800,9 @@ async function writeRetainedCaseArtifacts(input: {
       review_command: `riptide review ${posixQuote(relativizeIfInside(input.cwd, input.plan.campaignRoot))}`
     };
     const caseDigest = sha256Hex(
-      `riptide-campaign-retained-case-v1\n${canonicalJson(caseRecordBase)}`
+      `riptide-campaign-retained-case-v1\n${canonicalJson(
+        canonicalRetainedCaseDigestPayload(caseRecordBase)
+      )}`
     );
     entry.case_digest = caseDigest;
     const caseRecord: JsonValue = {

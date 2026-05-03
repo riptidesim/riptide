@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 
 import { Command } from "commander";
 
+import { canonicalRetainedCaseDigestPayload } from "../campaign/aggregation.js";
 import { renderCliError } from "../errors/render.js";
 import { verifyCanonicalHash } from "../review/hash.js";
 import { buildReviewJsonPayload } from "../review/json.js";
@@ -319,9 +320,10 @@ function validateCaseDigest(
       `retained case digest missing\n  path: ${casePath}\n  next: regenerate the retained case manifest`
     );
   }
-  const { case_digest: _caseDigest, ...withoutDigest } = caseRecord;
   const observed = sha256Hex(
-    `riptide-campaign-retained-case-v1\n${canonicalJson(withoutDigest as JsonValue)}`
+    `riptide-campaign-retained-case-v1\n${canonicalJson(
+      canonicalRetainedCaseDigestPayload(caseRecord as Record<string, JsonValue>)
+    )}`
   );
   if (observed !== digest) {
     throw new ReviewValidationError(
