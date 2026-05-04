@@ -14,6 +14,7 @@ import {
   renderMain,
   renderOracleService,
   renderServicesMod,
+  renderTypesExt,
   simCrateName
 } from "./render-main.js";
 import { renderTypes } from "./render-types.js";
@@ -78,6 +79,7 @@ export async function generateSim(
     );
     await writeIfFirst(path.join(srcDir, "flows.rs"), renderFlows(), forceUserOwned);
     await writeIfFirst(path.join(srcDir, "invariants.rs"), renderInvariants(), forceUserOwned);
+    await writeIfFirst(path.join(srcDir, "types_ext.rs"), renderTypesExt(), forceUserOwned);
     await writeIfFirst(path.join(servicesDir, "mod.rs"), renderServicesMod(), forceUserOwned);
     await writeIfFirst(path.join(servicesDir, "oracle.rs"), renderOracleService(), forceUserOwned);
     await writeIfFirst(bootstrapManifestPath, renderBootstrapManifest(), forceUserOwned);

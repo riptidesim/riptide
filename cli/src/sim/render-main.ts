@@ -24,6 +24,7 @@ mod flows;
 mod invariants;
 mod services;
 mod types;
+mod types_ext;
 
 use accounts::AccountStorage;
 
@@ -88,6 +89,14 @@ export function renderInvariants(): string {
 pub fn check(_sim: &mut Simulation) -> riptide_sim::anyhow::Result<()> {
     Ok(())
 }
+`;
+}
+
+export function renderTypesExt(): string {
+  return `#![allow(dead_code)]
+
+// User-owned extension seam for hand-written builders or IDL type overrides.
+// This file is created once and preserved by riptide sim refresh.
 `;
 }
 

@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { generateSim } from "../src/sim/generate.js";
+import { loadGenericIdl } from "../src/sim/idl.js";
 import { renderTypes } from "../src/sim/render-types.js";
 
 test("sim generate writes a guided Rust crate from the AMM IDL", async () => {
@@ -21,12 +22,14 @@ test("sim generate writes a guided Rust crate from the AMM IDL", async () => {
   const typesRs = await readFile(path.join(result.dir, "src", "types.rs"), "utf8");
   const accountsRs = await readFile(path.join(result.dir, "src", "accounts.rs"), "utf8");
   const flowsRs = await readFile(path.join(result.dir, "src", "flows.rs"), "utf8");
+  const typesExtRs = await readFile(path.join(result.dir, "src", "types_ext.rs"), "utf8");
   const bootstrapToml = await readFile(result.bootstrapManifestPath, "utf8");
 
   assert.match(cargoToml, /riptide-sim = \{ path = /);
   assert.match(cargoToml, /riptide-sim-macros = \{ path = /);
   assert.match(cargoToml, /borsh = \{ version = "1\.6\.1"/);
   assert.match(mainRs, /#\[riptide_sim\]/);
+  assert.match(mainRs, /mod types_ext;/);
   assert.match(mainRs, /apply_manifest_if_exists\("Riptide\.toml"\)/);
   assert.match(mainRs, /load_program_from_so/);
   assert.match(typesRs, /pub struct AddLiquidityInstructionData/);
@@ -35,6 +38,7 @@ test("sim generate writes a guided Rust crate from the AMM IDL", async () => {
   assert.match(accountsRs, /pub pool: AddressStorage/);
   assert.match(accountsRs, /pub lp_position: AddressStorage/);
   assert.match(flowsRs, /pub fn guided_flow/);
+  assert.match(typesExtRs, /User-owned extension seam/);
   assert.match(bootstrapToml, /\[\[sim\.fork\]\]/);
   assert.match(bootstrapToml, /Protocol-specific layouts stay in your/);
 });
@@ -77,8 +81,11 @@ test("sim refresh preserves user-owned flow files", async () => {
 
   const result = await generateSim(root, { adapter, dir: ".riptide/sim" });
   const flowPath = path.join(result.dir, "src", "flows.rs");
+  const typesExtPath = path.join(result.dir, "src", "types_ext.rs");
   const userFlow = "pub fn marker() {}\n";
+  const userTypesExt = "pub fn custom_builder_marker() {}\n";
   await writeFile(flowPath, userFlow, "utf8");
+  await writeFile(typesExtPath, userTypesExt, "utf8");
 
   await generateSim(root, {
     adapter,
@@ -87,6 +94,7 @@ test("sim refresh preserves user-owned flow files", async () => {
   });
 
   assert.equal(await readFile(flowPath, "utf8"), userFlow);
+  assert.equal(await readFile(typesExtPath, "utf8"), userTypesExt);
 });
 
 test("sim generate rejects bundled lending adapters without an IDL path", async () => {
@@ -119,6 +127,97 @@ test("sim generated builders fail loudly for unsupported IDL args", () => {
     /UnsupportedIdlArg::new\("config has unsupported IDL type/
   );
   assert.doesNotMatch(rendered, /pub config: \(\),/);
+});
+
+test("sim generated builders cover common complex Anchor IDL shapes", () => {
+  const rendered = renderTypes({
+    instructions: [
+      {
+        name: "placeOrder",
+        discriminator: [1, 2, 3],
+        accounts: [],
+        args: [
+          { name: "args", type: { defined: "PlaceOrderArgs" } },
+          { name: "limits", type: { vec: { option: "u128" } } },
+          { name: "keys", type: { array: ["publicKey", 2] } }
+        ]
+      }
+    ],
+    accounts: [],
+    types: [
+      {
+        name: "PlaceOrderArgs",
+        fields: [],
+        type: {
+          kind: "struct",
+          fields: [
+            { name: "side", type: { defined: "Side" } },
+            { name: "priceLots", type: "i64" },
+            { name: "clientOrderId", type: "u64" }
+          ],
+          variants: []
+        }
+      },
+      {
+        name: "Side",
+        fields: [],
+        type: {
+          kind: "enum",
+          fields: [],
+          variants: [{ name: "Bid", fields: [] }, { name: "Ask", fields: [] }]
+        }
+      }
+    ]
+  });
+
+  assert.match(rendered, /pub struct PlaceOrderArgs/);
+  assert.match(rendered, /pub enum Side/);
+  assert.match(rendered, /pub args: PlaceOrderArgs,/);
+  assert.match(rendered, /pub limits: Vec<Option<u128>>,/);
+  assert.match(rendered, /pub keys: \[Pubkey; 2\],/);
+  assert.doesNotMatch(rendered, /pub args: UnsupportedIdlArg,/);
+});
+
+test("sim IDL parser accepts a complex case-study IDL when available", async () => {
+  const openbook = path.resolve(
+    process.cwd(),
+    "..",
+    "..",
+    "case-studies",
+    "protocol-v2",
+    "sdk",
+    "src",
+    "idl",
+    "openbook.json"
+  );
+  const idl = await loadGenericIdl(openbook);
+  const rendered = renderTypes(idl);
+
+  assert.match(rendered, /pub struct PlaceOrderArgs/);
+  assert.match(rendered, /pub enum Side/);
+  assert.match(rendered, /pub bids: Vec<PlaceMultipleOrdersArgs>,/);
+  assert.match(rendered, /pub side_option: Option<Side>,/);
+});
+
+test("sim IDL parser accepts tuple-style enum variant fields from case-study IDLs", async () => {
+  const drift = path.resolve(
+    process.cwd(),
+    "..",
+    "..",
+    "case-studies",
+    "protocol-v2",
+    "sdk",
+    "src",
+    "idl",
+    "drift.json"
+  );
+  const idl = await loadGenericIdl(drift);
+  const rendered = renderTypes(idl);
+
+  assert.match(rendered, /pub enum ModifyOrderId/);
+  assert.match(rendered, /UserOrderId\(u8\),/);
+  assert.match(rendered, /OrderId\(u32\),/);
+  assert.match(rendered, /PlaceAndTake\(bool, u8\),/);
 });
 
 test("built CLI carries vendored guided sim runtime crates for packaged installs", async () => {

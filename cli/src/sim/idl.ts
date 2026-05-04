@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const DefinedRefSchema = z.union([
   z.string(),
-  z.object({ name: z.string().min(1) }).strict()
+  z.object({ name: z.string().min(1) }).passthrough()
 ]);
 
 export type GenericTypeRef =
@@ -28,7 +28,7 @@ export const GenericTypeRefSchema: z.ZodType<GenericTypeRef> = z.lazy(() =>
 export const GenericArgSchema = z.object({
   name: z.string().min(1),
   type: GenericTypeRefSchema
-}).strict();
+}).passthrough();
 export type GenericArg = z.infer<typeof GenericArgSchema>;
 
 export const GenericInstructionAccountSchema = z.object({
@@ -38,7 +38,7 @@ export const GenericInstructionAccountSchema = z.object({
   isSigner: z.boolean().optional(),
   isMut: z.boolean().optional(),
   address: z.string().min(1).optional()
-}).transform((value) => ({
+}).passthrough().transform((value) => ({
   name: value.name,
   signer: value.isSigner ?? value.signer,
   writable: value.isMut ?? value.writable,
@@ -51,29 +51,51 @@ export const GenericInstructionSchema = z.object({
   discriminator: z.array(z.number().int().min(0).max(255)).default([]),
   accounts: z.array(GenericInstructionAccountSchema).default([]),
   args: z.array(GenericArgSchema).default([])
-}).strict();
+}).passthrough();
 export type GenericInstruction = z.infer<typeof GenericInstructionSchema>;
 
 export const GenericFieldSchema = GenericArgSchema;
 export type GenericField = GenericArg;
 
+export interface GenericEnumVariantField {
+  name?: string;
+  type: GenericTypeRef;
+}
+
+export const GenericEnumVariantFieldSchema: z.ZodType<GenericEnumVariantField> = z.union([
+  GenericArgSchema.transform((value) => ({
+    name: value.name,
+    type: value.type
+  })),
+  GenericTypeRefSchema.transform((type) => ({ type }))
+]);
+
+export const GenericEnumVariantSchema = z.object({
+  name: z.string().min(1),
+  fields: z.array(GenericEnumVariantFieldSchema).default([])
+}).passthrough();
+export type GenericEnumVariant = z.infer<typeof GenericEnumVariantSchema>;
+
 export const GenericTypeDefinitionSchema = z.object({
   kind: z.string().min(1),
-  fields: z.array(GenericFieldSchema).default([])
-}).strict();
+  fields: z.array(GenericFieldSchema).default([]),
+  variants: z.array(GenericEnumVariantSchema).default([])
+}).passthrough();
+export type GenericTypeDefinition = z.infer<typeof GenericTypeDefinitionSchema>;
 
 export const GenericAccountTypeSchema = z.object({
   name: z.string().min(1),
   discriminator: z.array(z.number().int().min(0).max(255)).optional(),
   fields: z.array(GenericFieldSchema).default([]),
   type: GenericTypeDefinitionSchema.optional()
-}).strict();
+}).passthrough();
 
 export const GenericDefinedTypeSchema = z.object({
   name: z.string().min(1),
   fields: z.array(GenericFieldSchema).default([]),
   type: GenericTypeDefinitionSchema.optional()
-}).strict();
+}).passthrough();
+export type GenericDefinedType = z.infer<typeof GenericDefinedTypeSchema>;
 
 export const GenericIdlSchema = z.object({
   address: z.string().min(1).optional(),

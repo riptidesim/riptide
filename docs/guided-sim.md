@@ -26,10 +26,11 @@ orderbook models.
 | Project-owned flows and services | Supported | Write protocol behavior in Rust under `src/flows.rs`, `src/invariants.rs`, and `src/services/`. Riptide does not infer meaningful flows from source. |
 | Dependency programs | Supported for local `.so` files | Declare generic local programs in `Riptide.toml`. Protocol-specific dependency behavior belongs in project code. |
 | Local account snapshots | Supported | Declare base64 account snapshots in `Riptide.toml`. Snapshot bytes and owner/layout assumptions are the project's responsibility. |
-| Account-snapshot fork/cache | Supported as explicit account snapshots | This is not a live validator fork. Cached snapshots must be pinned and rerun offline unless deliberately refreshed. |
+| Account-snapshot fork/cache | Supported as explicit account snapshots | This is not a live validator fork. Cached snapshots include provenance and data hashes; cached runs stay offline unless deliberately refreshed. |
 | Dynamic `remaining_accounts` and multi-instruction transactions | Supported in project-owned Rust | Generated builders expose hooks, but the project chooses accounts, ordering, signers, and flow logic. |
 | Account mutation and local services | Supported in project-owned Rust | Services can mutate generic SVM accounts through `World`; Riptide core does not contain Pyth, Switchboard, OpenBook, Drift, Mango, Marinade, Whirlpool, or similar layouts. |
-| Metrics, regression, artifacts, and coverage | Partial / guarded | Basic run output exists. Machine-readable guided-sim evidence and coverage are separate capabilities and must not be claimed unless the local run emits them. |
+| Metrics, regression, and artifacts | Supported for guided runs | `riptide sim run --out <dir>` writes stable JSON with seeds, flow counts, tx outcomes, compute units, service ticks, failing seed, and selected account hashes. |
+| Coverage | Guarded gap | LiteSVM binary loading does not emit local guided-run coverage yet. `sim.coverage.enabled = true` fails lint until an entrypoint/binary coverage collector exists. |
 | Campaign and review integration | Partial / separate | Adapter campaigns and evidence packs remain distinct from guided sims unless a guided-sim artifact/review path is explicitly used. |
 | Audit-equivalent or automatic universal fuzzing | Out of scope | A green guided simulation is simulation evidence for the declared setup, not an audit result or complete coverage proof. |
 
@@ -101,6 +102,13 @@ enabled = false
 Forking is account-snapshot forking, not a live validator fork. The
 first run fetches a base64 account snapshot from the declared RPC and
 caches it; later runs reuse the cache unless `overwrite = true`.
+Snapshots record address, owner, executable flag, data hash,
+cluster/RPC, fetched slot when RPC returns one, and local filename. If a
+forked account is an upgradeable loader program account, Riptide also
+loads the paired program-data account from cache or fetches it to a
+sibling cache file. If the pair cannot be loaded, the error names the
+program-data account and tells you to cache it locally or fall back to a
+direct local `.so`.
 Protocol-specific updates, such as advancing an oracle price or
 orderbook state between flows, belong in `src/services/` and can write
 accounts through `World::set_account`.
@@ -125,8 +133,8 @@ Schema reference:
 | `[[sim.programs]]` | `address`, `program`, `loader` | `program` is a local `.so`. `address` is optional only when loading the primary program from the sibling keypair. `loader` defaults to `direct`; other loader declarations fail lint. |
 | `[[sim.accounts]]` | `address`, `filename` | `filename` points to a base64 account snapshot. Top-level snapshot `pubkey`, when present, must match `address`. |
 | `[[sim.fork]]` | `address`, `cluster`, `filename`, `overwrite` | `cluster` accepts `mainnet`, `m`, `devnet`, `d`, `testnet`, `t`, or a custom RPC URL. Missing cache files warn because the first run may fetch them. |
-| `[sim.metrics]` | `enabled`, `filename` | Guarded declaration. `enabled = true` fails lint until guided runs emit metrics artifacts. |
-| `[sim.regression]` | `enabled`, `accounts`, `state_hashes` | Guarded declaration. Accounts must be valid pubkeys; duplicate regression accounts fail lint; `enabled = true` fails until guided runs emit regression hashes. |
+| `[sim.metrics]` | `enabled`, `filename` | Enables guided-run metrics in the JSON artifact. Use `riptide sim run --out <dir>` for a stable directory, or `filename` when you want the manifest to choose the JSON file path. |
+| `[sim.regression]` | `enabled`, `accounts`, `state_hashes` | Hashes selected accounts in the JSON artifact. Accounts must be valid pubkeys; duplicate regression accounts fail lint. |
 | `[sim.coverage]` | `enabled` | Coverage is declared but unavailable here. `enabled = true` fails lint until guided runs emit coverage output. |
 
 When a transaction is supposed to be rejected, use
@@ -135,16 +143,34 @@ returned `TxOutcome`. Use `world.process_transaction(...)` or
 `world.process_transaction_expect_success(...)` when rejection should
 fail the simulation.
 
+`World` exposes the generic LiteSVM controls used by guided services:
+`get_sysvar`, `set_sysvar`, `clock`, `set_clock`, slot/epoch/timestamp
+warp helpers, deterministic `advance_clock`, direct dependency program
+loading, raw `get_account` / `set_account` / `mutate_account`, and Borsh
+read/write helpers. `svm()` and `svm_mut()` remain the final escape hatch
+when LiteSVM exposes something Riptide does not wrap.
+
 ## Run the simulation
+
+Use `riptide sim fork` to create or refresh an explicit account cache:
+
+```bash
+riptide sim fork --address <pubkey> --cluster devnet --out .riptide/sim/fork-cache/devnet/<pubkey>.json
+```
 
 Use `riptide sim run` from the repo root:
 
 ```bash
-riptide sim run .riptide/sim --iterations 5 --flows 20 --seed deadbeef
+riptide sim run .riptide/sim --iterations 5 --flows 20 --seed deadbeef --out .riptide/sim/artifacts/run-001
 ```
 
-The generated binary prints the iteration seed before each run. Reuse
-that seed with `riptide sim debug` to dump labelled transaction outcomes:
+The generated binary prints the iteration seed before each run and, when
+`--out` is present, writes `guided-sim-run.json`. The artifact includes
+the base seed, per-iteration derived seeds, flow counts, labelled
+transaction outcomes, compute units, expected-error counts, service tick
+count, regression account hashes when enabled, and the retained failing
+seed. Reuse that seed with `riptide sim debug` to dump labelled
+transaction outcomes:
 
 ```bash
 riptide sim debug .riptide/sim --seed deadbeef
@@ -160,8 +186,10 @@ riptide sim refresh --adapter .riptide/adapters/<program>.toml --dir .riptide/si
 ```
 
 This replaces `types.rs` and `accounts.rs` and preserves `flows.rs`,
-`invariants.rs`, and `services/`. Use the `--force-generated` flag only
-when you intentionally want a clean slate for user-owned files too.
+`invariants.rs`, `types_ext.rs`, and `services/`. Use `types_ext.rs`
+for hand-written builders or IDL type overrides that should survive
+refresh. Use the `--force-generated` flag only when you intentionally
+want a clean slate for user-owned files too.
 
 ## When not to use it
 

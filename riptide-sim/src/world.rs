@@ -3,8 +3,10 @@
 use std::{collections::BTreeMap, path::Path};
 
 use anyhow::{anyhow, Context, Result};
-use borsh::BorshDeserialize;
+use borsh::{to_vec, BorshDeserialize, BorshSerialize};
 use litesvm::LiteSVM;
+use serde::Serialize;
+use sha2::{Digest, Sha256};
 use solana_account::Account;
 use solana_clock::Clock;
 use solana_sdk::{
@@ -15,7 +17,7 @@ use solana_sdk::{
 use solana_transaction::Transaction;
 
 use crate::{
-    bootstrap::BootstrapReport,
+    bootstrap::{BootstrapReport, MetricsConfig, RegressionConfig},
     rng::RiptideRng,
     services::Service,
     spl::{
@@ -24,10 +26,11 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TxOutcome {
     pub label: Option<String>,
     pub ok: bool,
+    pub expected_error: bool,
     pub signature: String,
     pub error: Option<String>,
     pub logs: Vec<String>,
@@ -41,7 +44,10 @@ pub struct World {
     signers: BTreeMap<Pubkey, Keypair>,
     tx_log: Vec<TxOutcome>,
     services: Vec<Box<dyn Service>>,
+    service_tick_count: u64,
     rng: RiptideRng,
+    metrics_config: MetricsConfig,
+    regression_config: RegressionConfig,
 }
 
 impl World {
@@ -62,7 +68,10 @@ impl World {
             signers,
             tx_log: Vec::new(),
             services: Vec::new(),
+            service_tick_count: 0,
             rng: RiptideRng::default(),
+            metrics_config: MetricsConfig::default(),
+            regression_config: RegressionConfig::default(),
         }
     }
 
@@ -104,6 +113,10 @@ impl World {
         pubkey
     }
 
+    pub fn register_keypair_ref(&mut self, keypair: &Keypair) -> Pubkey {
+        self.register_keypair(keypair.insecure_clone())
+    }
+
     pub fn keypair(&self, pubkey: &Pubkey) -> Option<&Keypair> {
         self.signers.get(pubkey)
     }
@@ -137,6 +150,10 @@ impl World {
         Ok(program_id)
     }
 
+    pub fn load_primary_program_from_so(&mut self, so_path: impl AsRef<Path>) -> Result<Pubkey> {
+        self.load_program_from_so(so_path)
+    }
+
     pub fn add_program_from_so(
         &mut self,
         program_id: Pubkey,
@@ -154,6 +171,14 @@ impl World {
                 )
             })?;
         Ok(program_id)
+    }
+
+    pub fn load_dependency_program_from_so(
+        &mut self,
+        program_id: Pubkey,
+        so_path: impl AsRef<Path>,
+    ) -> Result<Pubkey> {
+        self.add_program_from_so(program_id, so_path)
     }
 
     pub fn process_transaction(
@@ -186,13 +211,19 @@ impl World {
         ixs: &[Instruction],
         label: Option<&str>,
     ) -> Result<TxOutcome> {
-        let outcome = self.process_transaction_outcome(ixs, label)?;
+        let mut outcome = self.process_transaction_outcome(ixs, label)?;
         if outcome.ok {
             Err(anyhow!(
                 "transaction `{}` succeeded, but the simulation expected an error",
                 label.unwrap_or("unlabelled")
             ))
         } else {
+            outcome.expected_error = true;
+            if let Some(last) = self.tx_log.last_mut() {
+                if last.signature == outcome.signature {
+                    last.expected_error = true;
+                }
+            }
             Ok(outcome)
         }
     }
@@ -234,6 +265,7 @@ impl World {
             Ok(meta) => TxOutcome {
                 label: label.map(str::to_owned),
                 ok: true,
+                expected_error: false,
                 signature: meta.signature.to_string(),
                 error: None,
                 logs: meta.logs,
@@ -242,6 +274,7 @@ impl World {
             Err(failed) => TxOutcome {
                 label: label.map(str::to_owned),
                 ok: false,
+                expected_error: false,
                 signature: failed.meta.signature.to_string(),
                 error: Some(format!("{:?}", failed.err)),
                 logs: failed.meta.logs,
@@ -268,6 +301,18 @@ impl World {
         self.svm
             .set_account(pubkey, account)
             .map_err(|error| anyhow!("set account {pubkey}: {error}"))
+    }
+
+    pub fn mutate_account(
+        &mut self,
+        pubkey: &Pubkey,
+        mutate: impl FnOnce(&mut Account),
+    ) -> Result<()> {
+        let mut account = self
+            .get_account(pubkey)
+            .ok_or_else(|| anyhow!("account {pubkey} is missing"))?;
+        mutate(&mut account);
+        self.set_account(*pubkey, account)
     }
 
     pub fn load_account_from_json_file(
@@ -311,24 +356,95 @@ impl World {
         T::try_from_slice(&account.data).map_err(Into::into)
     }
 
+    pub fn set_account_data_with_borsh<T: BorshSerialize>(
+        &mut self,
+        pubkey: &Pubkey,
+        value: &T,
+    ) -> Result<()> {
+        let data = to_vec(value)?;
+        self.mutate_account(pubkey, |account| {
+            account.data = data;
+        })
+    }
+
+    pub fn set_account_with_borsh<T: BorshSerialize>(
+        &mut self,
+        pubkey: Pubkey,
+        owner: Pubkey,
+        lamports: u64,
+        value: &T,
+    ) -> Result<Pubkey> {
+        self.set_account(
+            pubkey,
+            Account {
+                lamports,
+                data: to_vec(value)?,
+                owner,
+                ..Default::default()
+            },
+        )?;
+        Ok(pubkey)
+    }
+
+    pub fn get_sysvar<T>(&self) -> T
+    where
+        T: solana_sysvar::Sysvar + solana_sysvar_id::SysvarId + serde::de::DeserializeOwned,
+    {
+        self.svm.get_sysvar::<T>()
+    }
+
+    pub fn set_sysvar<T>(&mut self, sysvar: &T)
+    where
+        T: solana_sysvar::Sysvar + solana_sysvar_id::SysvarId + solana_sysvar::SysvarSerialize,
+    {
+        self.svm.set_sysvar(sysvar);
+        self.svm.expire_blockhash();
+    }
+
+    pub fn clock(&self) -> Clock {
+        self.get_sysvar::<Clock>()
+    }
+
+    pub fn set_clock(&mut self, clock: Clock) {
+        self.set_sysvar(&clock);
+    }
+
     pub fn warp_to_slot(&mut self, slot: u64) {
         self.svm.warp_to_slot(slot);
-        let mut clock = self.svm.get_sysvar::<Clock>();
+        let mut clock = self.clock();
         clock.slot = slot;
         self.svm.set_sysvar(&clock);
         self.svm.expire_blockhash();
     }
 
+    pub fn warp_to_epoch(&mut self, epoch: u64) {
+        let mut clock = self.clock();
+        clock.epoch = epoch;
+        self.set_clock(clock);
+    }
+
     pub fn warp_to_timestamp(&mut self, unix_timestamp: i64) {
-        let mut clock = self.svm.get_sysvar::<Clock>();
+        let mut clock = self.clock();
         clock.unix_timestamp = unix_timestamp;
-        self.svm.set_sysvar(&clock);
-        self.svm.expire_blockhash();
+        self.set_clock(clock);
     }
 
     pub fn advance_slots(&mut self, slots: u64) {
-        let current = self.svm.get_sysvar::<Clock>().slot;
+        let current = self.clock().slot;
         self.warp_to_slot(current.saturating_add(slots));
+    }
+
+    pub fn advance_time(&mut self, seconds: i64) {
+        let current = self.clock().unix_timestamp;
+        self.warp_to_timestamp(current.saturating_add(seconds));
+    }
+
+    pub fn advance_clock(&mut self, slots: u64, seconds: i64) {
+        let mut clock = self.clock();
+        clock.slot = clock.slot.saturating_add(slots);
+        clock.unix_timestamp = clock.unix_timestamp.saturating_add(seconds);
+        self.svm.warp_to_slot(clock.slot);
+        self.set_clock(clock);
     }
 
     pub fn spl_mint(
@@ -396,9 +512,49 @@ impl World {
         let mut services = std::mem::take(&mut self.services);
         for service in &mut services {
             service.tick(self);
+            self.service_tick_count = self.service_tick_count.saturating_add(1);
         }
         self.services = services;
     }
+
+    pub fn service_tick_count(&self) -> u64 {
+        self.service_tick_count
+    }
+
+    pub fn configure_guided_artifacts(
+        &mut self,
+        metrics: MetricsConfig,
+        regression: RegressionConfig,
+    ) {
+        self.metrics_config = metrics;
+        self.regression_config = regression;
+    }
+
+    pub fn metrics_config(&self) -> &MetricsConfig {
+        &self.metrics_config
+    }
+
+    pub fn regression_config(&self) -> &RegressionConfig {
+        &self.regression_config
+    }
+
+    pub fn account_state_hash(&self, pubkey: &Pubkey) -> Result<String> {
+        let account = self
+            .get_account(pubkey)
+            .ok_or_else(|| anyhow!("account {pubkey} is missing for regression hashing"))?;
+        Ok(account_state_hash(pubkey, &account))
+    }
+}
+
+fn account_state_hash(pubkey: &Pubkey, account: &Account) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(pubkey.as_ref());
+    hasher.update(account.lamports.to_le_bytes());
+    hasher.update(account.owner.as_ref());
+    hasher.update([u8::from(account.executable)]);
+    hasher.update(account.rent_epoch.to_le_bytes());
+    hasher.update(&account.data);
+    format!("{:x}", hasher.finalize())
 }
 
 impl Default for World {
@@ -410,6 +566,7 @@ impl Default for World {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use borsh::{BorshDeserialize, BorshSerialize};
     use solana_system_interface::instruction::transfer;
 
     #[test]
@@ -441,5 +598,55 @@ mod tests {
             world.tx_log()[0].label.as_deref(),
             Some("too_large_transfer")
         );
+        assert!(world.tx_log()[0].expected_error);
+    }
+
+    #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq)]
+    struct TinyState {
+        value: u64,
+    }
+
+    #[test]
+    fn borsh_account_helpers_round_trip_and_mutate() {
+        let mut world = World::default();
+        let address = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+
+        world
+            .set_account_with_borsh(address, owner, 10, &TinyState { value: 7 })
+            .unwrap();
+        assert_eq!(
+            world.get_account_with_borsh::<TinyState>(&address).unwrap(),
+            TinyState { value: 7 }
+        );
+
+        world
+            .set_account_data_with_borsh(&address, &TinyState { value: 9 })
+            .unwrap();
+        world
+            .mutate_account(&address, |account| account.lamports += 1)
+            .unwrap();
+
+        assert_eq!(
+            world.get_account_with_borsh::<TinyState>(&address).unwrap(),
+            TinyState { value: 9 }
+        );
+        assert_eq!(world.get_account(&address).unwrap().lamports, 11);
+        assert_eq!(world.get_account(&address).unwrap().owner, owner);
+    }
+
+    #[test]
+    fn sysvar_time_helpers_are_deterministic() {
+        let mut world = World::default();
+
+        world.warp_to_slot(50);
+        world.warp_to_epoch(3);
+        world.warp_to_timestamp(1_700_000_000);
+        world.advance_clock(7, 11);
+
+        let clock = world.clock();
+        assert_eq!(clock.slot, 57);
+        assert_eq!(clock.epoch, 3);
+        assert_eq!(clock.unix_timestamp, 1_700_000_011);
     }
 }

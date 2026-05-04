@@ -60,8 +60,9 @@ program surface, and harnesses seed the world before tick 0. Guided
 simulations are the parallel path for protocol flow that must be written
 in Rust. `riptide sim generate --adapter <adapter.toml>` creates
 `.riptide/sim/`, including generated IDL builders in `types.rs`,
-generated account storage skeletons in `accounts.rs`, and user-owned
-flow code in `flows.rs`, `invariants.rs`, and `services/`. The
+generated account storage skeletons in `accounts.rs`, a preserved
+`types_ext.rs` override seam, and user-owned flow code in `flows.rs`,
+`invariants.rs`, and `services/`. The
 generated crate also includes `Riptide.toml`, a Trident-style bootstrap
 manifest for sibling programs, local account snapshots, and explicit
 RPC account forks cached to disk.
@@ -72,12 +73,14 @@ project-local service models such as oracle, orderbook, or stake mocks.
 The claim is manually guided support: the project supplies the manifest,
 cached external state, and Rust code that models protocol-specific
 behavior. Riptide provides the generic SVM bootstrap, generated builders,
-world mutation APIs, deterministic seeds, and runner surface; it does not
-provide automatic universal fuzzing, protocol-specific oracle/orderbook
-layouts in core, complete coverage proof, or audit signoff.
+world mutation APIs, deterministic seeds, and guided-run JSON artifacts;
+it does not provide automatic universal fuzzing, protocol-specific
+oracle/orderbook layouts in core, complete coverage proof, or audit
+signoff. Guided-sim coverage remains a guarded gap until the local
+runner has an entrypoint or binary coverage collector.
 Run them with `riptide sim run .riptide/sim --iterations <n> --flows <n>
---seed <hex>`. See [guided simulations](guided-sim.md) for the command
-workflow, bootstrap manifest, and file ownership rules.
+--seed <hex> --out <dir>`. See [guided simulations](guided-sim.md) for
+the command workflow, bootstrap manifest, and file ownership rules.
 
 ## LiteSVM runtime — default, with honest caveats
 

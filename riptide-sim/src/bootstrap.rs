@@ -9,9 +9,11 @@ use std::{
 
 use anyhow::{anyhow, bail, Context, Result};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use solana_account::Account;
+use solana_loader_v3_interface::state::UpgradeableLoaderState;
 use solana_sdk::pubkey::Pubkey;
 
 use crate::World;
@@ -21,6 +23,20 @@ pub struct BootstrapReport {
     pub programs_loaded: usize,
     pub accounts_loaded: usize,
     pub accounts_forked: usize,
+    pub forked_snapshots: Vec<ForkSnapshotReport>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ForkSnapshotReport {
+    pub address: Pubkey,
+    pub owner: Pubkey,
+    pub executable: bool,
+    pub data_hash: String,
+    pub cluster: String,
+    pub filename: PathBuf,
+    pub fetched_slot: Option<u64>,
+    pub loader_type: String,
+    pub paired_programdata_address: Option<Pubkey>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -134,12 +150,7 @@ pub fn apply_bootstrap(
     let base_dir = base_dir.as_ref();
     let mut report = BootstrapReport::default();
 
-    if bootstrap.metrics.enabled {
-        bail!("sim.metrics.enabled is declared, but guided-sim metrics artifacts are not implemented yet");
-    }
-    if bootstrap.regression.enabled {
-        bail!("sim.regression.enabled is declared, but guided-sim regression artifacts are not implemented yet");
-    }
+    world.configure_guided_artifacts(bootstrap.metrics.clone(), bootstrap.regression.clone());
     if bootstrap.coverage.enabled {
         bail!("sim.coverage.enabled is declared, but guided-sim coverage output is not implemented yet");
     }
@@ -179,8 +190,40 @@ pub fn apply_bootstrap(
             .as_deref()
             .map(|filename| resolve_path(base_dir, filename))
             .unwrap_or_else(|| default_fork_cache_path(base_dir, &fork.cluster, &address));
-        world.fork_account_to_json_cache(address, &fork.cluster, &cache_path, fork.overwrite)?;
+        let (account, mut snapshot) = load_or_fetch_account_with_report(
+            &address,
+            &fork.cluster,
+            &cache_path,
+            fork.overwrite,
+        )?;
+        if let Some(programdata_address) =
+            upgradeable_programdata_address(&account).with_context(|| {
+                format!(
+                    "forked account {address} is owned by the upgradeable loader but its program state could not be decoded"
+                )
+            })?
+        {
+            let programdata_cache_path =
+                paired_programdata_cache_path(&cache_path, &programdata_address);
+            let (programdata_account, programdata_snapshot) = load_or_fetch_account_with_report(
+                &programdata_address,
+                &fork.cluster,
+                &programdata_cache_path,
+                fork.overwrite,
+            )
+            .with_context(|| {
+                format!(
+                    "forked upgradeable program {address} references program-data account {programdata_address}; cache it locally or use a direct local .so fallback"
+                )
+            })?;
+            world.set_account(programdata_address, programdata_account)?;
+            snapshot.paired_programdata_address = Some(programdata_address);
+            report.accounts_forked += 1;
+            report.forked_snapshots.push(programdata_snapshot);
+        }
+        world.set_account(address, account)?;
         report.accounts_forked += 1;
+        report.forked_snapshots.push(snapshot);
     }
 
     Ok(report)
@@ -227,12 +270,22 @@ pub fn write_account_snapshot(
     account: &Account,
     path: impl AsRef<Path>,
 ) -> Result<()> {
+    write_account_snapshot_with_provenance(pubkey, account, path, None, None)
+}
+
+pub fn write_account_snapshot_with_provenance(
+    pubkey: &Pubkey,
+    account: &Account,
+    path: impl AsRef<Path>,
+    cluster: Option<&str>,
+    fetched_slot: Option<u64>,
+) -> Result<()> {
     let path = path.as_ref();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("create account snapshot dir {}", parent.display()))?;
     }
-    let value = json!({
+    let mut value = json!({
         "pubkey": pubkey.to_string(),
         "account": {
             "lamports": account.lamports,
@@ -242,6 +295,17 @@ pub fn write_account_snapshot(
             "rentEpoch": account.rent_epoch,
         }
     });
+    if let Some(cluster) = cluster {
+        value["provenance"] = json!({
+            "address": pubkey.to_string(),
+            "cluster": cluster,
+            "fetched_slot": fetched_slot,
+            "owner": account.owner.to_string(),
+            "executable": account.executable,
+            "data_hash": account_data_hash(account),
+            "filename": path.display().to_string(),
+        });
+    }
     fs::write(
         path,
         serde_json::to_vec_pretty(&value).expect("account snapshot serializes"),
@@ -255,17 +319,47 @@ pub fn load_or_fetch_account(
     cache_path: impl AsRef<Path>,
     overwrite: bool,
 ) -> Result<Account> {
+    load_or_fetch_account_with_report(address, cluster, cache_path, overwrite)
+        .map(|(account, _)| account)
+}
+
+pub fn load_or_fetch_account_with_report(
+    address: &Pubkey,
+    cluster: &str,
+    cache_path: impl AsRef<Path>,
+    overwrite: bool,
+) -> Result<(Account, ForkSnapshotReport)> {
     let cache_path = cache_path.as_ref();
     if cache_path.exists() && !overwrite {
-        return read_account_snapshot_for_pubkey(cache_path, address);
+        let account = read_account_snapshot_for_pubkey(cache_path, address)?;
+        let report = fork_snapshot_report(address, &account, cluster, cache_path, None)?;
+        return Ok((account, report));
     }
 
-    let account = fetch_account(address, cluster)?;
-    write_account_snapshot(address, &account, cache_path)?;
-    Ok(account)
+    let fetched = fetch_account_with_context(address, cluster)?;
+    write_account_snapshot_with_provenance(
+        address,
+        &fetched.account,
+        cache_path,
+        Some(cluster),
+        fetched.slot,
+    )?;
+    let report =
+        fork_snapshot_report(address, &fetched.account, cluster, cache_path, fetched.slot)?;
+    Ok((fetched.account, report))
+}
+
+#[derive(Debug, Clone)]
+pub struct FetchedAccount {
+    pub account: Account,
+    pub slot: Option<u64>,
 }
 
 pub fn fetch_account(address: &Pubkey, cluster: &str) -> Result<Account> {
+    fetch_account_with_context(address, cluster).map(|fetched| fetched.account)
+}
+
+pub fn fetch_account_with_context(address: &Pubkey, cluster: &str) -> Result<FetchedAccount> {
     let url = cluster_url(cluster);
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(30))
@@ -303,7 +397,17 @@ pub fn fetch_account(address: &Pubkey, cluster: &str) -> Result<Account> {
     if value.is_null() {
         bail!("account {address} does not exist on {url}");
     }
-    parse_account_value(value)
+    let slot = response
+        .pointer("/result/context/slot")
+        .and_then(Value::as_u64);
+    Ok(FetchedAccount {
+        account: parse_account_value(value)?,
+        slot,
+    })
+}
+
+pub fn account_data_hash(account: &Account) -> String {
+    sha256_hex(&account.data)
 }
 
 fn parse_account_from_json(value: &Value) -> Result<Account> {
@@ -406,6 +510,79 @@ fn default_fork_cache_path(base_dir: &Path, cluster: &str, address: &Pubkey) -> 
         .join("fork-cache")
         .join(sanitize_path_segment(cluster))
         .join(format!("{address}.json"))
+}
+
+fn paired_programdata_cache_path(
+    program_cache_path: &Path,
+    programdata_address: &Pubkey,
+) -> PathBuf {
+    program_cache_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join(format!("{programdata_address}.json"))
+}
+
+fn fork_snapshot_report(
+    address: &Pubkey,
+    account: &Account,
+    cluster: &str,
+    filename: &Path,
+    fetched_slot: Option<u64>,
+) -> Result<ForkSnapshotReport> {
+    Ok(ForkSnapshotReport {
+        address: *address,
+        owner: account.owner,
+        executable: account.executable,
+        data_hash: account_data_hash(account),
+        cluster: cluster.to_owned(),
+        filename: filename.to_path_buf(),
+        fetched_slot,
+        loader_type: loader_type(account)?,
+        paired_programdata_address: None,
+    })
+}
+
+fn loader_type(account: &Account) -> Result<String> {
+    if account.owner != upgradeable_loader_id() {
+        return Ok(if account.executable {
+            "executable-account".to_owned()
+        } else {
+            "account".to_owned()
+        });
+    }
+    let state: UpgradeableLoaderState =
+        bincode::deserialize(&account.data).context("decode upgradeable loader account state")?;
+    Ok(match state {
+        UpgradeableLoaderState::Uninitialized => "upgradeable-uninitialized",
+        UpgradeableLoaderState::Buffer { .. } => "upgradeable-buffer",
+        UpgradeableLoaderState::Program { .. } => "upgradeable-program",
+        UpgradeableLoaderState::ProgramData { .. } => "upgradeable-program-data",
+    }
+    .to_owned())
+}
+
+fn upgradeable_programdata_address(account: &Account) -> Result<Option<Pubkey>> {
+    if account.owner != upgradeable_loader_id() || !account.executable {
+        return Ok(None);
+    }
+    let state: UpgradeableLoaderState =
+        bincode::deserialize(&account.data).context("decode upgradeable loader program account")?;
+    match state {
+        UpgradeableLoaderState::Program {
+            programdata_address,
+        } => Ok(Some(programdata_address)),
+        other => bail!("expected upgradeable Program account, got {other:?}"),
+    }
+}
+
+fn upgradeable_loader_id() -> Pubkey {
+    Pubkey::from_str("BPFLoaderUpgradeab1e11111111111111111111111")
+        .expect("upgradeable loader id is valid")
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    format!("{digest:x}")
 }
 
 fn sanitize_path_segment(value: &str) -> String {
@@ -555,13 +732,10 @@ enabled = false
     }
 
     #[test]
-    fn manifest_rejects_unavailable_evidence_flags() {
+    fn manifest_rejects_unavailable_coverage_flag() {
         let mut world = World::default();
         let bootstrap = SimBootstrap {
-            metrics: MetricsConfig {
-                enabled: true,
-                filename: Some("artifacts/guided-sim-metrics.json".to_owned()),
-            },
+            coverage: CoverageConfig { enabled: true },
             ..Default::default()
         };
 
@@ -569,7 +743,7 @@ enabled = false
             .unwrap_err()
             .to_string();
 
-        assert!(error.contains("sim.metrics.enabled is declared"));
+        assert!(error.contains("sim.coverage.enabled is declared"));
     }
 
     #[test]
@@ -626,6 +800,95 @@ enabled = false
             .to_string();
 
         assert!(error.contains("does not match manifest address"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn snapshot_provenance_records_hash_and_source() {
+        let root = unique_temp_dir();
+        fs::create_dir_all(&root).unwrap();
+        let address = Pubkey::new_unique();
+        let owner = Pubkey::new_unique();
+        let cache = root.join("cache.json");
+        let account = Account {
+            lamports: 99,
+            data: vec![1, 2, 3, 4],
+            owner,
+            executable: false,
+            rent_epoch: 0,
+        };
+
+        write_account_snapshot_with_provenance(
+            &address,
+            &account,
+            &cache,
+            Some("devnet"),
+            Some(123),
+        )
+        .unwrap();
+
+        let raw = fs::read_to_string(&cache).unwrap();
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(
+            value.pointer("/provenance/address").unwrap(),
+            &json!(address.to_string())
+        );
+        assert_eq!(
+            value.pointer("/provenance/cluster").unwrap(),
+            &json!("devnet")
+        );
+        assert_eq!(
+            value.pointer("/provenance/fetched_slot").unwrap(),
+            &json!(123)
+        );
+        assert_eq!(
+            value.pointer("/provenance/data_hash").unwrap(),
+            &json!(account_data_hash(&account))
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn cached_upgradeable_program_forks_programdata_pair() {
+        let root = unique_temp_dir();
+        fs::create_dir_all(&root).unwrap();
+        let source_world = World::default();
+        let program = parse_pubkey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb").unwrap();
+        let program_account = source_world.get_account(&program).unwrap();
+        let programdata = upgradeable_programdata_address(&program_account)
+            .unwrap()
+            .unwrap();
+        let programdata_account = source_world.get_account(&programdata).unwrap();
+        let program_cache = root.join("program.json");
+        let programdata_cache = root.join(format!("{programdata}.json"));
+        write_account_snapshot(&program, &program_account, &program_cache).unwrap();
+        write_account_snapshot(&programdata, &programdata_account, &programdata_cache).unwrap();
+        fs::write(
+            root.join("Riptide.toml"),
+            format!(
+                "[[sim.fork]]\naddress = \"{}\"\ncluster = \"http://127.0.0.1:9\"\nfilename = \"program.json\"\noverwrite = false\n",
+                program
+            ),
+        )
+        .unwrap();
+
+        let mut world = World::default();
+        let report = apply_manifest(&mut world, root.join("Riptide.toml")).unwrap();
+
+        assert!(world.get_account(&program).unwrap().executable);
+        assert!(world.get_account(&programdata).is_some());
+        assert_eq!(report.accounts_forked, 2);
+        assert!(report
+            .forked_snapshots
+            .iter()
+            .any(|snapshot| snapshot.loader_type == "upgradeable-program"
+                && snapshot.paired_programdata_address == Some(programdata)));
+        assert!(report
+            .forked_snapshots
+            .iter()
+            .any(|snapshot| snapshot.loader_type == "upgradeable-program-data"));
 
         let _ = fs::remove_dir_all(root);
     }

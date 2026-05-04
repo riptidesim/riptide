@@ -9,8 +9,10 @@ export function renderBootstrapManifest(): string {
 # Load a sibling or dependency program from a local .so at a fixed address.
 # Omit address only when the .so has a sibling <program>-keypair.json and should
 # also become World::program_id.
-# loader defaults to "direct"; upgradeable loader declarations are rejected
-# until paired program-data loading is explicitly supported.
+# loader defaults to "direct" for local .so loading. Forked upgradeable
+# program accounts are handled through [[sim.fork]] account snapshots; Riptide
+# fetches the paired program-data account or fails with a loader-specific
+# diagnostic.
 #
 # [[sim.programs]]
 # address = "So11111111111111111111111111111111111111112"
@@ -35,9 +37,10 @@ export function renderBootstrapManifest(): string {
 # filename = "fork-cache/mainnet/dependency-account.json"
 # overwrite = false
 
-# Optional evidence declarations. They are schema-checked now so future
-# artifact support can fail early instead of silently accepting misspelled
-# keys. Leave enabled=false until your local guided run writes the artifact.
+# Optional evidence declarations. Metrics and regression hashes are emitted by
+# riptide sim run --out <dir>; sim.metrics.filename can choose the JSON file
+# when --out is omitted. Coverage remains guarded until the local guided runner
+# has an entrypoint/binary coverage collector.
 #
 # [sim.metrics]
 # enabled = false

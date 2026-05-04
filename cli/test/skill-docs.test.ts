@@ -101,3 +101,14 @@ test("riptide-config keeps user-repo personas inline, not fixture policies", asy
   assert.doesNotMatch(prompt, /must match policies\.json entries/);
   assert.match(prompt, /Omit `--harness` only when the adapter is proven to boot without setup/);
 });
+
+test("guided-sim docs guard coverage instead of claiming emitted coverage", async () => {
+  const guided = await readFile(path.join(REPO_ROOT, "docs", "guided-sim.md"), "utf8");
+  const architecture = await readFile(path.join(REPO_ROOT, "docs", "architecture.md"), "utf8");
+
+  assert.match(guided, /Coverage \| Guarded gap/);
+  assert.match(guided, /sim\.coverage\.enabled = true` fails lint/);
+  assert.match(architecture, /Guided-sim coverage remains a guarded gap/);
+  assert.doesNotMatch(guided, /guided-sim coverage output is supported/i);
+  assert.doesNotMatch(architecture, /guided-sim coverage output is supported/i);
+});

@@ -74,11 +74,11 @@ address = "11111111111111111111111111111111"
 filename = "fixtures/accounts/dependency-account.json"
 
 [sim.metrics]
-enabled = false
+enabled = true
 filename = "artifacts/guided-sim-metrics.json"
 
 [sim.regression]
-enabled = false
+enabled = true
 accounts = ["11111111111111111111111111111111"]
 state_hashes = ["pool"]
 
@@ -95,6 +95,87 @@ enabled = false
   assert.match(result.stdout, /Sim manifest lint - .*Riptide\.toml/);
   assert.match(result.stdout, /PASS \[manifest-schema\] sim/);
   assert.match(result.stdout, /Verdict: PASS \(exit 0\)/);
+});
+
+test("sim fork CLI reuses an existing cache without network", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-fork-reuse-"));
+  const outPath = path.join(root, "fork-cache.json");
+  await writeFile(
+    outPath,
+    JSON.stringify({
+      pubkey: "11111111111111111111111111111111",
+      account: {
+        lamports: 1,
+        data: ["", "base64"],
+        owner: "11111111111111111111111111111111",
+        executable: false,
+        rentEpoch: 0
+      }
+    }),
+    "utf8"
+  );
+
+  const result = await execFileAsync(
+    process.execPath,
+    [
+      cliEntrypoint,
+      "sim",
+      "fork",
+      "--address",
+      "11111111111111111111111111111111",
+      "--cluster",
+      "http://127.0.0.1:9",
+      "--out",
+      outPath
+    ],
+    { cwd: root }
+  );
+
+  assert.match(result.stdout, /reused cached snapshot/);
+});
+
+test("sim fork CLI rejects a cached snapshot for the wrong address", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-fork-mismatch-"));
+  const outPath = path.join(root, "fork-cache.json");
+  await writeFile(
+    outPath,
+    JSON.stringify({
+      pubkey: "11111111111111111111111111111111",
+      account: {
+        lamports: 1,
+        data: ["", "base64"],
+        owner: "11111111111111111111111111111111",
+        executable: false,
+        rentEpoch: 0
+      }
+    }),
+    "utf8"
+  );
+
+  await assert.rejects(
+    () =>
+      execFileAsync(
+        process.execPath,
+        [
+          cliEntrypoint,
+          "sim",
+          "fork",
+          "--address",
+          "So11111111111111111111111111111111111111112",
+          "--cluster",
+          "http://127.0.0.1:9",
+          "--out",
+          outPath
+        ],
+        { cwd: root }
+      ),
+    (err: unknown) => {
+      const error = err as { code?: number; stderr?: string };
+      assert.equal(error.code, 2);
+      assert.match(error.stderr ?? "", /does not match requested address/);
+      return true;
+    }
+  );
 });
 
 test("sim lint CLI reports fixable manifest diagnostics", async () => {

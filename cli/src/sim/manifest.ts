@@ -340,14 +340,14 @@ function validateMetrics(value: unknown, findings: SimManifestFinding[]): void {
   }
   rejectUnknownKeys(value, METRICS_KEYS, "sim.metrics", findings);
   const enabled = optionalBooleanField(value, "enabled", "sim.metrics.enabled", findings) ?? false;
-  optionalStringField(value, "filename", "sim.metrics.filename", findings);
-  if (enabled) {
+  const filename = optionalStringField(value, "filename", "sim.metrics.filename", findings);
+  if (enabled && filename === undefined) {
     findings.push({
-      level: "fail",
-      code: "metrics-unavailable",
+      level: "warn",
+      code: "metrics-default-output",
       path: "sim.metrics.enabled",
-      message: "guided-sim metrics artifacts are declared but not implemented yet",
-      hint: "Leave metrics.enabled = false until a guided run emits the declared metrics artifact."
+      message: "guided-sim metrics are enabled without a manifest filename",
+      hint: "Use `riptide sim run --out <dir>` or declare metrics.filename for a stable artifact location."
     });
   }
 }
@@ -387,13 +387,15 @@ function validateRegression(value: unknown, findings: SimManifestFinding[]): voi
     });
   }
   if (enabled) {
-    findings.push({
-      level: "fail",
-      code: "regression-unavailable",
-      path: "sim.regression.enabled",
-      message: "guided-sim regression artifacts are declared but not implemented yet",
-      hint: "Leave regression.enabled = false until a guided run emits the declared hashes."
-    });
+    if (!accounts || accounts.length === 0) {
+      findings.push({
+        level: "warn",
+        code: "regression-no-accounts",
+        path: "sim.regression.accounts",
+        message: "regression hashing is enabled but no accounts are selected",
+        hint: "Add account pubkeys to sim.regression.accounts to emit stable account hashes."
+      });
+    }
   }
 }
 
