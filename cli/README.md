@@ -28,7 +28,8 @@ First supported published target: Linux x86_64. macOS and Windows can use source
 | Command | Purpose |
 | --- | --- |
 | `riptide doctor` | Static environment and adapter health check. |
-| `riptide init` | Scaffold `.riptide/` in the current repo. |
+| `riptide init` | Create the thin `.riptide/` bootstrap in the current repo. |
+| `/riptide-config` | Default skill-first setup after init: adapter, harness, scenarios, campaign, validation. |
 | `riptide list` | List discovered scenarios. |
 | `riptide run [pattern-or-path]` | Run all scenarios, a filtered set, or one JSON config. |
 | `riptide replay <config>` | Replay a declared trajectory. |

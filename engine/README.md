@@ -31,7 +31,7 @@ Most users should run the CLI instead of invoking the engine directly:
 
 ```bash
 ./install.sh
-riptide run lending/whale-shock-grid --serve
+riptide doctor
 ```
 
 Read the root [README](../README.md) for the product tour and [Architecture](../docs/architecture.md) for the engine model.

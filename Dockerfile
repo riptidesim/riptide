@@ -126,7 +126,7 @@ RUN cargo build --release -p riptide-engine \
 # end-users installing `@riptide/cli` via npm. Inside this image we
 # already have a locally-built engine at /src/target/release/riptide-
 # engine, so the postinstall download would be wasted network — and
-# would fail outright until the v0.6.0 release is actually cut on
+# would fail outright until the current release is actually cut on
 # GitHub (currently 404s).
 WORKDIR /src/cli
 RUN npm ci --no-audit --no-fund --ignore-scripts \

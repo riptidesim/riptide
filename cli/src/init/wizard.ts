@@ -160,7 +160,7 @@ export async function runWizard(defaults: WizardDefaults): Promise<WizardAnswers
   }
 
   const agents = await input({
-    message: "Agents per simulation (population axis):",
+    message: "Default agents per simulation (baseline + scenarios without their own sizing):",
     default: String(defaults.agents),
     validate: (value) => {
       const n = Number(value);
@@ -172,7 +172,7 @@ export async function runWizard(defaults: WizardDefaults): Promise<WizardAnswers
   });
 
   const ticks = await input({
-    message: "Ticks per simulation (1 tick ≈ 1 Solana slot ≈ 400ms simulated):",
+    message: "Default ticks per simulation (baseline + scenarios without their own sizing):",
     default: String(defaults.ticks),
     validate: (value) => {
       const n = Number(value);
@@ -184,7 +184,7 @@ export async function runWizard(defaults: WizardDefaults): Promise<WizardAnswers
   });
 
   const seeds = await input({
-    message: "Seeds to run by default (1 = quick smoke, 50 = confidence sweep):",
+    message: "Seeds stored in run-configs by default (smoke commands can override to 1):",
     default: String(defaults.seeds ?? DEFAULT_INIT_SEEDS),
     validate: (value) => {
       const n = Number(value);

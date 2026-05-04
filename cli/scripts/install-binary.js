@@ -32,7 +32,7 @@ const START_MS = Date.now();
 // var lets us retarget at a pre-release mirror, a private org, or a
 // local file:// URL for testing before a release is cut.
 //
-// Pre-publish era: the v0.6.0 GitHub Release has NOT been cut yet — it
+// Pre-publish era: the current GitHub Release has NOT been cut yet — it
 // ships in the first public distribution pass. Running this script
 // against the default URL during the pre-publish window 404s; the error
 // path below guides the user at the build-from-source flow.

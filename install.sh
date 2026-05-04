@@ -370,6 +370,6 @@ printf '%s=====================================================%s\n' "$BOLD" "$R
 printf '\nnext steps:\n'
 printf '  1. %sriptide doctor%s                        # verify your toolchain\n' "$BOLD" "$RESET"
 printf '  2. %scd <your-program>%s                     # the Solana program you want to simulate\n' "$BOLD" "$RESET"
-printf '  3. %sriptide init%s                          # scaffold .riptide/ (adapter stub)\n' "$BOLD" "$RESET"
-printf '  4. edit %s.riptide/adapters/<program>.toml%s and run %sriptide adapt%s\n' "$BOLD" "$RESET" "$BOLD" "$RESET"
+printf '  3. %sriptide init%s                          # thin .riptide/ bootstrap\n' "$BOLD" "$RESET"
+printf '  4. %s/riptide-config%s                       # configure adapter, harness, scenarios, campaign readiness\n' "$BOLD" "$RESET"
 printf '\n%sNew to Riptide?%s %sriptide --help%s walks through the full surface.\n' "$DIM" "$RESET" "$BOLD" "$RESET"

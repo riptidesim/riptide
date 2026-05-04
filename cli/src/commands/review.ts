@@ -10,6 +10,11 @@ import { promisify } from "node:util";
 import { Command } from "commander";
 
 import { canonicalRetainedCaseDigestPayload } from "../campaign/aggregation.js";
+import {
+  pickColorizer,
+  shouldUseColor,
+  type Colorizer
+} from "../display/index.js";
 import { renderCliError } from "../errors/render.js";
 import { verifyCanonicalHash } from "../review/hash.js";
 import { buildReviewJsonPayload } from "../review/json.js";
@@ -130,7 +135,7 @@ export async function runReview(
       await writeFile(outPath, markdown, "utf8");
       stdout(`wrote review markdown: ${outPath}\n`);
     } else {
-      stdout(markdown);
+      stdout(colorizeReviewMarkdown(markdown, deps));
     }
 
     return warnings.length > 0 ? 1 : 0;
@@ -217,7 +222,7 @@ async function runCampaignReview(
     await writeFile(outPath, markdown, "utf8");
     stdout(`wrote review markdown: ${outPath}\n`);
   } else {
-    stdout(markdown);
+    stdout(colorizeReviewMarkdown(markdown, deps));
   }
 
   return 0;
@@ -261,7 +266,7 @@ async function runRetainedCaseReview(
     await writeFile(outPath, markdown, "utf8");
     stdout(`wrote review markdown: ${outPath}\n`);
   } else {
-    stdout(markdown);
+    stdout(colorizeReviewMarkdown(markdown, deps));
   }
   return 0;
 }
@@ -504,6 +509,47 @@ function numberValue(value: unknown): number | null {
 function numberDisplay(value: unknown): string {
   const number = numberValue(value);
   return number === null ? "" : String(number);
+}
+
+function colorizeReviewMarkdown(markdown: string, deps: ReviewCommandDeps): string {
+  const colorize = pickColorizer(
+    deps.color ?? shouldUseColor(process.env, Boolean(process.stdout.isTTY))
+  );
+  return markdown
+    .split("\n")
+    .map((line) => colorizeReviewLine(line, colorize))
+    .join("\n");
+}
+
+function colorizeReviewLine(line: string, c: Colorizer): string {
+  if (line.startsWith("# ")) return c.bold(c.cyan(line));
+  if (line.startsWith("## ")) return c.bold(line);
+  if (line.startsWith("|") && !line.startsWith("|---")) {
+    return colorizeCodeSpans(line, c);
+  }
+  if (/^- pass:/.test(line)) {
+    return line.replace("- pass:", `- ${c.green("pass")}:`);
+  }
+  if (/^- warn:/.test(line)) {
+    return line.replace("- warn:", `- ${c.yellow("warn")}:`);
+  }
+  if (/^- fail:/.test(line)) {
+    return line.replace("- fail:", `- ${c.red("fail")}:`);
+  }
+  if (/^- (Invariant-failed runs|Setup errors): 0$/.test(line)) {
+    return line.replace(/0$/, c.green("0"));
+  }
+  if (/^- (Invariant-failed runs|Setup errors): [1-9]/.test(line)) {
+    return line.replace(/([1-9]\d*)$/, c.red("$1"));
+  }
+  if (/^- Completed runs: /.test(line)) {
+    return line.replace(/(\d+)$/, c.green("$1"));
+  }
+  return colorizeCodeSpans(line, c);
+}
+
+function colorizeCodeSpans(line: string, c: Colorizer): string {
+  return line.replace(/`([^`]+)`/g, (_match, value: string) => c.cyan(`\`${value}\``));
 }
 
 async function validateRerunScript(

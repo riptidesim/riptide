@@ -14,6 +14,7 @@ import {
   resolveArtifactsDir,
   type RunOneContext
 } from "../src/run/loop.js";
+import { runReview } from "../src/commands/review.js";
 
 const execFileAsync = promisify(execFile);
 const cliEntrypoint = path.resolve(process.cwd(), "dist/src/index.js");
@@ -145,6 +146,20 @@ test("review accepts a campaign root and maps retained cases to risk and rerun e
   assert.equal(otherStderr, "");
   assert.match(otherStdout, /# Campaign Review: campaign-review-fixture/);
   assert.match(otherStdout, /bad_debt=2500/);
+
+  let colored = "";
+  const colorExit = await runReview(result.plan.campaignRoot, { quiet: true }, {
+    cwd: root,
+    color: true,
+    stdoutWrite: (chunk) => {
+      colored += chunk;
+    },
+    stderrWrite: () => {}
+  });
+  assert.equal(colorExit, 0);
+  assert.match(colored, /\x1b\[1m\x1b\[36m# Campaign Review: campaign-review-fixture\x1b\[0m\x1b\[0m/);
+  assert.match(colored, /- \x1b\[32mpass\x1b\[0m: campaign-summary\.json exists and parses/);
+  assert.match(colored, /\x1b\[36m`run_[A-Za-z0-9_]+`\x1b\[0m/);
 });
 
 test("review collects fired semantic expression invariants before legacy rows", () => {

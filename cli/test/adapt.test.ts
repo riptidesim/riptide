@@ -83,7 +83,7 @@ deposit = { action = "not-a-real-action", amount = "amount" }
 `;
 
 async function writeTempAdapter(contents: string): Promise<string> {
-  const dir = await mkdtemp(path.join(os.tmpdir(), "riptide-adapt-test-"));
+  const dir = await mkdtemp(path.join(os.tmpdir(), "riptide-adapter-test-"));
   const file = path.join(dir, "adapter.toml");
   await writeFile(file, contents, "utf8");
   return file;
@@ -171,7 +171,7 @@ test("adapt: lint preflight aborts before smoke when JSON-IDL lineage fails", as
   // Lint must fail, engine must never spawn. Stub smoke throws to
   // prove we never reached it.
   const { mkdir } = await import("node:fs/promises");
-  const repoRoot = await (await import("node:fs/promises")).mkdtemp(path.join(os.tmpdir(), "riptide-adapt-lint-"));
+  const repoRoot = await (await import("node:fs/promises")).mkdtemp(path.join(os.tmpdir(), "riptide-adapter-lint-"));
   const adaptersDir = path.join(repoRoot, "fixtures", "adapters");
   const idlsDir = path.join(repoRoot, "fixtures", "idls");
   await mkdir(adaptersDir, { recursive: true });

@@ -5,7 +5,7 @@
 For campaign evidence:
 
 ```sh
-riptide review /tmp/riptide-campaign-demo/campaign_2a93d0358025
+riptide review .riptide/campaigns/campaign_<id>
 ```
 
 The campaign review reads `campaign-summary.json`, `retention-manifest.json`, and retained `case.json` files, then maps retained labels to run IDs, sampled parameters, risk results, and rerun commands. See [Campaign Runner](campaigns.md) for the full campaign artifact map.

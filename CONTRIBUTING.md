@@ -8,7 +8,7 @@ Riptide is a protocol-agnostic economic simulator for Solana programs. Every shi
 2. **Personas** — TOML files describing agent behavior with a trigger DSL.
 3. **Scenarios** — engine shocks (oracle trajectories, scheduled actions) mounted from declarative presets.
 4. **Parameters** — run-config knobs that sweep over the dimensions that matter.
-5. **Failure-mode taxonomy** — named categories (`whale_concentration`, `margin_cascade_from_oracle_shock`, `price_manipulation_via_swap`, `impermanent_loss_spike`, …) the scenarios skill matches against adapter shape.
+5. **Failure-mode taxonomy** — named categories (`whale_concentration`, `margin_cascade_from_oracle_shock`, `price_manipulation_via_swap`, `impermanent_loss_spike`, …) the config skill matches against adapter shape.
 6. **Invariants** — machine-checkable properties declared inline in the adapter. The engine exits non-zero when any invariant fires.
 
 The growth rhythm is: one new protocol class per bundle, shipped as all six layers rather than as a new trait in the engine. Adding a new protocol class should mean writing TOML and extending a skill prompt — **not** reshaping the engine. That rhythm is load-bearing; preserve it.
@@ -23,8 +23,8 @@ We value contributions in this order:
 2. **Bug fixes** — crashes, incorrect behavior, data loss. Always near-top priority.
 3. **New adapters** — new Solana programs wired into the six-layer stack. This is the primary growth path.
 4. **New personas** — new adversarial archetypes that compose against existing adapters.
-5. **New failure-mode taxonomy categories** — new named categories the `riptide-scenarios` skill can classify and propose against.
-6. **Skill improvements** — sharpening `riptide-adapt`, `riptide-harness`, `riptide-scenarios`, or `riptide-narrative` so they produce better artifacts in cold-read evaluation.
+5. **New failure-mode taxonomy categories** — new named categories the `riptide-config` skill can classify and propose against.
+6. **Skill improvements** — sharpening `riptide-config` or `riptide-narrative` so they produce better artifacts in cold-read evaluation.
 7. **Documentation** — fixes, clarifications, new examples.
 8. **Engine changes** — rare and carefully scoped. See [Touching Engine Code](#touching-engine-code).
 
@@ -49,14 +49,14 @@ This is the most common question for new contributors. Most contributions are *n
 
 ### Make it a **Taxonomy Category** when
 
-- You want the `riptide-scenarios` skill to classify a new failure mode and propose experiments targeting it.
+- You want the `riptide-config` skill to classify a new failure mode and propose experiments targeting it.
 - It's named after *what fails* (`price_manipulation_via_swap`), not *how it fails* (`sandwich`).
 - Needs an adapter-shape hook (what action/observation/invariant keys trigger it) and an IDL hook (what instruction names trigger it), so it fires on its protocol class and stays quiet on the others.
 - See [Adding a Taxonomy Category](#adding-a-taxonomy-category).
 
 ### Modify a **Skill** when
 
-- You want to sharpen `riptide-adapt` (adapter generation), `riptide-harness` (pre-tick-0 Rust setup), `riptide-scenarios` (classification / proposal), or `riptide-narrative` (post-run report).
+- You want to sharpen `riptide-config` (adapter generation, pre-tick-0 Rust setup, classification, scenarios, campaign readiness), or `riptide-narrative` (post-run report).
 - Skills are session-native instructions plus optional prompts/references/helper scripts. They live in `skills/riptide-*/` with a `SKILL.md` and any supporting `prompts/` or `references/` files.
 - See [Modifying a Skill](#modifying-a-skill).
 
@@ -107,7 +107,7 @@ If all three are green, your environment is good.
 
 ### Testing against your own Anchor program
 
-Contributors developing adapters against their own Anchor repos (rather than working on Riptide itself) should use the drop-in path — run `riptide init` inside your Anchor repo to scaffold `.riptide/` with an adapter stub and getting-started guide, fill in the adapter TODOs, add your own scenarios under `.riptide/scenarios/`, and then `riptide run` to execute them. See [`docs/install.md`](docs/install.md#next-steps-after-install) for the full walkthrough. The monorepo path above stays as the authoritative workflow for contributors working on Riptide itself (engine, CLI, or the shipping bundles).
+Contributors developing adapters against their own Anchor repos (rather than working on Riptide itself) should use the drop-in path — run `riptide init` inside your Anchor repo, then invoke `/riptide-config` to turn the thin `.riptide/` bootstrap into a validated adapter, harness, scenarios, and campaign readiness. The generated `.riptide/GETTING-STARTED.md` keeps manual commands under a manual / advanced path for contributors who want low-level control. See [`docs/install.md`](docs/install.md#next-steps-after-install) for the full walkthrough. The monorepo path above stays as the authoritative workflow for contributors working on Riptide itself (engine, CLI, or the shipping bundles).
 
 ---
 
@@ -131,7 +131,7 @@ riptide/
 │   │   ├── schemas/              # Zod mirrors of the serde schemas (adapter, run-config, persona)
 │   │   ├── compiler/             # Persona compilation pipeline
 │   │   ├── serve/                # Dashboard HTTP server + asset pipeline
-│   │   └── adapt/                # Smoke-test harness invoked by the riptide-adapt skill
+│   │   └── adapt/                # Adapter-only smoke-test harness used by CLI preflights
 │   ├── assets/dashboard.html     # Inlined single-page dashboard template
 │   └── package.json
 │
@@ -153,9 +153,7 @@ riptide/
 │   └── oracle_state_golden.bin   # Byte-layout SSOT for oracle state
 │
 ├── skills/                       # Claude Code skills (self-contained, session-native)
-│   ├── riptide-adapt/            # Adapter generation from IDL
-│   ├── riptide-harness/          # Rust pre-tick-0 setup harness authoring
-│   ├── riptide-scenarios/        # Failure-mode classification + experiment proposal
+│   ├── riptide-config/           # Merged adapter + harness + scenarios + campaign readiness
 │   └── riptide-narrative/        # Post-run narrative report
 │
 ├── demo/                         # Canonical demo (safe-vs-risky lending side-by-side)
@@ -201,11 +199,11 @@ An adapter wires a specific Solana program into the engine.
 
 1. **Compile your program to `.so`** and get its Anchor IDL (or a hand-written IDL JSON).
 2. **Generate or hand-write the adapter TOML:**
-   - *Skill path:* install the `riptide-adapt` Claude Code skill (`skills/riptide-adapt/SKILL.md`). Invoke it in-session pointing at your program source or IDL. The skill reads the program, classifies it against the primitive library (lending / perps / AMM / generic), writes the adapter TOML, and runs `riptide adapt` as a smoke test. No API keys or endpoint config.
+   - *Skill path:* run `riptide init`, then invoke `/riptide-config`. The skill reads the program, classifies it against the primitive library (lending / perps / AMM / generic), repairs the adapter, adds a harness when account setup is needed, writes starter scenarios and a Campaign TOML, and runs bounded validation. No API keys or endpoint config.
    - *Hand-written path:* copy the closest shipping adapter from `fixtures/adapters/` (`lending.toml`, `perpetuals.toml`, `amm.toml`, `liquid-staking.toml`, `stablecoin.toml`, or `resource-grinder.toml`) and edit `program_so`, `[[accounts]]`, `[[actions]]`, `[[observations]]`, and `[[invariants]]`.
 3. **Wire an oracle if the program needs one.** A generic adapter can declare a single `[[oracles]]` block bound to a `kind = "shared"` account. The harness bootstraps that account at tick 0 with admin-mock bytes and mutates it on every scenario/replay oracle update. The bound account can optionally declare `owner = { program_so = "<path>.so" }` (owner resolved from the companion `target/deploy/<name>-keypair.json`) for sibling-owned oracles such as `admin_mock_oracle`, or `owner = { pubkey = "<base58>" }` for a literal external owner. Omit `owner` and the simulated program owns the account. See [`docs/architecture.md#oracle-binding-for-generic-adapters`](docs/architecture.md#oracle-binding-for-generic-adapters) and the end-to-end proof at `engine/tests/perpetuals_sibling_oracle_proof.rs`. Two or more `[[oracles]]` entries on a generic adapter is currently a loader error — multi-oracle generic semantics remain a follow-up.
 4. **Smoke-test it:** for monorepo fixtures, `riptide adapt --adapter fixtures/adapters/<your-adapter>.toml` confirms the adapter-only path boots and observes a state delta. For user repos that need setup, prefer `riptide run --adapter .riptide/adapters/<program>.toml --harness .riptide/harness --seeds 1 --seed-root 1337`.
-5. **Add harness setup if zeroed accounts are not enough.** Use the `riptide-harness` skill or run `riptide harness generate --adapter <adapter>` and edit `.riptide/harness/src/main.rs` for SPL mints/vaults, PDAs, sibling programs, and concrete account bytes.
+5. **Add harness setup if zeroed accounts are not enough.** Let `/riptide-config` own this in the merged flow, or run `riptide harness generate --adapter <adapter>` and edit `.riptide/harness/src/main.rs` for SPL mints/vaults, PDAs, sibling programs, and concrete account bytes.
 6. **Commit** the adapter under `fixtures/adapters/` and the IDL under `fixtures/idls/`.
 
 The adapter is the contract between your program and the six-layer stack. Keep it declarative — anything that can't be expressed in TOML is a signal that the engine needs a new capability, which is a separate (and rarer) PR.
@@ -214,12 +212,12 @@ The adapter is the contract between your program and the six-layer stack. Keep i
 
 ## Adding a Persona
 
-For monorepo fixture work, personas are pure TOML — one file per persona in `fixtures/personas/`. User repos created by `riptide init` do not create `.riptide/personas/`; edit the inline `[personas.*]` tables in `.riptide/adapters/<program>.toml` instead.
+For monorepo fixture work, personas are pure TOML — one file per persona in `fixtures/personas/`. Configured user repos do not create `.riptide/personas/`; edit the inline `[personas.*]` tables in `.riptide/adapters/<program>.toml` instead.
 
 1. **Copy the closest existing persona:** `whale.toml` for lending, `leveraged-long.toml` for perps, `arbitrageur.toml` for AMM.
 2. **Edit the trigger DSL and action block.** Single comparison op + constant per rule today (e.g., `observation.utilization > 0.9 → withdraw_all`). Reference only your adapter's declared actions.
 3. **Smoke-test it** by running a small scratch simulation (see `scripts/amm-scratch.sh` for the pattern). A persona TOML that parses clean and emits at least one action per tick against its adapter is ready to ship.
-4. **Compose it** into a fixture scenario under `fixtures/scenarios/<adapter>/<experiment>/`, or let `riptide-scenarios` reference it in fixture mode.
+4. **Compose it** into a fixture scenario under `fixtures/scenarios/<adapter>/<experiment>/`, or let `riptide-config` reference it in fixture mode.
 
 Personas stay composable by staying small. If a persona needs branching control flow, it's probably two personas.
 
@@ -227,7 +225,7 @@ Personas stay composable by staying small. If a persona needs branching control 
 
 ## Adding a Taxonomy Category
 
-Taxonomy lives in `skills/riptide-scenarios/prompts/classify.md` (discrimination) and `skills/riptide-scenarios/prompts/propose.md` (experiment templates).
+Taxonomy lives in the `riptide-config` flow.
 
 1. **Add the discrimination rule** in `classify.md`. Each rule needs:
    - an **adapter-shape hook** — what `[actions]` / `[observations]` / `[[invariants]]` keys trigger it
@@ -391,7 +389,7 @@ Examples:
 feat(adapter): add stablecoin adapter + 4-persona library
 fix(engine): preserve determinism when liquidation cascade reorders events
 docs(architecture): clarify LiteSVM-vs-validator parity path
-feat(skill): extend riptide-scenarios classify.md with impermanent_loss_spike
+feat(skill): extend riptide-config taxonomy with impermanent_loss_spike
 ```
 
 ---

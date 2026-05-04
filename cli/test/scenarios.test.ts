@@ -68,7 +68,7 @@ async function writeScenario(
     skipManifest?: boolean;
   }
 ): Promise<string> {
-  const dir = await mkdtemp(path.join(os.tmpdir(), "riptide-scenarios-test-"));
+  const dir = await mkdtemp(path.join(os.tmpdir(), "riptide-scenario-test-"));
   if (contents.runConfig !== undefined) {
     await writeFile(
       path.join(dir, "run-config.json"),
@@ -476,7 +476,7 @@ test("scenarios --validate: symlinked adapter pointing at a valid-but-out-of-rep
   // adapter TOML sitting outside the repo. Lexical check passes,
   // file exists, adapter TOML parses — but it still must be
   // rejected because the content originates outside monorepoRoot.
-  const outsideDir = await mkdtemp(path.join(os.tmpdir(), "riptide-scenarios-outside-"));
+  const outsideDir = await mkdtemp(path.join(os.tmpdir(), "riptide-scenario-outside-"));
   const outsideAdapter = path.join(outsideDir, "resource-grinder.toml");
   const outsideToml = `protocol = "generic"
 program_so = "irrelevant.so"

@@ -15,7 +15,7 @@
 
 Riptide runs your compiled Solana program in LiteSVM, drives it with declared agent behavior, and shows where your protocol starts losing economic headroom. Use it to map parameter regions, replay declared trajectories, and turn invariants into CI gates before mainnet does the experiment for you.
 
-[Get started](#get-started) • [How it works](#how-it-works) • [Run examples](#run-examples) • [Campaign Runner](#campaign-runner) • [Evidence packs](#evidence-packs) • [Docs](#docs)
+[Get started](#get-started) • [How it works](#how-it-works) • [Run your program](#run-your-program) • [Campaign Runner](#campaign-runner) • [Evidence packs](#evidence-packs) • [Docs](#docs)
 
 ![Riptide dashboard showing a lending stress-test run](docs/assets/dashboard-hero.png)
 
@@ -87,14 +87,13 @@ under `$HOME/.local/bin`.
 
 ```bash
 riptide doctor
-riptide run lending/whale-shock-grid --serve
 ```
 
 Prefer Docker from a clean checkout:
 
 ```bash
 docker build -t riptide .
-docker run --rm riptide run lending/whale-shock-grid
+docker run --rm riptide doctor
 ```
 
 > [!NOTE]
@@ -109,45 +108,61 @@ Inside your own Anchor repo:
 
 ```bash
 riptide init
-# edit .riptide/adapters/<program-name>.toml
-riptide lint <program-name>
-riptide run --adapter .riptide/adapters/<program-name>.toml --seeds 1 --seed-root 1337
-# then add or refine .riptide/scenarios/<experiment>/run-config.json and run the full battery:
-riptide run --adapter .riptide/adapters/<program-name>.toml
+/riptide-config
+riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+riptide review <campaign-root>
 ```
 
-`riptide init` creates a version-controlled `.riptide/` tree with an adapter stub, scenario run-configs, inline persona presets, and a local getting-started note. Use `--profile <profile>` (`lending`, `amm`, `perpetuals`, `liquid-staking`, `stablecoin`, or `custom`) to select a starter profile non-interactively. The adapter/scenario/invariant TOML stays the main simulation contract. When `target/idl/<program>.json` is present, init now prefills IDL-backed shorthand such as `space = "auto"`, compact instruction `bindings`, and opt-in `[observations.auto]` blocks where it can infer them. When your program needs custom account bytes, PDAs, SPL accounts, or sibling CPI programs, run `riptide harness generate --adapter ...` explicitly; the generated harness is an optional setup layer, not part of the default init path.
+Plain `riptide init` is a minimal bootstrap. It writes one adapter
+placeholder with detected `program_so` / `idl_path` hints when possible,
+plus `.riptide/GETTING-STARTED.md`. It does not choose personas,
+scenarios, invariants, seeds, agents, or ticks.
 
-AMM-shaped user repos currently use `protocol = "generic"` and Riptide's generic SBF/IDL runtime; `amm.v1` semantics is future work.
+`/riptide-config` is the default configuration step. It repairs the
+adapter, adds a harness when custom account bytes or sibling programs
+are needed, creates personas, scenarios, invariants, prepares campaign
+readiness by writing and validating a Campaign TOML, and reports the
+exact run/review commands.
+
+Use `--profile <profile>` or `--protocol <protocol>` only as an adapter
+hint for the thin scaffold, or as defaults for `riptide init --wizard`.
+The wizard is the advanced manual path for users who want to choose
+personas, scenarios, invariants, seeds, agents, and ticks themselves.
 
 > [!TIP]
-> The `riptide-adapt`, `riptide-harness`, and `riptide-scenarios` skills can draft adapters, Rust setup harnesses, and starter experiments, but they are optional. Riptide runs plain files, not session state.
+> Riptide runs plain files, not session state. Everything `/riptide-config` creates is TOML, Rust, JSON, or markdown you can review and edit.
 
-## Run Examples
+## Run Your Program
 
-Run the Solend-shaped whale-shock grid and open the dashboard:
+After `/riptide-config` reports readiness, list the scenarios Riptide found:
 
 ```bash
-riptide run lending/whale-shock-grid --serve
+riptide list
 ```
 
-Run the safe-vs-risky lending demo:
+Run one scenario as a one-seed smoke:
 
 ```bash
-bash examples/run-demo.sh
+riptide run baseline --adapter .riptide/adapters/<program-name>.toml --seeds 1 --seed-root 1337
 ```
 
-Replay a declared whale bad-debt trajectory:
+Run your full local scenario set and open the dashboard:
 
 ```bash
-riptide replay fixtures/replays/lending-whale-bad-debt/config.json \
+riptide run --adapter .riptide/adapters/<program-name>.toml --serve
+```
+
+Replay one of your declared trajectories:
+
+```bash
+riptide replay .riptide/replays/<case>/config.json \
   --allow-invariant-violations
 ```
 
-Review a committed evidence pack without rerunning the engine:
+Review one of your evidence packs without rerunning the engine:
 
 ```bash
-riptide review fixtures/replays/lending-whale-bad-debt/
+riptide review .riptide/pack/<run-id>/
 ```
 
 Common commands:
@@ -155,7 +170,8 @@ Common commands:
 | Command | Purpose |
 | --- | --- |
 | `riptide doctor` | Static environment and adapter health check. |
-| `riptide init` | Scaffold `.riptide/` in the current repo. |
+| `riptide init` | Create the thin `.riptide/` bootstrap: adapter placeholder and getting-started guide. |
+| `/riptide-config` | Default setup path: adapter, harness, personas, scenarios, invariants, campaign readiness, validation, and next commands. |
 | `riptide harness generate` | Generate a Rust setup crate for protocol-owned accounts/programs. |
 | `riptide list` | List discovered scenarios under `.riptide/scenarios/`. |
 | `riptide run [pattern-or-path]` | Run all scenarios, a glob-filtered set, or one JSON run config. Add `--harness` when custom setup is needed. |
@@ -169,18 +185,26 @@ Exit codes are CI-friendly: `0` all pass, `1` invariant fired, `2` setup error, 
 
 ## Campaign Runner
 
-Campaign Runner turns one Campaign TOML into a deterministic sweep of scenario families, sampled parameters, retained cases, and reviewer-ready summaries. Use it when a single smoke run is too quiet and you need to show the shape of a risk frontier across seeds and parameters.
+Campaign Runner turns one Campaign TOML into a deterministic sweep of
+your scenario families, sampled parameters, retained cases, and
+reviewer-ready summaries. Use it when one smoke run is too quiet and you
+need to show the shape of a risk frontier across seeds and parameters.
 
-Run the shipped lending campaign:
+After `/riptide-config` creates or repairs a campaign TOML, run:
 
 ```bash
-riptide campaign validate fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml
-riptide campaign plan fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml --out /tmp/riptide-campaign-demo
-riptide campaign run fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml --out /tmp/riptide-campaign-demo
-riptide review /tmp/riptide-campaign-demo/campaign_2a93d0358025
+riptide campaign validate .riptide/campaigns/<risk>.campaign.toml
+riptide campaign plan .riptide/campaigns/<risk>.campaign.toml
+riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+riptide review <campaign-root>
 ```
 
-The run writes `campaign-summary.md`, `campaign-summary.json`, `runs.jsonl`, `parameters.csv`, `retention-manifest.json`, and retained case directories under the campaign root. The Solend-shaped fixture is local simulation evidence over declared inputs; it is not a Solend mainnet replay and does not prove complete protocol safety. See [Campaign Runner](docs/campaigns.md) for the artifact map, trust boundary, and troubleshooting.
+The `campaign run` output prints the campaign root to review. The root
+contains `campaign-summary.md`, `campaign-summary.json`, `runs.jsonl`,
+`parameters.csv`, `retention-manifest.json`, and retained case
+directories. See [Campaign Runner](docs/campaigns.md) for a repo-local
+Campaign TOML template, artifact map, trust boundary, and
+troubleshooting.
 
 ## Evidence Packs
 
@@ -207,12 +231,12 @@ Read [Evidence packs](docs/pack.md) and [CI handoff](docs/ci-handoff.md) for the
 | [`engine/`](engine/) | Rust engine and LiteSVM runtime. |
 | [`cli/`](cli/) | Node.js CLI, dashboard server, adapter linting, orchestration. |
 | [`fixtures/adapters/`](fixtures/adapters/) | Shipping adapter TOMLs. |
-| [`fixtures/personas/`](fixtures/personas/) | Monorepo fixture persona libraries. User repos created by `riptide init` keep personas inline in adapter `[personas.*]` tables. |
+| [`fixtures/personas/`](fixtures/personas/) | Monorepo fixture persona libraries. Configured user repos keep personas inline in adapter `[personas.*]` tables. |
 | [`fixtures/scenarios/`](fixtures/scenarios/) | Monorepo fixture scenario bundles (`run-config.json`, and when needed fixture `policies.json` / `manifest.json`). User repos use `.riptide/scenarios/**/run-config.json`. |
 | [`fixtures/replays/`](fixtures/replays/) | Declared replay artifacts and committed packs. |
 | [`programs/`](programs/) | Minimal Solana programs used by the examples. |
 | [`docs/`](docs/) | Architecture, install, handoff, lineage, and case-study docs. |
-| [`skills/`](skills/) | Optional Codex/Claude Code accelerators for adapter, harness, scenario, and narrative authoring. |
+| [`skills/`](skills/) | Codex/Claude Code skills, including the default `/riptide-config` setup flow and narrative authoring. |
 
 ## Docs
 

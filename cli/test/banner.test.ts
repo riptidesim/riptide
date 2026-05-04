@@ -32,9 +32,9 @@ test("banner suppresses when CI is truthy", () => {
 test("banner prints without color when NO_COLOR is present", () => {
   const decision = bannerDecision({ env: { NO_COLOR: "1" }, flags: {}, isTTY: true });
   assert.deepEqual(decision, { print: true, color: false });
-  const rendered = renderBanner("0.6.0", decision.color);
+  const rendered = renderBanner("0.7.0", decision.color);
   assert.match(rendered, /RIPTIDE/);
-  assert.match(rendered, /Riptide v0\.6\.0/);
+  assert.match(rendered, /Riptide v0\.7\.0/);
   assert.doesNotMatch(rendered, /\x1b\[/);
 });
 
@@ -47,12 +47,12 @@ test("banner suppresses when RIPTIDE_NO_BANNER is truthy", () => {
 
 test("rendered banner is compact and reads version from package.json", () => {
   const version = cliPackageVersion();
-  assert.equal(version, "0.6.0");
+  assert.equal(version, "0.7.0");
   const rendered = renderBanner(version, false);
   assert.equal(rendered.split("\n").length, 5);
   assert.equal(rendered.endsWith("\n\n"), true);
   assert.match(rendered, /RIPTIDE/);
-  assert.match(rendered, /Riptide v0\.6\.0/);
+  assert.match(rendered, /Riptide v0\.7\.0/);
   assert.match(rendered, /Deterministic Solana simulation evidence\./);
 });
 
@@ -62,7 +62,7 @@ test("printBanner writes exactly once when allowed", () => {
     env: {},
     flags: {},
     isTTY: true,
-    version: "0.6.0",
+    version: "0.7.0",
     stdoutWrite: (chunk) => writes.push(chunk)
   });
   assert.equal(writes.length, 1);
@@ -70,12 +70,12 @@ test("printBanner writes exactly once when allowed", () => {
 });
 
 test("init banner renders ASCII wordmark with tagline", () => {
-  const rendered = renderInitBanner("0.6.0", false);
+  const rendered = renderInitBanner("0.7.0", false);
   assert.doesNotMatch(rendered, /\x1b\[/);
   // Dotted ASCII wordmark + spacing + tagline expand past the stub form.
   assert.ok(rendered.split("\n").length >= 8);
   assert.match(rendered, /\.\.\.\.\.\.\./);
-  assert.match(rendered, /Riptide v0\.6\.0/);
+  assert.match(rendered, /Riptide v0\.7\.0/);
   assert.match(rendered, /Deterministic Solana simulation evidence\./);
   assert.equal(rendered.endsWith("\n\n"), true);
 });
@@ -86,7 +86,7 @@ test("printInitBanner respects suppression flags", () => {
     env: {},
     flags: { quiet: true },
     isTTY: true,
-    version: "0.6.0",
+    version: "0.7.0",
     stdoutWrite: (chunk) => writesQuiet.push(chunk)
   });
   assert.equal(writesQuiet.length, 0);
@@ -96,7 +96,7 @@ test("printInitBanner respects suppression flags", () => {
     env: {},
     flags: {},
     isTTY: true,
-    version: "0.6.0",
+    version: "0.7.0",
     stdoutWrite: (chunk) => writesAllowed.push(chunk)
   });
   assert.equal(writesAllowed.length, 1);

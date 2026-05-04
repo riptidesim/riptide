@@ -15,6 +15,7 @@ import {
   type RunOneContext,
   type RunOneResult
 } from "../src/run/loop.js";
+import { renderRun } from "../src/commands/campaign.js";
 
 test("campaign run resume: executes generated configs through the run path and writes metadata", async () => {
   const root = await campaignFixtureRoot("execute");
@@ -48,6 +49,36 @@ test("campaign run resume: executes generated configs through the run path and w
   assert.equal(result.reusedConfigs, 0);
   assert.equal(result.runSummary.pass, 2);
   assert.equal(result.runSummary.error, 0);
+
+  const humanOutput = renderRun(result);
+  assert.match(humanOutput, /^Campaign complete: unit-campaign/m);
+  assert.match(humanOutput, /Result\n  Outcome: no invariant failures observed, no setup errors/);
+  assert.match(humanOutput, /Runs: 2\/2 completed, 0 setup errors, 0 skipped runs/);
+  assert.match(humanOutput, /Risk signals: no lending risk metrics reported/);
+  assert.match(humanOutput, /Coverage: 2 exercised; confidence 2 medium/);
+  assert.match(humanOutput, /Workload/);
+  assert.match(humanOutput, /Size: 2x oracle_shock \(1 agent x 4 ticks\)/);
+  assert.match(humanOutput, /Simulation time: \d+ms/);
+  assert.match(humanOutput, /Configs: 2 created, 0 reused/);
+  assert.match(
+    humanOutput,
+    /Next\n  riptide review \.riptide\/campaigns\/campaign_[a-f0-9]{12}/
+  );
+  assert.match(
+    humanOutput,
+    /Summary: \.riptide\/campaigns\/campaign_[a-f0-9]{12}\/campaign-summary\.md/
+  );
+  assert.match(humanOutput, /Retained cases: median -> run_/);
+  assert.match(humanOutput, /Retention warnings: first_failure/);
+  assert.doesNotMatch(humanOutput, /runs log:/i);
+  assert.doesNotMatch(humanOutput, /retention manifest:/i);
+  assert.doesNotMatch(humanOutput, /campaign digest: [a-f0-9]{64}/i);
+
+  const coloredOutput = renderRun(result, { color: true });
+  assert.match(coloredOutput, /\x1b\[32mCampaign complete\x1b\[0m/);
+  assert.match(coloredOutput, /\x1b\[1mResult\x1b\[0m/);
+  assert.match(coloredOutput, /\x1b\[36mriptide review \.riptide\/campaigns\/campaign_[a-f0-9]{12}\x1b\[0m/);
+  assert.match(coloredOutput, /\x1b\[33mfirst_failure\x1b\[0m/);
 
   for (const run of result.plan.runs) {
     const configBytes = await readFile(run.runConfigPath, "utf8");

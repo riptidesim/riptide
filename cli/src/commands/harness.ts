@@ -40,7 +40,7 @@ export function createHarnessCommand(): Command {
       undefined
     )
     .option("--dir <path>", "Harness crate directory", ".riptide/harness")
-    .option("--name <crate-name>", "Generated Rust crate name", "riptide-harness")
+    .option("--name <crate-name>", "Generated Rust crate name", "riptide-setup")
     .option("--force", "Overwrite an existing generated harness crate", false)
     .action(async (options: HarnessGenerateOptions) => {
       try {
@@ -51,7 +51,7 @@ export function createHarnessCommand(): Command {
         process.stderr.write(dim(`  adapter ${result.adapterPath}\n`));
         process.stderr.write(dim(`  manifest ${result.manifestPath}\n`));
         process.stderr.write(
-          `\nNext: edit ${chalk.cyan(path.join(result.dir, "src", "main.rs"))}, then run:\n`
+          `\nNext: complete deterministic setup in ${chalk.cyan(path.join(result.dir, "src", "main.rs"))}, then run:\n`
         );
         process.stderr.write(
           `  ${chalk.cyan(`riptide run --adapter ${result.adapterPath} --harness ${result.dir} --seeds 1 --seed-root 1337`)}\n`
@@ -92,7 +92,7 @@ export async function generateHarness(
   await mkdir(srcDir, { recursive: true });
   await writeFile(
     manifestPath,
-    renderCargoToml(options.name ?? "riptide-harness"),
+    renderCargoToml(options.name ?? "riptide-setup"),
     "utf8"
   );
   await writeFile(mainPath, renderHarnessMain(resolved.adapter), "utf8");
@@ -200,13 +200,21 @@ struct ProjectHarness;
 
 impl RiptideHarness for ProjectHarness {
     fn setup(&self, ctx: &mut HarnessContext<'_>) -> anyhow::Result<()> {
-        // Adapter-declared accounts are listed below. Replace zeroed generic
-        // bootstrap accounts with the concrete bytes your program expects.
+        // Adapter-declared accounts are listed below. This empty harness is
+        // buildable, but setup-heavy adapters should populate deterministic pre-tick-0 bytes
+        // before a campaign is considered ready.
+        //
+        // Use the repo's source, IDL, tests, constants, dependency types, and
+        // fixtures to derive account owners, discriminators, PDA seeds, feed
+        // IDs, and serialization. Return an anyhow error when a required fact
+        // cannot be determined locally.
         //
         // Common helpers:
         //   ctx.spl_mint("mint", ctx.admin_pubkey(), 1_000_000_000, 6)?;
         //   ctx.spl_token_account("vault", mint, authority, 500_000)?;
         //   ctx.agent_spl_token_account("user_ata", 0, mint, owner, 100_000)?;
+        //   ctx.set_shared_account_data("oracle", oracle_program, oracle_bytes)?;
+        //   ctx.set_raw_account(custom_pubkey, owner_program, account_bytes, None)?;
         //   ctx.load_program_from_so("../target/deploy/dependency.so")?;
 ${accountChecks || "        let _ = ctx;"}
 
@@ -229,6 +237,9 @@ This crate owns protocol-specific setup for the adapter:
 
 Use it when your program needs real account bytes, sibling programs, SPL mints,
 token accounts, PDAs, or other setup that should not become Riptide core code.
+The generated crate is intentionally empty until deterministic setup is added;
+\`/riptide-config\` should complete this file when external accounts or concrete
+bootstrap bytes are required.
 
 Run it through the CLI:
 
@@ -253,7 +264,7 @@ function sanitizeCrateName(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return sanitized.length > 0 ? sanitized : "riptide-harness";
+  return sanitized.length > 0 ? sanitized : "riptide-setup";
 }
 
 function renderAdapterLoadError(error: AdapterLoadError): string {

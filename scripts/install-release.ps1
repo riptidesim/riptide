@@ -363,11 +363,10 @@ try {
   Write-Styled "       # the Solana program you want to simulate" -Color DarkGray
   Write-Styled "    3. " -Color White -NoNewline
   Write-Styled "riptide init" -Color Cyan -NoNewline
-  Write-Styled "            # scaffold .riptide/ (adapter stub)" -Color DarkGray
-  Write-Styled "    4. edit " -Color White -NoNewline
-  Write-Styled ".riptide/adapters/<program>.toml" -Color Cyan -NoNewline
-  Write-Styled ", then " -Color White -NoNewline
-  Write-Styled "riptide adapt" -Color Cyan
+  Write-Styled "            # thin .riptide/ bootstrap" -Color DarkGray
+  Write-Styled "    4. " -Color White -NoNewline
+  Write-Styled "/riptide-config" -Color Cyan -NoNewline
+  Write-Styled "         # configure adapter, harness, scenarios, campaign readiness" -Color DarkGray
   Write-Host ""
   Write-Styled "  New to Riptide? " -Color DarkGray -NoNewline
   Write-Styled "riptide --help" -Color White -NoNewline

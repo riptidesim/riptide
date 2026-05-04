@@ -36,9 +36,10 @@ run_posix_case() {
     sh "$ROOT/scripts/install-release.sh" --dry-run
   )"
 
-  grep -F "target:      $target" <<<"$output" >/dev/null
-  grep -F "archive:     https://example.test/releases/riptide-$target.tar.gz" <<<"$output" >/dev/null
-  grep -F "dry-run: no files changed" <<<"$output" >/dev/null
+  grep -F "target       $target" <<<"$output" >/dev/null
+  grep -F "archive      https://example.test/releases/riptide-$target.tar.gz" <<<"$output" >/dev/null
+  grep -F "dry run" <<<"$output" >/dev/null
+  grep -F "no files changed" <<<"$output" >/dev/null
 }
 
 run_unsupported_posix_case() {
@@ -126,7 +127,7 @@ EOF
 
   cat > "$fake_path/node" <<'EOF'
 #!/usr/bin/env bash
-printf '%s' '0.6.0'
+printf '%s' '0.7.0'
 EOF
 
   for cmd in npm cargo curl tar; do

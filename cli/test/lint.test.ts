@@ -79,6 +79,33 @@ const SIMPLE_IDL = JSON.stringify({
   ],
 });
 
+const IDL_WITH_REQUIRED_ACCOUNTS = JSON.stringify({
+  version: "0.1.0",
+  name: "required_accounts",
+  instructions: [
+    {
+      name: "initialize_reserve",
+      accounts: [
+        { name: "authority", signer: true, writable: true },
+        { name: "reserve", writable: true },
+        { name: "price_update_v2" },
+        { name: "receipt_mint", writable: true },
+        { name: "reserve_token_account", writable: true },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+        { name: "token_program" },
+        { name: "associated_token_program", address: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" },
+      ],
+      args: [{ name: "amount", type: "u64" }],
+    },
+  ],
+  accounts: [
+    {
+      name: "reserve",
+      fields: [{ name: "available_amount", type: "u64" }],
+    },
+  ],
+});
+
 const CLEAN_ADAPTER_TOML = (idlRelPath: string) => `protocol = "generic"
 program_so = "./simple.so"
 idl_path = "${idlRelPath}"
@@ -235,6 +262,37 @@ takes = ["amount"]
 label = "Grinder"
 action_rate_multiplier = 1.0
 action_weights = { deposit = 1.0 }
+triggers = []
+
+[lineage]
+idl_source = "${idlRelPath}"
+`;
+
+const MISSING_IDL_ACCOUNTS_TOML = (idlRelPath: string) => `protocol = "generic"
+program_so = "./simple.so"
+idl_path = "${idlRelPath}"
+
+[accounts.reserve]
+kind = "shared"
+space = 64
+
+[instructions]
+initialize_reserve = { action = "initialize_reserve", amount = "amount" }
+
+[state_mapping]
+"reserve.available_amount" = "reserve.available_amount"
+
+[actions.initialize_reserve]
+label = "Initialize reserve"
+takes = ["amount"]
+
+[observations]
+"reserve.available_amount" = "uint"
+
+[personas.operator]
+label = "Operator"
+action_rate_multiplier = 1.0
+action_weights = { initialize_reserve = 1.0 }
 triggers = []
 
 [lineage]
@@ -529,6 +587,45 @@ function semanticsBreadthAdapter(semantics: Semantics): Adapter {
     scheduled_actions: [],
     semantics,
     errors: [],
+  };
+}
+
+function minimalGenericAdapter(overrides: Partial<Adapter> = {}): Adapter {
+  return {
+    protocol: "generic",
+    program_so: "./simple.so",
+    idl_path: "fixtures/idls/simple.json",
+    instructions: {
+      refresh: { action: "refresh", args: {} },
+    },
+    state_mapping: {
+      "reserve.available_amount": "reserve.available_amount",
+    },
+    accounts: {
+      reserve: { kind: "shared", space: 64 },
+    },
+    actions: {
+      refresh: { label: "Refresh", takes: [] },
+    },
+    observations: {
+      "reserve.available_amount": "uint",
+    },
+    personas: {
+      keeper: {
+        label: "Keeper",
+        action_rate_multiplier: 1,
+        action_weights: { refresh: 1 },
+        triggers: [],
+        persona_args: {},
+      },
+    },
+    invariants: [],
+    oracles: [],
+    scheduled_actions: [],
+    semantics: undefined,
+    errors: [],
+    lineage: undefined,
+    ...overrides,
   };
 }
 
@@ -890,6 +987,36 @@ test("runLint: broken account → exit 2", async () => {
   assert.match(out, /ghost_account/);
 });
 
+test("runLint: mapped IDL instruction with undeclared required accounts → exit 2 with stubs", async () => {
+  const { adapterPath, repoRoot } = await setupAdapterPair(
+    MISSING_IDL_ACCOUNTS_TOML("fixtures/idls/simple.json"),
+    IDL_WITH_REQUIRED_ACCOUNTS
+  );
+  let out = "";
+  const exit = await runLint(
+    adapterPath,
+    {},
+    {
+      repoRoot,
+      stdoutWrite: (c) => { out += c; },
+      stderrWrite: () => {},
+      color: false,
+    }
+  );
+  assert.equal(exit, 2);
+  assert.match(out, /instruction-account-not-declared/);
+  assert.match(out, /price_update_v2/);
+  assert.match(out, /receipt_mint/);
+  assert.match(out, /reserve_token_account/);
+  assert.match(out, /\[accounts\.price_update_v2\]/);
+  assert.match(out, /\[accounts\.receipt_mint\]/);
+  assert.match(out, /\[accounts\.reserve_token_account\]/);
+  assert.doesNotMatch(out, /authority.*not declared/);
+  assert.doesNotMatch(out, /system_program.*not declared/);
+  assert.doesNotMatch(out, /token_program.*not declared/);
+  assert.doesNotMatch(out, /associated_token_program.*not declared/);
+});
+
 test("runLint: non-JSON lineage source → explicit WARN, exit 1", async () => {
   const { adapterPath, repoRoot } = await setupAdapterPair(NON_JSON_LINEAGE_TOML, null);
   let out = "";
@@ -908,6 +1035,48 @@ test("runLint: non-JSON lineage source → explicit WARN, exit 1", async () => {
   assert.match(out, /lineage-non-json/);
   assert.match(out, /non-JSON/);
   assert.doesNotMatch(out, /Verdict: PASS/);
+});
+
+test("lintAdapter: generic invariant fields must be declared observations", async () => {
+  const report = await lintAdapter({
+    adapter: minimalGenericAdapter({
+      invariants: [
+        { name: "active_agents_survive", field: "active_agents", op: ">", value: 0 },
+      ],
+    }),
+    adapterPath: "/tmp/generic-invariant.toml",
+    adapterName: "generic-invariant",
+    repoRoot: "/tmp",
+  });
+
+  assert.equal(report.exitCode, 2);
+  assert.ok(findingCodes(report.findings).includes("generic-invariant-field-not-observed"));
+});
+
+test("lintAdapter: scheduled action account references must be declared", async () => {
+  const report = await lintAdapter({
+    adapter: minimalGenericAdapter({
+      scheduled_actions: [
+        {
+          name: "refresh_each_tick",
+          instruction: "refresh",
+          interval_ticks: 1,
+          accounts: ["reserve", "ghost"],
+          args: {},
+        },
+      ],
+    }),
+    adapterPath: "/tmp/generic-scheduled.toml",
+    adapterName: "generic-scheduled",
+    repoRoot: "/tmp",
+  });
+
+  assert.equal(report.exitCode, 2);
+  assert.ok(findingCodes(report.findings).includes("scheduled-action-account-not-declared"));
+  assert.match(
+    report.findings.find((finding) => finding.code === "scheduled-action-account-not-declared")?.hint ?? "",
+    /\[accounts\.ghost\]/
+  );
 });
 
 test("runLint: no [lineage] block → explicit SKIP, exit 0", async () => {
@@ -1016,6 +1185,7 @@ test("runLint: untouched init stub gets scaffold-specific next step", async () =
 
   assert.equal(exit, 2);
   assert.match(err, /incomplete `riptide init` stub/);
+  assert.match(err, /invoke `\/riptide-config`/);
   assert.match(err, /fill the TODO blocks/);
   assert.match(err, /accounts, instructions, state_mapping, actions, observations, and personas/);
   assert.match(err, /Then rerun `riptide lint/);

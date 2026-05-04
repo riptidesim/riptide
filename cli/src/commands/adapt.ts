@@ -1,10 +1,9 @@
 // `riptide adapt` — smoke-test harness.
 //
-// This is NOT a generator. The Claude Code `riptide-adapt` skill is the
-// sole adapter-generation surface: the in-session agent reads the IDL,
-// emits a TOML adapter using its own model, writes it to disk, and then
-// invokes this command to verify the generated adapter round-trips
-// cleanly against the engine.
+// This is NOT a generator. The `riptide-config` skill is the
+// adapter-generation surface: the in-session agent reads the IDL,
+// emits or repairs TOML using its own model, writes it to disk, and
+// invokes this command only when an adapter-only smoke is meaningful.
 //
 // Scope (intentionally minimal):
 // 1. Load the adapter TOML from disk.
@@ -58,7 +57,7 @@ export interface AdaptCommandDeps {
 
 export function createAdaptCommand(deps: AdaptCommandDeps = {}): Command {
   const command = new Command("adapt").description(
-    "Smoke-test a Riptide adapter TOML against the local engine (used by the riptide-adapt Claude Code skill to verify its generated output)"
+    "Smoke-test a Riptide adapter TOML against the local engine (used by riptide-config when adapter-only smoke is meaningful)"
   );
 
   command.requiredOption(

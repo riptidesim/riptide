@@ -52,7 +52,8 @@ test("commands: root help is compact, ordered for first-hour use, and example-dr
   assert.match(stdout, /Start here:/);
   assert.match(stdout, /Advanced\/support:/);
   assert.match(stdout, /Examples:/);
-  assert.match(stdout, /riptide campaign validate fixtures\/campaigns\/lending\/solend-shape-liquidation-safety\/campaign\.toml/);
+  assert.match(stdout, /riptide run --adapter \.riptide\/adapters\/<program-name>\.toml --seeds 1 --seed-root 1337/);
+  assert.match(stdout, /riptide campaign validate \.riptide\/campaigns\/<risk>\.campaign\.toml/);
   assert.match(stdout, /riptide <command> --help/);
   assert.doesNotMatch(stdout, /complete protocol safety/i);
 

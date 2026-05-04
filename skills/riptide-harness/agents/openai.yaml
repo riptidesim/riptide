@@ -1,4 +1,0 @@
-interface:
-  display_name: "Riptide Harness"
-  short_description: "Create Rust setup harnesses for Riptide adapters."
-  default_prompt: "Generate or repair a Riptide Rust harness for this adapter, then validate it with a smoke run."

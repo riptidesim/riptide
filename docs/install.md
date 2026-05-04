@@ -25,7 +25,7 @@ The release bundle does not require Rust, Node.js, npm, Solana CLI, or `cargo-bu
 Useful options:
 
 ```bash
-curl -fsSL https://riptide.run/install | sh -s -- --version 0.6.0
+curl -fsSL https://riptide.run/install | sh -s -- --version 0.7.0
 curl -fsSL https://riptide.run/install | sh -s -- --bin-dir "$HOME/bin"
 curl -fsSL https://riptide.run/install | sh -s -- --dry-run
 ```
@@ -80,7 +80,6 @@ Verify the install:
 ```bash
 riptide --help
 riptide doctor
-riptide run lending/whale-shock-grid --serve
 ```
 
 ## Docker
@@ -89,10 +88,22 @@ Use Docker when you want a pinned runtime with the engine, CLI, fixtures, and sh
 
 ```bash
 docker build -t riptide .
-docker run --rm riptide run lending/whale-shock-grid
+docker run --rm riptide doctor
 ```
 
-The Dockerfile pins Rust, Node, npm, Solana CLI, `cargo-build-sbf`, platform tools, and the base images. It builds all shipped example programs in the image.
+To run Riptide against your own repo with that image, mount the repo and
+use the same repo-local commands:
+
+```bash
+docker run --rm -v "$PWD:/work" -w /work riptide doctor
+docker run --rm -v "$PWD:/work" -w /work riptide run \
+  --adapter .riptide/adapters/<program-name>.toml \
+  --seeds 1 --seed-root 1337
+```
+
+The Dockerfile pins Rust, Node, npm, Solana CLI, `cargo-build-sbf`,
+platform tools, and the base images. It builds all shipped example
+programs in the image.
 
 ## Rebuild Pieces Manually
 
@@ -120,25 +131,43 @@ cd ~/path/to/your-anchor-program
 riptide init
 ```
 
-Then fill in the generated adapter and run:
+The default next step is the merged setup skill:
 
 ```bash
-riptide lint <program-name>
-riptide run --adapter .riptide/adapters/<program-name>.toml --seeds 1 --seed-root 1337
-# then add/refine scenarios and run the full battery:
-riptide run --adapter .riptide/adapters/<program-name>.toml
+/riptide-config
 ```
+
+`riptide-config` prepares or repairs the adapter, harness, scenarios,
+and starter campaign readiness in one loop. It should finish with
+`campaign_ready = yes`, `blocked = <reason>`, or
+`unsupported = <boundary>`.
+
+When it reports campaign readiness, run the campaign and review the
+printed campaign root:
+
+```bash
+riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+riptide review <campaign-root>
+```
+
+Without the agent skill, use the manual / advanced path in
+`.riptide/GETTING-STARTED.md`: fill in the adapter by hand, run
+`riptide lint`, add a harness when setup bytes are needed, create
+scenarios, smoke one seed, then create and run a campaign TOML.
 
 What each command does:
 
 | Command | Role |
 | --- | --- |
 | `riptide doctor` | Static health check. No build, no network, no simulation. |
-| `riptide init` | Creates `.riptide/adapters/<program>.toml`, scenario run-configs, inline persona presets, and a short getting-started note. Add `--profile <profile>` for a non-interactive starter profile. |
+| `riptide init` | Creates the thin bootstrap: `.riptide/adapters/<program>.toml` plus `.riptide/GETTING-STARTED.md`. `--profile` / `--protocol` record adapter hints; `--wizard` opens the advanced questionnaire. |
+| `/riptide-config` | Default setup flow: adapter TOML, Rust setup harness, personas, scenarios, invariants, campaign readiness, validation, and readiness notes. |
 | `riptide harness generate` | Optional escalation: creates a Rust setup crate for account bytes, PDAs, SPL accounts, and sibling programs your adapter needs before tick 0. |
 | `riptide explain <adapter>` | Pretty-prints a parsed adapter: protocol, runtime, accounts, instructions, observations, personas, invariants, semantics, and oracles. |
 | `riptide lint` | Machine-checks JSON-IDL-backed adapter references. Non-JSON lineage warns honestly. |
 | `riptide adapt` | Adapter-only smoke against the local engine; use `riptide run --harness` only after you explicitly add a harness setup layer. |
+| `riptide campaign run` | Executes the generated campaign runs and prints the campaign root for review. |
+| `riptide review <campaign-root>` | Validates retained campaign evidence and prints reviewer markdown. |
 | `riptide run --serve` | Runs discovered scenarios and opens the dashboard for the run collection. |
 
 ## Upgrade

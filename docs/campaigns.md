@@ -4,29 +4,92 @@ Campaign Runner expands one Campaign TOML into a deterministic set of scenario r
 
 Use campaigns when you want more than one scenario smoke test: a campaign can sweep shock profiles, oracle lag, whale concentration, seeds, and retention labels while keeping the inputs and artifacts stable on disk.
 
-## Worked Example
+Agent-assisted repo setup is intentionally one flow:
 
-Run the shipped lending campaign from the repository root:
-
-```bash
-riptide campaign validate fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml
+```text
+riptide init -> /riptide-config -> riptide campaign run -> riptide review
 ```
 
-```bash
-riptide campaign plan fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml --out /tmp/riptide-campaign-demo
+`riptide-config` prepares or repairs the adapter, harness, scenarios,
+and Campaign TOML before you run the campaign. It validates campaign
+readiness; executing the campaign remains a separate
+`riptide campaign run ...` step.
+
+## Repo-local campaign
+
+Create the campaign in the repo that owns the program under test. A
+typical path is `.riptide/campaigns/<risk>.campaign.toml`, next to the
+adapter and scenarios created or repaired by `/riptide-config`.
+
+Use this as a starting shape and replace the adapter, class, objective,
+scenario family names, and parameter ranges with the risk you want to
+measure:
+
+```toml
+# .riptide/campaigns/liquidation-safety.campaign.toml
+[campaign]
+name = "liquidation-safety"
+adapter = "../adapters/<program-name>.toml"
+class = "lending.v1"
+risk_objective = "liquidation-safety"
+run_budget = 16
+seed_policy = "fixed:1337"
+replay_retention = ["first_failure", "worst_liquidity", "median"]
+
+[campaign.scenarios]
+selection = "weighted"
+families = ["baseline", "stress"]
+
+[campaign.scenarios.baseline]
+source = "../scenarios/baseline"
+weight = 1
+parameters = ["oracle_lag_ticks"]
+
+[campaign.scenarios.stress]
+source = "../scenarios/<experiment>"
+weight = 2
+parameters = ["oracle_lag_ticks"]
+
+[campaign.personas]
+base = "."
+families = []
+
+[campaign.parameters.oracle_lag_ticks]
+distribution = "discrete"
+values = [0, 2, 4]
+unit = "ticks"
 ```
 
-```bash
-riptide campaign run fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml --out /tmp/riptide-campaign-demo
-```
+When `families = []`, Campaign Runner keeps the personas already present
+in each scenario's `run-config.json` or inline adapter persona tables.
+
+Validate the Campaign TOML:
 
 ```bash
-riptide review /tmp/riptide-campaign-demo/campaign_2a93d0358025
+riptide campaign validate .riptide/campaigns/liquidation-safety.campaign.toml
 ```
 
-The campaign ID is derived from the Campaign TOML digest, so the path above is stable for this fixture. If you change the Campaign TOML, use the `campaign id:` line printed by `validate`, `plan`, or `run`.
+Preview the generated run set without executing simulations:
 
-The example is Solend-shaped because it uses a local lending fixture and stress coordinates that resemble liquidation-safety questions. It is not a Solend mainnet replay.
+```bash
+riptide campaign plan .riptide/campaigns/liquidation-safety.campaign.toml --max-runs 4
+```
+
+Run the campaign:
+
+```bash
+riptide campaign run .riptide/campaigns/liquidation-safety.campaign.toml
+```
+
+Review the campaign root printed by `campaign run`:
+
+```bash
+riptide review <campaign-root>
+```
+
+The campaign ID is derived from the Campaign TOML digest. If you change
+the Campaign TOML, use the new `campaign id:` and `output dir:` lines
+printed by `validate`, `plan`, or `run`.
 
 ## What The Commands Do
 
@@ -39,7 +102,8 @@ The example is Solend-shaped because it uses a local lending fixture and stress 
 
 ## Artifact Map
 
-The worked example writes under `/tmp/riptide-campaign-demo/campaign_2a93d0358025/`:
+By default, a repo-local campaign writes under
+`.riptide/campaigns/campaign_<id>/`:
 
 | Path | Contents |
 | --- | --- |
@@ -69,6 +133,8 @@ If `campaign run` refuses to resume, the existing generated config differs from 
 
 `riptide campaign run --serve` is intentionally unsupported for now. Run the campaign without `--serve`, then review the campaign root. For the scenario dashboard, use `riptide run --serve`.
 
-`riptide doctor` may warn that optional fixture `.so` files are not built in a source checkout. Build the fixture you plan to run, use `./install.sh`, or stay on the shipped lending campaign path above.
+`riptide doctor` may warn that the `.so` or IDL referenced by your
+adapter is missing. Build your program, regenerate the IDL, or update the
+adapter paths before running the campaign.
 
 Paths inside retained campaign indexes are campaign-root-relative where possible. A few commands and rerun scripts intentionally keep absolute local paths when the output root is outside the repo, such as `/tmp`, so the handoff remains runnable from the same machine.

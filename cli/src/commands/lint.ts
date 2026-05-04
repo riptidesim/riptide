@@ -136,7 +136,11 @@ function initStubValidationHint(
     return null;
   }
 
-  if (!raw.includes("This is a stub") || !raw.includes("TODO:")) {
+  const looksLikeInitScaffold =
+    raw.includes("This is a stub") ||
+    raw.includes("thin default bootstrap") ||
+    raw.includes("wizard scaffold");
+  if (!looksLikeInitScaffold || !raw.includes("TODO:")) {
     return null;
   }
 
@@ -149,7 +153,8 @@ function initStubValidationHint(
   return (
     `riptide lint: adapter is still an incomplete \`riptide init\` stub: ${adapterPath}\n` +
     `schema check stopped at: ${validationMessage}\n` +
-    `next step: open ${displayPath} and fill the TODO blocks for accounts, instructions, state_mapping, actions, observations, and personas. ` +
+    `next step: invoke \`/riptide-config\` to finish the adapter, harness, scenarios, and campaign. ` +
+    `Manual / advanced path: open ${displayPath} and fill the TODO blocks for accounts, instructions, state_mapping, actions, observations, and personas. ` +
     `Then rerun \`riptide lint ${adapterArg}\`.\n`
   );
 }

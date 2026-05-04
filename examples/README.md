@@ -45,10 +45,10 @@ The useful point is not the exact demo size. It is the posture: keep the program
 
 ## Other Entry Points
 
-Run a shipping scenario through the normal CLI:
+After you install Riptide, run the normal CLI from your own program repo:
 
 ```bash
-riptide run lending/whale-shock-grid --serve
+riptide run --adapter .riptide/adapters/<program-name>.toml --serve
 ```
 
 Run the generic non-DeFi adapter directly:

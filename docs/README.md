@@ -19,6 +19,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 | [Campaign Runner](campaigns.md) | Validate retained campaign roots with `riptide review` and rerun selected cases. |
 | [Evidence packs](pack.md) | Learn the `.riptide/pack/<run-id>/` shape emitted by `riptide run` and `riptide replay`. |
 | [Reviewer command](reviewer.md) | Validate a pack with `riptide review` without rerunning the engine. |
+| [QA benchmarks](qa-benchmarks.md) | Run the reusable stress/dev-UX benchmark harness and interpret its outputs. |
 | [CI handoff](ci-handoff.md) | Pin a replay proof in GitHub Actions with a canonical hash. |
 | [Adapter lineage](adapter-lineage.md) | Record and inspect adapter provenance, inferred assumptions, unsupported fields, and JSON IDL lint coverage. |
 

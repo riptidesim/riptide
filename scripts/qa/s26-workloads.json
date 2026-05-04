@@ -1,0 +1,123 @@
+{
+  "schema_version": "riptide.qa.s26.workloads.v1",
+  "description": "Reusable Sprint 26 QA and benchmark workload matrix. The runner keeps generated outputs under /tmp by default.",
+  "defaults": {
+    "case_studies_root": "/home/ailton/Work/riptide/case-studies",
+    "obsidian_report": "/home/ailton/Documents/Obsidian Vault/Riptide/QA - Sprint 26 Benchmark And Dev UX.md",
+    "command_timeout_ms": 600000,
+    "stress_command_timeout_ms": 3600000,
+    "sample_interval_ms": 250,
+    "log_limit_bytes": 2097152
+  },
+  "profiles": {
+    "smoke": {
+      "workloads": [
+        "cli-discoverability",
+        "flagship-lending-campaign",
+        "harnessed-perpetuals",
+        "failure-recovery-ux"
+      ],
+      "flagship_max_runs": 2,
+      "flagship_stress_budgets": [16],
+      "perpetuals_campaign_budgets": [3],
+      "perpetuals_direct_seeds": [1],
+      "case_study_repos": ["lending", "perpetuals"],
+      "include_cold_path": false
+    },
+    "max": {
+      "workloads": [
+        "cli-discoverability",
+        "flagship-lending-campaign",
+        "harnessed-perpetuals",
+        "case-study-init-dev-ux",
+        "failure-recovery-ux",
+        "cold-developer-path"
+      ],
+      "flagship_max_runs": null,
+      "flagship_stress_budgets": [16, 64, 256, 1000],
+      "perpetuals_campaign_budgets": [3, 20, 100],
+      "perpetuals_direct_seeds": [1, 20, 100],
+      "case_study_repos": "all",
+      "include_cold_path": true
+    }
+  },
+  "workloads": {
+    "cli-discoverability": {
+      "description": "Root and subcommand help plus doctor warning classification.",
+      "commands": [
+        {
+          "label": "root-help",
+          "args": ["--help"],
+          "expected_exit_codes": [0],
+          "stdout_includes": ["init", "readiness", "campaign", "run", "review", "doctor"]
+        },
+        {
+          "label": "doctor",
+          "args": ["doctor"],
+          "expected_exit_codes": [0, 1, 2],
+          "classify_doctor_warnings": true
+        },
+        {
+          "label": "campaign-help",
+          "args": ["campaign", "--help"],
+          "expected_exit_codes": [0]
+        },
+        {
+          "label": "campaign-run-help",
+          "args": ["campaign", "run", "--help"],
+          "expected_exit_codes": [0],
+          "stdout_includes": ["--harness"]
+        },
+        {
+          "label": "run-help",
+          "args": ["run", "--help"],
+          "expected_exit_codes": [0]
+        },
+        {
+          "label": "review-help",
+          "args": ["review", "--help"],
+          "expected_exit_codes": [0]
+        }
+      ]
+    },
+    "flagship-lending-campaign": {
+      "description": "Validate, plan, execute, review, rerun, determinism compare, and stress the shipped lending campaign.",
+      "campaign": "fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml",
+      "stable_artifacts": [
+        "campaign-summary.md",
+        "campaign-summary.json",
+        "parameters.csv",
+        "retention-manifest.json"
+      ],
+      "retained_case_glob": "retained/*/case.json"
+    },
+    "harnessed-perpetuals": {
+      "description": "Perpetuals case-study readiness plus fixture-backed perps campaign/direct-run stress. Harness steps run only when a harness exists.",
+      "case_study": "perpetuals",
+      "adapter": ".riptide/adapters/perpetuals.toml",
+      "harness": ".riptide/harness",
+      "fixture_adapter": "fixtures/adapters/perpetuals.toml",
+      "fixture_scenario": "fixtures/scenarios/perpetuals/funding-stress/run-config.json",
+      "campaign_class": "perps-margin.v1"
+    },
+    "case-study-init-dev-ux": {
+      "description": "Run init, readiness, list, lint, adapt, and one baseline run inside temporary case-study copies.",
+      "blank_overrides": {
+        "anchor-uniswap-v2": { "name": "anchor-uniswap-v2", "protocol": "amm" },
+        "mango-v4": { "name": "mango-v4", "protocol": "perpetuals" },
+        "perpetuals": { "name": "perpetuals", "protocol": "perpetuals" },
+        "protocol-v2": { "name": "protocol-v2", "protocol": "lending" },
+        "stablecoin-protocol": { "name": "stablecoin-protocol", "protocol": "stablecoin" },
+        "whirlpools": { "name": "whirlpools", "protocol": "amm" }
+      }
+    },
+    "failure-recovery-ux": {
+      "description": "Intentional malformed inputs and recovery paths. Non-zero exits are expected when they are actionable.",
+      "campaign": "fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml"
+    },
+    "cold-developer-path": {
+      "description": "Clone into /tmp with a temp HOME, run install.sh, doctor, help, flagship campaign, review, and retained rerun.",
+      "campaign": "fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml"
+    }
+  }
+}

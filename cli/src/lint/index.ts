@@ -17,6 +17,7 @@ import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
+import { inferAdapterRuntime } from "../schemas/adapter.js";
 import type { Adapter, AdapterLineage, AccountOwner } from "../schemas/adapter.js";
 import { lintSemantics } from "./semantics.js";
 import { lintSemanticsBreadth } from "./semantics_breadth.js";
@@ -76,6 +77,8 @@ interface IdlAccountSlot {
   name: string;
   signer?: boolean;
   writable?: boolean;
+  optional?: boolean;
+  address?: string;
 }
 
 interface IdlInstruction {
@@ -137,6 +140,7 @@ export async function lintAdapter(input: LintInput): Promise<LintReport> {
   const kind = classifyLineageSourceKind(adapter.lineage);
   findings.push(...lintSemantics(adapter));
   findings.push(...lintSemanticsBreadth(adapter));
+  lintAdapterLocalSurface(adapter, findings);
   if (findings.some((finding) => finding.level === "fail")) {
     return {
       adapterPath,
@@ -297,6 +301,22 @@ export function lintAdapterAgainstJsonIdl(
           hint: `Instruction \`${ixName}\` declares args: ${formatList(idlIx.args.map((a) => a.name))}.`,
         });
       }
+    }
+
+    const missingAccounts = uniqueSorted(
+      idlIx.accounts
+        .filter((account) => !idlInstructionAccountIsSatisfied(adapter, account))
+        .map((account) => account.name)
+    );
+    if (missingAccounts.length > 0) {
+      findings.push({
+        level: "fail",
+        code: "instruction-account-not-declared",
+        subject: `[instructions].${ixName}`,
+        message:
+          `adapter maps instruction \`${ixName}\`, but required IDL account(s) ${formatList(missingAccounts)} are not declared under [accounts] and are not recognized signers or well-known program/sysvar accounts.`,
+        hint: `Add account bindings such as:\n${missingAccounts.map(suggestAccountStub).join("\n\n")}`,
+      });
     }
   }
 
@@ -590,6 +610,43 @@ function exitCodeFrom(findings: LintFinding[]): 0 | 1 | 2 {
   return 0;
 }
 
+function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values)).sort();
+}
+
+function lintAdapterLocalSurface(adapter: Adapter, findings: LintFinding[]): void {
+  if (inferAdapterRuntime(adapter) !== "generic") return;
+
+  for (const [idx, inv] of adapter.invariants.entries()) {
+    if (adapter.observations[inv.field] !== undefined) continue;
+    const subject = inv.name
+      ? `[[invariants]][${idx}] (${inv.name})`
+      : `[[invariants]][${idx}]`;
+    findings.push({
+      level: "fail",
+      code: "generic-invariant-field-not-observed",
+      subject,
+      message: `generic runtime invariant field \`${inv.field}\` is not declared under [observations].`,
+      hint:
+        "Generic SBF/IDL adapters may only use declared observation keys in [[invariants]]. Declare the observation, map it from [state_mapping], or remove bundled-lending snapshot metrics such as `active_agents`, `utilization`, and `cumulative_bad_debt`.",
+    });
+  }
+
+  const declaredAccounts = new Set(Object.keys(adapter.accounts));
+  for (const [idx, sa] of adapter.scheduled_actions.entries()) {
+    for (const [accountIdx, account] of sa.accounts.entries()) {
+      if (declaredAccounts.has(account)) continue;
+      findings.push({
+        level: "fail",
+        code: "scheduled-action-account-not-declared",
+        subject: `[[scheduled_actions]][${idx}].accounts[${accountIdx}]`,
+        message: `scheduled action references account \`${account}\` but no [accounts.${account}] binding exists.`,
+        hint: `Add an account binding such as:\n${suggestAccountStub(account)}`,
+      });
+    }
+  }
+}
+
 function isValidExternalOwner(owner: AccountOwner | undefined): boolean {
   if (owner === undefined) return false;
   const programSo = (owner.program_so ?? "").trim();
@@ -607,6 +664,105 @@ function isValidExternalOwner(owner: AccountOwner | undefined): boolean {
   if (hasProgramSo) return true;
   if (hasPubkey) return isBase58Pubkey32(pubkey);
   return false;
+}
+
+function idlInstructionAccountIsSatisfied(adapter: Adapter, account: IdlAccountSlot): boolean {
+  if (account.optional === true) return true;
+  if (account.name in adapter.accounts) return true;
+  if (account.address !== undefined && account.address.trim().length > 0) return true;
+  if (account.signer === true && isRecognizedGenericSigner(account.name)) return true;
+  return isWellKnownGenericAccountAlias(account.name);
+}
+
+function isRecognizedGenericSigner(value: string): boolean {
+  switch (normalizeIdlName(value)) {
+    case "admin":
+    case "adminauthority":
+    case "agent":
+    case "agentauthority":
+    case "authority":
+    case "managerauthority":
+    case "owner":
+    case "payer":
+    case "tokenauthority":
+    case "trader":
+    case "user":
+    case "userauthority":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isWellKnownGenericAccountAlias(value: string): boolean {
+  return [
+    "system",
+    "system_program",
+    "spl_token",
+    "token",
+    "token_program",
+    "spl_token_2022",
+    "token_2022",
+    "token_2022_program",
+    "associated_token",
+    "associated_token_program",
+    "ata",
+    "rent",
+    "rent_sysvar",
+    "sysvar_rent",
+    "clock",
+    "clock_sysvar",
+    "sysvar_clock",
+    "instructions_sysvar",
+    "sysvar_instructions",
+    "slot_hashes",
+    "slot_hashes_sysvar",
+    "sysvar_slot_hashes",
+    "stake_history",
+    "stake_history_sysvar",
+    "sysvar_stake_history",
+  ].includes(value);
+}
+
+function suggestAccountStub(accountName: string): string {
+  const kind = guessAccountKind(accountName);
+  const extra = guessAccountExtra(accountName);
+  return [
+    `[accounts.${accountName}]`,
+    `kind = "${kind}"`,
+    `space = ${guessAccountSpace(accountName)}`,
+    ...extra,
+  ].join("\n");
+}
+
+function guessAccountKind(accountName: string): "agent" | "shared" {
+  const normalized = accountName.toLowerCase();
+  if (
+    /(authority|borrower|liquidator|owner|trader|user)/.test(normalized) &&
+    /(ata|token_account|wallet|position|obligation|account)/.test(normalized)
+  ) {
+    return "agent";
+  }
+  return "shared";
+}
+
+function guessAccountSpace(accountName: string): string {
+  const normalized = accountName.toLowerCase();
+  if (normalized.includes("price_update_v2")) return "134";
+  if (normalized.includes("token_account") || normalized.endsWith("_ata")) return "165";
+  if (normalized.includes("mint")) return "82";
+  return "\"auto\"";
+}
+
+function guessAccountExtra(accountName: string): string[] {
+  const normalized = accountName.toLowerCase();
+  if (normalized.includes("token_account") || normalized.endsWith("_ata")) {
+    return ['decoder = "spl_token_account"'];
+  }
+  if (normalized.includes("mint")) {
+    return ['decoder = "spl_mint"'];
+  }
+  return [];
 }
 
 const BASE58_ALPHABET_SET = new Set(
@@ -731,11 +887,7 @@ function parseJsonIdl(raw: string): JsonIdl {
       }
       const accounts: IdlAccountSlot[] = [];
       if (Array.isArray(e.accounts)) {
-        for (const s of e.accounts) {
-          if (s && typeof s === "object" && typeof (s as { name?: unknown }).name === "string") {
-            accounts.push({ name: (s as { name: string }).name });
-          }
-        }
+        accounts.push(...parseIdlInstructionAccounts(e.accounts));
       }
       instructions.push({ name: e.name, args, accounts });
     }
@@ -786,6 +938,45 @@ function parseIdlFields(fieldsRaw: unknown[]): IdlAccountField[] {
     }
   }
   return fields;
+}
+
+function parseIdlInstructionAccounts(accountsRaw: unknown[]): IdlAccountSlot[] {
+  const accounts: IdlAccountSlot[] = [];
+
+  const visit = (entries: unknown[]) => {
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") continue;
+      const record = entry as {
+        name?: unknown;
+        accounts?: unknown;
+        signer?: unknown;
+        isSigner?: unknown;
+        writable?: unknown;
+        isMut?: unknown;
+        optional?: unknown;
+        address?: unknown;
+      };
+      if (Array.isArray(record.accounts)) {
+        visit(record.accounts);
+        continue;
+      }
+      if (typeof record.name !== "string") continue;
+      accounts.push({
+        name: record.name,
+        signer: boolValue(record.signer) ?? boolValue(record.isSigner),
+        writable: boolValue(record.writable) ?? boolValue(record.isMut),
+        optional: boolValue(record.optional),
+        address: typeof record.address === "string" ? record.address : undefined,
+      });
+    }
+  };
+
+  visit(accountsRaw);
+  return accounts;
+}
+
+function boolValue(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
 }
 
 function formatList(names: string[]): string {

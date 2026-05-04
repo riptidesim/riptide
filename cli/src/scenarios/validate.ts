@@ -6,7 +6,7 @@
 // --adapter <adapter> --harness .riptide/harness --seeds 1
 // --seed-root 1337`; they do not write fixture `policies.json` or
 // `manifest.json` sidecars. In monorepo fixture mode, the
-// `riptide-scenarios` skill writes a `run-config.json` +
+// `riptide-config` skill writes a `run-config.json` +
 // `policies.json` + `manifest.json` triple into
 // `fixtures/scenarios/<adapter-stem>/<slug>/`, then shells out to
 // this command to verify that each generated triple boots cleanly for
@@ -282,7 +282,7 @@ export async function validateScenario(
     };
   }
 
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "riptide-scenarios-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "riptide-scenario-"));
   const configFile = path.join(tempDir, "run-config.json");
   const policiesFile = path.join(tempDir, "policies.json");
   const outputFile = path.join(tempDir, "boot-output.json");

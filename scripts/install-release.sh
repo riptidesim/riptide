@@ -72,10 +72,10 @@ Riptide release installer
 
 Usage:
   curl -fsSL https://riptide.run/install | sh
-  curl -fsSL https://riptide.run/install | sh -s -- --version 0.6.0
+  curl -fsSL https://riptide.run/install | sh -s -- --version 0.7.0
 
 Options:
-  --version <version>     Install a specific release. Accepts 0.6.0 or v0.6.0.
+  --version <version>     Install a specific release. Accepts 0.7.0 or v0.7.0.
                           Defaults to latest.
   --bin-dir <dir>         Directory for the riptide launcher.
                           Defaults to $HOME/.local/bin.
@@ -400,7 +400,7 @@ if [ -n "$PATH_HINT" ]; then
 fi
 printf '    1. %sriptide doctor%s          %s# verify your toolchain%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '    2. %scd <your-program>%s       %s# the Solana program you want to simulate%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
-printf '    3. %sriptide init%s            %s# scaffold .riptide/ (adapter stub)%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
-printf '    4. edit %s.riptide/adapters/<program>.toml%s, then %sriptide adapt%s\n' "$C_CYAN" "$C_RESET" "$C_CYAN" "$C_RESET"
+printf '    3. %sriptide init%s            %s# thin .riptide/ bootstrap%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+printf '    4. %s/riptide-config%s         %s# configure adapter, harness, scenarios, campaign readiness%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '\n  %sNew to Riptide?%s %sriptide --help%s walks through the full surface.\n' "$C_DIM" "$C_RESET" "$C_BOLD" "$C_RESET"
 printf '\n'

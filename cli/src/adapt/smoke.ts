@@ -37,7 +37,7 @@ export interface SmokeTestResult {
 }
 
 export async function runSmokeTest(options: SmokeTestOptions): Promise<SmokeTestResult> {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "riptide-adapt-"));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "riptide-adapter-smoke-"));
   const outputPath = path.join(tempDir, "smoke-output.json");
   const configPath = path.join(tempDir, "run.json");
   const policiesPath = path.join(tempDir, "policies.json");
@@ -141,7 +141,7 @@ function pickFixtures(options: SmokeTestOptions): {
         seed: 1337,
         personas: ["cautious-yield-farmer", "panic-whale"],
         validator_url: "http://localhost:8899",
-        output_path: "riptide-adapt-smoke"
+        output_path: "riptide-adapter-smoke"
       },
       policies: loadSampleLendingPolicies(options.fixturesRoot)
     };

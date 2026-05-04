@@ -22,15 +22,14 @@ That stance has practical consequences:
 Use Riptide directly when you know the experiment:
 
 ```bash
-riptide run lending/whale-shock-grid --serve
+cd ~/path/to/your-anchor-program
+riptide run --adapter .riptide/adapters/<program-name>.toml --serve
 ```
 
-Use optional skills when you want a first draft:
+Use the optional merged skill when you want a first draft:
 
-- `riptide-adapt` drafts an adapter from an IDL and program context.
-- `riptide-harness` drafts the Rust setup harness for SPL accounts,
-  PDAs, sibling programs, and concrete pre-tick-0 bytes.
-- `riptide-scenarios` proposes starter stress catalogs for a wired adapter.
+- `riptide-config` owns adapter repair, Rust harness setup, starter
+  scenarios, campaign readiness, and the validation loop in one pass.
 - `riptide-narrative` can help summarize an emitted run.
 
 The skills are authoring accelerators. The engine only needs the plain files they produce.

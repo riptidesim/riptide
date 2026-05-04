@@ -45,8 +45,8 @@ empty bullet lists under their headings.
   `programs/lending_pool/src/state.rs`). Riptide does **not** fetch
   IDLs at run time; the value is an inspection pointer, not a dynamic
   fetch target.
-- **`generator`** — one of `hand-authored`, `riptide-adapt`, a pinned
-  identifier such as `riptide-adapt@<git-sha>`, or any string a
+- **`generator`** — one of `hand-authored`, `riptide-config`, a pinned
+  identifier such as `riptide-config@<git-sha>`, or any string a
   reviewer can trace back to a specific authoring pass. Free-form.
 - **`inferred_assumptions`** — a list of short human-readable strings.
   Each entry names one decision the author made that is not

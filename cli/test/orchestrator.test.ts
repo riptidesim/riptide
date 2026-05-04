@@ -174,7 +174,7 @@ test("orchestrator forwards explicit state-pack path to the engine", async () =>
 });
 
 test("orchestrator builds harness once and runs the release binary directly", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-harness-orch-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-setup-orch-"));
   const harnessDir = path.join(root, ".riptide", "harness");
   const manifest = path.join(harnessDir, "Cargo.toml");
   await mkdir(harnessDir, { recursive: true });
@@ -212,7 +212,7 @@ test("orchestrator builds harness once and runs the release binary directly", as
 });
 
 test("orchestrator honors generated harness rust-toolchain pin", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-harness-toolchain-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-setup-toolchain-"));
   const harnessDir = path.join(root, ".riptide", "harness");
   const manifest = path.join(harnessDir, "Cargo.toml");
   await mkdir(harnessDir, { recursive: true });

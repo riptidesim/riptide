@@ -37,7 +37,7 @@ async function runCommand(
 }
 
 test("harness generate writes a Rust crate with adapter account hints", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-harness-gen-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-setup-gen-"));
   const adapter = path.resolve(process.cwd(), "..", "fixtures", "adapters", "amm.toml");
 
   const result = await generateHarness(root, {
@@ -57,13 +57,18 @@ test("harness generate writes a Rust crate with adapter account hints", async ()
   assert.match(mainRs, /impl RiptideHarness for ProjectHarness/);
   assert.match(mainRs, /ctx\.require_declared_account\("pool"\)\?/);
   assert.match(mainRs, /ctx\.require_declared_account\("lp_position"\)\?/);
+  assert.match(mainRs, /deterministic\s+pre-tick-0 bytes/);
+  assert.match(mainRs, /ctx\.set_shared_account_data\("oracle", oracle_program, oracle_bytes\)\?/);
+  assert.match(mainRs, /ctx\.set_raw_account\(custom_pubkey, owner_program, account_bytes, None\)\?/);
+  assert.doesNotMatch(mainRs, /Replace zeroed generic\s+bootstrap accounts/);
 
   const readme = await readFile(path.join(result.dir, "README.md"), "utf8");
+  assert.match(readme, /`\/riptide-config` should complete this file/);
   assert.match(readme, /riptide run --adapter .* --harness \. --seeds 1 --seed-root 1337/);
 });
 
 test("harness generate rejects non-generic adapters", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-harness-lending-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-setup-lending-"));
   const adapter = path.resolve(process.cwd(), "..", "fixtures", "adapters", "lending.toml");
 
   await assert.rejects(
@@ -73,7 +78,7 @@ test("harness generate rejects non-generic adapters", async () => {
 });
 
 test("harness generate CLI output recommends one-seed smoke", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-harness-cli-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-setup-cli-"));
   const adapter = path.resolve(process.cwd(), "..", "fixtures", "adapters", "amm.toml");
   const harnessDir = path.join(root, ".riptide", "harness");
 
@@ -84,14 +89,15 @@ test("harness generate CLI output recommends one-seed smoke", async () => {
   );
 
   assert.equal(generated.code, 0, generated.stderr);
+  assert.match(generated.stderr, /complete deterministic setup/);
   assert.match(generated.stderr, /--harness .* --seeds 1 --seed-root 1337/);
 });
 
 test(
-  "harnessed generic user flow runs one deterministic seed",
+  "harnessed generic scaffold compiles before deterministic setup is filled",
   { skip: !HARNESSED_USER_FLOW_SMOKE, timeout: 300_000 },
   async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "riptide-harness-flow-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "riptide-setup-flow-"));
     const adapter = path.resolve(process.cwd(), "..", "fixtures", "adapters", "amm.toml");
     const harnessDir = path.join(root, ".riptide", "harness");
     const scenarioDir = path.join(root, ".riptide", "scenarios", "baseline");
@@ -127,30 +133,5 @@ test(
       root
     );
     assert.equal(built.code, 0, built.stderr);
-
-    const run = await runCommand(
-      process.execPath,
-      [
-        CLI_ENTRYPOINT,
-        "run",
-        "--adapter",
-        adapter,
-        "--harness",
-        harnessDir,
-        "--seeds",
-        "1",
-        "--seed-root",
-        "1337",
-        "--quiet",
-        "--format",
-        "json"
-      ],
-      root
-    );
-    assert.equal(run.code, 0, run.stderr || run.stdout);
-    const result = JSON.parse(run.stdout) as { seed: number; total_ticks: number; run_config: { agents: number } };
-    assert.equal(result.seed, 1337);
-    assert.equal(result.total_ticks, 1);
-    assert.equal(result.run_config.agents, 1);
   }
 );

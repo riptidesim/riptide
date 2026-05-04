@@ -1,14 +1,10 @@
-// `riptide init` — scaffold a `.riptide/` directory in the user's repo.
+// `riptide init` — minimally bootstrap a `.riptide/` directory.
 //
-// Scaffolding only. No compile, no smoke test, no LLM. Writes the
-// `.riptide/` adapter workspace with inline personas, scenario battery,
-// and run-state .gitignore entries. Exits 2 if `.riptide/` already
-// exists and --force was not passed; exits 0 on successful scaffold.
-//
-// On a TTY the command opens a short wizard (program name, protocol,
-// inline personas, scenarios, invariants, agents, ticks, seeds). Under
-// --yes, --quiet, or a non-TTY stdout the wizard is skipped and catalog
-// defaults apply.
+// Plain init is intentionally thin: no compile, smoke test, LLM,
+// questionnaire, personas, scenarios, invariants, seed counts, agent
+// counts, or tick counts. It writes the adapter placeholder,
+// GETTING-STARTED.md, and run-state .gitignore entries. The old rich
+// questionnaire path remains available only behind --wizard.
 
 import chalk from "chalk";
 import { Command } from "commander";
@@ -24,17 +20,6 @@ import {
 } from "../init/index.js";
 import { runWizard, type WizardAnswers, type WizardDefaults } from "../init/wizard.js";
 import { PROTOCOL_CHOICES, type Protocol } from "../init/personas-catalog.js";
-import {
-  scenarioChoicesFor,
-  type InitScenarioConfig,
-  type ScenarioCatalogEntry
-} from "../init/scenarios-catalog.js";
-import {
-  invariantChoicesFor,
-  invariantConfigFromCatalog,
-  type InitInvariantConfig
-} from "../init/invariants-catalog.js";
-import { resolveSeedCount, seedForSeedCount } from "../init/options.js";
 import { printInitBanner } from "../banner.js";
 
 const SECONDARY_TEXT = "#A8A8A8";
@@ -49,6 +34,7 @@ export interface InitOptions {
   protocol?: Protocol;
   profile?: Protocol;
   yes?: boolean;
+  wizard?: boolean;
 }
 
 // Injection seam for tests: real wizard talks to a TTY, so callers can
@@ -60,7 +46,7 @@ export interface InitDeps {
 
 export function createInitCommand(deps: InitDeps = {}): Command {
   const command = new Command("init").description(
-    "Scaffold a .riptide/ directory in a Solana program repo (adapter with inline personas, scenarios, getting-started guide)"
+    "Bootstrap a thin .riptide/ workspace; use /riptide-config to finish simulations"
   );
 
   command
@@ -74,10 +60,11 @@ export function createInitCommand(deps: InitDeps = {}): Command {
     )
     .option(
       "--profile <profile>",
-      "Alias for --protocol; selects the init profile to scaffold"
+      "Alias for --protocol; records a protocol hint in the adapter placeholder"
     )
-    .option("--yes", "Skip the interactive wizard and accept defaults", false)
-    .option("--quiet", "Suppress interactive banner (also skips the wizard)", false);
+    .option("--wizard", "Run the advanced interactive questionnaire scaffold", false)
+    .option("--yes", "Non-interactive minimal init (kept for scripts)", false)
+    .option("--quiet", "Suppress interactive banner and use non-interactive minimal init", false);
 
   return command.action(async (options: InitOptions) => {
     printInitBanner({ flags: { quiet: Boolean(options.quiet) } });
@@ -98,34 +85,20 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
     });
     const wizardAnswers = await maybeRunWizard(cwd, options, deps, detected, optionProtocol);
     const protocol = wizardAnswers?.protocol ?? optionProtocol ?? "custom";
-    const harnessMode = undefined;
-    const seeds = wizardAnswers?.seeds;
-    const personas = wizardAnswers?.personas ?? [];
-    const agents = wizardAnswers?.agents;
-    const ticks = wizardAnswers?.ticks;
-    const scenarios =
-      wizardAnswers?.scenarios ??
-      defaultScenariosFor(protocol, {
-        agents: agents ?? 100,
-        ticks: ticks ?? 30,
-        personas,
-        baselineUsesDefaults: Boolean(wizardAnswers),
-        seeds
-      });
-    const invariants = wizardAnswers?.invariants ?? defaultInvariantsFor(protocol);
+    const useWizardScaffold = wizardAnswers !== undefined;
     const result = await scaffold({
       cwd,
       force: options.force,
       blank: Boolean(options.blank),
       programName: wizardAnswers?.programName ?? options.name,
       protocol,
-      personas,
-      agents,
-      ticks,
-      scenarios,
-      invariants,
-      harnessMode,
-      seeds
+      mode: useWizardScaffold ? "wizard" : "minimal",
+      personas: wizardAnswers?.personas,
+      agents: wizardAnswers?.agents,
+      ticks: wizardAnswers?.ticks,
+      scenarios: wizardAnswers?.scenarios,
+      invariants: wizardAnswers?.invariants,
+      seeds: wizardAnswers?.seeds
     });
 
     process.stderr.write(
@@ -137,39 +110,33 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
     for (const warning of result.warnings) {
       process.stderr.write(chalk.yellow(`  warning: ${warning}\n`));
     }
-    // Echo the install-first sequence with the same first smoke the
-    // generated docs recommend: lint, set up harness when needed, then run
-    // one deterministic seed before the larger scenario battery. `adapt` is
-    // still useful for adapter-only repos, but it is not the main next step
-    // once account setup requires a harness.
     const adapterRel = `.riptide/adapters/${result.programName}.toml`;
     const harnessRel = ".riptide/harness";
-    const oneSeedRun = `riptide run --adapter ${adapterRel}${result.harnessCreated ? ` --harness ${harnessRel}` : ""} --seeds 1 --seed-root 1337`;
+    process.stderr.write("\nNext steps:\n\n");
+    process.stderr.write(`  1. Invoke ${chalk.cyan("/riptide-config")} in your coding agent.\n`);
+    process.stderr.write("     It will finish the adapter, harness, scenarios, campaign readiness, and validation.\n\n");
     process.stderr.write(
-      `\nNext: edit ${chalk.cyan(adapterRel)} to match your program (TODO comments name every block; the untouched stub is not lint-clean), then:\n`
+      `  2. Run the campaign it creates:\n     ${chalk.cyan("riptide campaign run .riptide/campaigns/<risk>.campaign.toml")}\n\n`
     );
+    process.stderr.write(`  3. Review the printed campaign root:\n     ${chalk.cyan("riptide review <campaign-root>")}\n\n`);
+    if (useWizardScaffold) {
+      const firstScenario = result.scenarios[0] ?? "baseline";
+      const oneSeedRun = `riptide run ${firstScenario} --adapter ${adapterRel}${result.harnessCreated ? ` --harness ${harnessRel}` : ""} --seeds 1 --seed-root 1337`;
+      process.stderr.write("Manual / advanced path:\n\n");
+      process.stderr.write(`     ${chalk.cyan(`riptide lint ${adapterRel}`)}\n`);
+      if (!result.harnessCreated) {
+        process.stderr.write(`     ${chalk.cyan(`riptide harness generate --adapter ${adapterRel}`)}  ${dim("# only when setup bytes are needed")}\n`);
+      }
+      process.stderr.write(`     ${chalk.cyan(oneSeedRun)}\n\n`);
+    } else {
+      process.stderr.write(
+        dim(
+          `Manual / advanced path: run ${chalk.cyan("riptide init --wizard --force")} only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.\n\n`
+        )
+      );
+    }
     process.stderr.write(
-      `  1. ${chalk.cyan(`riptide lint ${result.programName}`)}  ${dim("# static validation against the JSON IDL named in [lineage].idl_source")}\n`
-    );
-    process.stderr.write(
-      `  2. ${chalk.cyan(oneSeedRun)}  ${dim(result.harnessCreated ? "# first harnessed smoke" : "# first one-seed smoke")}\n`
-    );
-    process.stderr.write(
-      `  3. ${chalk.cyan(`riptide run --adapter ${adapterRel}${result.harnessCreated ? ` --harness ${harnessRel}` : ""}`)}  ${dim("# full scenario battery after the smoke passes")}\n`
-    );
-    process.stderr.write(
-      dim(`Optional setup layer only when needed: ${chalk.cyan(`riptide harness generate --adapter ${adapterRel}`)}, then add ${chalk.cyan(`--harness ${harnessRel}`)} to run commands.\n`)
-    );
-    process.stderr.write(
-      dim(`Optional adapter-only smoke for repos that do not need setup: ${chalk.cyan(`riptide adapt --adapter ${adapterRel}`)}\n`)
-    );
-    process.stderr.write(
-      dim(result.seeds === 1
-        ? "Seed count: generated run-configs pin one seed. Pass --seeds <N> for a larger sweep.\n"
-        : `Seed count: generated run-configs request ${result.seeds} seeds. Pass --seeds <N> to override.\n`)
-    );
-    process.stderr.write(
-      dim(`Run ${chalk.cyan("riptide doctor")} any time to recheck toolchain + adapter health. See .riptide/GETTING-STARTED.md for the full walkthrough.\n`)
+      dim(`More detail: ${chalk.cyan(".riptide/GETTING-STARTED.md")}\n`)
     );
     return 0;
   } catch (err) {
@@ -195,10 +162,14 @@ async function maybeRunWizard(
   detected?: ProgramDetection,
   optionProtocol?: Protocol
 ): Promise<WizardAnswers | undefined> {
-  const wantInteractive =
-    !options.yes && !options.quiet && (deps.isTTY ?? Boolean(process.stdout.isTTY));
-  if (!wantInteractive) {
+  if (!options.wizard || options.yes || options.quiet) {
     return undefined;
+  }
+  const isInteractive = deps.isTTY ?? Boolean(process.stdout.isTTY);
+  if (!isInteractive) {
+    throw new ProgramDetectionError(
+      "`riptide init --wizard` requires an interactive TTY. Run plain `riptide init` for the default minimal scaffold."
+    );
   }
 
   // Default the program-name prompt to the preflight result when one was
@@ -214,70 +185,6 @@ async function maybeRunWizard(
   };
   const prompt = deps.promptWizard ?? runWizard;
   return prompt(defaults);
-}
-
-function defaultScenariosFor(
-  protocol: Protocol,
-  defaults: {
-    agents: number;
-    ticks: number;
-    personas: string[];
-    baselineUsesDefaults: boolean;
-    seeds?: number;
-  }
-): InitScenarioConfig[] {
-  const seeds = resolveSeedCount(defaults.seeds);
-  const entries = scenarioChoicesFor(protocol).filter(
-    (entry) => entry.required || entry.recommended
-  );
-  if (entries.length === 0) {
-    return [
-      {
-        name: "baseline",
-        scenario: "baseline",
-        agents: defaults.agents,
-        ticks: defaults.ticks,
-        seed: seedForSeedCount(seeds),
-        seeds: seedForSeedCount(seeds) === undefined ? seeds : undefined,
-        personas: defaults.personas
-      }
-    ];
-  }
-  return entries.map((entry) => scenarioFromCatalog(entry, defaults));
-}
-
-function scenarioFromCatalog(
-  entry: ScenarioCatalogEntry,
-  defaults: {
-    agents: number;
-    ticks: number;
-    personas: string[];
-    baselineUsesDefaults: boolean;
-    seeds?: number;
-  }
-): InitScenarioConfig {
-  const seeds = resolveSeedCount(defaults.seeds);
-  const seed = seedForSeedCount(seeds);
-  const isBaseline = entry.name === "baseline" || entry.scenario === "baseline";
-  const useDefaultSizing = isBaseline && defaults.baselineUsesDefaults;
-  return {
-    name: entry.name,
-    scenario: entry.scenario,
-    agents: useDefaultSizing ? defaults.agents : (entry.agents ?? defaults.agents),
-    ticks: useDefaultSizing ? defaults.ticks : (entry.ticks ?? defaults.ticks),
-    seed,
-    seeds: seed === undefined ? seeds : undefined,
-    personas: entry.defaultPersonas ?? defaults.personas
-  };
-}
-
-function defaultInvariantsFor(protocol: Protocol): InitInvariantConfig[] {
-  return invariantChoicesFor(protocol)
-    // Commented templates are selected by default so non-interactive
-    // scaffolds still show the user what to wire, without creating
-    // active invariants against undeclared observations.
-    .filter((entry) => entry.required || entry.recommended || entry.commented)
-    .map((entry) => invariantConfigFromCatalog(entry));
 }
 
 function normalizeProtocolOption(value: Protocol | undefined): Protocol | undefined {

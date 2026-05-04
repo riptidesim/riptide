@@ -4,11 +4,11 @@
 // - empty dirs fail by default instead of creating a fake `my-program`
 // - `--blank --name <program>` explicitly opts into a manual stub
 // - Anchor.toml or matching target artifacts identify the adapter name
-// - the wizard (when run) collects program name, protocol, setup harness,
+// - plain init never opens the questionnaire
+// - the --wizard path collects program name, protocol, setup harness,
 //   inline personas, agents, ticks, seeds; defaults reproduce the non-interactive output
-// - non-interactive runs (--yes, no-TTY, --quiet) scaffold the adapter,
-//   GETTING-STARTED.md, baseline scenario, and .gitignore entries; no
-//   personas/ directory is copied because personas live inline in the adapter.
+// - non-interactive runs (--yes, no-TTY, --quiet) scaffold only the adapter,
+//   GETTING-STARTED.md, and .gitignore entries; no scenarios or personas are generated.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -119,7 +119,7 @@ test("init: empty temp dir fails by default", async () => {
   assert.equal(existsSync(path.join(cwd, ".riptide")), false);
 });
 
-test("init: --blank --name creates the minimal manual scaffold (no personas, baseline scenario)", async () => {
+test("init: --blank --name creates the minimal manual scaffold (no personas or scenarios)", async () => {
   const cwd = await mkTempRepo();
   const exit = await runInit({ force: false, dir: cwd, blank: true, name: "manual-program" });
   assert.equal(exit, 0);
@@ -127,14 +127,36 @@ test("init: --blank --name creates the minimal manual scaffold (no personas, bas
   const riptideDir = path.join(cwd, ".riptide");
   assert.ok(existsSync(path.join(riptideDir, "adapters", "manual-program.toml")));
   assert.ok(existsSync(path.join(riptideDir, "GETTING-STARTED.md")));
-  // Default protocol is "custom" → no persona presets are copied.
   assert.ok(!existsSync(path.join(riptideDir, "personas")));
-  // Baseline scenario is always scaffolded so the user has a runnable starting point.
-  assert.ok(existsSync(path.join(riptideDir, "scenarios", "baseline", "run-config.json")));
+  assert.ok(!existsSync(path.join(riptideDir, "scenarios", "baseline", "run-config.json")));
 
   const gitignore = await readFile(path.join(cwd, ".gitignore"), "utf8");
   assert.match(gitignore, /\.riptide\/runs\//);
   assert.match(gitignore, /\.riptide\/last-run\.json/);
+});
+
+test("init: plain TTY init does not call the wizard", async () => {
+  const cwd = await mkTempRepo();
+  await writeAnchor(cwd, SINGLE_ANCHOR);
+
+  let wizardCalled = false;
+  const stderr = await captureStderr(async () => {
+    const exit = await runInit(
+      { force: false, dir: cwd },
+      {
+        isTTY: true,
+        promptWizard: async () => {
+          wizardCalled = true;
+          throw new Error("plain init should not run the wizard");
+        }
+      }
+    );
+    assert.equal(exit, 0);
+  });
+
+  assert.equal(wizardCalled, false);
+  assert.match(stderr, /Invoke \/riptide-config/);
+  assert.ok(!existsSync(path.join(cwd, ".riptide", "scenarios", "baseline", "run-config.json")));
 });
 
 test("init: Anchor.toml present → inferred program name flows into adapter filename + content", async () => {
@@ -228,7 +250,7 @@ test("detectProgram: matching target artifacts identify a non-Anchor program", a
   assert.equal(detected.source, "artifacts");
 });
 
-test("scaffold: generic init prefills compact IDL-backed adapter hints", async () => {
+test("scaffold: wizard init prefills compact IDL-backed adapter hints", async () => {
   const cwd = await mkTempRepo();
   await mkdir(path.join(cwd, "target", "deploy"), { recursive: true });
   await mkdir(path.join(cwd, "target", "idl"), { recursive: true });
@@ -265,7 +287,8 @@ test("scaffold: generic init prefills compact IDL-backed adapter hints", async (
   const result = await scaffold({
     cwd,
     force: false,
-    protocol: "custom"
+    protocol: "custom",
+    mode: "wizard"
   });
 
   assert.equal(result.programName, "raw-program");
@@ -296,7 +319,8 @@ test("init: --profile aliases --protocol for non-interactive scaffolds", async (
     path.join(cwd, ".riptide", "adapters", "profile-program.toml"),
     "utf8"
   );
-  assert.match(adapterBody, /Selected adapter type: amm/);
+  assert.match(adapterBody, /Adapter profile hint: amm/);
+  assert.doesNotMatch(adapterBody, /Selected adapter type: amm/);
 });
 
 test("inferProgramName: Anchor.toml names one program, otherwise null", async () => {
@@ -362,7 +386,8 @@ anchor_uniswap_v2 = "11111111111111111111111111111111"
   const result = await scaffold({
     cwd,
     force: false,
-    protocol: "amm"
+    protocol: "amm",
+    mode: "wizard"
   });
 
   assert.equal(result.programName, "anchor-uniswap-v2");
@@ -399,62 +424,49 @@ test("renderGettingStarted: harnessed repos promote one-seed harness smoke", () 
     scenarios: ["baseline"],
     harnessCreated: true,
     seeds: 50,
-    protocol: "amm"
+    protocol: "amm",
+    mode: "wizard"
   });
 
   assert.match(
     body,
-    /riptide run --adapter \.riptide\/adapters\/anchor-uniswap-v2\.toml --harness \.riptide\/harness --seeds 1 --seed-root 1337/
+    /riptide run baseline --adapter \.riptide\/adapters\/anchor-uniswap-v2\.toml --harness \.riptide\/harness --seeds 1 --seed-root 1337/
   );
   assert.doesNotMatch(body, /bare `riptide run` executes a 50-seed sweep/);
   assert.match(body, /AMM currently uses `protocol = "generic"`/);
 });
 
-test("init: next steps keep harness as an optional escalation", async () => {
+test("init: next steps point at riptide-config by default", async () => {
   const cwd = await mkTempRepo();
   await writeAnchor(cwd, `[programs.localnet]
 anchor_uniswap_v2 = "11111111111111111111111111111111"
 `);
 
+  let wizardCalled = false;
   const stderr = await captureStderr(async () => {
     const exit = await runInit(
       { force: false, dir: cwd },
       {
         isTTY: true,
-        promptWizard: async () => ({
-          programName: "anchor-uniswap-v2",
-          protocol: "amm",
-          seeds: 50,
-          personas: [],
-          scenarios: [
-            {
-              name: "baseline",
-              scenario: "baseline",
-              agents: 10,
-              ticks: 5,
-              personas: []
-            }
-          ],
-          invariants: [],
-          agents: 10,
-          ticks: 5
-        })
+        promptWizard: async () => {
+          wizardCalled = true;
+          throw new Error("plain init should not run the wizard");
+        }
       }
     );
     assert.equal(exit, 0);
   });
 
-  const smoke =
-    "riptide run --adapter .riptide/adapters/anchor-uniswap-v2.toml --seeds 1 --seed-root 1337";
-  const full =
-    "riptide run --adapter .riptide/adapters/anchor-uniswap-v2.toml";
-  assert.match(stderr, /1\. riptide lint anchor-uniswap-v2/);
-  assert.doesNotMatch(stderr, /2\. \.riptide\/harness\/src\/main\.rs/);
-  assert.ok(stderr.includes(smoke), stderr);
-  assert.match(stderr, /3\. riptide run --adapter \.riptide\/adapters\/anchor-uniswap-v2\.toml/);
-  assert.ok(stderr.indexOf(smoke) < stderr.lastIndexOf(full), stderr);
-  assert.match(stderr, /Optional setup layer only when needed/);
-  assert.match(stderr, /Optional adapter-only smoke/);
+  assert.equal(wizardCalled, false);
+  assert.match(stderr, /Next steps:/);
+  assert.match(stderr, /1\. Invoke \/riptide-config/);
+  assert.match(stderr, /riptide campaign run \.riptide\/campaigns\/<risk>\.campaign\.toml/);
+  assert.match(stderr, /riptide review <campaign-root>/);
+  assert.match(stderr, /Manual \/ advanced path: run riptide init --wizard --force/);
+  assert.match(stderr, /replace this thin scaffold with questionnaire-selected starter files/);
+  assert.match(stderr, /More detail: \.riptide\/GETTING-STARTED\.md/);
+  assert.doesNotMatch(stderr, /Fill the adapter TODOs/);
+  assert.ok(!existsSync(path.join(cwd, ".riptide", "scenarios", "baseline", "run-config.json")));
 });
 
 test("renderAdapterStub: selected persona blocks are embedded in the adapter", () => {
@@ -501,10 +513,10 @@ test("scaffold: result records warnings for explicit blank scaffolds", async () 
     [
       ".gitignore",
       ".riptide/GETTING-STARTED.md",
-      ".riptide/adapters/manual-program.toml",
-      ".riptide/scenarios/baseline/run-config.json"
+      ".riptide/adapters/manual-program.toml"
     ].sort()
   );
+  assert.deepEqual(result.scenarios, []);
   assert.equal(result.warnings.length, 1);
   assert.match(result.warnings[0]!, /blank scaffold requested/);
 });
@@ -519,7 +531,8 @@ test("scaffold: protocol + personas → matching persona blocks are inlined in t
     protocol: "amm",
     personas: ["swapper", "arbitrageur"],
     agents: 15,
-    ticks: 25
+    ticks: 25,
+    mode: "wizard"
   });
 
   const personasDir = path.join(cwd, ".riptide", "personas");
@@ -559,7 +572,8 @@ test("scaffold: one seed and harness mode create seeded run-config plus TODO har
     agents: 100,
     ticks: 10,
     seeds: 1,
-    harnessMode: "todo"
+    harnessMode: "todo",
+    mode: "wizard"
   });
 
   assert.equal(result.harnessCreated, true);
@@ -609,6 +623,7 @@ test("scaffold: explicit scenario battery writes each run-config with scenario-s
     programName: "lending",
     protocol: "lending",
     personas: ["steady-lp"],
+    mode: "wizard",
     scenarios: [
       {
         name: "baseline",
@@ -673,7 +688,8 @@ test("scaffold: required catalog scenarios are retained when caller passes an em
     programName: "lending",
     protocol: "lending",
     personas: [],
-    scenarios: []
+    scenarios: [],
+    mode: "wizard"
   });
 
   assert.ok(existsSync(path.join(cwd, ".riptide", "scenarios", "baseline", "run-config.json")));
@@ -688,6 +704,7 @@ test("scaffold: required invariants are retained and explicit duplicates are uni
     blank: true,
     programName: "lending",
     protocol: "lending",
+    mode: "wizard",
     invariants: [
       initInvariant("lending", "no_bad_debt"),
       initInvariant("lending", "health_factor_positive"),
@@ -709,7 +726,8 @@ test("scaffold: custom protocol inlines generic personas from the custom bucket"
     blank: true,
     programName: "manual-program",
     protocol: "custom",
-    personas: ["swapper", "whale"]
+    personas: ["swapper", "whale"],
+    mode: "wizard"
   });
   assert.ok(!existsSync(path.join(cwd, ".riptide", "personas")));
   const adapterBody = await readFile(path.join(cwd, ".riptide", "adapters", "manual-program.toml"), "utf8");
@@ -725,7 +743,8 @@ test("scaffold: empty persona list does not create a personas/ directory", async
     blank: true,
     programName: "manual-program",
     protocol: "custom",
-    personas: []
+    personas: [],
+    mode: "wizard"
   });
   assert.ok(!existsSync(path.join(cwd, ".riptide", "personas")));
 });
@@ -740,7 +759,8 @@ test("scaffold: lending protocol embeds selected policy personas and starter act
     protocol: "lending",
     personas: ["steady-lp", "whale"],
     agents: 1000,
-    ticks: 30
+    ticks: 30,
+    mode: "wizard"
   });
 
   const adapterBody = await readFile(path.join(cwd, ".riptide", "adapters", "lending.toml"), "utf8");
@@ -813,13 +833,18 @@ test("renderRunConfig: multiple seeds emits a sweep count", () => {
 
 test("renderGettingStarted: references scaffolded scenarios; no-personas variant stays terse", () => {
   const withBoth = renderGettingStarted("my-program", {
-    scenarios: ["baseline", "oracle-price-shock"]
+    scenarios: ["baseline", "oracle-price-shock"],
+    mode: "wizard"
   });
   assert.ok(withBoth.includes("my-program"));
   assert.ok(withBoth.includes("scenarios/baseline/run-config.json"));
   assert.ok(withBoth.includes("scenarios/oracle-price-shock/run-config.json"));
-  assert.ok(withBoth.includes("riptide run --adapter .riptide/adapters/my-program.toml"));
+  assert.ok(withBoth.includes("riptide run baseline --adapter .riptide/adapters/my-program.toml"));
   assert.ok(withBoth.includes("adapters/my-program.toml` `[personas.*]"));
+  assert.ok(withBoth.includes("## Skill-First Setup"));
+  assert.ok(withBoth.includes("`/riptide-config`"));
+  assert.ok(withBoth.includes("personas, scenarios, invariants, and campaign creation"));
+  assert.ok(withBoth.includes("`riptide-narrative`"));
   assert.ok(withBoth.includes('"seeds": 50'));
   assert.ok(withBoth.includes("50-seed sweep"));
   assert.ok(!withBoth.includes("personas/*.toml"));
@@ -828,14 +853,17 @@ test("renderGettingStarted: references scaffolded scenarios; no-personas variant
   const withHarness = renderGettingStarted("my-program", {
     scenarios: ["baseline"],
     harnessCreated: true,
-    seeds: 1
+    seeds: 1,
+    mode: "wizard"
   });
   assert.ok(withHarness.includes("harness/"));
   assert.ok(withHarness.includes("--harness .riptide/harness"));
   assert.ok(withHarness.includes('"seed": 1337'));
 
   const minimal = renderGettingStarted("my-program");
-  assert.ok(minimal.includes("adapters/my-program.toml` `[personas.*]"));
+  assert.ok(minimal.includes("/riptide-config"));
+  assert.ok(minimal.includes("riptide campaign run .riptide/campaigns/<risk>.campaign.toml"));
+  assert.ok(!minimal.includes("adapters/my-program.toml` `[personas.*]"));
   assert.ok(!minimal.includes("personas/*.toml"));
   assert.ok(!minimal.includes("scenarios/baseline/run-config.json"));
 });
@@ -863,7 +891,7 @@ test("init: wizard answers thread into scaffold output (injected promptWizard)",
     ticks: 12
   };
   const exit = await runInit(
-    { force: false, dir: cwd },
+    { force: false, dir: cwd, wizard: true },
     {
       isTTY: true,
       promptWizard: async () => fakeAnswers
@@ -914,7 +942,19 @@ test("init: --yes skips the wizard even when isTTY is true", async () => {
   assert.equal(wizardCalled, false);
 });
 
-test("init: --yes with lending protocol scaffolds required plus recommended scenarios", async () => {
+test("init: --wizard requires an interactive TTY", async () => {
+  const cwd = await mkTempRepo();
+  await writeAnchor(cwd, SINGLE_ANCHOR);
+
+  const exit = await runInit(
+    { force: false, dir: cwd, wizard: true },
+    { isTTY: false }
+  );
+  assert.equal(exit, 2);
+  assert.equal(existsSync(path.join(cwd, ".riptide")), false);
+});
+
+test("init: --yes with lending protocol stays minimal and records a profile hint", async () => {
   const cwd = await mkTempRepo();
   const exit = await runInit({
     force: false,
@@ -934,55 +974,20 @@ test("init: --yes with lending protocol scaffolds required plus recommended scen
     "oracle-price-shock",
     "run-config.json"
   );
-  assert.ok(existsSync(baselinePath));
-  assert.ok(existsSync(oracleShockPath));
+  assert.ok(!existsSync(baselinePath));
+  assert.ok(!existsSync(oracleShockPath));
   assert.ok(!existsSync(path.join(cwd, ".riptide", "scenarios", "bank-run", "run-config.json")));
 
-  const baseline = JSON.parse(await readFile(baselinePath, "utf8")) as {
-    agents: number;
-    ticks: number;
-    scenario: string;
-  };
-  assert.equal(baseline.scenario, "baseline");
-  assert.equal(baseline.agents, 50);
-  assert.equal(baseline.ticks, 60);
-
-  const oracleShock = JSON.parse(await readFile(oracleShockPath, "utf8")) as {
-    scenario: string;
-    personas: Record<string, number>;
-  };
-  assert.equal(oracleShock.scenario, "price-shock");
-  assert.deepEqual(oracleShock.personas, {
-    "steady-lp": 17,
-    "panic-whale": 17,
-    "degen-borrower": 16
-  });
-
   const adapterBody = await readFile(path.join(cwd, ".riptide", "adapters", "lending.toml"), "utf8");
-  assert.match(adapterBody, /^\[\[invariants\]\]$/m);
-  assert.match(adapterBody, /^name = "no_bad_debt"$/m);
-  assert.match(adapterBody, /^field = "cumulative_bad_debt"$/m);
-  assert.match(adapterBody, /^\[semantics\]$/m);
-  assert.match(adapterBody, /^class = "lending\.v1"$/m);
-  assert.equal(countOccurrences(adapterBody, "[[semantics.invariants]]"), 3);
-
-  const adapter = validateAdapter(TOML.parse(adapterBody), "lending.toml");
-  assert.equal(adapter.invariants.some((invariant) => invariant.field === "cumulative_bad_debt"), true);
-  assert.equal(adapter.semantics?.class, "lending.v1");
-  assert.deepEqual(Object.keys(adapter.semantics?.roles ?? {}).sort(), [
-    "liquidation_config",
-    "oracle",
-    "position",
-    "reserve"
-  ]);
-  assert.deepEqual(adapter.semantics?.invariants.map((invariant) => invariant.name).sort(), [
-    "debt_below_collateral",
-    "debt_below_max_borrow",
-    "health_factor_positive"
-  ]);
+  assert.match(adapterBody, /Adapter profile hint: lending/);
+  assert.match(adapterBody, /^protocol = "generic"$/m);
+  assert.match(adapterBody, /^program_so = "target\/deploy\/lending\.so"$/m);
+  assert.match(adapterBody, /^idl_path = "target\/idl\/lending\.json"$/m);
+  assert.doesNotMatch(adapterBody, /^\[\[invariants\]\]$/m);
+  assert.doesNotMatch(adapterBody, /^\[semantics\]$/m);
 });
 
-test("init: --yes with non-lending protocol emits only commented invariant templates", async () => {
+test("init: --yes with non-lending protocol emits no invariant templates", async () => {
   const cwd = await mkTempRepo();
   const exit = await runInit({
     force: false,
@@ -996,7 +1001,7 @@ test("init: --yes with non-lending protocol emits only commented invariant templ
 
   const adapterBody = await readFile(path.join(cwd, ".riptide", "adapters", "perps.toml"), "utf8");
   assert.doesNotMatch(adapterBody, /^\[\[invariants\]\]$/m);
-  assert.match(adapterBody, /^# \[\[invariants\]\]$/m);
+  assert.doesNotMatch(adapterBody, /^# \[\[invariants\]\]$/m);
   assert.doesNotMatch(adapterBody, /^\[semantics\]$/m);
 
   const parsed = TOML.parse(adapterBody) as Record<string, unknown>;

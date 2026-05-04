@@ -262,7 +262,7 @@ test("semantics lint: malformed class string fails", () => {
 });
 
 test("adapt: semantics lint preflight aborts before smoke even without JSON lineage", async () => {
-  const dir = await mkdtemp(path.join(os.tmpdir(), "riptide-adapt-semantics-"));
+  const dir = await mkdtemp(path.join(os.tmpdir(), "riptide-adapter-semantics-"));
   const adapterPath = path.join(dir, "adapter.toml");
   await writeFile(
     adapterPath,

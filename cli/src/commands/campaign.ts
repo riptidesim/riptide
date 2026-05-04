@@ -14,6 +14,11 @@ import {
   type CampaignExpansionPlan,
   type CampaignSpec
 } from "../campaign/index.js";
+import {
+  pickColorizer,
+  shouldUseColor,
+  type Colorizer
+} from "../display/index.js";
 import { exitCodeFromSummary } from "../run/exit-codes.js";
 
 export function createCampaignCommand(): Command {
@@ -278,50 +283,237 @@ function renderPlan(spec: CampaignSpec, plan: CampaignExpansionPlan): string {
   return lines.join("\n");
 }
 
-function renderRun(result: CampaignExecutionResult): string {
-  const completed = result.runSummary.pass + result.runSummary.fail;
-  const retainedLabels = result.retentionManifest.entries
-    .map((entry) =>
-      entry.status === "selected"
-        ? `${entry.label}=${entry.run_id}`
-        : `${entry.label}=warning`
-    )
-    .join(", ");
-  return [
-    `campaign run: ${result.campaignSummary.campaign.name}`,
-    `  class: ${result.campaignSummary.campaign.class}`,
-    `  objective: ${result.campaignSummary.campaign.risk_objective}`,
-    `  campaign id: ${result.plan.campaignId}`,
-    `  campaign digest: ${result.plan.campaignDigest}`,
-    `  requested runs: ${result.plan.runs.length}`,
-    `  completed runs: ${completed}`,
-    `  invariant failures: ${result.runSummary.fail}`,
-    `  setup errors: ${result.runSummary.error}`,
-    `  skipped: ${result.runSummary.skipped}`,
-    `  risk signals: ${campaignRiskLine(result)}`,
-    `  generated configs: ${result.createdConfigs} created, ${result.reusedConfigs} reused`,
-    `  retained labels: ${retainedLabels || "(none)"}`,
-    `  output dir: ${result.plan.campaignRoot}`,
-    `  runs log: ${result.runsJsonlPath}`,
-    `  summary: ${result.artifactPaths.summaryMarkdownPath}`,
-    `  retention manifest: ${result.artifactPaths.retentionManifestPath}`,
-    "  claim boundary: no invariant violation observed means no violation observed in this campaign, not proof of complete safety.",
+export interface RenderRunOptions {
+  color?: boolean;
+}
+
+export function renderRun(result: CampaignExecutionResult, options: RenderRunOptions = {}): string {
+  const c = pickColorizer(
+    options.color ?? shouldUseColor(process.env, Boolean(process.stdout.isTTY))
+  );
+  const campaignRoot = campaignRootDisplayPath(result);
+  const warningLabels = retentionWarningLabels(result);
+  const lines = [
+    `${campaignRunTitle(result, c)}: ${c.cyan(result.campaignSummary.campaign.name)}`,
+    "",
+    c.bold("Result"),
+    `  Outcome: ${campaignOutcomeLine(result, c)}`,
+    `  Runs: ${campaignRunsLine(result)}`,
+    `  Risk signals: ${campaignRiskLine(result)}`,
+    `  Coverage: ${campaignCoverageLine(result, c)}`,
+    "",
+    c.bold("Workload"),
+    `  Size: ${campaignWorkloadLine(result)}`,
+    `  Simulation time: ${formatDuration(simulationTimeSeconds(result))}`,
+    `  Configs: ${campaignConfigsLine(result)}`,
+    "",
+    c.bold("Next"),
+    `  ${c.cyan(`riptide review ${shellQuotePath(campaignRoot)}`)}`,
+    "",
+    c.bold("Evidence"),
+    `  Summary: ${c.cyan(artifactDisplayPath(result, "markdown_summary"))}`,
+    `  Artifacts: ${c.cyan(campaignRoot)}`,
+    `  Retained cases: ${retainedSelectionLine(result, c)}`
+  ];
+  if (warningLabels) {
+    lines.push(`  Retention warnings: ${c.yellow(warningLabels)}`);
+  }
+  lines.push(
+    "",
+    c.bold("Details"),
+    c.dim(`  Objective: ${result.campaignSummary.campaign.risk_objective} (${result.campaignSummary.campaign.class})`),
+    c.dim(`  Campaign ID: ${result.plan.campaignId}`),
+    c.dim(`  Digest: ${compactDigest(result.plan.campaignDigest)}`),
+    "",
+    c.bold("Boundary"),
+    c.dim("  No invariant violation observed means none was observed in this campaign, not proof of complete safety."),
     ""
-  ].join("\n");
+  );
+  return lines.join("\n");
 }
 
 function campaignRiskLine(result: CampaignExecutionResult): string {
   const lending = result.campaignSummary.lending;
-  if (!lending) return "not available for this campaign class";
-  return [
-    `bad debt max=${formatRiskValue(lending.total_bad_debt.max)}`,
-    `liquidations max=${formatRiskValue(lending.total_liquidations.max)}`,
-    `max utilization=${formatRiskValue(lending.liquidity_stress.max_utilization_observed)}`
-  ].join(", ");
+  if (!lending) return `not available for ${result.campaignSummary.campaign.class}`;
+  const signals: string[] = [];
+  if (lending.total_bad_debt.max !== null) {
+    signals.push(`bad debt max=${formatRiskValue(lending.total_bad_debt.max)}`);
+  }
+  if (lending.total_liquidations.max !== null) {
+    signals.push(`liquidations max=${formatRiskValue(lending.total_liquidations.max)}`);
+  }
+  if (lending.liquidity_stress.max_utilization_observed !== null) {
+    signals.push(
+      `max utilization=${formatRiskValue(lending.liquidity_stress.max_utilization_observed)}`
+    );
+  }
+  return signals.length > 0 ? signals.join(", ") : "no lending risk metrics reported";
 }
 
 function formatRiskValue(value: number | null): string {
   return value === null ? "n/a" : String(Math.round(value * 1_000_000) / 1_000_000);
+}
+
+function campaignRunTitle(result: CampaignExecutionResult, c: Colorizer): string {
+  if (result.runSummary.error > 0) return c.yellow("Campaign finished");
+  if (result.runSummary.fail > 0) return c.red("Campaign finished");
+  return c.green("Campaign complete");
+}
+
+function campaignOutcomeLine(result: CampaignExecutionResult, c: Colorizer): string {
+  const invariantText = result.runSummary.fail === 0
+    ? c.green("no invariant failures observed")
+    : c.red(`${formatCount(result.runSummary.fail, "invariant failure")} observed`);
+  const setupText = result.runSummary.error === 0
+    ? c.green("no setup errors")
+    : c.yellow(formatCount(result.runSummary.error, "setup error"));
+  return `${invariantText}, ${setupText}`;
+}
+
+function campaignRunsLine(result: CampaignExecutionResult): string {
+  const completed = result.runSummary.pass + result.runSummary.fail;
+  return [
+    `${completed}/${result.plan.runs.length} completed`,
+    formatCount(result.runSummary.error, "setup error"),
+    formatCount(result.runSummary.skipped, "skipped run")
+  ].join(", ");
+}
+
+function campaignCoverageLine(result: CampaignExecutionResult, c: Colorizer): string {
+  const interpretations = result.runSummary.scenarios
+    .map((scenario) => scenario.interpretation)
+    .filter((interpretation) => interpretation !== undefined);
+  if (interpretations.length === 0) return c.dim("not classified");
+  const coverageCounts = countStrings(
+    interpretations.map((interpretation) => interpretation.coverage)
+  );
+  const confidenceCounts = countStrings(
+    interpretations.map((interpretation) => interpretation.confidence)
+  );
+  const coverage = formatCountMap(coverageCounts);
+  const confidence = formatCountMap(confidenceCounts);
+  const text = `${coverage}; confidence ${confidence}`;
+  return coverageCounts.partial || coverageCounts.none || confidenceCounts.low
+    ? c.yellow(text)
+    : c.green(text);
+}
+
+function campaignWorkloadLine(result: CampaignExecutionResult): string {
+  const workload = new Map<string, { count: number; family: string; agents: number | null; ticks: number | null }>();
+  for (const run of result.plan.runs) {
+    const config = jsonObject(run.runConfig);
+    const agents = numberValue(config?.agents);
+    const ticks = numberValue(config?.ticks);
+    const key = `${run.scenarioFamily}\0${agents ?? "?"}\0${ticks ?? "?"}`;
+    const existing = workload.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      workload.set(key, { count: 1, family: run.scenarioFamily, agents, ticks });
+    }
+  }
+  if (workload.size === 0) return `${result.plan.runs.length} runs`;
+  return [...workload.values()]
+    .sort((left, right) => left.family.localeCompare(right.family))
+    .map((entry) =>
+      `${entry.count}x ${entry.family} (${formatUnitCount(entry.agents, "agent")} x ${formatUnitCount(entry.ticks, "tick")})`
+    )
+    .join(", ");
+}
+
+function campaignConfigsLine(result: CampaignExecutionResult): string {
+  const base = `${result.createdConfigs} created, ${result.reusedConfigs} reused`;
+  return result.reusedConfigs > 0
+    ? `${base} (configs reused; simulations still executed)`
+    : base;
+}
+
+function formatCount(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function retainedSelectionLine(result: CampaignExecutionResult, c: Colorizer): string {
+  const selected = result.retentionManifest.entries.filter((entry) => entry.status === "selected");
+  if (selected.length === 0) return "(none selected)";
+  return selected.map((entry) => `${entry.label} -> ${c.cyan(entry.run_id)}`).join(", ");
+}
+
+function retentionWarningLabels(result: CampaignExecutionResult): string {
+  return result.retentionManifest.entries
+    .filter((entry) => entry.status === "warning")
+    .map((entry) => entry.label)
+    .join(", ");
+}
+
+function campaignRootDisplayPath(result: CampaignExecutionResult): string {
+  return result.campaignSummary.campaign.output_dir || displayPath(result.plan.campaignRoot);
+}
+
+function artifactDisplayPath(
+  result: CampaignExecutionResult,
+  artifact: keyof CampaignExecutionResult["campaignSummary"]["artifacts"]
+): string {
+  const artifactPath = result.campaignSummary.artifacts[artifact];
+  if (path.isAbsolute(artifactPath)) return artifactPath;
+  const root = campaignRootDisplayPath(result);
+  return root === "." ? artifactPath : path.join(root, artifactPath);
+}
+
+function displayPath(filePath: string): string {
+  const relative = path.relative(process.cwd(), filePath);
+  if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) return relative;
+  return filePath;
+}
+
+function shellQuotePath(filePath: string): string {
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(filePath)) return filePath;
+  return `'${filePath.replace(/'/g, "'\\''")}'`;
+}
+
+function compactDigest(digest: string): string {
+  return digest.length <= 24 ? digest : `${digest.slice(0, 12)}...${digest.slice(-6)}`;
+}
+
+function simulationTimeSeconds(result: CampaignExecutionResult): number {
+  return result.runSummary.scenarios.reduce(
+    (total, scenario) => total + (typeof scenario.wall_clock_s === "number" ? scenario.wall_clock_s : 0),
+    0
+  );
+}
+
+function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds)) return "unknown";
+  if (seconds < 1) return `${Math.round(seconds * 1000)}ms`;
+  if (seconds < 10) return `${Math.round(seconds * 100) / 100}s`;
+  return `${Math.round(seconds)}s`;
+}
+
+function countStrings(values: string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const value of values) counts[value] = (counts[value] ?? 0) + 1;
+  return counts;
+}
+
+function formatCountMap(counts: Record<string, number>): string {
+  return Object.entries(counts)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([label, count]) => `${count} ${label}`)
+    .join(", ");
+}
+
+function jsonObject(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function numberValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function formatUnitCount(value: number | null, singular: string): string {
+  if (value === null) return `unknown ${singular}s`;
+  return formatCount(value, singular);
 }
 
 function scenarioMix(plan: CampaignExpansionPlan): Record<string, number> {
