@@ -47,4 +47,5 @@ name = "litesvm_benchmark"
 
 [dev-dependencies]
 litesvm = "0.11.0"
+riptide-sim = { path = "../riptide-sim" }
 tempfile = "3.27.0"

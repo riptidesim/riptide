@@ -1,0 +1,21 @@
+[package]
+name = "riptide-sim"
+version = "0.7.0"
+edition = "2021"
+description = "Guided Rust simulation API for Riptide project-owned protocol flows."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/riptidesim/riptide"
+publish = false
+
+[dependencies]
+anyhow = "1.0.102"
+borsh = { version = "1.6.1", features = ["derive"] }
+clap = { version = "4.6.0", features = ["derive", "env", "unicode"] }
+litesvm = "0.11.0"
+rand = "0.9.2"
+riptide-sim-macros = { path = "../riptide-sim-macros" }
+solana-account = "3.2.0"
+solana-clock = "3.0.1"
+solana-sdk = "4.0.1"
+solana-system-interface = { version = "3.2.0", features = ["bincode"] }
+solana-transaction = "3.1.0"

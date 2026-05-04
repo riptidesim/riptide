@@ -37,8 +37,9 @@ genuinely ambiguous. Work until one final state is true:
   campaign readiness; `riptide campaign run` remains a separate user
   command.
 - `bounded_ready = yes` — a narrower campaign runs and is validated, but
-  specific harness-solvable setup gaps or engine/runtime dispatcher gaps
-  keep the broader intended surface outside the current campaign.
+  specific harness-solvable setup gaps, guided-sim required surfaces, or
+  unsupported engine gaps keep the broader intended surface outside the
+  current campaign.
 - `blocked = <reason>` — local source, build artifacts, CLI validation,
   harness compile, or smoke output names a fixable blocker.
 - `unsupported = <boundary>` — the program depends on a protocol
@@ -180,11 +181,10 @@ feed ID, or serialization cannot be determined from local facts, return
 `blocked = missing deterministic <fact> for harness setup` and name the
 account/instruction. Do not hide that state behind a vague TODO comment.
 
-Harness setup owns pre-tick-0 accounts and sibling programs. It does
-not teach the generic dispatcher to construct dynamic
-`remaining_accounts`, add new signer aliases, or encode unsupported
-custom arguments. Report those separately as engine/runtime dispatcher
-gaps.
+Harness setup owns pre-tick-0 accounts and sibling programs. Dynamic
+protocol behaviour lives in `.riptide/sim/`: use guided sim when the
+flow needs dynamic `remaining_accounts`, multi-ix transactions,
+target-vs-agent dispatch, or project-local service models.
 
 Validate in this order:
 
@@ -199,6 +199,40 @@ is non-empty, mapped observations are present, expected write actions
 are not all setup failures, and the rerun command is retained.
 
 Do not generate broader scenarios until this smoke passes.
+
+## Guided Sim Stage
+
+Use a guided Rust simulation whenever the protocol cannot be represented
+as static adapter dispatch plus pre-tick-0 harness setup. Guided sim is
+required when the protocol needs dynamic `remaining_accounts`, multi-ix
+transactions, target-vs-agent action selection, unsupported custom
+argument assembly, or project-local oracle/orderbook/stake service
+models.
+
+Generate the project-owned simulation crate:
+
+```bash
+riptide sim generate --adapter .riptide/adapters/<program>.toml
+```
+
+Then fill `.riptide/sim/src/flows.rs` from local source, IDL, tests, and
+fixtures. Keep generated `types.rs` and `accounts.rs` regenerated-only;
+put hand-authored protocol actions, dynamic account resolution, and
+service mocks under `flows.rs`, `invariants.rs`, and `services/`.
+
+Validate the guided-sim loop before continuing to scenario or campaign
+work:
+
+```bash
+riptide sim run .riptide/sim --iterations 5 --flows 20 --seed 1337
+```
+
+After IDL changes, refresh generated builders without overwriting user
+flows:
+
+```bash
+riptide sim refresh --adapter .riptide/adapters/<program>.toml --dir .riptide/sim
+```
 
 ## Scenario Stage
 
@@ -271,9 +305,10 @@ After every failure, classify it and repair the responsible layer:
   local source/tests/IDL/dependencies.
 - `harness API/tooling gap` — setup code cannot express required bytes,
   account binding, sibling program, or build behavior.
-- `engine/runtime dispatcher gap` — the harness can create state, but
-  execution needs generic support for `remaining_accounts`, signer role
-  aliases, or unsupported argument encoding.
+- `guided-sim required` — when the protocol needs dynamic
+  `remaining_accounts`, multi-ix transactions, target-vs-agent dispatch,
+  or project-local service models, run `riptide sim generate` and write
+  the flow in `.riptide/sim/src/flows.rs`.
 - `unsupported protocol surface` — requires engine support that does
   not exist.
 - `case-study source/build issue` — missing `.so`, unreadable IDL,
@@ -297,8 +332,8 @@ Report:
   persona mix. If changed, include the reason and before/after values
 - campaign path plus exact `campaign run` and `riptide review` commands
 - remaining blockers or unsupported fields, separated into
-  harness-solvable setup gaps, missing deterministic source facts, and
-  engine/runtime dispatcher gaps
+  harness-solvable setup gaps, missing deterministic source facts,
+  guided-sim required surfaces, and unsupported engine gaps
 - evidence that output moved: non-empty simulation result, observation
   movement or a clear reason movement is not expected, retained rerun
   commands, and useful campaign summary readiness

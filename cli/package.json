@@ -30,6 +30,7 @@
   "files": [
     "dist/src",
     "dist/src/**/*.d.ts",
+    "dist/sim-runtime",
     "assets",
     "scripts/install-binary.js",
     "README.md",

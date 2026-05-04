@@ -17,6 +17,7 @@ import { createReviewCommand } from "./commands/review.js";
 import { createReplayCommand } from "./commands/replay.js";
 import { createRunCommand } from "./commands/run.js";
 import { createScenariosCommand } from "./commands/scenarios.js";
+import { createSimCommand } from "./commands/sim.js";
 import { createTemplateCommand } from "./commands/template.js";
 import { cliPackageVersion } from "./banner.js";
 import { renderCliError } from "./errors/render.js";
@@ -40,6 +41,7 @@ addRootCommand(createDoctorCommand(), "Check toolchain, engine, and adapters", "
 
 addRootCommand(createReplayCommand(), "Replay a declared trajectory", "Advanced/support:");
 addRootCommand(createHarnessCommand(), "Generate Rust setup harnesses", "Advanced/support:");
+addRootCommand(createSimCommand(), "Generate, refresh, and run guided Rust simulations", "Advanced/support:");
 addRootCommand(createLintCommand(), "Lint an adapter against its lineage IDL", "Advanced/support:");
 addRootCommand(createExplainCommand(), "Inspect a parsed adapter", "Advanced/support:");
 addRootCommand(createLineageCommand(), "Show adapter lineage and assumptions", "Advanced/support:");

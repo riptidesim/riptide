@@ -42,7 +42,9 @@ test("riptide-config skill frontmatter is present and names the merged flow", as
   assert.match(raw, /TODO-only harness is not acceptable/);
   assert.match(raw, /missing deterministic <fact> for harness setup/);
   assert.match(raw, /harness-solvable setup gaps/);
-  assert.match(raw, /engine\/runtime dispatcher gaps/);
+  assert.match(raw, /`riptide sim generate`/);
+  assert.match(raw, /Guided Sim Stage/);
+  assert.match(raw, /guided-sim loop/);
   assert.match(raw, /dynamic\s+`remaining_accounts`/);
 });
 

@@ -9,6 +9,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 | [Install](install.md) | Hosted installer, repository build path, Docker, manual rebuilds, and upgrade notes. |
 | [Campaign Runner](campaigns.md) | Run deterministic campaign sweeps with retained evidence and review handoff. |
 | [Architecture](architecture.md) | Understand the adapter/persona/scenario stack, LiteSVM runtime, determinism, and dashboard artifacts. |
+| [Guided simulations](guided-sim.md) | Use `.riptide/sim/` for dynamic Rust-authored protocol flows that don't fit static TOML. |
 | [Vision](vision.md) | Understand the lab-not-oracle stance, what Riptide claims, and what it explicitly does not claim. |
 | [Solend-fork case study](case-studies/lending.md) | See the whale-share × price-shock grid that anchors the main product story. |
 
