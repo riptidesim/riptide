@@ -29,9 +29,10 @@ orderbook models.
 | Account-snapshot fork/cache | Supported as explicit account snapshots | This is not a live validator fork. Cached snapshots include provenance and data hashes; cached runs stay offline unless deliberately refreshed. |
 | Dynamic `remaining_accounts` and multi-instruction transactions | Supported in project-owned Rust | Generated builders expose hooks, but the project chooses accounts, ordering, signers, and flow logic. |
 | Account mutation and local services | Supported in project-owned Rust | Services can mutate generic SVM accounts through `World`; Riptide core does not contain Pyth, Switchboard, OpenBook, Drift, Mango, Marinade, Whirlpool, or similar layouts. |
-| Metrics, regression, and artifacts | Supported for guided runs | `riptide sim run --out <dir>` writes stable JSON with seeds, flow counts, tx outcomes, compute units, service ticks, failing seed, and selected account hashes. |
+| Metrics, regression, and artifacts | Supported for guided runs | `riptide sim run --out <dir>` writes stable JSON with seeds, flow counts, tx outcomes, compute units, service ticks, failing seed, selected account hashes, and a reviewer rerun script. |
 | Coverage | Guarded gap | LiteSVM binary loading does not emit local guided-run coverage yet. `sim.coverage.enabled = true` fails lint until an entrypoint/binary coverage collector exists. |
-| Campaign and review integration | Partial / separate | Adapter campaigns and evidence packs remain distinct from guided sims unless a guided-sim artifact/review path is explicitly used. |
+| Review integration | Supported for guided artifacts | `riptide review <artifact-dir>` and `riptide sim review <artifact-dir>` read `guided-sim-run.json`, validate `rerun.sh` when present, and summarize flow counts, transaction labels, failure reason, retained seed, and rerun command. |
+| Campaign scheduling | Future / separate | `riptide campaign run` remains the adapter/scenario campaign runner. Guided-sim campaign scheduling needs an explicit future command path rather than hidden adapter-campaign behavior. |
 | Audit-equivalent or automatic universal fuzzing | Out of scope | A green guided simulation is simulation evidence for the declared setup, not an audit result or complete coverage proof. |
 
 ## Generate the crate
@@ -165,11 +166,26 @@ riptide sim run .riptide/sim --iterations 5 --flows 20 --seed deadbeef --out .ri
 ```
 
 The generated binary prints the iteration seed before each run and, when
-`--out` is present, writes `guided-sim-run.json`. The artifact includes
-the base seed, per-iteration derived seeds, flow counts, labelled
-transaction outcomes, compute units, expected-error counts, service tick
-count, regression account hashes when enabled, and the retained failing
-seed. Reuse that seed with `riptide sim debug` to dump labelled
+`--out` is present, writes `guided-sim-run.json` plus a POSIX-parseable
+`rerun.sh`. The artifact includes the base seed, per-iteration derived
+seeds, flow counts, labelled transaction outcomes, compute units,
+expected-error counts, service tick count, regression account hashes when
+enabled, and the retained failing seed.
+
+Review the artifact directly:
+
+```bash
+riptide sim review .riptide/sim/artifacts/run-001
+riptide review .riptide/sim/artifacts/run-001
+```
+
+Review mode reads the artifact cold. It does not rerun the simulation,
+execute `rerun.sh`, or claim adapter-campaign coverage. It summarizes the
+retained failing seed, flow table, labelled transaction outcomes, failure
+reason, and rerun command so another reviewer can decide whether to rerun
+or inspect the Rust flow/service code.
+
+Reuse a retained seed with `riptide sim debug` to dump labelled
 transaction outcomes:
 
 ```bash
@@ -197,3 +213,15 @@ Use the adapter and harness path when the protocol fits static action
 dispatch and deterministic setup. Guided simulations are for flows that
 need Rust code during the action loop; they don't replace campaign
 runs, scenario presets, or evidence packs.
+
+`riptide campaign run` remains the adapter/scenario campaign runner. A
+future guided-sim scheduling path should be explicit, for example:
+
+```text
+# Future shape only; not implemented by the current CLI.
+riptide campaign run --guided-sim .riptide/sim --sim-iterations <n> --sim-flows <n>
+```
+
+Until that exists, run guided sims with `riptide sim run --out <dir>` and
+review the artifact directory with `riptide sim review` or
+`riptide review`.

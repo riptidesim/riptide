@@ -201,7 +201,7 @@ mappings + extensions for that protocol's specifics.
 
 **Status:** design committed at
 [`../.specs/designs/economic-semantics-v1.md`](../.specs/designs/economic-semantics-v1.md);
-implementation in flight Sprint 19+. No `[semantics]` block is
+implementation is still in progress. No `[semantics]` block is
 authorable today — adapter authoring, lint, and adapt all read the
 existing `[lineage]` surface unchanged. This section is a
 forward-looking pointer for reviewers who want to know what the

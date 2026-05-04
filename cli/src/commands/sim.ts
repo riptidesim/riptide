@@ -1,12 +1,13 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import chalk from "chalk";
 import { Command } from "commander";
 
+import { runReview, type ReviewOptions } from "./review.js";
 import { generateSim, type SimGenerateOptions } from "../sim/generate.js";
 import { lintSimManifest, renderSimManifestLintReport } from "../sim/manifest.js";
 
@@ -92,6 +93,17 @@ export function createSimCommand(): Command {
     });
 
   command
+    .command("review")
+    .description("Review a guided-sim artifact directory or guided-sim-run.json")
+    .argument("[path]", "Guided-sim artifact directory or guided-sim-run.json", ".riptide/sim/artifacts")
+    .option("--out <md-path>", "Write reviewer markdown to a file instead of stdout")
+    .option("--json", "Emit a structured JSON review payload", false)
+    .option("--quiet", "Suppress interactive banner", false)
+    .action(async (artifactPath: string, options: ReviewOptions) => {
+      process.exitCode = await runReview(artifactPath, options, { cwd: process.cwd() });
+    });
+
+  command
     .command("debug")
     .description("Run one seed with verbose labelled transaction logging")
     .argument("[path]", "Simulation crate path", ".riptide/sim")
@@ -128,7 +140,7 @@ interface ForkOptions {
   overwrite?: boolean;
 }
 
-function runCargoSim(simPath: string, options: RunOptions): Promise<number> {
+async function runCargoSim(simPath: string, options: RunOptions): Promise<number> {
   const cwd = path.resolve(process.cwd(), simPath);
   const args = ["run", "--release", "--quiet", "--"];
   if (options.iterations) args.push("--iterations", options.iterations);
@@ -136,6 +148,10 @@ function runCargoSim(simPath: string, options: RunOptions): Promise<number> {
   if (options.seed) args.push("--seed", options.seed);
   if (options.debug) args.push("--debug");
   if (options.out) args.push("--out", path.resolve(process.cwd(), options.out));
+
+  if (options.out) {
+    await writeGuidedSimRerunScript(simPath, options);
+  }
 
   return new Promise((resolve, reject) => {
     const child = spawn("cargo", args, {
@@ -146,6 +162,31 @@ function runCargoSim(simPath: string, options: RunOptions): Promise<number> {
     child.once("error", reject);
     child.once("close", (code) => resolve(code ?? 1));
   });
+}
+
+async function writeGuidedSimRerunScript(simPath: string, options: RunOptions): Promise<void> {
+  if (!options.out) return;
+  const outDir = path.resolve(process.cwd(), options.out);
+  await mkdir(outDir, { recursive: true });
+  const parts = [
+    "riptide",
+    "sim",
+    "run",
+    shellQuotePath(path.resolve(process.cwd(), simPath))
+  ];
+  if (options.iterations) parts.push("--iterations", shellQuotePath(options.iterations));
+  if (options.flows) parts.push("--flows", shellQuotePath(options.flows));
+  if (options.seed) parts.push("--seed", shellQuotePath(options.seed));
+  parts.push("--out", shellQuotePath(outDir));
+
+  const rerunPath = path.join(outDir, "rerun.sh");
+  await writeFile(rerunPath, `#!/bin/sh\nset -eu\n${parts.join(" ")}\n`, "utf8");
+  await chmod(rerunPath, 0o755);
+}
+
+function shellQuotePath(value: string): string {
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 export async function runSimFork(options: ForkOptions): Promise<number> {

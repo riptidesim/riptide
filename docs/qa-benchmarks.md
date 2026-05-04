@@ -1,6 +1,6 @@
 # QA Benchmarks
 
-The Sprint 26 QA benchmark suite is a reusable stress and developer-UX harness for Riptide. It measures supported CLI workflows, campaign behavior, failure messages, determinism, runtime, peak process-tree RSS, and artifact growth.
+The QA benchmark suite is a reusable stress and developer-UX harness for Riptide. It measures supported CLI workflows, campaign behavior, failure messages, determinism, runtime, peak process-tree RSS, and artifact growth.
 
 This is not an audit proof. A green run means the local Riptide checkout completed the declared benchmark workload under the local toolchain and inputs. It does not prove protocol safety, complete campaign coverage, or historical mainnet behavior.
 
@@ -26,11 +26,7 @@ When `--out` is omitted, the runner writes to `/tmp/riptide-s26-bench-<timestamp
 | `<out>/home` | Temporary HOME for normal benchmark commands. |
 | `<out>/case-studies` | Thin temporary copies of case-study repos. |
 
-The runner also copies `outputs/report.md` to:
-
-```text
-/home/ailton/Documents/Obsidian Vault/Riptide/QA - Sprint 26 Benchmark And Dev UX.md
-```
+The runner can also copy `outputs/report.md` to the local project vault for internal benchmark notes.
 
 Pass `--skip-obsidian` to suppress that copy.
 

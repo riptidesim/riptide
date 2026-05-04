@@ -256,8 +256,15 @@ work:
 
 ```bash
 riptide sim lint .riptide/sim
-riptide sim run .riptide/sim --iterations 5 --flows 20 --seed 1337
+riptide sim run .riptide/sim --iterations 5 --flows 20 --seed 1337 --out .riptide/sim/artifacts/smoke
+riptide sim review .riptide/sim/artifacts/smoke
 ```
+
+`riptide review .riptide/sim/artifacts/smoke` is equivalent when you want
+the root reviewer command. The review reads `guided-sim-run.json`,
+validates `rerun.sh` when present, and reports the retained failing
+seed, flow table, labelled transaction outcomes, failure reason, and
+rerun command. It does not run the sim again.
 
 After IDL changes, refresh generated builders without overwriting user
 flows:
@@ -324,6 +331,13 @@ implemented rather than comment-only. Use `bounded_ready = yes` when the
 validated campaign is intentionally narrower than the protocol surface
 because a specific remaining blocker is outside this pass.
 
+Campaigns remain adapter/scenario campaigns. Do not report that
+`riptide campaign run` schedules guided Rust sims unless the CLI exposes
+an explicit guided-sim scheduling command. If the project needs guided
+flows today, keep the campaign report bounded and include the exact
+`riptide sim run --out ...` and `riptide sim review ...` commands as the
+separate guided evidence path.
+
 ## Repair Loop
 
 After every failure, classify it and repair the responsible layer:
@@ -341,6 +355,12 @@ After every failure, classify it and repair the responsible layer:
   `remaining_accounts`, multi-ix transactions, target-vs-agent dispatch,
   or project-local service models, run `riptide sim generate` and write
   the flow in `.riptide/sim/src/flows.rs`.
+- `guided-sim evidence ready` — when `riptide sim lint`, `riptide sim
+  run --out`, and `riptide sim review` all pass, record the artifact
+  directory, retained seed status, flow labels, transaction labels, and
+  rerun command. Keep coverage marked unavailable when
+  `sim.coverage.enabled = true` fails lint; do not describe guided-sim
+  coverage as emitted until the runner has a coverage collector.
 - `unsupported protocol surface` — requires engine support that does
   not exist.
 - `case-study source/build issue` — missing `.so`, unreadable IDL,
@@ -363,6 +383,9 @@ Report:
   scenarios, and per-scenario `agents`, `ticks`, `seed`/`seeds`, and
   persona mix. If changed, include the reason and before/after values
 - campaign path plus exact `campaign run` and `riptide review` commands
+- guided-sim manifest path, artifact directory, and exact `riptide sim
+  run --out ...` plus `riptide sim review ...` commands when guided sim
+  was used
 - remaining blockers or unsupported fields, separated into
   harness-solvable setup gaps, missing deterministic source facts,
   guided-sim required surfaces, and unsupported engine gaps

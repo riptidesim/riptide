@@ -73,14 +73,17 @@ project-local service models such as oracle, orderbook, or stake mocks.
 The claim is manually guided support: the project supplies the manifest,
 cached external state, and Rust code that models protocol-specific
 behavior. Riptide provides the generic SVM bootstrap, generated builders,
-world mutation APIs, deterministic seeds, and guided-run JSON artifacts;
-it does not provide automatic universal fuzzing, protocol-specific
-oracle/orderbook layouts in core, complete coverage proof, or audit
-signoff. Guided-sim coverage remains a guarded gap until the local
-runner has an entrypoint or binary coverage collector.
+world mutation APIs, deterministic seeds, guided-run JSON artifacts, and
+a direct guided artifact review path; it does not provide automatic
+universal fuzzing, protocol-specific oracle/orderbook layouts in core,
+complete coverage proof, or audit signoff. Guided-sim coverage remains a
+guarded gap until the local runner has an entrypoint or binary coverage
+collector.
 Run them with `riptide sim run .riptide/sim --iterations <n> --flows <n>
---seed <hex> --out <dir>`. See [guided simulations](guided-sim.md) for
-the command workflow, bootstrap manifest, and file ownership rules.
+--seed <hex> --out <dir>`, then inspect the artifact directory with
+`riptide sim review <dir>` or `riptide review <dir>`. See
+[guided simulations](guided-sim.md) for the command workflow, bootstrap
+manifest, and file ownership rules.
 
 ## LiteSVM runtime — default, with honest caveats
 
@@ -145,7 +148,8 @@ Three commands share one mental model for first-run diagnosis before any scenari
 - **`riptide lint <adapter>`** is the static validator. When `[lineage].idl_source` is a JSON IDL, it cross-checks every adapter-mapped instruction, arg, account, and dotted `account.field` reference against the IDL. Positive mismatches fail loudly (`exit 2`) with a next-step hint naming the missing symbol; uncovered source surfaces may warn when the adapter neither maps them nor names them in `[lineage].unsupported_fields`. Non-JSON lineage sources (for example `programs/<name>/src/state.rs` on `lending`) land as explicit `WARN` with no false PASS — there is no Rust parser today. Missing `[lineage]` blocks land as explicit `SKIP`.
 - **`riptide adapt --adapter <toml>`** is the adapter-only smoke with a lint preflight: when the adapter's lineage source is machine-checkable, adapt runs lint first and aborts before engine spawn on a concrete fail. The default first end-to-end smoke is `riptide run --adapter <toml> --seeds 1 --seed-root 1337`; add `--harness .riptide/harness` only after you explicitly generate a harness setup layer.
 - **`riptide sim lint <path>`** is the guided-sim manifest validator. It reads a `.riptide/sim/Riptide.toml` file or simulation directory, validates local program/account paths, pubkeys, base64 snapshots, duplicate bootstrap addresses, cached snapshot pubkey matches, guarded metrics/regression/coverage declarations, and unsupported loader declarations. No build, RPC fetch, or simulation run is performed.
-- **`riptide review <pack>`** is the read-only reviewer surface for evidence packs. It parses `manifest.json`, resolves `inputs/paths.json` and `outputs/paths.json` relative to the pack root, verifies the engine canonical hash of the indexed simulation result, checks `rerun.sh` with `sh -n` without executing it, and emits markdown or `--json`. No engine spawn, no network, no pack mutation.
+- **`riptide sim review <artifact-dir>`** is the guided-sim artifact reviewer. It reads `guided-sim-run.json`, validates `rerun.sh` when present, and emits markdown or `--json` with retained seed, flow counts, labelled transaction outcomes, failure reason, and rerun command.
+- **`riptide review <pack-or-artifact>`** is the read-only reviewer surface for evidence packs, campaigns, retained cases, and guided-sim artifacts. For packs it parses `manifest.json`, resolves `inputs/paths.json` and `outputs/paths.json` relative to the pack root, verifies the engine canonical hash of the indexed simulation result, checks `rerun.sh` with `sh -n` without executing it, and emits markdown or `--json`. For guided artifacts it reads `guided-sim-run.json` directly. No engine spawn, no network, no pack mutation.
 
 These commands are the install-first operator surface — they exist so a new user can install Riptide, confirm their environment, static-check their adapter, and smoke-test it end-to-end before running a single scenario. They do not replace `cargo test -p riptide-engine` or the repo's regression gates; they exist upstream of them.
 
@@ -173,6 +177,12 @@ disk plus the local dashboard view over it:
   then synthesizes a reviewer markdown summary from `manifest.json`,
   `summary.md`, the indexed simulation result, and `provenance.json`
   when present. It never executes the rerun recipe.
+- **Every guided artifact directory can be reviewed cold.**
+  `riptide sim review <artifact-dir>` and
+  `riptide review <artifact-dir>` read `guided-sim-run.json`, validate
+  the rerun script, and summarize retained seed, flow counts,
+  transaction labels, failure reason, and rerun command. This is a
+  guided-sim evidence path, not adapter campaign scheduling.
 - **One named proof reruns cold in GitHub Actions.** The shipping
   `.github/workflows/contagion-proof-ci.yml` workflow reruns the
   cross-protocol contagion proof from a cold checkout on every push /

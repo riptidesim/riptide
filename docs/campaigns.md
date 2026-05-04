@@ -15,6 +15,14 @@ and Campaign TOML before you run the campaign. It validates campaign
 readiness; executing the campaign remains a separate
 `riptide campaign run ...` step.
 
+Guided Rust simulations are a separate evidence path for dynamic
+`remaining_accounts`, multi-instruction flows, and project-owned
+external dependency services. Run them with `riptide sim run --out
+<artifact-dir>` and review the artifact with `riptide sim review
+<artifact-dir>` or `riptide review <artifact-dir>`. Do not treat
+`riptide campaign run` as a hidden guided-sim scheduler; a future
+guided scheduler should use an explicit command shape.
+
 ## Repo-local campaign
 
 Create the campaign in the repo that owns the program under test. A
@@ -99,6 +107,7 @@ printed by `validate`, `plan`, or `run`.
 | `riptide campaign plan <campaign.toml> --out <dir>` | Expand deterministic run IDs, seeds, scenario families, sampled parameters, and output paths without executing simulations. |
 | `riptide campaign run <campaign.toml> --out <dir>` | Materialize generated run configs, execute each run through `riptide run`, aggregate risk signals, and retain selected cases. |
 | `riptide review <campaign-root>` | Validate retained campaign evidence and print reviewer Markdown mapping labels to runs, parameters, risk results, and rerun commands. |
+| `riptide sim review <artifact-dir>` | Validate a guided-sim artifact directory and print retained seed, flow counts, transaction labels, failure reason, and rerun command. This is not campaign scheduling. |
 
 ## Artifact Map
 
@@ -132,6 +141,12 @@ It does not prove complete protocol safety, production solvency, or historical m
 If `campaign run` refuses to resume, the existing generated config differs from the deterministic expansion. Choose a new `--out` directory or move the old campaign output before rerunning.
 
 `riptide campaign run --serve` is intentionally unsupported for now. Run the campaign without `--serve`, then review the campaign root. For the scenario dashboard, use `riptide run --serve`.
+
+Guided-sim campaign scheduling is also intentionally separate for now.
+A future command should be explicit, for example
+`riptide campaign run --guided-sim .riptide/sim --sim-iterations <n>
+--sim-flows <n>`. That is a future shape, not a supported command in the
+current CLI.
 
 `riptide doctor` may warn that the `.so` or IDL referenced by your
 adapter is missing. Build your program, regenerate the IDL, or update the

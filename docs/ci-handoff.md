@@ -9,7 +9,7 @@ reviewer-facing source of truth.
 This document covers two paths:
 
 1. **In-repo handoff** — the workflow Riptide itself ships, which
-   reruns the Sprint 11 `lst-lending-contagion-proof` replay on every
+   reruns the `lst-lending-contagion-proof` replay on every
    push and asserts the canonical SHA256
    `d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb`
    inside a valid pack.
@@ -106,7 +106,7 @@ discipline carries over plus two extra surfaces:
   `RIPTIDE_CLI_SPEC`. The template verifies the shrinkwrap is
   actually present after install and fails 1 with a diagnostic if
   it isn't (the most common cause is pinning a CLI version from
-  before Sprint 12 Phase 2 shipped the shrinkwrap).
+  before the published CLI started shipping the shrinkwrap).
 - The "Fail closed on unresolved TODOs" pre-flight exits 1 before
   any third-party code runs if any `TODO_PIN_…` sentinel survives
   in `RIPTIDE_CLI_SPEC` / `RIPTIDE_ENGINE_VERSION` /
@@ -192,8 +192,7 @@ adopter pins their own hash to their own replay fixture.
      unresolved TODOs" pre-flight step that refuses to run until
      every `TODO` placeholder is replaced. `--ignore-scripts` at the
      install step keeps the CLI's postinstall hook from executing
-     during CI. Pin a version **at or after** the Sprint 12 Phase 2
-     release — earlier versions do not ship
+     during CI. Pin a version that ships
      `npm-shrinkwrap.json` and the install step fails 1 with a
      diagnostic if the shrinkwrap is missing.
    - `RIPTIDE_ENGINE_VERSION` — pin the matching engine release tag
@@ -231,7 +230,7 @@ adopter pins their own hash to their own replay fixture.
 ### What downstream adopters own
 
 - **Their own canonical hash.** The shipping Riptide hash
-  (`d04feab9…`) applies to Riptide's Sprint 11 contagion proof and
+  (`d04feab9…`) applies to Riptide's shipping contagion proof and
   nothing else. Downstream adopters regenerate + pin their own.
 - **Their own program builds.** Riptide does not prescribe a Solana
   CLI version for downstream adopters beyond "pin what your

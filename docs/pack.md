@@ -95,7 +95,7 @@ runs on macOS stock shell, Linux `dash`, and Alpine containers.
 Key surfaces:
 
 - `kind` — `simulation-run` (single primitive), `replay` (single-component replay), or `replay-multi` (cross-protocol replay with a bridge).
-- `canonical_hash` — SHA256 of the `SimulationResult` with `run_config.output_path` replaced by the literal `__canonical__`. Matches Sprint 10 / Sprint 11 proof hashes byte-identically.
+- `canonical_hash` — SHA256 of the `SimulationResult` with `run_config.output_path` replaced by the literal `__canonical__`. Matches the shipping proof hashes byte-identically.
 - `invariant_firings` — declaration-order array; `firings=0` rows indicate declared-but-held invariants (reviewer-grade clarity that the absence of firings is deliberate, not an omission).
 - `exit_code` — `0` when all declared invariants held, `1` when one or more fired. Mirrors the engine's exit code policy.
 - `inputs` / `outputs` — relative-path references to the files the run read from and wrote to. The pack does not duplicate those files; it indexes them.
@@ -128,7 +128,7 @@ The pack is byte-stable for byte-stable input:
 
 The engine test
 [`engine/tests/pack_byte_stability_contagion.rs`](../engine/tests/pack_byte_stability_contagion.rs)
-pins the Sprint 11 contagion proof's per-file SHA256s and asserts
+pins the shipping contagion proof's per-file SHA256s and asserts
 back-to-back runs emit byte-identical packs.
 
 ## Invocation points

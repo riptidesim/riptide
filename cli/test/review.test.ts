@@ -162,6 +162,109 @@ test("review accepts a campaign root and maps retained cases to risk and rerun e
   assert.match(colored, /\x1b\[36m`run_[A-Za-z0-9_]+`\x1b\[0m/);
 });
 
+test("review accepts guided sim artifacts with flow labels and rerun evidence", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-review-guided-sim-"));
+  const artifactDir = path.join(root, ".riptide", "sim", "artifacts", "run-001");
+  await mkdir(artifactDir, { recursive: true });
+  const retainedSeed = "aa".repeat(32);
+  await writeFile(
+    path.join(artifactDir, "guided-sim-run.json"),
+    JSON.stringify(
+      {
+        schema_version: 1,
+        status: "failed",
+        iterations_requested: 2,
+        flows_per_iteration: 2,
+        base_seed: "de".repeat(32),
+        retained_failing_seed: retainedSeed,
+        totals: {
+          iterations: 1,
+          flows: 2,
+          tx_success: 1,
+          expected_errors: 0,
+          unexpected_errors: 1,
+          compute_units: 99,
+          service_ticks: 2,
+          errors: 1,
+          panics: 0
+        },
+        iterations: [
+          {
+            iteration: 0,
+            seed: retainedSeed,
+            status: "failed",
+            dispatched_flows: 2,
+            flow_counts: {
+              mutate_external_dependency: 1,
+              borrow_against_dependency: 1
+            },
+            tx_outcomes: [
+              {
+                label: "external_dependency_tick",
+                ok: false,
+                expected_error: false,
+                signature: "1111111111111111111111111111111111111111111111111111111111111111",
+                error: "custom program error: 0x2a",
+                logs: ["Program log: dependency stale"],
+                compute_units_consumed: 99
+              }
+            ],
+            service_ticks: 2,
+            regression: {
+              enabled: true,
+              account_hashes: {
+                "11111111111111111111111111111111": "0".repeat(64)
+              },
+              expected_state_hashes: []
+            },
+            error: "external dependency drift crossed invariant",
+            panic: false
+          }
+        ]
+      },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
+  await writeFile(
+    path.join(artifactDir, "rerun.sh"),
+    [
+      "#!/bin/sh",
+      "set -eu",
+      "riptide sim run .riptide/sim --iterations 2 --flows 2 --seed dededede --out .riptide/sim/artifacts/run-001",
+      ""
+    ].join("\n"),
+    "utf8"
+  );
+
+  const { stdout, stderr } = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "review", artifactDir, "--quiet"],
+    { cwd: root }
+  );
+
+  assert.equal(stderr, "");
+  assert.match(stdout, /# Guided Simulation Review: run-001/);
+  assert.match(stdout, new RegExp(`Retained failing seed: \`${retainedSeed}\``));
+  assert.match(stdout, /mutate_external_dependency/);
+  assert.match(stdout, /external_dependency_tick/);
+  assert.match(stdout, /external dependency drift crossed invariant/);
+  assert.match(stdout, /Rerun command: `riptide sim run \.riptide\/sim/);
+  assert.match(stdout, /rerun\.sh is present and sh -n parseable/);
+  assert.match(stdout, /does not claim adapter campaign coverage/);
+
+  const { stdout: jsonStdout } = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "sim", "review", artifactDir, "--json"],
+    { cwd: root }
+  );
+  const payload = JSON.parse(jsonStdout) as Record<string, unknown>;
+  assert.equal(payload.schema_version, "guided-sim-review.v1");
+  assert.equal(payload.retained_failing_seed, retainedSeed);
+  assert.equal((payload.flow_counts as Record<string, unknown>).mutate_external_dependency, 1);
+});
+
 test("review collects fired semantic expression invariants before legacy rows", () => {
   const fires = collectInvariantFires({
     semantics: { class: "lending.v1" },

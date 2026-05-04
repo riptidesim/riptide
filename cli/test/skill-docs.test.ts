@@ -108,7 +108,25 @@ test("guided-sim docs guard coverage instead of claiming emitted coverage", asyn
 
   assert.match(guided, /Coverage \| Guarded gap/);
   assert.match(guided, /sim\.coverage\.enabled = true` fails lint/);
-  assert.match(architecture, /Guided-sim coverage remains a guarded gap/);
+  assert.match(architecture, /Guided-sim coverage remains a\s+guarded gap/);
   assert.doesNotMatch(guided, /guided-sim coverage output is supported/i);
   assert.doesNotMatch(architecture, /guided-sim coverage output is supported/i);
+});
+
+test("riptide-config skill sim guidance includes artifact review boundary", async () => {
+  const prompt = await readFile(
+    path.join(REPO_ROOT, "skills", "riptide-config", "SKILL.md"),
+    "utf8"
+  );
+  const guided = await readFile(path.join(REPO_ROOT, "docs", "guided-sim.md"), "utf8");
+  const campaigns = await readFile(path.join(REPO_ROOT, "docs", "campaigns.md"), "utf8");
+
+  assert.match(prompt, /riptide sim run \.riptide\/sim --iterations 5 --flows 20 --seed 1337 --out \.riptide\/sim\/artifacts\/smoke/);
+  assert.match(prompt, /riptide sim review \.riptide\/sim\/artifacts\/smoke/);
+  assert.match(prompt, /retained failing\s+seed, flow table, labelled transaction outcomes/);
+  assert.match(prompt, /Campaigns remain adapter\/scenario campaigns/);
+  assert.match(prompt, /Keep coverage marked unavailable/);
+  assert.match(guided, /Review integration \| Supported for guided artifacts/);
+  assert.match(guided, /Future shape only; not implemented by the current CLI/);
+  assert.match(campaigns, /Do not treat\s+`riptide campaign run` as a hidden guided-sim scheduler/);
 });

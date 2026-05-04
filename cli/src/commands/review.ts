@@ -42,8 +42,8 @@ type JsonRecord = Record<string, unknown>;
 
 export function createReviewCommand(deps: ReviewCommandDeps = {}): Command {
   return new Command("review")
-    .description("Validate a Riptide evidence pack or campaign evidence root and emit reviewer markdown")
-    .argument("<pack>", "Path to a Riptide evidence pack, campaign root, or retained campaign case")
+    .description("Validate a Riptide evidence pack, campaign root, or guided-sim artifact and emit reviewer markdown")
+    .argument("<pack>", "Path to a Riptide evidence pack, campaign root, retained campaign case, or guided-sim artifact")
     .option("--out <md-path>", "Write reviewer markdown to a file instead of stdout")
     .option("--json", "Emit a structured JSON review payload", false)
     .option("--quiet", "Suppress interactive banner", false)
@@ -69,6 +69,9 @@ export async function runReview(
     }
     if (isRetainedCaseRoot(reviewRoot)) {
       return await runRetainedCaseReview(reviewRoot, options, deps);
+    }
+    if (guidedSimArtifactPath(reviewRoot) !== null) {
+      return await runGuidedSimReview(reviewRoot, options, deps);
     }
 
     const packData = await loadPackManifest(pack);
@@ -150,6 +153,278 @@ export async function runReview(
     );
     return exitCode;
   }
+}
+
+async function runGuidedSimReview(
+  inputPath: string,
+  options: ReviewOptions,
+  deps: ReviewCommandDeps
+): Promise<number> {
+  const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
+  const artifactPath = guidedSimArtifactPath(inputPath);
+  if (!artifactPath) {
+    throw new ReviewValidationError(
+      `guided-sim artifact not found\n  path: ${inputPath}\n  next: pass a directory containing guided-sim-run.json or the JSON file itself`
+    );
+  }
+  const artifactRoot = path.dirname(artifactPath);
+  const artifact = await readRequiredJsonObject(artifactPath, "guided-sim-run.json");
+  const validationResults: ValidationResult[] = [
+    {
+      step: "guided-sim-artifact",
+      status: "pass",
+      message: "guided-sim-run.json exists and parses",
+      path: artifactPath,
+    }
+  ];
+  validateGuidedSimArtifact(artifactPath, artifact, validationResults);
+
+  const rerunPath = path.join(artifactRoot, "rerun.sh");
+  let rerunCommand = await readGuidedSimRerunCommand(rerunPath);
+  if (existsSync(rerunPath)) {
+    await validateRerunScript(rerunPath, validationResults);
+  } else {
+    validationResults.push({
+      step: "rerun-sh",
+      status: "warn",
+      message: "rerun.sh missing; inferred command uses <sim-dir> placeholder",
+      path: rerunPath,
+    });
+  }
+  rerunCommand ??= inferGuidedSimRerunCommand(artifactRoot, artifact);
+
+  const markdown = renderGuidedSimReviewMarkdown({
+    artifactRoot,
+    artifactPath,
+    artifact,
+    validationResults,
+    rerunCommand
+  });
+
+  if (options.json) {
+    stdout(
+      JSON.stringify(
+        {
+          schema_version: "guided-sim-review.v1",
+          artifact_root: artifactRoot,
+          artifact_path: artifactPath,
+          status: stringValue(artifact.status) ?? "unknown",
+          retained_failing_seed: stringValue(artifact.retained_failing_seed),
+          failure_reason: firstGuidedSimFailure(artifact),
+          flow_counts: aggregateGuidedSimFlows(artifact),
+          tx_outcomes: guidedSimTxOutcomes(artifact),
+          rerun_command: rerunCommand,
+          validation: validationResults,
+          artifact
+        },
+        null,
+        2
+      ) + "\n"
+    );
+  } else if (typeof options.out === "string" && options.out.length > 0) {
+    const outPath = path.resolve(deps.cwd ?? process.cwd(), options.out);
+    await writeFile(outPath, markdown, "utf8");
+    stdout(`wrote review markdown: ${outPath}\n`);
+  } else {
+    stdout(colorizeReviewMarkdown(markdown, deps));
+  }
+
+  return validationResults.some((result) => result.status === "fail") ? 2 : 0;
+}
+
+function guidedSimArtifactPath(candidate: string): string | null {
+  if (existsSync(candidate) && path.basename(candidate) === "guided-sim-run.json") {
+    return candidate;
+  }
+  const nested = path.join(candidate, "guided-sim-run.json");
+  return existsSync(nested) ? nested : null;
+}
+
+function validateGuidedSimArtifact(
+  artifactPath: string,
+  artifact: JsonRecord,
+  validationResults: ValidationResult[]
+): void {
+  if (numberValue(artifact.schema_version) !== 1) {
+    throw new ReviewValidationError(
+      `unsupported guided-sim artifact schema\n  path: ${artifactPath}\n  expected: schema_version 1`
+    );
+  }
+  if (!stringValue(artifact.status)) {
+    throw new ReviewValidationError(
+      `guided-sim artifact is missing status\n  path: ${artifactPath}`
+    );
+  }
+  if (!Array.isArray(artifact.iterations)) {
+    throw new ReviewValidationError(
+      `guided-sim artifact is missing iterations array\n  path: ${artifactPath}`
+    );
+  }
+  validationResults.push({
+    step: "guided-sim-schema",
+    status: "pass",
+    message: "schema_version 1 with status and iterations",
+    path: artifactPath,
+  });
+}
+
+function renderGuidedSimReviewMarkdown(input: {
+  artifactRoot: string;
+  artifactPath: string;
+  artifact: JsonRecord;
+  validationResults: ValidationResult[];
+  rerunCommand: string;
+}): string {
+  const totals = objectValue(input.artifact.totals) ?? {};
+  const failure = firstGuidedSimFailure(input.artifact);
+  const retainedSeed = stringValue(input.artifact.retained_failing_seed) ?? "(none)";
+  const lines: string[] = [
+    `# Guided Simulation Review: ${path.basename(input.artifactRoot)}`,
+    "",
+    "## Outcome",
+    "",
+    `- Status: ${stringValue(input.artifact.status) ?? "unknown"}`,
+    `- Artifact: \`${input.artifactPath}\``,
+    `- Base seed: \`${stringValue(input.artifact.base_seed) ?? ""}\``,
+    `- Retained failing seed: \`${retainedSeed}\``,
+    `- Iterations: ${numberDisplay(totals.iterations)} of ${numberDisplay(input.artifact.iterations_requested)}`,
+    `- Flow calls: ${numberDisplay(totals.flows)}`,
+    `- Service ticks: ${numberDisplay(totals.service_ticks)}`,
+    `- Transaction successes: ${numberDisplay(totals.tx_success)}`,
+    `- Expected errors: ${numberDisplay(totals.expected_errors)}`,
+    `- Unexpected errors: ${numberDisplay(totals.unexpected_errors)}`,
+    `- Panics: ${numberDisplay(totals.panics)}`,
+    "",
+    "## Flow Table",
+    "",
+    "| Flow | Calls |",
+    "|---|---|"
+  ];
+
+  const flows = aggregateGuidedSimFlows(input.artifact);
+  for (const [name, count] of Object.entries(flows)) {
+    lines.push(`| ${tableCell(name)} | ${count} |`);
+  }
+  if (Object.keys(flows).length === 0) {
+    lines.push("| (none recorded) | 0 |");
+  }
+
+  lines.push(
+    "",
+    "## Transaction Labels",
+    "",
+    "| Iteration | Label | Status | Expected error | Compute units | Error |",
+    "|---|---|---|---|---|---|"
+  );
+  const txRows = guidedSimTxOutcomes(input.artifact);
+  for (const row of txRows) {
+    lines.push(
+      `| ${row.iteration} | ${tableCell(row.label)} | ${row.ok ? "ok" : "error"} | ${row.expected_error ? "yes" : "no"} | ${row.compute_units_consumed} | ${tableCell(row.error ?? "")} |`
+    );
+  }
+  if (txRows.length === 0) {
+    lines.push("| - | (no transactions recorded) | - | - | - | - |");
+  }
+
+  lines.push(
+    "",
+    "## Failure",
+    "",
+    `- Failure reason: ${failure ? tableCell(failure) : "none"}`,
+    `- Rerun command: \`${input.rerunCommand}\``,
+    "",
+    "## Validation",
+    ""
+  );
+  for (const result of input.validationResults) {
+    lines.push(`- ${result.status}: ${result.message}`);
+  }
+  lines.push(
+    "",
+    "## Boundary",
+    "",
+    "This review validates a guided-sim artifact and rerun recipe. It does not claim adapter campaign coverage, complete guided-run coverage, audit signoff, or protocol safety beyond the declared manifest, Rust flows, services, seeds, and artifacts.",
+    ""
+  );
+  return lines.join("\n");
+}
+
+function aggregateGuidedSimFlows(artifact: JsonRecord): Record<string, number> {
+  const totals: Record<string, number> = {};
+  for (const iteration of guidedSimIterations(artifact)) {
+    const counts = objectValue(iteration.flow_counts);
+    if (!counts) continue;
+    for (const [name, raw] of Object.entries(counts)) {
+      const count = numberValue(raw);
+      if (count === null) continue;
+      totals[name] = (totals[name] ?? 0) + count;
+    }
+  }
+  return Object.fromEntries(Object.entries(totals).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function guidedSimTxOutcomes(artifact: JsonRecord): Array<{
+  iteration: number | string;
+  label: string;
+  ok: boolean;
+  expected_error: boolean;
+  compute_units_consumed: number;
+  error: string | null;
+}> {
+  const rows = [];
+  for (const iteration of guidedSimIterations(artifact)) {
+    const iterationId = numberValue(iteration.iteration) ?? "";
+    const outcomes = Array.isArray(iteration.tx_outcomes) ? iteration.tx_outcomes : [];
+    for (const outcome of outcomes) {
+      const record = objectValue(outcome);
+      if (!record) continue;
+      rows.push({
+        iteration: iterationId,
+        label: stringValue(record.label) ?? "(unlabelled)",
+        ok: record.ok === true,
+        expected_error: record.expected_error === true,
+        compute_units_consumed: numberValue(record.compute_units_consumed) ?? 0,
+        error: stringValue(record.error)
+      });
+    }
+  }
+  return rows;
+}
+
+function firstGuidedSimFailure(artifact: JsonRecord): string | null {
+  for (const iteration of guidedSimIterations(artifact)) {
+    const error = stringValue(iteration.error);
+    if (error) return error;
+  }
+  return null;
+}
+
+function guidedSimIterations(artifact: JsonRecord): JsonRecord[] {
+  return Array.isArray(artifact.iterations)
+    ? artifact.iterations.filter((iteration): iteration is JsonRecord => objectValue(iteration) !== null)
+    : [];
+}
+
+async function readGuidedSimRerunCommand(rerunPath: string): Promise<string | null> {
+  if (!existsSync(rerunPath)) return null;
+  const lines = (await readFile(rerunPath, "utf8"))
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#") && line !== "set -eu");
+  const command = lines.find((line) => line.includes("riptide sim run"));
+  return command ? command.replace(/^exec\s+/, "") : null;
+}
+
+function inferGuidedSimRerunCommand(artifactRoot: string, artifact: JsonRecord): string {
+  const parts = ["riptide", "sim", "run", "<sim-dir>"];
+  const iterations = numberValue(artifact.iterations_requested);
+  if (iterations !== null) parts.push("--iterations", String(iterations));
+  const flows = numberValue(artifact.flows_per_iteration);
+  if (flows !== null) parts.push("--flows", String(flows));
+  const seed = stringValue(artifact.base_seed);
+  if (seed) parts.push("--seed", seed);
+  parts.push("--out", shellQuotePath(artifactRoot));
+  return parts.join(" ");
 }
 
 async function runCampaignReview(
@@ -509,6 +784,15 @@ function numberValue(value: unknown): number | null {
 function numberDisplay(value: unknown): string {
   const number = numberValue(value);
   return number === null ? "" : String(number);
+}
+
+function tableCell(value: string): string {
+  return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
+function shellQuotePath(value: string): string {
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 function colorizeReviewMarkdown(markdown: string, deps: ReviewCommandDeps): string {
