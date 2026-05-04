@@ -220,7 +220,9 @@ riptide sim generate --adapter .riptide/adapters/<program>.toml
 
 Then fill `.riptide/sim/Riptide.toml` and `.riptide/sim/src/flows.rs`
 from local source, IDL, tests, and fixtures. Use `Riptide.toml` for
-Trident-style external dependencies:
+Trident-class external dependencies when the project owns the config and
+Rust behavior. This is manual guided support, not automatic universal
+fuzzing or audit signoff.
 
 ```toml
 [[sim.programs]]
@@ -242,10 +244,18 @@ Keep generated `types.rs` and `accounts.rs` regenerated-only; put
 hand-authored protocol actions, dynamic account resolution, and service
 models under `flows.rs`, `invariants.rs`, and `services/`.
 
+Do not add Pyth, Switchboard, OpenBook, Drift, Mango, Marinade,
+Whirlpool, or other protocol-specific layouts to Riptide core. If the
+protocol needs those account bytes to evolve during a run, declare the
+external programs/accounts/forked snapshots generically in
+`Riptide.toml`, then model the protocol-specific mutation in
+project-owned services.
+
 Validate the guided-sim loop before continuing to scenario or campaign
 work:
 
 ```bash
+riptide sim lint .riptide/sim
 riptide sim run .riptide/sim --iterations 5 --flows 20 --seed 1337
 ```
 

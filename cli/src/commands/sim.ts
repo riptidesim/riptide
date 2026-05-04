@@ -5,6 +5,7 @@ import chalk from "chalk";
 import { Command } from "commander";
 
 import { generateSim, type SimGenerateOptions } from "../sim/generate.js";
+import { lintSimManifest, renderSimManifestLintReport } from "../sim/manifest.js";
 
 const dim = (value: string) => chalk.hex("#A8A8A8")(value);
 
@@ -68,6 +69,14 @@ export function createSimCommand(): Command {
     });
 
   command
+    .command("lint")
+    .description("Validate a guided simulation Riptide.toml manifest")
+    .argument("[path]", "Simulation crate directory or Riptide.toml path", ".riptide/sim")
+    .action(async (simPath: string) => {
+      process.exitCode = await runSimLint(simPath);
+    });
+
+  command
     .command("debug")
     .description("Run one seed with verbose labelled transaction logging")
     .argument("[path]", "Simulation crate path", ".riptide/sim")
@@ -81,6 +90,12 @@ export function createSimCommand(): Command {
     });
 
   return command;
+}
+
+export async function runSimLint(simPath: string): Promise<number> {
+  const report = await lintSimManifest(simPath);
+  process.stdout.write(renderSimManifestLintReport(report));
+  return report.exitCode;
 }
 
 interface RunOptions {

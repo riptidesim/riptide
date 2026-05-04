@@ -9,10 +9,13 @@ export function renderBootstrapManifest(): string {
 # Load a sibling or dependency program from a local .so at a fixed address.
 # Omit address only when the .so has a sibling <program>-keypair.json and should
 # also become World::program_id.
+# loader defaults to "direct"; upgradeable loader declarations are rejected
+# until paired program-data loading is explicitly supported.
 #
 # [[sim.programs]]
-# address = "11111111111111111111111111111111"
+# address = "So11111111111111111111111111111111111111112"
 # program = "../target/deploy/dependency.so"
+# loader = "direct"
 
 # Load a local account snapshot. The JSON may be a Solana getAccountInfo response,
 # a solana-account-style { "account": ... } object, or Riptide's cached snapshot
@@ -27,9 +30,25 @@ export function renderBootstrapManifest(): string {
 # RPC URL. Keep overwrite=false for stable, reviewable runs.
 #
 # [[sim.fork]]
-# address = "11111111111111111111111111111111"
+# address = "SysvarC1ock11111111111111111111111111111111"
 # cluster = "mainnet"
 # filename = "fork-cache/mainnet/dependency-account.json"
 # overwrite = false
+
+# Optional evidence declarations. They are schema-checked now so future
+# artifact support can fail early instead of silently accepting misspelled
+# keys. Leave enabled=false until your local guided run writes the artifact.
+#
+# [sim.metrics]
+# enabled = false
+# filename = "artifacts/guided-sim-metrics.json"
+#
+# [sim.regression]
+# enabled = false
+# accounts = []
+# state_hashes = []
+#
+# [sim.coverage]
+# enabled = false
 `;
 }

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -34,4 +34,148 @@ test("sim generate CLI writes expected files", async () => {
   assert.match(await readFile(path.join(outDir, "src", "types.rs"), "utf8"), /SwapBuilder/);
   assert.match(await readFile(path.join(outDir, "src", "services", "oracle.rs"), "utf8"), /impl Service for OracleService/);
   assert.match(await readFile(path.join(outDir, "Riptide.toml"), "utf8"), /\[\[sim\.accounts\]\]/);
+
+  const linted = await execFileAsync(process.execPath, [cliEntrypoint, "sim", "lint", outDir], {
+    cwd: root
+  });
+  assert.match(linted.stdout, /Verdict: PASS \(exit 0\)/);
+});
+
+test("sim lint CLI accepts a valid manifest", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-lint-pass-"));
+  const simDir = path.join(root, ".riptide", "sim");
+  await mkdir(path.join(simDir, "fixtures", "accounts"), { recursive: true });
+  await mkdir(path.join(simDir, "target", "deploy"), { recursive: true });
+  await writeFile(path.join(simDir, "target", "deploy", "dependency.so"), "fake so", "utf8");
+  await writeFile(
+    path.join(simDir, "fixtures", "accounts", "dependency-account.json"),
+    JSON.stringify({
+      pubkey: "11111111111111111111111111111111",
+      account: {
+        lamports: 42,
+        data: ["AQID", "base64"],
+        owner: "11111111111111111111111111111111",
+        executable: false,
+        rentEpoch: 0
+      }
+    }),
+    "utf8"
+  );
+  await writeFile(
+    path.join(simDir, "Riptide.toml"),
+    `
+[[sim.programs]]
+address = "So11111111111111111111111111111111111111112"
+program = "target/deploy/dependency.so"
+loader = "direct"
+
+[[sim.accounts]]
+address = "11111111111111111111111111111111"
+filename = "fixtures/accounts/dependency-account.json"
+
+[sim.metrics]
+enabled = false
+filename = "artifacts/guided-sim-metrics.json"
+
+[sim.regression]
+enabled = false
+accounts = ["11111111111111111111111111111111"]
+state_hashes = ["pool"]
+
+[sim.coverage]
+enabled = false
+`,
+    "utf8"
+  );
+
+  const result = await execFileAsync(process.execPath, [cliEntrypoint, "sim", "lint", simDir], {
+    cwd: root
+  });
+
+  assert.match(result.stdout, /Sim manifest lint - .*Riptide\.toml/);
+  assert.match(result.stdout, /PASS \[manifest-schema\] sim/);
+  assert.match(result.stdout, /Verdict: PASS \(exit 0\)/);
+});
+
+test("sim lint CLI reports fixable manifest diagnostics", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-lint-fail-"));
+  const simDir = path.join(root, ".riptide", "sim");
+  await mkdir(path.join(simDir, "fixtures", "accounts"), { recursive: true });
+  await writeFile(
+    path.join(simDir, "fixtures", "accounts", "bad-account.json"),
+    JSON.stringify({
+      pubkey: "So11111111111111111111111111111111111111112",
+      account: {
+        lamports: 42,
+        data: ["@@@", "base64"],
+        owner: "11111111111111111111111111111111",
+        executable: false,
+        rentEpoch: 0
+      }
+    }),
+    "utf8"
+  );
+  await writeFile(
+    path.join(simDir, "fork-cache.json"),
+    JSON.stringify({
+      pubkey: "So11111111111111111111111111111111111111112",
+      account: {
+        lamports: 7,
+        data: ["AQID", "base64"],
+        owner: "11111111111111111111111111111111",
+        executable: false,
+        rentEpoch: 0
+      }
+    }),
+    "utf8"
+  );
+  await writeFile(
+    path.join(simDir, "Riptide.toml"),
+    `
+[[sim.programs]]
+address = "not-a-pubkey"
+program = "missing.so"
+loader = "upgradeable"
+
+[[sim.accounts]]
+address = "11111111111111111111111111111111"
+filename = "fixtures/accounts/bad-account.json"
+
+[[sim.accounts]]
+address = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+filename = "fixtures/accounts/missing-account.json"
+
+[[sim.fork]]
+address = "11111111111111111111111111111111"
+cluster = "mainnet"
+filename = "fork-cache.json"
+overwrite = false
+
+[sim.coverage]
+enabled = true
+`,
+    "utf8"
+  );
+
+  await assert.rejects(
+    () =>
+      execFileAsync(process.execPath, [cliEntrypoint, "sim", "lint", simDir], {
+        cwd: root
+      }),
+    (err: unknown) => {
+      const error = err as { code?: number; stdout?: string; stderr?: string };
+      assert.equal(error.code, 2, `stderr:\n${error.stderr ?? ""}\nstdout:\n${error.stdout ?? ""}`);
+      const stdout = error.stdout ?? "";
+      assert.match(stdout, /FAIL \[invalid-pubkey\] sim\.programs\[0\]\.address/);
+      assert.match(stdout, /FAIL \[program-file-missing\] sim\.programs\[0\]\.program/);
+      assert.match(stdout, /FAIL \[unsupported-loader\] sim\.programs\[0\]\.loader/);
+      assert.match(stdout, /FAIL \[account-data-base64\] sim\.accounts\[0\]\.filename\.data/);
+      assert.match(stdout, /FAIL \[account-file-missing\] sim\.accounts\[1\]\.filename/);
+      assert.match(stdout, /FAIL \[duplicate-address\] sim\.fork\[0\]\.address/);
+      assert.match(stdout, /FAIL \[cache-pubkey-mismatch\] sim\.fork\[0\]\.filename/);
+      assert.match(stdout, /FAIL \[coverage-unavailable\] sim\.coverage\.enabled/);
+      assert.match(stdout, /Verdict: FAIL \(exit 2\)/);
+      return true;
+    }
+  );
 });

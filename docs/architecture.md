@@ -69,6 +69,12 @@ RPC account forks cached to disk.
 Use guided simulations when a flow needs dynamic `remaining_accounts`,
 multiple instructions in one transaction, target-vs-agent selection, or
 project-local service models such as oracle, orderbook, or stake mocks.
+The claim is manually guided support: the project supplies the manifest,
+cached external state, and Rust code that models protocol-specific
+behavior. Riptide provides the generic SVM bootstrap, generated builders,
+world mutation APIs, deterministic seeds, and runner surface; it does not
+provide automatic universal fuzzing, protocol-specific oracle/orderbook
+layouts in core, complete coverage proof, or audit signoff.
 Run them with `riptide sim run .riptide/sim --iterations <n> --flows <n>
 --seed <hex>`. See [guided simulations](guided-sim.md) for the command
 workflow, bootstrap manifest, and file ownership rules.
@@ -135,6 +141,7 @@ Three commands share one mental model for first-run diagnosis before any scenari
 - **`riptide doctor`** is a static health check. It probes the documented toolchain surface (`node`, `npm`, `rustc`, `cargo`, `solana`, `cargo-build-sbf`) via `execFile` without spawning a shell, resolves the `riptide-engine` binary through the same path `adapt` / `run` already trust (`$RIPTIDE_ENGINE_BIN` → `<repo>/target/release/` fallback → module-derived monorepo fallback), walks adapters under `<cwd>/.riptide/adapters/*.toml` and `<cwd>/fixtures/adapters/*.toml` (layered — the downstream user-repo layer wins when it exists, so a user repo's own adapters never accidentally inherit shipping fixtures), and runs the lint analyzer in-process against each. No build, no network, no simulation, no engine spawn. Exit codes are `0` all-pass / `1` warnings-only / `2` at least one fail.
 - **`riptide lint <adapter>`** is the static validator. When `[lineage].idl_source` is a JSON IDL, it cross-checks every adapter-mapped instruction, arg, account, and dotted `account.field` reference against the IDL. Positive mismatches fail loudly (`exit 2`) with a next-step hint naming the missing symbol; uncovered source surfaces may warn when the adapter neither maps them nor names them in `[lineage].unsupported_fields`. Non-JSON lineage sources (for example `programs/<name>/src/state.rs` on `lending`) land as explicit `WARN` with no false PASS — there is no Rust parser today. Missing `[lineage]` blocks land as explicit `SKIP`.
 - **`riptide adapt --adapter <toml>`** is the adapter-only smoke with a lint preflight: when the adapter's lineage source is machine-checkable, adapt runs lint first and aborts before engine spawn on a concrete fail. The default first end-to-end smoke is `riptide run --adapter <toml> --seeds 1 --seed-root 1337`; add `--harness .riptide/harness` only after you explicitly generate a harness setup layer.
+- **`riptide sim lint <path>`** is the guided-sim manifest validator. It reads a `.riptide/sim/Riptide.toml` file or simulation directory, validates local program/account paths, pubkeys, base64 snapshots, duplicate bootstrap addresses, cached snapshot pubkey matches, guarded metrics/regression/coverage declarations, and unsupported loader declarations. No build, RPC fetch, or simulation run is performed.
 - **`riptide review <pack>`** is the read-only reviewer surface for evidence packs. It parses `manifest.json`, resolves `inputs/paths.json` and `outputs/paths.json` relative to the pack root, verifies the engine canonical hash of the indexed simulation result, checks `rerun.sh` with `sh -n` without executing it, and emits markdown or `--json`. No engine spawn, no network, no pack mutation.
 
 These commands are the install-first operator surface — they exist so a new user can install Riptide, confirm their environment, static-check their adapter, and smoke-test it end-to-end before running a single scenario. They do not replace `cargo test -p riptide-engine` or the repo's regression gates; they exist upstream of them.

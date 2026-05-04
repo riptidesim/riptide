@@ -39,6 +39,12 @@ pub struct SimBootstrap {
     pub accounts: Vec<AccountEntry>,
     #[serde(default)]
     pub fork: Vec<ForkEntry>,
+    #[serde(default)]
+    pub metrics: MetricsConfig,
+    #[serde(default)]
+    pub regression: RegressionConfig,
+    #[serde(default)]
+    pub coverage: CoverageConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -46,6 +52,7 @@ pub struct SimBootstrap {
 pub struct ProgramEntry {
     pub address: Option<String>,
     pub program: String,
+    pub loader: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -64,6 +71,32 @@ pub struct ForkEntry {
     pub filename: Option<String>,
     #[serde(default)]
     pub overwrite: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct MetricsConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    pub filename: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct RegressionConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub accounts: Vec<String>,
+    #[serde(default)]
+    pub state_hashes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct CoverageConfig {
+    #[serde(default)]
+    pub enabled: bool,
 }
 
 pub fn apply_manifest(
@@ -101,7 +134,24 @@ pub fn apply_bootstrap(
     let base_dir = base_dir.as_ref();
     let mut report = BootstrapReport::default();
 
+    if bootstrap.metrics.enabled {
+        bail!("sim.metrics.enabled is declared, but guided-sim metrics artifacts are not implemented yet");
+    }
+    if bootstrap.regression.enabled {
+        bail!("sim.regression.enabled is declared, but guided-sim regression artifacts are not implemented yet");
+    }
+    if bootstrap.coverage.enabled {
+        bail!("sim.coverage.enabled is declared, but guided-sim coverage output is not implemented yet");
+    }
+
     for program in &bootstrap.programs {
+        if let Some(loader) = &program.loader {
+            if loader != "direct" {
+                bail!(
+                    "unsupported sim.programs loader `{loader}`; only `direct` local .so loading is supported"
+                );
+            }
+        }
         let program_path = resolve_path(base_dir, &program.program);
         match &program.address {
             Some(address) => {
@@ -454,6 +504,72 @@ mod tests {
         assert!(error.contains("account"), "got: {error}");
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn manifest_accepts_guarded_evidence_sections() {
+        let manifest: SimManifest = toml::from_str(
+            r#"
+[sim.metrics]
+enabled = false
+filename = "artifacts/guided-sim-metrics.json"
+
+[sim.regression]
+enabled = false
+accounts = ["11111111111111111111111111111111"]
+state_hashes = ["pool"]
+
+[sim.coverage]
+enabled = false
+"#,
+        )
+        .unwrap();
+
+        assert!(!manifest.sim.metrics.enabled);
+        assert_eq!(
+            manifest.sim.metrics.filename.as_deref(),
+            Some("artifacts/guided-sim-metrics.json")
+        );
+        assert_eq!(manifest.sim.regression.accounts.len(), 1);
+        assert_eq!(manifest.sim.regression.state_hashes, vec!["pool"]);
+        assert!(!manifest.sim.coverage.enabled);
+    }
+
+    #[test]
+    fn manifest_rejects_unsupported_program_loader() {
+        let mut world = World::default();
+        let bootstrap = SimBootstrap {
+            programs: vec![ProgramEntry {
+                address: None,
+                program: "missing.so".to_owned(),
+                loader: Some("upgradeable".to_owned()),
+            }],
+            ..Default::default()
+        };
+
+        let error = apply_bootstrap(&mut world, &bootstrap, ".")
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("unsupported sim.programs loader"));
+    }
+
+    #[test]
+    fn manifest_rejects_unavailable_evidence_flags() {
+        let mut world = World::default();
+        let bootstrap = SimBootstrap {
+            metrics: MetricsConfig {
+                enabled: true,
+                filename: Some("artifacts/guided-sim-metrics.json".to_owned()),
+            },
+            ..Default::default()
+        };
+
+        let error = apply_bootstrap(&mut world, &bootstrap, ".")
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("sim.metrics.enabled is declared"));
     }
 
     #[test]
