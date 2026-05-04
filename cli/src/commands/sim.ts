@@ -32,6 +32,7 @@ export function createSimCommand(): Command {
         process.stderr.write(dim(`  adapter ${result.adapterPath}\n`));
         process.stderr.write(dim(`  idl ${result.idlPath}\n`));
         process.stderr.write(dim(`  manifest ${result.manifestPath}\n`));
+        process.stderr.write(dim(`  bootstrap ${result.bootstrapManifestPath}\n`));
       } catch (err) {
         process.stderr.write(chalk.red(`riptide sim: ${errMessage(err)}\n`));
         process.exitCode = 2;

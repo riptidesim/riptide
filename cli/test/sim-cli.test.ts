@@ -30,6 +30,8 @@ test("sim generate CLI writes expected files", async () => {
   );
 
   assert.match(generated.stderr, /generated guided Rust simulation/);
+  assert.match(generated.stderr, /bootstrap .*Riptide\.toml/);
   assert.match(await readFile(path.join(outDir, "src", "types.rs"), "utf8"), /SwapBuilder/);
   assert.match(await readFile(path.join(outDir, "src", "services", "oracle.rs"), "utf8"), /impl Service for OracleService/);
+  assert.match(await readFile(path.join(outDir, "Riptide.toml"), "utf8"), /\[\[sim\.accounts\]\]/);
 });

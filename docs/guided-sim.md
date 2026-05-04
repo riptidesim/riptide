@@ -4,11 +4,12 @@ Guided simulations are project-owned Rust crates under `.riptide/sim/`.
 Use them when the adapter and setup harness aren't expressive enough for
 the protocol flow you need to test.
 
-The harness still owns pre-tick-0 setup: account bytes, PDAs, SPL
-accounts, sibling programs, and deterministic bootstrap data. Guided
-simulations own dynamic behavior: multi-instruction transactions,
-computed `remaining_accounts`, target-vs-agent selection, and local
-services such as oracle or orderbook mocks.
+The harness still owns pre-tick-0 setup for adapter/campaign runs.
+Guided simulations can bootstrap their own external programs and account
+snapshots through `Riptide.toml`, then own dynamic behavior:
+multi-instruction transactions, computed `remaining_accounts`,
+target-vs-agent selection, and local services such as oracle or
+orderbook models.
 
 ## Generate the crate
 
@@ -23,6 +24,7 @@ By default, the crate lands at `.riptide/sim/`:
 ```text
 .riptide/sim/
 ├── Cargo.toml
+├── Riptide.toml
 └── src/
     ├── main.rs
     ├── types.rs
@@ -38,6 +40,35 @@ adapter's `[accounts.*]` entries. Treat both files as regenerated code.
 
 Write protocol behavior in `flows.rs`, invariant checks in
 `invariants.rs`, and project-local mocks in `services/`.
+
+## Bootstrap external state
+
+`Riptide.toml` is applied before `flows::init`. Use it for external
+dependencies that are generic to the SVM rather than specific to one
+oracle protocol:
+
+```toml
+[[sim.programs]]
+address = "11111111111111111111111111111111"
+program = "../target/deploy/dependency.so"
+
+[[sim.accounts]]
+address = "11111111111111111111111111111111"
+filename = "fixtures/accounts/dependency-account.json"
+
+[[sim.fork]]
+address = "11111111111111111111111111111111"
+cluster = "mainnet"
+filename = "fork-cache/mainnet/dependency-account.json"
+overwrite = false
+```
+
+Forking is account-snapshot forking, not a live validator fork. The
+first run fetches a base64 account snapshot from the declared RPC and
+caches it; later runs reuse the cache unless `overwrite = true`.
+Protocol-specific updates, such as advancing an oracle price or
+orderbook state between flows, belong in `src/services/` and can write
+accounts through `World::set_account`.
 
 When a transaction is supposed to be rejected, use
 `world.process_transaction_expect_error(...)` and assert against the

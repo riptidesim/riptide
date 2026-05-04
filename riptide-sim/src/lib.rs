@@ -3,6 +3,7 @@
 extern crate self as riptide_sim;
 
 pub mod accounts;
+pub mod bootstrap;
 pub mod rng;
 pub mod runner;
 pub mod services;
@@ -10,6 +11,7 @@ pub mod spl;
 pub mod world;
 
 pub use accounts::AddressStorage;
+pub use bootstrap::{BootstrapReport, SimBootstrap, SimManifest};
 pub use rng::RiptideRng;
 pub use runner::{run, FlowSpec, IntoSimResult, RiptideSimulation, RunnerConfig, SimulationRunner};
 pub use services::Service;

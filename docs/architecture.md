@@ -61,14 +61,17 @@ simulations are the parallel path for protocol flow that must be written
 in Rust. `riptide sim generate --adapter <adapter.toml>` creates
 `.riptide/sim/`, including generated IDL builders in `types.rs`,
 generated account storage skeletons in `accounts.rs`, and user-owned
-flow code in `flows.rs`, `invariants.rs`, and `services/`.
+flow code in `flows.rs`, `invariants.rs`, and `services/`. The
+generated crate also includes `Riptide.toml`, a Trident-style bootstrap
+manifest for sibling programs, local account snapshots, and explicit
+RPC account forks cached to disk.
 
 Use guided simulations when a flow needs dynamic `remaining_accounts`,
 multiple instructions in one transaction, target-vs-agent selection, or
 project-local service models such as oracle, orderbook, or stake mocks.
 Run them with `riptide sim run .riptide/sim --iterations <n> --flows <n>
 --seed <hex>`. See [guided simulations](guided-sim.md) for the command
-workflow and file ownership rules.
+workflow, bootstrap manifest, and file ownership rules.
 
 ## LiteSVM runtime — default, with honest caveats
 
@@ -115,7 +118,7 @@ Semantic oracle bindings are broader than the top-level shock-injection binding.
 What this surface does **not** yet cover:
 
 - **Multi-stream generic oracle shock injection.** Declaring 2+ top-level `[[oracles]]` entries on a generic adapter still fails fast with a single-oracle-for-now diagnostic — the current scenario/replay surfaces emit one oracle-update stream.
-- **Protocol-specific oracle layouts.** Pyth, Switchboard, and similar account shapes are intentionally out of the MVP core. Projects that need them should provide a harness helper, load the real program, or mock the dependency explicitly.
+- **Protocol-specific oracle layouts.** Pyth, Switchboard, and similar account shapes are intentionally out of core adapter dispatch. Projects that need them should use guided sim: declare external programs/accounts/forked snapshots in `.riptide/sim/Riptide.toml`, then update account bytes from project-owned `services/` code.
 - **Pairwise generic liquidation.** `GenericHarness::execute_action` still ignores `target_idx`, so `liquidate_position`'s victim plumbing is a follow-up.
 - **Automatic guided-sim inference.** `riptide sim generate` creates the Rust workspace and typed IDL builders, but it does not infer protocol flows from source. Users or skills write `flows.rs` explicitly.
 - **Generalized multi-program scenario sweeps.** The cross-protocol proof at `fixtures/replays/lst-lending-contagion-proof/` is replay-only composition: two shipping bundles plus one declared scalar-observation → scalar-oracle-write bridge in one deterministic replay run. Synthetic multi-program persona sweeps, arbitrary cross-program transaction graphs, a multi-program LST → stablecoin → lending chain, governance-contagion bundles, and cascade-graph dashboards are not in today's claim surface.
@@ -123,7 +126,7 @@ What this surface does **not** yet cover:
 - **Literal UXD / live hedge-venue integration / generalized peg-defense.** The `stablecoin` bundle captures UXD-style *pressure geometry* via a program-local `apply_hedge_loss(loss_bps)` stress mutation, not a stablecoin ↔ perps-venue composition. There is no live hedge-venue plumbing, no dynamic peg-defense policy engine, and no oracle-gated mint/redeem pricing in the shipping bundle — the stablecoin proof's backing stress is driven by on-account state only. A later bundle can add those layers without reshaping the current adapter.
 - **Watch mode / parallel scenario execution / broad parameter-grid generation** remain follow-ups. The existing `riptide run --serve` path reviews the collection of scenarios selected by one `riptide run`; it is not a new sweep generator or watch service.
 - **Machine validation of non-JSON lineage sources.** `riptide lint` (added in the DX-hardening pass) machine-checks adapters whose `[lineage].idl_source` is a JSON IDL — mapped instructions, args, accounts, and `account.field` references must all resolve in the IDL. Rust-source-of-record adapters like `lending` stay inspection-only and warn honestly; there is no Rust parser in the linter today.
-- **Auto-adapter-from-program-id, live mainnet IDL fetch, LSP / editor tooling, adapter-diff CLI.** Every artifact Riptide reads is committed on disk; no run-time network dependency, no IDE integration.
+- **Auto-adapter-from-program-id, live mainnet IDL fetch, LSP / editor tooling, adapter-diff CLI.** Adapter/campaign artifacts stay disk-first. Guided sim can explicitly fork account snapshots through `.riptide/sim/Riptide.toml`, but there is no automatic mainnet discovery or IDE integration.
 
 ## Operator DX surfaces
 

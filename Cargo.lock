@@ -3356,16 +3356,21 @@ name = "riptide-sim"
 version = "0.7.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "borsh",
  "clap",
  "litesvm",
  "rand 0.9.2",
+ "reqwest",
  "riptide-sim-macros",
+ "serde",
+ "serde_json",
  "solana-account 3.4.0",
  "solana-clock",
  "solana-sdk",
  "solana-system-interface 3.2.0",
  "solana-transaction 3.1.0",
+ "toml",
 ]
 
 [[package]]

@@ -15,6 +15,7 @@ use solana_sdk::{
 use solana_transaction::Transaction;
 
 use crate::{
+    bootstrap::BootstrapReport,
     rng::RiptideRng,
     services::Service,
     spl::{
@@ -116,8 +117,6 @@ impl World {
 
     pub fn load_program_from_so(&mut self, so_path: impl AsRef<Path>) -> Result<Pubkey> {
         let so_path = so_path.as_ref();
-        let program_bytes = std::fs::read(so_path)
-            .with_context(|| format!("read program artifact {}", so_path.display()))?;
         let keypair_path = so_path.with_file_name(format!(
             "{}-keypair.json",
             so_path
@@ -133,6 +132,19 @@ impl World {
             )
         })?;
         let program_id = program_keypair.pubkey();
+        self.add_program_from_so(program_id, so_path)?;
+        self.program_id = program_id;
+        Ok(program_id)
+    }
+
+    pub fn add_program_from_so(
+        &mut self,
+        program_id: Pubkey,
+        so_path: impl AsRef<Path>,
+    ) -> Result<Pubkey> {
+        let so_path = so_path.as_ref();
+        let program_bytes = std::fs::read(so_path)
+            .with_context(|| format!("read program artifact {}", so_path.display()))?;
         self.svm
             .add_program(program_id, &program_bytes)
             .map_err(|error| {
@@ -141,7 +153,6 @@ impl World {
                     so_path.display()
                 )
             })?;
-        self.program_id = program_id;
         Ok(program_id)
     }
 
@@ -257,6 +268,40 @@ impl World {
         self.svm
             .set_account(pubkey, account)
             .map_err(|error| anyhow!("set account {pubkey}: {error}"))
+    }
+
+    pub fn load_account_from_json_file(
+        &mut self,
+        pubkey: Pubkey,
+        path: impl AsRef<Path>,
+    ) -> Result<Pubkey> {
+        let account = crate::bootstrap::read_account_snapshot_for_pubkey(&path, &pubkey)?;
+        self.set_account(pubkey, account)?;
+        Ok(pubkey)
+    }
+
+    pub fn fork_account_to_json_cache(
+        &mut self,
+        pubkey: Pubkey,
+        cluster: &str,
+        cache_path: impl AsRef<Path>,
+        overwrite: bool,
+    ) -> Result<Pubkey> {
+        let account =
+            crate::bootstrap::load_or_fetch_account(&pubkey, cluster, cache_path, overwrite)?;
+        self.set_account(pubkey, account)?;
+        Ok(pubkey)
+    }
+
+    pub fn apply_manifest(&mut self, manifest_path: impl AsRef<Path>) -> Result<BootstrapReport> {
+        crate::bootstrap::apply_manifest(self, manifest_path)
+    }
+
+    pub fn apply_manifest_if_exists(
+        &mut self,
+        manifest_path: impl AsRef<Path>,
+    ) -> Result<Option<BootstrapReport>> {
+        crate::bootstrap::apply_manifest_if_exists(self, manifest_path)
     }
 
     pub fn get_account_with_borsh<T: BorshDeserialize>(&self, pubkey: &Pubkey) -> Result<T> {

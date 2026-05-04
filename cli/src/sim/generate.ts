@@ -7,6 +7,7 @@ import { cliPackageRootFromModule, monorepoRootFromModule } from "../orchestrato
 import { resolveAdapterRuntime, type Adapter } from "../schemas/adapter.js";
 import { loadGenericIdl } from "./idl.js";
 import { renderAccounts } from "./render-accounts.js";
+import { renderBootstrapManifest } from "./render-manifest.js";
 import {
   renderFlows,
   renderInvariants,
@@ -27,6 +28,7 @@ export interface SimGenerateOptions {
 export interface SimGenerateResult {
   dir: string;
   manifestPath: string;
+  bootstrapManifestPath: string;
   adapterPath: string;
   idlPath: string;
 }
@@ -53,6 +55,7 @@ export async function generateSim(
   const srcDir = path.join(outDir, "src");
   const servicesDir = path.join(srcDir, "services");
   const manifestPath = path.join(outDir, "Cargo.toml");
+  const bootstrapManifestPath = path.join(outDir, "Riptide.toml");
   const forceUserOwned = options.forceGenerated === true;
   const programSoPath = resolved.adapter.program_so
     ? path.resolve(adapterDir, resolved.adapter.program_so)
@@ -66,17 +69,22 @@ export async function generateSim(
     await writeFile(manifestPath, renderCargoToml(simCrateName(resolved.path)), "utf8");
     await writeFile(
       path.join(srcDir, "main.rs"),
-      renderMain(resolved.adapter, { adapterPath: resolved.path, programSoPath }),
+      renderMain(resolved.adapter, {
+        adapterPath: resolved.path,
+        idlProgramId: idl.address,
+        programSoPath
+      }),
       "utf8"
     );
     await writeIfFirst(path.join(srcDir, "flows.rs"), renderFlows(), forceUserOwned);
     await writeIfFirst(path.join(srcDir, "invariants.rs"), renderInvariants(), forceUserOwned);
     await writeIfFirst(path.join(servicesDir, "mod.rs"), renderServicesMod(), forceUserOwned);
     await writeIfFirst(path.join(servicesDir, "oracle.rs"), renderOracleService(), forceUserOwned);
+    await writeIfFirst(bootstrapManifestPath, renderBootstrapManifest(), forceUserOwned);
     await copyRuntimeLockfileIfPresent(outDir);
   }
 
-  return { dir: outDir, manifestPath, adapterPath: resolved.path, idlPath };
+  return { dir: outDir, manifestPath, bootstrapManifestPath, adapterPath: resolved.path, idlPath };
 }
 
 async function writeIfFirst(filePath: string, content: string, force: boolean): Promise<void> {

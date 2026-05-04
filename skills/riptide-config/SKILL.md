@@ -174,12 +174,15 @@ required and derivable. Before declaring a blocker, inspect source,
 tests, IDL, dependency types, constants, and local fixtures for account
 owners, discriminators, sizes, PDA seeds, feed IDs, and serialization.
 
-For external-owned accounts such as oracle receiver accounts, mock the
-local account bytes the program reads; do not require a live network
-service or put that setup in Riptide core. If the exact layout, owner,
-feed ID, or serialization cannot be determined from local facts, return
-`blocked = missing deterministic <fact> for harness setup` and name the
-account/instruction. Do not hide that state behind a vague TODO comment.
+For external-owned accounts such as oracle receiver accounts, keep the
+adapter/harness deterministic: use local account bytes, checked-in
+snapshots, or guided-sim fork cache entries. Do not ask Riptide core to
+learn Pyth, Switchboard, or other protocol-specific layouts. If the
+exact layout, owner, feed ID, or serialization cannot be determined from
+local facts or an explicit `.riptide/sim/Riptide.toml` snapshot, return
+`blocked = missing deterministic <fact> for harness/guided-sim setup`
+and name the account/instruction. Do not hide that state behind a vague
+TODO comment.
 
 Harness setup owns pre-tick-0 accounts and sibling programs. Dynamic
 protocol behaviour lives in `.riptide/sim/`: use guided sim when the
@@ -215,10 +218,29 @@ Generate the project-owned simulation crate:
 riptide sim generate --adapter .riptide/adapters/<program>.toml
 ```
 
-Then fill `.riptide/sim/src/flows.rs` from local source, IDL, tests, and
-fixtures. Keep generated `types.rs` and `accounts.rs` regenerated-only;
-put hand-authored protocol actions, dynamic account resolution, and
-service mocks under `flows.rs`, `invariants.rs`, and `services/`.
+Then fill `.riptide/sim/Riptide.toml` and `.riptide/sim/src/flows.rs`
+from local source, IDL, tests, and fixtures. Use `Riptide.toml` for
+Trident-style external dependencies:
+
+```toml
+[[sim.programs]]
+address = "<program-id>"
+program = "../target/deploy/dependency.so"
+
+[[sim.accounts]]
+address = "<account-pubkey>"
+filename = "fixtures/accounts/dependency-account.json"
+
+[[sim.fork]]
+address = "<mainnet-account-pubkey>"
+cluster = "mainnet"
+filename = "fork-cache/mainnet/dependency-account.json"
+overwrite = false
+```
+
+Keep generated `types.rs` and `accounts.rs` regenerated-only; put
+hand-authored protocol actions, dynamic account resolution, and service
+models under `flows.rs`, `invariants.rs`, and `services/`.
 
 Validate the guided-sim loop before continuing to scenario or campaign
 work:
