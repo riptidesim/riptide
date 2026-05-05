@@ -13,8 +13,8 @@
 // so we can pin the orchestration shape without the 60-90s engine
 // startup cost. The real engine invocation path is covered by the
 // byte-stable regression-hash gates in scripts/perps-scratch.sh,
-// scripts/amm-scratch.sh, and the hero-grid artifact under
-// fixtures/scenarios/lending/hero-grid/w25-s40/.
+// scripts/amm-scratch.sh, and the whale-shock-grid artifact under
+// fixtures/scenarios/lending/whale-shock-grid/.
 
 import test from "node:test";
 import assert from "node:assert/strict";

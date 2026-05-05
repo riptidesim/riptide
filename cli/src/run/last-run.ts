@@ -16,7 +16,7 @@
 //   "partial_abort": <boolean>,    // true if engine crashed mid-scenario (non-signal)
 //   "scenarios": [
 //     {
-//       "name": "hero-grid/w25-s40",       // discovery-derived name
+//       "name": "lending/whale-shock-grid", // discovery-derived name
 //       "run_config_path": "/abs/path/run-config.json",
 //       "status": "pass" | "fail" | "error" | "skipped",
 //       "wall_clock_s": <number>,          // 3-decimal seconds

@@ -45,6 +45,24 @@ import {
   type Policy,
   type RunConfig
 } from "../compiler/schema.js";
+export {
+  CLAIM_LEVEL_DESCRIPTIONS,
+  CLAIM_LEVELS,
+  DEFAULT_EXPECTED_FAMILIES_PER_CLASS,
+  DEFAULT_STRICT_CLASS_COUNTS,
+  PROTOCOL_CLASSES,
+  lintScenarioCatalog,
+  loadScenarioCatalog,
+  parseScenarioCatalogToml,
+  renderScenarioCatalogMarkdown,
+  sortFamilies,
+  type CatalogDiagnostic,
+  type ClaimLevel,
+  type LintScenarioCatalogOptions,
+  type ProtocolClass,
+  type ScenarioCatalog,
+  type ScenarioFamily
+} from "./catalog.js";
 
 export type ValidateExitCode = 0 | 1 | 2;
 

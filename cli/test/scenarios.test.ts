@@ -11,13 +11,19 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdtemp, symlink, writeFile, unlink } from "node:fs/promises";
+import { mkdir, mkdtemp, symlink, writeFile, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runScenariosValidate } from "../src/commands/scenarios.js";
+import {
+  lintScenarioCatalog,
+  renderScenarioCatalogMarkdown,
+  type ScenarioCatalog
+} from "../src/scenarios/catalog.js";
 import { validateScenario, type SpawnEngine } from "../src/scenarios/validate.js";
 
 const VALID_RUN_CONFIG = {
@@ -549,3 +555,203 @@ test("validateScenario: missing adapter referenced by manifest → exit 2", asyn
   );
   assert.equal(result.exit, 2);
 });
+
+test("scenarios catalog lint: committed catalog is fresh and consistent", async () => {
+  const diagnostics = await lintScenarioCatalog({ repoRoot: MONOREPO_ROOT });
+  assert.deepEqual(diagnostics, []);
+});
+
+test("scenarios catalog lint: catches missing fixture referenced by catalog", async () => {
+  const root = await catalogFixtureRoot("missing-fixture");
+  await writeCatalog(root, [
+    {
+      slug: "lending/missing-family",
+      fixturePath: "fixtures/scenarios/lending/missing-family",
+      resultHash: ZERO_HASH
+    }
+  ]);
+
+  const diagnostics = await lintScenarioCatalog({
+    repoRoot: root,
+    checkGeneratedMarkdown: false
+  });
+
+  assert.equal(diagnostics.some((d) => d.code === "missing_fixture"), true);
+});
+
+test("scenarios catalog lint: catches catalog-less public fixture", async () => {
+  const root = await catalogFixtureRoot("catalogless");
+  const listedHash = await writeScenarioFixture(root, "lending/listed", "listed");
+  await writeCatalog(root, [
+    {
+      slug: "lending/listed",
+      fixturePath: "fixtures/scenarios/lending/listed",
+      resultHash: listedHash
+    }
+  ]);
+  await mkdir(path.join(root, "fixtures/scenarios/lending/uncataloged"), {
+    recursive: true
+  });
+  await writeFile(
+    path.join(root, "fixtures/scenarios/lending/uncataloged/run-config.json"),
+    "{}",
+    "utf8"
+  );
+
+  const diagnostics = await lintScenarioCatalog({
+    repoRoot: root,
+    checkGeneratedMarkdown: false
+  });
+
+  assert.equal(diagnostics.some((d) => d.code === "catalogless_fixture"), true);
+});
+
+test("scenarios catalog lint: catches result_hash mismatch", async () => {
+  const root = await catalogFixtureRoot("hash-mismatch");
+  await writeScenarioFixture(root, "lending/hash-mismatch", "actual result");
+  await writeCatalog(root, [
+    {
+      slug: "lending/hash-mismatch",
+      fixturePath: "fixtures/scenarios/lending/hash-mismatch",
+      resultHash: ZERO_HASH
+    }
+  ]);
+
+  const diagnostics = await lintScenarioCatalog({
+    repoRoot: root,
+    checkGeneratedMarkdown: false
+  });
+
+  assert.equal(diagnostics.some((d) => d.code === "result_hash_mismatch"), true);
+});
+
+test("scenarios catalog lint: catches missing result artifact by default", async () => {
+  const root = await catalogFixtureRoot("missing-result");
+  const fixtureDir = path.join(root, "fixtures/scenarios/lending/missing-result");
+  await mkdir(fixtureDir, { recursive: true });
+  await writeFile(path.join(fixtureDir, "run-config.json"), "{}\n", "utf8");
+  await writeCatalog(root, [
+    {
+      slug: "lending/missing-result",
+      fixturePath: "fixtures/scenarios/lending/missing-result",
+      resultHash: ZERO_HASH
+    }
+  ]);
+
+  const diagnostics = await lintScenarioCatalog({
+    repoRoot: root,
+    checkGeneratedMarkdown: false
+  });
+
+  assert.equal(diagnostics.some((d) => d.code === "missing_result_artifact"), true);
+});
+
+test("scenarios catalog lint: catches stale generated markdown", async () => {
+  const root = await catalogFixtureRoot("stale-markdown");
+  const resultHash = await writeScenarioFixture(root, "lending/stale-markdown", "same");
+  await writeCatalog(root, [
+    {
+      slug: "lending/stale-markdown",
+      fixturePath: "fixtures/scenarios/lending/stale-markdown",
+      resultHash
+    }
+  ]);
+  await mkdir(path.join(root, "docs"), { recursive: true });
+  await writeFile(path.join(root, "docs/scenario-catalog.md"), "stale\n", "utf8");
+
+  const diagnostics = await lintScenarioCatalog({ repoRoot: root });
+
+  assert.equal(diagnostics.some((d) => d.code === "stale_markdown"), true);
+});
+
+test("scenarios catalog lint: strict class count is gated and fails in isolation", async () => {
+  const root = await catalogFixtureRoot("strict-count");
+  const resultHash = await writeScenarioFixture(root, "lending/only-one", "same");
+  await writeCatalog(root, [
+    {
+      slug: "lending/only-one",
+      fixturePath: "fixtures/scenarios/lending/only-one",
+      resultHash
+    }
+  ]);
+
+  const diagnostics = await lintScenarioCatalog({
+    repoRoot: root,
+    checkGeneratedMarkdown: false,
+    strictClassCounts: true,
+    strictClassCountClasses: ["lending"]
+  });
+
+  assert.equal(diagnostics.some((d) => d.code === "class_count_mismatch"), true);
+});
+
+const ZERO_HASH = "0000000000000000000000000000000000000000000000000000000000000000";
+
+async function catalogFixtureRoot(prefix: string): Promise<string> {
+  const root = await mkdtemp(path.join(os.tmpdir(), `riptide-catalog-${prefix}-`));
+  await mkdir(path.join(root, "fixtures/scenarios"), { recursive: true });
+  return root;
+}
+
+async function writeScenarioFixture(
+  root: string,
+  slug: string,
+  resultText: string
+): Promise<string> {
+  const fixtureDir = path.join(root, "fixtures/scenarios", ...slug.split("/"));
+  await mkdir(fixtureDir, { recursive: true });
+  await writeFile(path.join(fixtureDir, "run-config.json"), "{}\n", "utf8");
+  await writeFile(path.join(fixtureDir, "simulation-result.json"), resultText, "utf8");
+  return createHash("sha256").update(resultText).digest("hex");
+}
+
+async function writeCatalog(
+  root: string,
+  entries: Array<{ slug: string; fixturePath: string; resultHash: string }>
+): Promise<void> {
+  const catalogPath = path.join(root, "fixtures/scenarios/catalog.toml");
+  const lines = ["[meta]", "version = 1", ""];
+  for (const entry of entries) {
+    const [protocolClass, familySlug] = entry.slug.split("/");
+    const name = titleCase(familySlug ?? "fixture");
+    lines.push(
+      "[[family]]",
+      `slug = "${entry.slug}"`,
+      `class = "${protocolClass}"`,
+      `name = "${name}"`,
+      `summary = "Test fixture ${name}."`,
+      `fixture_path = "${entry.fixturePath}"`,
+      'claim_level = "smoke-shape"',
+      `result_hash = "${entry.resultHash}"`,
+      ""
+    );
+  }
+  await writeFile(catalogPath, lines.join("\n"), "utf8");
+
+  const family = entries.map((entry) => {
+    const [protocolClass, familySlug] = entry.slug.split("/");
+    return {
+      slug: entry.slug,
+      class: protocolClass,
+      name: titleCase(familySlug ?? "fixture"),
+      summary: `Test fixture ${titleCase(familySlug ?? "fixture")}.`,
+      fixture_path: entry.fixturePath,
+      claim_level: "smoke-shape",
+      result_hash: entry.resultHash
+    };
+  }) as ScenarioCatalog["family"];
+  const markdown = renderScenarioCatalogMarkdown({
+    meta: { version: 1 },
+    family
+  });
+  await mkdir(path.join(root, "docs"), { recursive: true });
+  await writeFile(path.join(root, "docs/scenario-catalog.md"), markdown, "utf8");
+}
+
+function titleCase(value: string): string {
+  return value
+    .split("-")
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}

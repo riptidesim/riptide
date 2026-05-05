@@ -11,9 +11,9 @@
 // - `[abc]` / `[a-z]` character classes match one char
 // - Every other character is a literal
 //
-// Implicit trailing match: a bare token like `hero-grid` (no glob
-// meta) matches BOTH the exact name `hero-grid` AND any descendant
-// `hero-grid/...`. Mirrors jest's file-pattern ergonomics where
+// Implicit trailing match: a bare token like `whale-shock-grid` (no glob
+// meta) matches BOTH the exact name `whale-shock-grid` AND any descendant
+// `whale-shock-grid/...`. Mirrors jest's file-pattern ergonomics where
 // `jest foo` matches every test whose name starts with `foo`.
 
 const META_CHARS = /[*?[\]]/;
@@ -26,8 +26,8 @@ export function hasGlobMeta(pattern: string): boolean {
  * Match `name` against `pattern`. Returns true on match.
  *
  * If `pattern` contains no glob metacharacters, the match is treated
- * as an implicit prefix match: `hero-grid` matches `hero-grid` and
- * `hero-grid/w25-s40` but NOT `hero-grid-extra`. The `/` boundary is
+ * as an implicit prefix match: `whale-shock-grid` matches `whale-shock-grid` and
+ * `whale-shock-grid/w25-s40` but NOT `whale-shock-grid-extra`. The `/` boundary is
  * respected so a bare token can't accidentally match an unrelated
  * scenario whose name happens to start with the same string.
  */

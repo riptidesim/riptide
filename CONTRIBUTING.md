@@ -93,8 +93,8 @@ The installer detects missing toolchains and prints actionable hints rather than
 ### Verify
 
 ```bash
-# Canonical smoke: the shipping hero-grid cell
-riptide run lending/hero-grid/w25-s40
+# Canonical smoke: the shipping whale-shock-grid family
+riptide run lending/whale-shock-grid
 
 # Regression gate (engine suites)
 cargo test -p riptide-engine
@@ -271,7 +271,7 @@ Engine changes are rare. If you're about to write one, stop and ask:
 - **Is this a genuinely new engine capability?** If yes — good, write it, but:
   - It ships with its own integration test in `engine/tests/`.
   - It must preserve the `e2e_determinism` regression.
-  - It does not break the three byte-stable hashes shipped today (Solend-fork hero-grid `w25-s40`, perpetuals scratch, AMM-fork scratch — see [Determinism & Regression Gates](#determinism--regression-gates)).
+  - It does not break the three byte-stable hashes shipped today (lending `whale-shock-grid`, perpetuals scratch, AMM-fork scratch — see [Determinism & Regression Gates](#determinism--regression-gates)).
   - It updates `docs/architecture.md` if the change touches a documented pattern.
 
 Engine changes that break determinism without a conscious retune are the top-priority reverts.
@@ -323,7 +323,7 @@ bash scripts/ci/harnessed-user-flow-smoke.sh
 
 | Fixture | sha256 |
 |---------|--------|
-| Solend-fork hero-grid `w25-s40` | `89ca84209f3423c317e6be96f14261a9ebed7a9668398a08087a25631b782a11` |
+| Lending `whale-shock-grid` | `60f72adee15451af60f559cdfb9609813b54c34565f7c76fe7e5cf8495a42470` |
 | Perps-fork scratch | `58898e0aab6a16da8c0044dcd0ffc55bed7a655bc8f0ca7e868a86f13f6ae5d8` |
 | AMM-fork scratch | `6757d989c2d80b84593de23e27ee43238e467b414a818ebbe9adf4c869e06f7f` |
 | Liquid-staking depeg + redemption-run replay (canonical `result_sha256`) | see `fixtures/replays/liquid-staking-depeg-redemption-run/expected-summary.json` |
@@ -353,7 +353,7 @@ docs/description       # Documentation
 ### Before submitting
 
 1. **Run the regression gates** (see [Determinism & Regression Gates](#determinism--regression-gates)).
-2. **Test manually:** run the shipping demo (`riptide run lending/hero-grid/w25-s40`) and confirm the hash is unchanged.
+2. **Test manually:** run the shipping demo (`riptide run lending/whale-shock-grid`) and confirm the hash is unchanged.
 3. **Keep PRs focused.** One logical change per PR. Don't mix an adapter addition with a skill rewrite.
 4. **Scrub for internal planning labels.** Nothing user-facing should carry private planning references or task IDs.
 
