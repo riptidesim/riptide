@@ -83,6 +83,24 @@ test("scenarios prints the stub list", async () => {
   assert.match(stdout, /price-shock/);
 });
 
+test("scenarios catalog prints the public family catalog", async () => {
+  const { stdout, stderr } = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "scenarios", "catalog"],
+    { cwd: process.cwd() }
+  );
+
+  assert.equal(stderr, "");
+  assert.match(stdout, /Riptide Scenario Family Catalog/);
+  assert.match(stdout, /Total families: 25/);
+  assert.match(stdout, /lending \(Lending, 5 families\)/);
+  assert.match(stdout, /stablecoin \(Stablecoin, 5 families\)/);
+  assert.match(stdout, /liquid-staking \(Liquid Staking, 5 families\)/);
+  assert.match(stdout, /perpetuals \(Perpetuals, 5 families\)/);
+  assert.match(stdout, /amm \(AMM, 5 families\)/);
+  assert.equal(stdout.match(/claim_level=/g)?.length, 25);
+});
+
 test("campaign commands: validate and plan expose stable JSON without executing simulations", async () => {
   const root = await campaignFixtureRoot("commands");
   const campaignPath = path.join(root, "campaign.toml");

@@ -116,6 +116,8 @@ Per-scenario results and the aggregate summary land in `.riptide/last-run.json` 
 
 Inside the Riptide monorepo itself, `.riptide/scenarios/` is a symlink to `fixtures/scenarios/`, so shipping scenarios are discoverable via the same convention as user-authored scenarios in any other repo — `riptide list` and `riptide run` work identically in both contexts. The symlink is tracked in git (mode `120000`), keeps every existing `fixtures/scenarios/…` reference in scripts and CI resolving unchanged, and adds no determinism risk because the engine never observes which path it traversed to reach a run-config.
 
+The public protocol-family matrix is generated from `fixtures/scenarios/catalog.toml`; see the [scenario family catalog](scenario-catalog.md) for the 25 counted families, claim levels, fixture paths, and result hashes.
+
 ## Oracle binding for generic adapters
 
 Generic adapters can bind one shared account as the oracle the engine targets for shock injection. The binding lives in a single `[[oracles]]` block plus an optional `owner` on the referenced `[accounts.<name>]`:
@@ -222,6 +224,7 @@ an authored declaration, not a machine-verified coverage claim.
 - [`install.md`](install.md) — the installer, Docker, and repository build paths.
 - [`pack.md`](pack.md) — the reviewer-ready evidence pack shape.
 - [`guided-sim.md`](guided-sim.md) — when to use `.riptide/sim/` and how to refresh generated builders safely.
+- [`scenario-catalog.md`](scenario-catalog.md) — the generated 25-family protocol-class catalog and fixture hash index.
 - [`ci-handoff.md`](ci-handoff.md) — the cold-start CI handoff recipe and downstream template.
 - [`adapter-lineage.md`](adapter-lineage.md) — the optional `[lineage]` block and the `riptide lineage` inspection command.
 - [`../TOOLCHAIN.md`](../TOOLCHAIN.md) — the Rust / Solana CLI / SBF / Node pins the engine and programs build against.

@@ -31,7 +31,7 @@ export const CLAIM_LEVEL_DESCRIPTIONS: Record<ClaimLevel, string> = {
 };
 
 export const DEFAULT_STRICT_CLASS_COUNTS = true;
-export const DEFAULT_STRICT_CLASS_COUNT_CLASSES = ["lending"] as const;
+export const DEFAULT_STRICT_CLASS_COUNT_CLASSES = PROTOCOL_CLASSES;
 export const DEFAULT_EXPECTED_FAMILIES_PER_CLASS = 5;
 
 export type ProtocolClass = (typeof PROTOCOL_CLASSES)[number];

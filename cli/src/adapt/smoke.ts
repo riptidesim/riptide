@@ -180,8 +180,8 @@ function loadSampleLendingPolicies(fixturesRoot: string): unknown {
 // A. The engine's events array contains at least one entry with
 // `outcome == "success"` that is NOT a passive signal (trigger
 // activation, noop, skipped). A successful deposit/borrow/repay/
-// withdraw/liquidate/mine/swap/etc. is direct evidence a write
-// action mutated observable state.
+// withdraw/liquidate/swap/custom-adapter verbs/etc. is direct evidence
+// a write action mutated observable state.
 //
 // B. The timeseries has >= 2 entries AND at least one numeric
 // observation field differs between the first and last entry.
@@ -249,7 +249,8 @@ const WRITE_ACTIONS = new Set<string>([
   "repay",
   "withdraw",
   "liquidate",
-  // generic primitive — resource grinder + common generic verbs
+  // Known fixture/common generic verbs. Unknown adapter-defined verbs
+  // still qualify by default unless they hit the passive blocklist below.
   "mine",
   "craft",
   "list_for_sale",

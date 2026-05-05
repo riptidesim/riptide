@@ -419,9 +419,13 @@ function renderGenericAccountsSection(idlFacts?: InitIdlFacts): string {
 # - \`space\` is the account byte size. Use \`space = "auto"\` only when
 #   target/idl declares accounts[].size; otherwise set explicit bytes.
 [accounts]
-# [accounts.player]
+# [accounts.position]
 # kind = "agent"
 # space = 64
+#
+# [accounts.state]
+# kind = "shared"
+# space = 128
 `;
   }
 
@@ -503,7 +507,7 @@ liquidated = "bool"
 # dashboard can read them. LHS is \`<account>.<field>\` from your program,
 # RHS is the Riptide observation key.
 [state_mapping]
-# "player.balance" = "player.balance"
+# "state.value" = "state.value"
 
 # TODO: define each runtime-dispatchable action. \`label\` is the dashboard
 # display name; \`takes\` lists the numeric args the runtime provides.
@@ -513,9 +517,9 @@ liquidated = "bool"
 # takes = ["amount"]
 
 # TODO: declare observations for each state-mapping key. Types:
-# "uint" / "int" / "float" / "bool" / "pubkey" / "map".
+# "uint" / "int" / "bool" / "pubkey" / "map".
 [observations]
-# "player.balance" = "uint"
+# "state.value" = "uint"
 `;
 }
 
@@ -555,12 +559,12 @@ takes = [${instruction.args.map((arg) => tomlString(arg.name)).join(", ")}]`).jo
 # dashboard can read them. LHS is \`<account>.<field>\` from your program,
 # RHS is the Riptide observation key.
 [state_mapping]
-# "player.balance" = "player.balance"
+# "state.value" = "state.value"
 
 # TODO: declare observations for each state-mapping key. Types:
-# "uint" / "int" / "float" / "bool" / "pubkey" / "map".
+# "uint" / "int" / "bool" / "pubkey" / "map".
 [observations]
-# "player.balance" = "uint"`
+# "state.value" = "uint"`
     : `[state_mapping]
 
 # Opt-in IDL field observations. Remove accounts you do not want exposed.

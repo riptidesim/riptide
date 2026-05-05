@@ -138,9 +138,7 @@ export async function validateScenario(
   // - Lending runs: policies.json is a non-empty array of Policy
   // objects. The engine uses that as the persona catalog.
   // - Generic runs: policies.json is `[]` and the persona catalog
-  // comes from the adapter TOML's `[personas.*]` tables
-  // (see `fixtures/generic-demo.policies.json` — empty — paired
-  // with `fixtures/adapters/resource-grinder.toml`).
+  // comes from the adapter TOML's `[personas.*]` tables.
   // Either shape is fine here. We only cross-check persona ids
   // against `policies.json` when the file is non-empty, because
   // that's the only case where we *can* check without reparsing
