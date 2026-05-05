@@ -10,6 +10,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 | [Campaign Runner](campaigns.md) | Run deterministic campaign sweeps with retained evidence and review handoff. |
 | [Architecture](architecture.md) | Understand the adapter/persona/scenario stack, LiteSVM runtime, determinism, and dashboard artifacts. |
 | [Scenario family catalog](scenario-catalog.md) | Browse the generated 25-family protocol-class matrix, claim levels, fixture paths, and result hashes. |
+| [Case-study corpus readiness](case-study-corpus.md) | Read the local case-study matrix, executed evidence, claim boundaries, and next actions. |
 | [Guided simulations](guided-sim.md) | Use `.riptide/sim/` for dynamic Rust-authored protocol flows that don't fit static TOML. |
 | [Vision](vision.md) | Understand the lab-not-oracle stance, what Riptide claims, and what it explicitly does not claim. |
 | [Solend-fork case study](case-studies/lending.md) | See the whale-share × price-shock grid that anchors the main product story. |

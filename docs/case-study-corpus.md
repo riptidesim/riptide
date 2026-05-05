@@ -1,267 +1,179 @@
-# Riptide Case-Study Corpus Readiness
+# Riptide case-study corpus readiness
 
-- Schema: case-study-readiness.v1
-- Generated at: 1970-01-01T00:00:00.000Z (fixed for deterministic diffs)
-- Case-study root: /home/ailton/Work/riptide/case-studies
-- Repositories inspected: 10
-- Verdict summary: blocked=10
-- Launch claim summary: blocked=10
+This page is the launch-readiness boundary for the local case-study corpus.
+It combines deterministic static inventory with the executed validation
+commands captured for the current release candidate.
 
-This report inventories local case-study workspaces and runs static readiness inspection. Dynamic validation gates remain explicit command results and do not upgrade a launch claim unless they have been executed.
+- Case-study root: `/home/ailton/Work/riptide/case-studies`
+- Local repositories with `.riptide/`: 10
+- Public claim summary from executed evidence: demo-ready=2, blocked=8
+- Static corpus report: the deterministic readiness command completed, but
+  that command is intentionally static-only and keeps dynamic gates skipped.
 
-## Gate Contract
+## What this supports
 
-| Gate | Default | Contract | Command shape |
-|------|---------|----------|---------------|
-| inventory-only | yes | Discover immediate child repositories under the case-study root that contain a .riptide workspace. | `find <case-studies-root> -maxdepth 2 -type d -name .riptide \| sort` |
-| static-health | yes | Run readiness inspection without building, fetching, or executing simulations. | `riptide readiness <repo> --json` |
-| adapter-lint | no | Run static adapter lint against the repo-local adapter TOML and its declared lineage. | `riptide lint <adapter>` |
-| direct-baseline-run | no | Run a repo-local baseline run-config through riptide run with the repo-local adapter. | `riptide run <run-config> --adapter <adapter>` |
-| guided-sim-run-review | no | Run a repo-local guided simulation manifest and review the produced guided artifact. | `riptide sim run <manifest> --out <artifact-dir>; riptide sim review <artifact-dir>` |
-| campaign-validate-plan-run | no | Validate, plan, execute, and review a repo-local campaign input without inferring campaign readiness from static files alone. | `riptide campaign validate <campaign>; riptide campaign plan <campaign>; riptide campaign run <campaign>` |
-| fresh-clone-eligibility | no | Confirm the public install and smoke path from a clean clone before making launch claims. | `git clone <repo> /tmp/riptide-fresh-clone; ./install.sh; riptide --help; riptide readiness <case-study>` |
+- You can demo the `lending` row with a harness-aware deterministic baseline
+  run and a hash-verified pack review boundary.
+- You can demo the `anchor-uniswap-v2` row with guided-sim lint, build, run,
+  guided review, and root review.
+- You can tell external testers exactly which local case-study repos are only
+  inventory and adapter-readiness evidence today.
+- You can use the blocked rows as an implementation queue because each row has
+  a concrete missing input or adapter completion step.
 
-## Verdicts
+## What this does not prove
 
-| Verdict | Meaning |
-|---------|---------|
-| pass | The gate executed and met the contract with no blocker. |
-| warn | The gate executed and produced useful evidence, but a bounded caveat remains. |
-| fail | The gate executed and found a concrete validation failure. |
-| skipped | The gate was not executed in this report, or the surface is not applicable to this repo. |
-| blocked | The gate could not run honestly until a prerequisite or local artifact is supplied. |
+- This does not replace an independent audit, formal verification, or a
+  protocol team's own production risk process.
+- This does not show completed historical incident reproduction. Mango, Euler,
+  KelpDAO, and Loopscale need separate incident proof packs before any deck or
+  public page claims they are caught.
+- This does not make every local case-study repo executable. Eight rows still
+  need adapter, IDL, account mapping, harness, or trustworthy run-artifact work.
+- This does not prove the fresh-clone path unless the fresh-clone section below
+  records an executed command sequence and exit code.
 
-## Launch Claim Levels
+## Evidence families
 
-| Claim level | Meaning |
-|-------------|---------|
-| demo-ready | Fresh static checks plus rerunnable direct or guided evidence support a live demo boundary. |
-| beta-ready | Static checks and at least one executed validation gate support cautious external testing, but not a launch demo claim. |
-| readiness-only | The repo is inventory/readiness evidence only until adapter lint or execution gates are run. |
-| blocked | The repo lacks a required local prerequisite or has a blocker that prevents honest readiness evidence. |
+| Evidence family | Current status | Boundary |
+| --- | --- | --- |
+| Internal fixture catalog | Shipping fixtures and scenario families live in the main repo. See [Scenario family catalog](scenario-catalog.md). | These fixtures prove Riptide's bundled examples and regression hashes, not the external case-study corpus. |
+| External case-study corpus | Ten local `.riptide/` repos were inventoried. Two rows have executed demo evidence. Eight rows are blocked with concrete next actions. | This is local prerelease validation for testers and filming. It is not a statement that every external protocol is wired end to end. |
+| Historical incident proof packs | No Mango, Euler, KelpDAO, or Loopscale proof pack is complete in this corpus. | Any incident slide is blocked until each incident has a rerunnable pack, declared invariant, artifact review, and canonical hash. |
 
-## Corpus Matrix
+## Gate contract
 
-| Repo | Verdict | Claim | Support | Adapters | Scenarios | Guided sim | Campaigns | Run evidence | Next action |
-|------|---------|-------|---------|----------|-----------|------------|-----------|--------------|-------------|
-| anchor-uniswap-v2 | blocked | blocked | L3 (blocked) | 1 | 1 | 1 | 0 | 2 | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| lending | blocked | blocked | L5 (blocked) | 1 | 2 | 0 | 1 | 2 | Add .riptide/slices/<name>.toml declaring the risk path, semantic class, actions, accounts, observations, invariants, scenarios, and boundaries. |
-| liquid-staking-program | blocked | blocked | L3 (blocked) | 1 | 1 | 0 | 0 | 2 | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| mango-v4 | blocked | blocked | L3 (blocked) | 1 | 1 | 0 | 0 | 2 | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| marinade-liquid-stake-fork | blocked | blocked | L3 (blocked) | 1 | 1 | 0 | 0 | 2 | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| perpetuals | blocked | blocked | L3 (blocked) | 1 | 1 | 0 | 0 | 2 | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| protocol-v2 | blocked | blocked | L3 (blocked) | 1 | 1 | 0 | 0 | 2 | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| solana-program-library | blocked | blocked | L3 (blocked) | 1 | 1 | 0 | 0 | 2 | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| stablecoin-protocol | blocked | blocked | L3 (blocked) | 1 | 1 | 0 | 0 | 2 | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| whirlpools | blocked | blocked | L3 (blocked) | 1 | 1 | 0 | 0 | 2 | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
+| Gate | Default | Contract |
+| --- | --- | --- |
+| inventory-only | yes | Discover immediate child repositories under the case-study root that contain `.riptide/`. |
+| static-health | yes | Run readiness inspection without building, fetching, or executing simulations. |
+| adapter-lint | no | Validate the repo-local adapter TOML and its declared IDL or explicit fields. |
+| direct-baseline-run | no | Run a repo-local baseline scenario through `riptide run`. |
+| guided-sim-run-review | no | Run and review a repo-local guided simulation artifact. |
+| campaign-validate-plan-run | no | Validate, plan, run, and review a repo-local campaign input. |
+| fresh-clone-eligibility | no | Clone the public repo, install it, check help output, and run a smoke path. |
 
-## Row Details
+## Case-study matrix
 
-### anchor-uniswap-v2
+| Case study | Protocol class | Current public claim | Highest executed evidence | Boundary | Next action |
+| --- | --- | --- | --- | --- | --- |
+| `anchor-uniswap-v2` | AMM guided simulation | demo-ready | `riptide sim lint`, guided-sim Cargo build, `riptide sim run`, `riptide sim review`, and root `riptide review` exited 0. | Guided evidence covers the declared manifest, Rust flows, services, seed, and artifact. It does not claim campaign coverage or broad AMM incident coverage. | Keep the guided artifact available for the close note. Add direct adapter or campaign evidence only if the demo needs that path. |
+| `lending` | Lending / Solend fork | demo-ready with harness boundary | `riptide doctor`, `riptide lint`, and harness-aware baseline `riptide run` exited 0. Pack review verified the canonical hash. | The row requires `.riptide/harness` for pre-tick-0 setup. `riptide review` exits 1 because provenance and proof metadata are absent, so no proof-level badge is claimed. | Keep the harness requirement in rerun instructions. Add risk-slice and provenance metadata before claiming proof-level evidence. |
+| `liquid-staking-program` | Liquid staking | blocked | Static readiness exited 0. Adapter lint and direct baseline exited 2. | The adapter still depends on a missing `target/idl/marinade_finance.json`. | Build or restore the IDL, or replace IDL-backed inference with explicit adapter fields, then rerun lint and baseline. |
+| `mango-v4` | Perps / margin | blocked; incident proof-pack candidate | Static readiness exited 0. Adapter lint exited 2. | The adapter still depends on a missing `target/idl/mango_v4.json`. No Mango incident proof pack is present. | Restore/build the IDL or write explicit adapter fields, regenerate trustworthy run evidence, then build the incident proof pack separately. |
+| `marinade-liquid-stake-fork` | Liquid staking | blocked | Static readiness exited 0. Adapter lint and direct baseline exited 2. | The adapter still depends on a missing `target/idl/marinade_forking_smart_contract.json`. | Build or restore the IDL, or replace IDL-backed inference with explicit adapter fields, then rerun lint and baseline. |
+| `perpetuals` | Perpetuals | blocked | Static readiness exited 0. Adapter lint and direct baseline exited 2. | The adapter still depends on a missing `target/idl/perpetuals.json`. | Restore/build the IDL or write explicit adapter fields, then rerun lint and baseline. |
+| `protocol-v2` | Perps / Drift | blocked | Static readiness exited 0. Adapter lint exited 2. | The adapter still depends on a missing `target/idl/drift.json`; protocol-specific mocks are not supplied. | Treat this as later external-protocol ladder work after local IDL, artifacts, and mocks are available. |
+| `solana-program-library` | Selected SPL target | blocked | Static readiness exited 0. Adapter lint exited 2. | The broad repo is not a concrete proof-pack row as-is, and the adapter expects `target/idl/solana_program_library.json`. | Pick one SPL program target and provide local IDL/artifacts or explicit adapter fields before end-to-end work. |
+| `stablecoin-protocol` | Stablecoin | blocked | Static readiness exited 0. Adapter lint and direct baseline exited 2. | The adapter is still an incomplete stub; `[accounts]` has no account binding. | Finish account, instruction, state, action, observation, and persona mapping, then rerun lint and baseline. |
+| `whirlpools` | CLMM / AMM | blocked | Static readiness exited 0. Adapter lint exited 2. | The adapter is still an incomplete stub; `[accounts]` has no account binding. | Finish adapter mapping before attempting CLMM execution; keep this as later external-protocol ladder work. |
 
-- Path: /home/ailton/Work/riptide/case-studies/anchor-uniswap-v2
-- Verdict: blocked
-- Launch claim: blocked
-- Support: L3 (blocked)
-- Blocker: run-artifacts-unreadable: Run collection .riptide/run-collection.json exists, but artifact readability did not pass. Treat it as partial evidence until simulation-result.json and report.md are readable.
-- Next action: Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files.
-- Missing surfaces: campaigns
-- Artifacts: .riptide/last-run.json, .riptide/run-collection.json
+## Command summary
 
-| Gate | Executed | Verdict | Artifacts | Next action |
-|------|----------|---------|-----------|-------------|
-| inventory-only | yes | pass | .riptide | Record the repo in the corpus matrix. |
-| static-health | yes | blocked | .riptide, .riptide/adapters/ammv2.toml, .riptide/run-collection.json, /home/ailton/Work/riptide/case-studies/anchor-uniswap-v2, ... (+10 more) | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| adapter-lint | no | skipped | .riptide/adapters/ammv2.toml | Run adapter lint in the validation lane before upgrading the launch claim. |
-| direct-baseline-run | no | skipped | .riptide/adapters/ammv2.toml, .riptide/scenarios/baseline/run-config.json | Run the baseline scenario from a fresh shell before claiming direct execution support. |
-| guided-sim-run-review | no | skipped | .riptide/sim/Riptide.toml | Run and review the guided-sim manifest before using guided evidence in the launch claim. |
-| campaign-validate-plan-run | no | skipped | none | No campaign input is present; keep this gate skipped unless a campaign is added. |
-| fresh-clone-eligibility | no | skipped | none | Run the fresh-clone evaluator path before using the corpus report as promotional launch evidence. |
+The command evidence was captured from fresh shells. Raw stdout and stderr stay
+in the local report directory; this page keeps only the launch-readable
+boundary.
 
-### lending
+| Area | Command shape | Exit | Summary |
+| --- | --- | ---: | --- |
+| Corpus inventory | `find /home/ailton/Work/riptide/case-studies -maxdepth 2 -type d -name .riptide \| sort` | 0 | Found all ten local `.riptide/` case-study workspaces. |
+| Static corpus report | `node cli/dist/src/index.js readiness --case-studies /home/ailton/Work/riptide/case-studies --out <local-report-dir>` | 0 | Wrote deterministic JSON and Markdown. Dynamic gates remain skipped in that generated report. |
+| Lending health | `riptide doctor` from `case-studies/lending` | 0 | Environment and repo-local readiness checks passed. |
+| Lending adapter lint | `riptide lint .riptide/adapters/lending.toml` from `case-studies/lending` | 0 | Adapter validation passed. |
+| Lending baseline | `riptide run .riptide/scenarios/baseline/run-config.json --adapter .riptide/adapters/lending.toml --harness .riptide/harness --seed-root 1337` | 0 | `ok baseline`; one pass, zero fail, zero error, zero skip. |
+| Lending pack review | `riptide review .riptide/pack/baseline` | 1 | Canonical hash verification passed. Exit 1 is retained because provenance/proof metadata is absent. |
+| AUV2 guided lint | `riptide sim lint .riptide/sim/Riptide.toml` | 0 | Guided manifest lint passed. |
+| AUV2 guided build | `cargo build --manifest-path .riptide/sim/Cargo.toml --release` | 0 | Guided-sim Rust flows built successfully. |
+| AUV2 guided run | `riptide sim run .riptide/sim --iterations 5 --flows 20 --seed 1337 --out <guided-artifact-dir>` | 0 | Produced a guided artifact for five iterations and 100 flow calls. |
+| AUV2 guided review | `riptide sim review <guided-artifact-dir>` | 0 | Status passed; zero unexpected errors and zero panics. |
+| AUV2 root review | `riptide review <guided-artifact-dir>` | 0 | Root review accepted the guided artifact. |
+| Beta-class readiness | `riptide readiness . --json` from stablecoin, liquid staking, Marinade fork, and perpetuals | 0 | Static readiness produced useful blockers and next actions. |
+| Beta-class lint | `riptide lint <repo-local-adapter>` from stablecoin, liquid staking, Marinade fork, and perpetuals | 2 | Lint stopped on incomplete adapter account bindings or missing IDL files. |
+| Beta-class baseline | `riptide run .riptide/scenarios/baseline/run-config.json --adapter <repo-local-adapter>` | 2 | Existing baseline inputs were attempted and stopped on the same setup blockers. |
+| Stretch readiness | `riptide readiness . --json` from Mango, Drift, Whirlpools, and SPL | 0 | Static readiness produced useful blockers and handoff notes. |
+| Stretch lint | `riptide lint <repo-local-adapter>` from Mango, Drift, Whirlpools, and SPL | 2 | Lint stopped on incomplete adapter account bindings or missing IDL files. |
 
-- Path: /home/ailton/Work/riptide/case-studies/lending
-- Verdict: blocked
-- Launch claim: blocked
-- Support: L5 (blocked)
-- Blocker: missing-risk-slice-manifest: Semantic E2E evidence exists, but no valid risk-slice manifest was discovered. Declare the economic path before claiming risk-slice E2E support.
-- Next action: Add .riptide/slices/<name>.toml declaring the risk path, semantic class, actions, accounts, observations, invariants, scenarios, and boundaries.
-- Missing surfaces: guided_sim_manifests
-- Artifacts: .riptide/campaigns/campaign_c3fb488bb7b2/runs/run_000000_b8cdb68921c4/report.md, .riptide/campaigns/campaign_c3fb488bb7b2/runs/run_000001_0a210a8ead4f/report.md, .riptide/last-run.json, .riptide/pack/baseline/manifest.json, ... (+7 more)
+## Tester paths available now
 
-| Gate | Executed | Verdict | Artifacts | Next action |
-|------|----------|---------|-----------|-------------|
-| inventory-only | yes | pass | .riptide | Record the repo in the corpus matrix. |
-| static-health | yes | blocked | .riptide, .riptide/adapters/lending.toml, .riptide/campaigns/deposit-flow.campaign.toml, .riptide/run-collection.json, ... (+32 more) | Add .riptide/slices/<name>.toml declaring the risk path, semantic class, actions, accounts, observations, invariants, scenarios, and boundaries. |
-| adapter-lint | no | skipped | .riptide/adapters/lending.toml | Run adapter lint in the validation lane before upgrading the launch claim. |
-| direct-baseline-run | no | skipped | .riptide/adapters/lending.toml, .riptide/scenarios/baseline/run-config.json | Run the baseline scenario from a fresh shell before claiming direct execution support. |
-| guided-sim-run-review | no | skipped | none | No guided-sim manifest is present; keep this gate skipped unless guided support is added. |
-| campaign-validate-plan-run | no | skipped | .riptide/campaigns/deposit-flow.campaign.toml | Run campaign validate, plan, and run before claiming campaign execution support. |
-| fresh-clone-eligibility | no | skipped | none | Run the fresh-clone evaluator path before using the corpus report as promotional launch evidence. |
+From the current checkout, the demo rows use these rerun paths:
 
-### liquid-staking-program
+```bash
+cd /home/ailton/Work/riptide/case-studies/lending
+riptide doctor
+riptide lint .riptide/adapters/lending.toml
+riptide run .riptide/scenarios/baseline/run-config.json \
+  --adapter .riptide/adapters/lending.toml \
+  --harness .riptide/harness \
+  --seed-root 1337
+```
 
-- Path: /home/ailton/Work/riptide/case-studies/liquid-staking-program
-- Verdict: blocked
-- Launch claim: blocked
-- Support: L3 (blocked)
-- Blocker: run-artifacts-unreadable: Run collection .riptide/run-collection.json exists, but artifact readability did not pass. Treat it as partial evidence until simulation-result.json and report.md are readable.
-- Next action: Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files.
-- Missing surfaces: campaigns, guided_sim_manifests
-- Artifacts: .riptide/last-run.json, .riptide/run-collection.json
+```bash
+cd /home/ailton/Work/riptide/case-studies/anchor-uniswap-v2
+riptide sim lint .riptide/sim/Riptide.toml
+cargo build --manifest-path .riptide/sim/Cargo.toml --release
+riptide sim run .riptide/sim \
+  --iterations 5 \
+  --flows 20 \
+  --seed 1337 \
+  --out /tmp/riptide-auv2-guided-artifact
+riptide sim review /tmp/riptide-auv2-guided-artifact
+riptide review /tmp/riptide-auv2-guided-artifact
+```
 
-| Gate | Executed | Verdict | Artifacts | Next action |
-|------|----------|---------|-----------|-------------|
-| inventory-only | yes | pass | .riptide | Record the repo in the corpus matrix. |
-| static-health | yes | blocked | .riptide, .riptide/adapters/marinade-finance.toml, .riptide/run-collection.json, /home/ailton/Work/riptide/case-studies/liquid-staking-program, ... (+53 more) | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| adapter-lint | no | skipped | .riptide/adapters/marinade-finance.toml | Run adapter lint in the validation lane before upgrading the launch claim. |
-| direct-baseline-run | no | skipped | .riptide/adapters/marinade-finance.toml, .riptide/scenarios/baseline/run-config.json | Run the baseline scenario from a fresh shell before claiming direct execution support. |
-| guided-sim-run-review | no | skipped | none | No guided-sim manifest is present; keep this gate skipped unless guided support is added. |
-| campaign-validate-plan-run | no | skipped | none | No campaign input is present; keep this gate skipped unless a campaign is added. |
-| fresh-clone-eligibility | no | skipped | none | Run the fresh-clone evaluator path before using the corpus report as promotional launch evidence. |
-### mango-v4
+## Fresh-clone evaluator path
 
-- Path: /home/ailton/Work/riptide/case-studies/mango-v4
-- Verdict: blocked
-- Launch claim: blocked
-- Support: L3 (blocked)
-- Blocker: run-artifacts-unreadable: Run collection .riptide/run-collection.json exists, but artifact readability did not pass. Treat it as partial evidence until simulation-result.json and report.md are readable.
-- Next action: Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files.
-- Missing surfaces: campaigns, guided_sim_manifests
-- Artifacts: .riptide/last-run.json, .riptide/run-collection.json
+Status: executed from `/tmp/riptide-fresh-clone` on May 5, 2026. The cloned
+commit was `f2693d4d09c52f05f9e8939842343d1fd87c1e89`.
 
-| Gate | Executed | Verdict | Artifacts | Next action |
-|------|----------|---------|-----------|-------------|
-| inventory-only | yes | pass | .riptide | Record the repo in the corpus matrix. |
-| static-health | yes | blocked | .riptide, .riptide/adapters/mango-v4.toml, .riptide/run-collection.json, /home/ailton/Work/riptide/case-studies/mango-v4, ... (+202 more) | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| adapter-lint | no | skipped | .riptide/adapters/mango-v4.toml | Run adapter lint in the validation lane before upgrading the launch claim. |
-| direct-baseline-run | no | skipped | .riptide/adapters/mango-v4.toml, .riptide/scenarios/baseline/run-config.json | Run the baseline scenario from a fresh shell before claiming direct execution support. |
-| guided-sim-run-review | no | skipped | none | No guided-sim manifest is present; keep this gate skipped unless guided support is added. |
-| campaign-validate-plan-run | no | skipped | none | No campaign input is present; keep this gate skipped unless a campaign is added. |
-| fresh-clone-eligibility | no | skipped | none | Run the fresh-clone evaluator path before using the corpus report as promotional launch evidence. |
+Use this sequence from a clean shell:
 
-### marinade-liquid-stake-fork
+```bash
+cd /tmp
+git clone https://github.com/riptidesim/riptide riptide-fresh-clone
+cd riptide-fresh-clone
+./install.sh
+riptide --help
+riptide doctor
+riptide run examples/configs/safe.json --adapter fixtures/adapters/lending.toml
+```
 
-- Path: /home/ailton/Work/riptide/case-studies/marinade-liquid-stake-fork
-- Verdict: blocked
-- Launch claim: blocked
-- Support: L3 (blocked)
-- Blocker: run-artifacts-unreadable: Run collection .riptide/run-collection.json exists, but artifact readability did not pass. Treat it as partial evidence until simulation-result.json and report.md are readable.
-- Next action: Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files.
-- Missing surfaces: campaigns, guided_sim_manifests
-- Artifacts: .riptide/last-run.json, .riptide/run-collection.json
+Execution summary:
 
-| Gate | Executed | Verdict | Artifacts | Next action |
-|------|----------|---------|-----------|-------------|
-| inventory-only | yes | pass | .riptide | Record the repo in the corpus matrix. |
-| static-health | yes | blocked | .riptide, .riptide/adapters/marinade-forking-smart-contract.toml, .riptide/run-collection.json, /home/ailton/Work/riptide/case-studies/marinade-liquid-stake-fork, ... (+53 more) | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| adapter-lint | no | skipped | .riptide/adapters/marinade-forking-smart-contract.toml | Run adapter lint in the validation lane before upgrading the launch claim. |
-| direct-baseline-run | no | skipped | .riptide/adapters/marinade-forking-smart-contract.toml, .riptide/scenarios/baseline/run-config.json | Run the baseline scenario from a fresh shell before claiming direct execution support. |
-| guided-sim-run-review | no | skipped | none | No guided-sim manifest is present; keep this gate skipped unless guided support is added. |
-| campaign-validate-plan-run | no | skipped | none | No campaign input is present; keep this gate skipped unless a campaign is added. |
-| fresh-clone-eligibility | no | skipped | none | Run the fresh-clone evaluator path before using the corpus report as promotional launch evidence. |
+| CWD | Command | Exit | Summary |
+| --- | --- | ---: | --- |
+| `/tmp` | `git clone https://github.com/riptidesim/riptide riptide-fresh-clone` | 0 | Fresh clone completed. |
+| `/tmp/riptide-fresh-clone` | `./install.sh` | 0 | Install completed in 19m 10s. It built the engine, shipped SBF programs, CLI, launcher, safe lending smoke, and generic smoke. |
+| `/tmp/riptide-fresh-clone` | `riptide --help` | 0 | Help printed the command surface. |
+| `/tmp/riptide-fresh-clone` | `riptide doctor` | 1 | WARN verdict: 10 pass, 3 warn, 0 fail. The warnings are optional fixture binaries not built for AMM, liquid staking, and perpetuals. |
+| `/tmp/riptide-fresh-clone` | `riptide run examples/configs/safe.json --adapter fixtures/adapters/lending.toml` | 0 | One scenario passed with no failure observed; one pass, zero fail, zero error, zero skip. |
 
-### perpetuals
+Accepted caveats:
 
-- Path: /home/ailton/Work/riptide/case-studies/perpetuals
-- Verdict: blocked
-- Launch claim: blocked
-- Support: L3 (blocked)
-- Blocker: run-artifacts-unreadable: Run collection .riptide/run-collection.json exists, but artifact readability did not pass. Treat it as partial evidence until simulation-result.json and report.md are readable.
-- Next action: Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files.
-- Missing surfaces: campaigns, guided_sim_manifests
-- Artifacts: .riptide/last-run.json, .riptide/run-collection.json
+- The repository installer builds from source and therefore requires the pinned
+  local Rust, Node.js, npm, and Solana SBF toolchain.
+- The installer writes `/home/ailton/.local/bin/riptide` as a source-checkout
+  launcher pointing at `/tmp/riptide-fresh-clone/cli/dist/src/index.js`. Keep
+  that clone available, reinstall from the intended checkout, or use the hosted
+  installer before relying on the global `riptide` command after `/tmp` cleanup.
+- Hosted installer checks are separate from this path.
+- The smoke run checks a bundled fixture path, not an external case-study repo.
+- `riptide doctor` returns WARN after install because AMM, liquid-staking, and
+  perpetuals fixture binaries are optional and were not built by the repository
+  installer.
+- `riptide run lending/whale-shock-grid --seeds 1 --seed-root 1337` was
+  attempted from the fresh repo root and exited 2 because the pattern does not
+  match a discovered `.riptide/scenarios/` entry. Use the explicit
+  `examples/configs/safe.json` smoke path above for this evaluator flow until a
+  root scenario alias is wired.
 
-| Gate | Executed | Verdict | Artifacts | Next action |
-|------|----------|---------|-----------|-------------|
-| inventory-only | yes | pass | .riptide | Record the repo in the corpus matrix. |
-| static-health | yes | blocked | .riptide, .riptide/adapters/perpetuals.toml, .riptide/run-collection.json, /home/ailton/Work/riptide/case-studies/perpetuals, ... (+47 more) | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| adapter-lint | no | skipped | .riptide/adapters/perpetuals.toml | Run adapter lint in the validation lane before upgrading the launch claim. |
-| direct-baseline-run | no | skipped | .riptide/adapters/perpetuals.toml, .riptide/scenarios/baseline/run-config.json | Run the baseline scenario from a fresh shell before claiming direct execution support. |
-| guided-sim-run-review | no | skipped | none | No guided-sim manifest is present; keep this gate skipped unless guided support is added. |
-| campaign-validate-plan-run | no | skipped | none | No campaign input is present; keep this gate skipped unless a campaign is added. |
-| fresh-clone-eligibility | no | skipped | none | Run the fresh-clone evaluator path before using the corpus report as promotional launch evidence. |
+## Next actions
 
-### protocol-v2
-
-- Path: /home/ailton/Work/riptide/case-studies/protocol-v2
-- Verdict: blocked
-- Launch claim: blocked
-- Support: L3 (blocked)
-- Blocker: run-artifacts-unreadable: Run collection .riptide/run-collection.json exists, but artifact readability did not pass. Treat it as partial evidence until simulation-result.json and report.md are readable.
-- Next action: Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files.
-- Missing surfaces: campaigns, guided_sim_manifests
-- Artifacts: .riptide/last-run.json, .riptide/run-collection.json
-
-| Gate | Executed | Verdict | Artifacts | Next action |
-|------|----------|---------|-----------|-------------|
-| inventory-only | yes | pass | .riptide | Record the repo in the corpus matrix. |
-| static-health | yes | blocked | .riptide, .riptide/adapters/drift.toml, .riptide/run-collection.json, /home/ailton/Work/riptide/case-studies/protocol-v2, ... (+189 more) | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| adapter-lint | no | skipped | .riptide/adapters/drift.toml | Run adapter lint in the validation lane before upgrading the launch claim. |
-| direct-baseline-run | no | skipped | .riptide/adapters/drift.toml, .riptide/scenarios/baseline/run-config.json | Run the baseline scenario from a fresh shell before claiming direct execution support. |
-| guided-sim-run-review | no | skipped | none | No guided-sim manifest is present; keep this gate skipped unless guided support is added. |
-| campaign-validate-plan-run | no | skipped | none | No campaign input is present; keep this gate skipped unless a campaign is added. |
-| fresh-clone-eligibility | no | skipped | none | Run the fresh-clone evaluator path before using the corpus report as promotional launch evidence. |
-
-### solana-program-library
-
-- Path: /home/ailton/Work/riptide/case-studies/solana-program-library
-- Verdict: blocked
-- Launch claim: blocked
-- Support: L3 (blocked)
-- Blocker: run-artifacts-unreadable: Run collection .riptide/run-collection.json exists, but artifact readability did not pass. Treat it as partial evidence until simulation-result.json and report.md are readable.
-- Next action: Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files.
-- Missing surfaces: campaigns, guided_sim_manifests
-- Artifacts: .riptide/last-run.json, .riptide/run-collection.json
-
-| Gate | Executed | Verdict | Artifacts | Next action |
-|------|----------|---------|-----------|-------------|
-| inventory-only | yes | pass | .riptide | Record the repo in the corpus matrix. |
-| static-health | yes | blocked | .riptide, .riptide/adapters/solana-program-library.toml, .riptide/run-collection.json, /home/ailton/Work/riptide/case-studies/solana-program-library, ... (+2 more) | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| adapter-lint | no | skipped | .riptide/adapters/solana-program-library.toml | Run adapter lint in the validation lane before upgrading the launch claim. |
-| direct-baseline-run | no | skipped | .riptide/adapters/solana-program-library.toml, .riptide/scenarios/baseline/run-config.json | Run the baseline scenario from a fresh shell before claiming direct execution support. |
-| guided-sim-run-review | no | skipped | none | No guided-sim manifest is present; keep this gate skipped unless guided support is added. |
-| campaign-validate-plan-run | no | skipped | none | No campaign input is present; keep this gate skipped unless a campaign is added. |
-| fresh-clone-eligibility | no | skipped | none | Run the fresh-clone evaluator path before using the corpus report as promotional launch evidence. |
-
-### stablecoin-protocol
-
-- Path: /home/ailton/Work/riptide/case-studies/stablecoin-protocol
-- Verdict: blocked
-- Launch claim: blocked
-- Support: L3 (blocked)
-- Blocker: run-artifacts-unreadable: Run collection .riptide/run-collection.json exists, but artifact readability did not pass. Treat it as partial evidence until simulation-result.json and report.md are readable.
-- Next action: Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files.
-- Missing surfaces: campaigns, guided_sim_manifests
-- Artifacts: .riptide/last-run.json, .riptide/run-collection.json
-
-| Gate | Executed | Verdict | Artifacts | Next action |
-|------|----------|---------|-----------|-------------|
-| inventory-only | yes | pass | .riptide | Record the repo in the corpus matrix. |
-| static-health | yes | blocked | .riptide, .riptide/adapters/stablecoin.toml, .riptide/run-collection.json, /home/ailton/Work/riptide/case-studies/stablecoin-protocol, ... (+17 more) | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| adapter-lint | no | skipped | .riptide/adapters/stablecoin.toml | Run adapter lint in the validation lane before upgrading the launch claim. |
-| direct-baseline-run | no | skipped | .riptide/adapters/stablecoin.toml, .riptide/scenarios/baseline/run-config.json | Run the baseline scenario from a fresh shell before claiming direct execution support. |
-| guided-sim-run-review | no | skipped | none | No guided-sim manifest is present; keep this gate skipped unless guided support is added. |
-| campaign-validate-plan-run | no | skipped | none | No campaign input is present; keep this gate skipped unless a campaign is added. |
-| fresh-clone-eligibility | no | skipped | none | Run the fresh-clone evaluator path before using the corpus report as promotional launch evidence. |
-
-### whirlpools
-
-- Path: /home/ailton/Work/riptide/case-studies/whirlpools
-- Verdict: blocked
-- Launch claim: blocked
-- Support: L3 (blocked)
-- Blocker: run-artifacts-unreadable: Run collection .riptide/run-collection.json exists, but artifact readability did not pass. Treat it as partial evidence until simulation-result.json and report.md are readable.
-- Next action: Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files.
-- Missing surfaces: campaigns, guided_sim_manifests
-- Artifacts: .riptide/last-run.json, .riptide/run-collection.json
-
-| Gate | Executed | Verdict | Artifacts | Next action |
-|------|----------|---------|-----------|-------------|
-| inventory-only | yes | pass | .riptide | Record the repo in the corpus matrix. |
-| static-health | yes | blocked | .riptide, .riptide/adapters/whirlpool.toml, .riptide/run-collection.json, /home/ailton/Work/riptide/case-studies/whirlpools, ... (+161 more) | Regenerate or restore the run artifacts so each run collection points at readable simulation-result.json and report.md files. |
-| adapter-lint | no | skipped | .riptide/adapters/whirlpool.toml | Run adapter lint in the validation lane before upgrading the launch claim. |
-| direct-baseline-run | no | skipped | .riptide/adapters/whirlpool.toml, .riptide/scenarios/baseline/run-config.json | Run the baseline scenario from a fresh shell before claiming direct execution support. |
-| guided-sim-run-review | no | skipped | none | No guided-sim manifest is present; keep this gate skipped unless guided support is added. |
-| campaign-validate-plan-run | no | skipped | none | No campaign input is present; keep this gate skipped unless a campaign is added. |
-| fresh-clone-eligibility | no | skipped | none | Run the fresh-clone evaluator path before using the corpus report as promotional launch evidence. |
+1. Keep public beta wording limited to local simulation evidence and guided
+   artifact review for the two demo-ready rows.
+2. Treat every incident slide as blocked until Mango, Euler, KelpDAO, and
+   Loopscale each have a rerunnable proof pack with review output and a
+   canonical hash.
+3. Complete adapter account mappings or restore IDLs for blocked external rows,
+   then rerun adapter lint and the baseline path for each row.
+4. Decide whether `riptide adapt` should become harness-aware or remain
+   documented as adapter-only for setup-heavy repositories.

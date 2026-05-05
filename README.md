@@ -246,6 +246,7 @@ Read [Evidence packs](docs/pack.md) and [CI handoff](docs/ci-handoff.md) for the
 | [Campaign Runner](docs/campaigns.md) | Validate, plan, run, and review deterministic campaign sweeps. |
 | [Architecture](docs/architecture.md) | The six-layer model, LiteSVM caveats, determinism, and adapter pipeline. |
 | [Vision](docs/vision.md) | The lab-not-oracle stance and what Riptide explicitly does not claim. |
+| [Case-study corpus readiness](docs/case-study-corpus.md) | External case-study matrix, executed evidence, claim boundaries, and next actions. |
 | [Solend-fork case study](docs/case-studies/lending.md) | The whale-share × shock grid and the load-bearing example. |
 | [Evidence packs](docs/pack.md) | Pack shape, canonical hashes, and rerun workflow. |
 | [CI handoff](docs/ci-handoff.md) | How to pin a replay proof in GitHub Actions. |
