@@ -4,6 +4,14 @@ import {
   type ReadinessReason,
   type ReadinessReport,
 } from "./model.js";
+import type {
+  LaunchClaimDefinition,
+  ReadinessCorpusCommandResult,
+  ReadinessCorpusReport,
+  ReadinessCorpusRow,
+  ReadinessGateDefinition,
+  ReadinessVerdictDefinition,
+} from "./corpus.js";
 
 export interface RenderReadinessMarkdownOptions {
   title?: string;
@@ -153,6 +161,77 @@ export function renderReadinessBatchMarkdown(batch: ReadinessBatchReport): strin
   return `${lines.join("\n")}\n`;
 }
 
+export function renderReadinessCorpusMarkdown(report: ReadinessCorpusReport): string {
+  const lines: string[] = [];
+  lines.push("# Riptide Case-Study Corpus Readiness");
+  lines.push("");
+  lines.push(`- Schema: ${report.schema_version}`);
+  lines.push(`- Generated at: ${report.generated_at} (fixed for deterministic diffs)`);
+  lines.push(`- Case-study root: ${report.case_studies_root}`);
+  lines.push(`- Repositories inspected: ${report.rows.length}`);
+  lines.push(`- Verdict summary: ${rowVerdictSummary(report.rows)}`);
+  lines.push(`- Launch claim summary: ${claimSummary(report.rows)}`);
+  lines.push("");
+  lines.push(
+    "This report inventories local case-study workspaces and runs static readiness inspection. Dynamic validation gates remain explicit command results and do not upgrade a launch claim unless they have been executed."
+  );
+  lines.push("");
+
+  lines.push("## Gate Contract");
+  lines.push("");
+  lines.push("| Gate | Default | Contract | Command shape |");
+  lines.push("|------|---------|----------|---------------|");
+  for (const gate of report.gates) lines.push(gateDefinitionRow(gate));
+  lines.push("");
+
+  lines.push("## Verdicts");
+  lines.push("");
+  lines.push("| Verdict | Meaning |");
+  lines.push("|---------|---------|");
+  for (const verdict of report.verdicts) lines.push(verdictDefinitionRow(verdict));
+  lines.push("");
+
+  lines.push("## Launch Claim Levels");
+  lines.push("");
+  lines.push("| Claim level | Meaning |");
+  lines.push("|-------------|---------|");
+  for (const claim of report.launch_claim_levels) lines.push(claimDefinitionRow(claim));
+  lines.push("");
+
+  lines.push("## Corpus Matrix");
+  lines.push("");
+  lines.push(
+    "| Repo | Verdict | Claim | Support | Adapters | Scenarios | Guided sim | Campaigns | Run evidence | Next action |"
+  );
+  lines.push(
+    "|------|---------|-------|---------|----------|-----------|------------|-----------|--------------|-------------|"
+  );
+  for (const row of report.rows) lines.push(corpusMatrixRow(row));
+  lines.push("");
+
+  lines.push("## Row Details");
+  lines.push("");
+  for (const row of report.rows) {
+    lines.push(`### ${row.slug}`);
+    lines.push("");
+    lines.push(`- Path: ${row.path}`);
+    lines.push(`- Verdict: ${row.verdict}`);
+    lines.push(`- Launch claim: ${row.claim_level}`);
+    lines.push(`- Support: ${row.support_level} (${row.support_status})`);
+    lines.push(`- Blocker: ${row.blocker ?? "none"}`);
+    lines.push(`- Next action: ${row.next_action}`);
+    lines.push(`- Missing surfaces: ${row.missing_surfaces.join(", ") || "none"}`);
+    lines.push(`- Artifacts: ${summarizeList(row.artifacts)}`);
+    lines.push("");
+    lines.push("| Gate | Executed | Verdict | Artifacts | Next action |");
+    lines.push("|------|----------|---------|-----------|-------------|");
+    for (const result of row.command_results) lines.push(commandResultRow(result));
+    lines.push("");
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
 function heading(level: number, title: string): string {
   return `${"#".repeat(Math.max(1, Math.min(level, 6)))} ${title}`;
 }
@@ -204,4 +283,82 @@ function supportSummary(reports: ReadinessReport[]): string {
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
     .map(([level, count]) => `${level}=${count}`)
     .join(", ");
+}
+
+function gateDefinitionRow(gate: ReadinessGateDefinition): string {
+  return `| ${gate.id} | ${gate.executed_by_default ? "yes" : "no"} | ${escapeTable(gate.description)} | \`${escapeTable(gate.command_template)}\` |`;
+}
+
+function verdictDefinitionRow(verdict: ReadinessVerdictDefinition): string {
+  return `| ${verdict.verdict} | ${escapeTable(verdict.meaning)} |`;
+}
+
+function claimDefinitionRow(claim: LaunchClaimDefinition): string {
+  return `| ${claim.claim_level} | ${escapeTable(claim.meaning)} |`;
+}
+
+function corpusMatrixRow(row: ReadinessCorpusRow): string {
+  return [
+    row.slug,
+    row.verdict,
+    row.claim_level,
+    `${row.support_level} (${row.support_status})`,
+    String(row.observed_surfaces.adapters.length),
+    String(row.observed_surfaces.scenarios.length),
+    String(row.observed_surfaces.guided_sim_manifests.length),
+    String(row.observed_surfaces.campaigns.length),
+    String(row.observed_surfaces.run_collections.length + (row.observed_surfaces.last_run ? 1 : 0)),
+    row.next_action,
+  ]
+    .map((cell) => escapeTable(cell))
+    .join(" | ")
+    .replace(/^/, "| ")
+    .replace(/$/, " |");
+}
+
+function commandResultRow(result: ReadinessCorpusCommandResult): string {
+  return [
+    result.gate,
+    result.executed ? "yes" : "no",
+    result.verdict,
+    summarizeList(result.artifacts),
+    result.next_action,
+  ]
+    .map((cell) => escapeTable(cell))
+    .join(" | ")
+    .replace(/^/, "| ")
+    .replace(/$/, " |");
+}
+
+function rowVerdictSummary(rows: ReadinessCorpusRow[]): string {
+  return countSummary(rows.map((row) => row.verdict));
+}
+
+function claimSummary(rows: ReadinessCorpusRow[]): string {
+  return countSummary(rows.map((row) => row.claim_level));
+}
+
+function countSummary(values: string[]): string {
+  if (values.length === 0) return "none";
+  const counts = new Map<string, number>();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return [...counts.entries()]
+    .sort(([left], [right]) => compareStrings(left, right))
+    .map(([value, count]) => `${value}=${count}`)
+    .join(", ");
+}
+
+function escapeTable(value: string): string {
+  return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
+}
+
+function summarizeList(values: string[], max = 4): string {
+  if (values.length === 0) return "none";
+  const head = values.slice(0, max).join(", ");
+  const remaining = values.length - max;
+  return remaining > 0 ? `${head}, ... (+${remaining} more)` : head;
+}
+
+function compareStrings(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }

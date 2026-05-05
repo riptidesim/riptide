@@ -4,54 +4,26 @@
 // execution internals. JSON mode is stable and banner-free; Markdown mode is
 // reviewer-facing and uses the same report model.
 
-import { existsSync } from "node:fs";
-import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { Command } from "commander";
 
 import {
   inspectAndAnalyzeReadiness,
+  createReadinessCorpusReport,
+  discoverCaseStudyTargets,
   readinessReportToJson,
-  renderReadinessBatchMarkdown,
+  renderReadinessCorpusMarkdown,
   renderReadinessMarkdown,
   stableJsonStringify,
   type AnalyzeReadinessGapsOptions,
-  type ReadinessBatchReport,
+  type ReadinessCorpusReport,
   type ReadinessReport,
 } from "../readiness/index.js";
 import { renderCliError } from "../errors/render.js";
 
 export const DEFAULT_CASE_STUDIES_ROOT = "case-studies";
-
-interface CaseStudyCandidate {
-  candidate: string;
-  localName: string;
-}
-
-const DEFAULT_CASE_STUDY_CANDIDATES = [
-  { candidate: "0xNineteen/anchor-uniswap-v2", localName: "anchor-uniswap-v2" },
-  { candidate: "ChiefWoods/cpamm", localName: "cpamm" },
-  { candidate: "ChiefWoods/lending", localName: "lending" },
-  { candidate: "ChiefWoods/stablecoin", localName: "stablecoin" },
-  { candidate: "Jayant818/perpPrime", localName: "perpPrime" },
-  {
-    candidate: "Mythic-Project/solana-program-library",
-    localName: "solana-program-library",
-  },
-  {
-    candidate: "Mythic-Project/solana-program-library#spl-token-subset",
-    localName: "solana-program-library",
-  },
-  { candidate: "askibin/perpetuals", localName: "askibin-perpetuals" },
-  { candidate: "blocknetics/stablecoin-protocol", localName: "stablecoin-protocol" },
-  { candidate: "blockworks-foundation/mango-v4", localName: "mango-v4" },
-  { candidate: "drift-labs/protocol-v2", localName: "protocol-v2" },
-  { candidate: "marinade-finance/liquid-staking-program", localName: "liquid-staking-program" },
-  { candidate: "orca-so/whirlpools", localName: "whirlpools" },
-  { candidate: "solana-labs/perpetuals", localName: "perpetuals" },
-  { candidate: "vvizardev/marinade-liquid-stake-fork", localName: "marinade-liquid-stake-fork" },
-] as const satisfies readonly CaseStudyCandidate[];
 
 export interface ReadinessOptions {
   json?: boolean;
@@ -70,7 +42,7 @@ export interface ReadinessCommandDeps {
 
 type ReadinessOutput =
   | { kind: "single"; report: ReadinessReport; markdown: string; json: string }
-  | { kind: "batch"; batch: ReadinessBatchReport; markdown: string; json: string };
+  | { kind: "corpus"; corpus: ReadinessCorpusReport; markdown: string; json: string };
 
 export function createReadinessCommand(deps: ReadinessCommandDeps = {}): Command {
   return new Command("readiness")
@@ -130,28 +102,24 @@ async function buildReadinessOutput(
 
   if (options.caseStudies !== undefined && options.caseStudies !== false) {
     const root = resolveCaseStudiesRoot(inputPath, options.caseStudies, cwd);
-    const targets = await caseStudyTargets(root);
-    const reports = await Promise.all(
+    const targets = await discoverCaseStudyTargets(root);
+    const rows = await Promise.all(
       targets.map(async (target) => {
-        const { report } = await inspectAndAnalyze(target.path, {
+        const { inspection, report } = await inspectAndAnalyze(target.path, {
           ...analyzerOptions,
-          candidate: target.candidate,
+          candidate: target.slug,
+          includeTargetArtifacts: false,
+          validateAdapters: false,
         });
-        return report;
+        return { caseStudiesRoot: root, inspection, report };
       })
     );
-    const batch: ReadinessBatchReport = {
-      schemaVersion: "readiness-batch.v1",
-      caseStudiesRoot: root,
-      reports: reports.sort((left, right) =>
-        compareStrings(left.repo.candidate ?? "", right.repo.candidate ?? "")
-      ),
-    };
+    const corpus = createReadinessCorpusReport({ caseStudiesRoot: root, rows });
     return {
-      kind: "batch",
-      batch,
-      markdown: renderReadinessBatchMarkdown(batch),
-      json: stableJsonStringify(batch),
+      kind: "corpus",
+      corpus,
+      markdown: renderReadinessCorpusMarkdown(corpus),
+      json: stableJsonStringify(corpus),
     };
   }
 
@@ -198,51 +166,4 @@ function resolveCaseStudiesRoot(
   }
   if (inputPath) return path.resolve(cwd, inputPath);
   return DEFAULT_CASE_STUDIES_ROOT;
-}
-
-async function caseStudyTargets(root: string): Promise<Array<{ path: string; candidate: string }>> {
-  if (!existsSync(root)) {
-    throw new Error(`riptide readiness: case-study root not found: ${root}`);
-  }
-  const rootStats = await stat(root);
-  if (!rootStats.isDirectory()) {
-    throw new Error(`riptide readiness: case-study root is not a directory: ${root}`);
-  }
-  const entries = await readdir(root, { withFileTypes: true });
-  const childDirs = entries
-    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
-    .map((entry) => entry.name)
-    .sort(compareStrings);
-  const defaultCandidates = defaultCaseStudyCandidatesFor(root);
-  if (defaultCandidates.length === 0) {
-    return childDirs.map((entry) => ({
-      path: path.join(root, entry),
-      candidate: entry,
-    }));
-  }
-
-  const plannedLocalNames = new Set(defaultCandidates.map((entry) => entry.localName));
-  const plannedTargets = defaultCandidates.map((entry) => ({
-    path: path.join(root, entry.localName),
-    candidate: entry.candidate,
-  }));
-  const extraTargets = childDirs
-    .filter((entry) => !plannedLocalNames.has(entry))
-    .map((entry) => ({
-      path: path.join(root, entry),
-      candidate: entry,
-    }));
-  return [...plannedTargets, ...extraTargets].sort((left, right) =>
-    compareStrings(left.candidate, right.candidate)
-  );
-}
-
-function defaultCaseStudyCandidatesFor(root: string): readonly CaseStudyCandidate[] {
-  return path.basename(path.resolve(root)) === DEFAULT_CASE_STUDIES_ROOT
-    ? DEFAULT_CASE_STUDY_CANDIDATES
-    : [];
-}
-
-function compareStrings(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
 }

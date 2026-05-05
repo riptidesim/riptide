@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import TOML from "toml";
 
 import {
+  AdapterSchema,
   isSupportedSemanticClass,
   validateAdapter,
   type SemanticClass,
@@ -40,6 +41,7 @@ export type ArtifactKind =
   | "report"
   | "pack"
   | "manifest"
+  | "guided-sim-manifest"
   | "replay"
   | "campaign-input";
 
@@ -220,6 +222,7 @@ export interface ReadinessRiptideInspection {
   reports: ReadinessArtifact[];
   packs: ReadinessArtifact[];
   manifests: ReadinessArtifact[];
+  guidedSimManifests: ReadinessArtifact[];
   replays: ReadinessArtifact[];
   runs: ReadinessArtifact[];
   campaignInputs: ReadinessArtifact[];
@@ -262,6 +265,17 @@ export interface InspectReadinessWorkspaceOptions {
   git?: {
     enabled?: boolean;
   };
+  /**
+   * Single-repo readiness can inspect local build outputs as support
+   * evidence. Corpus readiness disables this so generated-heavy target/
+   * trees are not traversed while building launch matrices.
+   */
+  includeTargetArtifacts?: boolean;
+  /**
+   * Full adapter validation may read declared IDL lineage. Corpus readiness
+   * keeps adapter checks schema-only so generated target/ paths are not opened.
+   */
+  validateAdapters?: boolean;
 }
 
 export async function inspectReadinessWorkspace(
@@ -270,8 +284,8 @@ export async function inspectReadinessWorkspace(
 ): Promise<ReadinessInspection> {
   const target = await resolveInspectionTarget(inputPath);
   const repo = await inspectRepoMetadata(target, options);
-  const build = await inspectBuildArtifacts(target.rootPath);
-  const riptide = await inspectRiptideWorkspace(target.rootPath, target.riptidePath);
+  const build = await inspectBuildArtifacts(target.rootPath, options);
+  const riptide = await inspectRiptideWorkspace(target.rootPath, target.riptidePath, options);
 
   return {
     schemaVersion: READINESS_INSPECTION_SCHEMA_VERSION,
@@ -369,15 +383,23 @@ async function gitOutput(cwd: string, args: string[]): Promise<string | undefine
   }
 }
 
-async function inspectBuildArtifacts(rootPath: string): Promise<ReadinessBuildInspection> {
+async function inspectBuildArtifacts(
+  rootPath: string,
+  options: InspectReadinessWorkspaceOptions
+): Promise<ReadinessBuildInspection> {
   const anchorTomlPath = path.join(rootPath, "Anchor.toml");
   const cargoTomlPath = path.join(rootPath, "Cargo.toml");
   const packageJsonPath = path.join(rootPath, "package.json");
-  const targetIdlDir = path.join(rootPath, "target", "idl");
   const riptideIdlDir = path.join(rootPath, ".riptide", "idl");
   const fixturesIdlDir = path.join(rootPath, "fixtures", "idls");
   const localIdlDir = path.join(rootPath, "idls");
-  const targetDeployDir = path.join(rootPath, "target", "deploy");
+  const includeTargetArtifacts = options.includeTargetArtifacts !== false;
+  const idlDirs = [
+    ...(includeTargetArtifacts ? [path.join(rootPath, "target", "idl")] : []),
+    riptideIdlDir,
+    fixturesIdlDir,
+    localIdlDir,
+  ];
 
   const [programSources, idls, programBinaries, tests, migrations, programIds, cargoWorkspace] =
     await Promise.all([
@@ -386,15 +408,18 @@ async function inspectBuildArtifacts(rootPath: string): Promise<ReadinessBuildIn
         skipDirs: DEFAULT_SKIP_DIRS,
         include: (filePath, basename) => basename.endsWith(".rs") && filePath.includes(`${path.sep}src${path.sep}`),
       }),
-      findAcrossDirs([targetIdlDir, riptideIdlDir, fixturesIdlDir, localIdlDir], {
+      findAcrossDirs(idlDirs, {
         maxDepth: 2,
         skipDirs: DEFAULT_SKIP_DIRS,
         include: (_filePath, basename) => basename.endsWith(".json"),
       }),
-      findFiles(targetDeployDir, {
-        maxDepth: 1,
-        include: (_filePath, basename) => basename.endsWith(".so"),
-      }),
+      includeTargetArtifacts
+        ? findFiles(path.join(rootPath, "target", "deploy"), {
+            maxDepth: 1,
+            skipDirs: DEFAULT_SKIP_DIRS,
+            include: (_filePath, basename) => basename.endsWith(".so"),
+          })
+        : Promise.resolve([]),
       findFiles(path.join(rootPath, "tests"), {
         maxDepth: 3,
         skipDirs: DEFAULT_SKIP_DIRS,
@@ -472,7 +497,8 @@ async function cargoTomlHasWorkspace(cargoTomlPath: string): Promise<boolean> {
 
 async function inspectRiptideWorkspace(
   rootPath: string,
-  riptidePath: string | undefined
+  riptidePath: string | undefined,
+  options: InspectReadinessWorkspaceOptions
 ): Promise<ReadinessRiptideInspection> {
   if (!riptidePath || !existsSync(riptidePath)) {
     return emptyRiptideInspection();
@@ -488,11 +514,12 @@ async function inspectRiptideWorkspace(
     reports,
     packs,
     manifests,
+    guidedSimManifests,
     replays,
     runs,
     campaignInputs,
   ] = await Promise.all([
-    inspectAdapters(rootPath, path.join(riptidePath, "adapters")),
+    inspectAdapters(rootPath, path.join(riptidePath, "adapters"), options),
     inspectScenarioArtifacts(rootPath, path.join(riptidePath, "scenarios")),
     inspectHarnesses(rootPath, riptidePath),
     inspectSlices(rootPath, path.join(riptidePath, "slices")),
@@ -501,6 +528,7 @@ async function inspectRiptideWorkspace(
     inspectReportArtifacts(rootPath, riptidePath),
     inspectPackArtifacts(rootPath, riptidePath),
     inspectManifestArtifacts(rootPath, riptidePath),
+    inspectGuidedSimManifests(rootPath, riptidePath),
     inspectReplayArtifacts(rootPath, riptidePath),
     inspectRunDirectories(rootPath, path.join(riptidePath, "runs")),
     inspectCampaignInputs(rootPath, riptidePath),
@@ -518,6 +546,7 @@ async function inspectRiptideWorkspace(
     reports,
     packs,
     manifests,
+    guidedSimManifests,
     replays,
     runs,
     campaignInputs,
@@ -535,6 +564,7 @@ function emptyRiptideInspection(): ReadinessRiptideInspection {
     reports: [],
     packs: [],
     manifests: [],
+    guidedSimManifests: [],
     replays: [],
     runs: [],
     campaignInputs: [],
@@ -543,17 +573,24 @@ function emptyRiptideInspection(): ReadinessRiptideInspection {
 
 async function inspectAdapters(
   rootPath: string,
-  adaptersDir: string
+  adaptersDir: string,
+  options: InspectReadinessWorkspaceOptions
 ): Promise<ReadinessAdapterInspection[]> {
   const files = await findFiles(adaptersDir, {
     maxDepth: 1,
     include: (_filePath, basename) => basename.endsWith(".toml"),
   });
-  const adapters = await Promise.all(files.map((entry) => inspectAdapter(rootPath, entry.path)));
+  const adapters = await Promise.all(
+    files.map((entry) => inspectAdapter(rootPath, entry.path, options))
+  );
   return adapters.sort((left, right) => compareStrings(left.relativePath, right.relativePath));
 }
 
-async function inspectAdapter(rootPath: string, adapterPath: string): Promise<ReadinessAdapterInspection> {
+async function inspectAdapter(
+  rootPath: string,
+  adapterPath: string,
+  options: InspectReadinessWorkspaceOptions
+): Promise<ReadinessAdapterInspection> {
   const name = path.basename(adapterPath, ".toml");
   let raw: string;
   try {
@@ -585,14 +622,34 @@ async function inspectAdapter(rootPath: string, adapterPath: string): Promise<Re
   let validationError: string | undefined;
   try {
     parsed = TOML.parse(raw);
-    validateAdapter(parsed, adapterPath);
+    validateAdapterForInspection(parsed, adapterPath, options);
   } catch (err) {
     validationStatus = "invalid";
     validationError = errorMessage(err);
     if (parsed === undefined) parsed = {};
   }
 
-  return summarizeAdapter(rootPath, adapterPath, name, parsed, validationStatus, validationError);
+  return summarizeAdapter(rootPath, adapterPath, name, parsed, validationStatus, validationError, options);
+}
+
+function validateAdapterForInspection(
+  parsed: unknown,
+  adapterPath: string,
+  options: InspectReadinessWorkspaceOptions
+): void {
+  if (options.validateAdapters !== false) {
+    validateAdapter(parsed, adapterPath);
+    return;
+  }
+
+  const result = AdapterSchema.safeParse(parsed);
+  if (!result.success) {
+    const first = result.error.issues[0];
+    const key = first?.path.join(".") ?? "";
+    throw new Error(
+      `${adapterPath}: \`${key || "(root)"}\`: ${first?.message ?? "adapter schema validation failed"}`
+    );
+  }
 }
 
 function summarizeAdapter(
@@ -601,7 +658,8 @@ function summarizeAdapter(
   name: string,
   raw: unknown,
   validationStatus: AdapterValidationStatus,
-  validationError: string | undefined
+  validationError: string | undefined,
+  options: InspectReadinessWorkspaceOptions
 ): ReadinessAdapterInspection {
   const root = asRecord(raw) ?? {};
   const instructions = asRecord(root["instructions"]) ?? {};
@@ -622,9 +680,21 @@ function summarizeAdapter(
   const programSo = readString(root["program_so"]);
   const idlPath = readString(root["idl_path"]);
   const idlSource = readString(lineage["idl_source"]);
-  const programSoResolved = programSo ? resolveDeclaredPath(rootPath, adapterPath, programSo) : undefined;
-  const idlResolved = idlPath ? resolveDeclaredPath(rootPath, adapterPath, idlPath) : undefined;
-  const idlSourceResolved = idlSource ? resolveDeclaredPath(rootPath, adapterPath, idlSource) : undefined;
+  const programSoResolved =
+    programSo && shouldResolveDeclaredPath(programSo, options)
+      ? resolveDeclaredPath(rootPath, adapterPath, programSo)
+      : undefined;
+  const idlResolved =
+    idlPath && shouldResolveDeclaredPath(idlPath, options)
+      ? resolveDeclaredPath(rootPath, adapterPath, idlPath)
+      : undefined;
+  const idlSourceResolved =
+    idlSource && shouldResolveDeclaredPath(idlSource, options)
+      ? resolveDeclaredPath(rootPath, adapterPath, idlSource)
+      : undefined;
+  const programSoInspectable = inspectableDeclaredPath(rootPath, programSoResolved, options);
+  const idlInspectable = inspectableDeclaredPath(rootPath, idlResolved, options);
+  const idlSourceInspectable = inspectableDeclaredPath(rootPath, idlSourceResolved, options);
   const semanticClass = readString(semantics["class"]);
   const instructionActions = Object.values(instructions)
     .map((value) => readString(asRecord(value)?.["action"]))
@@ -647,16 +717,16 @@ function summarizeAdapter(
     ...(readString(root["protocol"]) ? { protocol: readString(root["protocol"]) } : {}),
     ...(inferRuntime(root) ? { runtime: inferRuntime(root) } : {}),
     ...(programSo ? { programSo } : {}),
-    ...(programSoResolved ? { programSoPath: programSoResolved } : {}),
-    ...(programSoResolved ? { programSoExists: existsSync(programSoResolved) } : {}),
+    ...(programSoInspectable ? { programSoPath: programSoInspectable } : {}),
+    ...(programSoInspectable ? { programSoExists: existsSync(programSoInspectable) } : {}),
     ...(readString(root["program_id"]) ? { programId: readString(root["program_id"]) } : {}),
     ...(idlPath ? { idlPath } : {}),
-    ...(idlResolved ? { idlResolvedPath: idlResolved } : {}),
-    ...(idlResolved ? { idlExists: existsSync(idlResolved) } : {}),
+    ...(idlInspectable ? { idlResolvedPath: idlInspectable } : {}),
+    ...(idlInspectable ? { idlExists: existsSync(idlInspectable) } : {}),
     lineage: {
       ...(idlSource ? { idlSource } : {}),
-      ...(idlSourceResolved ? { idlSourcePath: idlSourceResolved } : {}),
-      ...(idlSourceResolved ? { idlSourceExists: existsSync(idlSourceResolved) } : {}),
+      ...(idlSourceInspectable ? { idlSourcePath: idlSourceInspectable } : {}),
+      ...(idlSourceInspectable ? { idlSourceExists: existsSync(idlSourceInspectable) } : {}),
       ...(readString(lineage["generator"]) ? { generator: readString(lineage["generator"]) } : {}),
       inferredAssumptionCount: readArray(lineage["inferred_assumptions"]).length,
       unsupportedFieldCount: readArray(lineage["unsupported_fields"]).length,
@@ -1027,6 +1097,18 @@ async function inspectManifestArtifacts(
   return files.map((entry) => artifact("manifest", entry.path, rootPath));
 }
 
+async function inspectGuidedSimManifests(
+  rootPath: string,
+  riptidePath: string
+): Promise<ReadinessArtifact[]> {
+  const files = await findFiles(path.join(riptidePath, "sim"), {
+    maxDepth: 2,
+    skipDirs: DEFAULT_SKIP_DIRS,
+    include: (_filePath, basename) => basename === "Riptide.toml",
+  });
+  return files.map((entry) => artifact("guided-sim-manifest", entry.path, rootPath));
+}
+
 async function inspectReplayArtifacts(
   rootPath: string,
   riptidePath: string
@@ -1159,6 +1241,35 @@ function resolveDeclaredPath(rootPath: string, declaringFilePath: string, declar
   return path.resolve(rootPath, declared);
 }
 
+function shouldResolveDeclaredPath(
+  declared: string,
+  options: InspectReadinessWorkspaceOptions
+): boolean {
+  if (options.includeTargetArtifacts !== false) return true;
+  return !declared
+    .split(/[\\/]+/)
+    .filter((segment) => segment.length > 0)
+    .some((segment) => DEFAULT_SKIP_DIRS.has(segment));
+}
+
+function inspectableDeclaredPath(
+  rootPath: string,
+  resolvedPath: string | undefined,
+  options: InspectReadinessWorkspaceOptions
+): string | undefined {
+  if (!resolvedPath) return undefined;
+  if (options.includeTargetArtifacts !== false) return resolvedPath;
+  return isUnderSkippedRepoDir(rootPath, resolvedPath) ? undefined : resolvedPath;
+}
+
+function isUnderSkippedRepoDir(rootPath: string, filePath: string): boolean {
+  const relative = path.relative(rootPath, filePath);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
+    return false;
+  }
+  return relative.split(path.sep).some((segment) => DEFAULT_SKIP_DIRS.has(segment));
+}
+
 function readNumberRecord(value: unknown): Record<string, number> {
   const record = asRecord(value);
   if (!record) return {};
@@ -1206,4 +1317,11 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-const DEFAULT_SKIP_DIRS = new Set([".git", "node_modules", "target"]);
+const DEFAULT_SKIP_DIRS = new Set([
+  ".git",
+  "case-study-readiness",
+  "dist",
+  "node_modules",
+  "reports",
+  "target",
+]);

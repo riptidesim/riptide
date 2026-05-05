@@ -29,6 +29,8 @@ export interface AnalyzeReadinessGapsOptions {
   candidate?: string;
   targetLevel?: SupportLevelId | null;
   sliceName?: string;
+  includeTargetArtifacts?: boolean;
+  validateAdapters?: boolean;
 }
 
 export interface InspectAndAnalyzeReadinessResult {
@@ -67,7 +69,10 @@ export async function inspectAndAnalyzeReadiness(
   inputPath: string,
   options: AnalyzeReadinessGapsOptions = {}
 ): Promise<InspectAndAnalyzeReadinessResult> {
-  const inspection = await inspectReadinessWorkspace(inputPath);
+  const inspection = await inspectReadinessWorkspace(inputPath, {
+    includeTargetArtifacts: options.includeTargetArtifacts,
+    validateAdapters: options.validateAdapters,
+  });
   return {
     inspection,
     report: analyzeReadinessInspection(inspection, options),
