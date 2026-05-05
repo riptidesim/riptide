@@ -315,7 +315,7 @@ impl Processor {
                 // branch allowed any signer when the admin was unset,
                 // which silently removed the authority gate on every
                 // adapter that relied on the lazy-init path — the
-                // exact path the Sprint 10 adapter uses.
+                // exact path the adapter uses.
                 if pool_state.admin == [0u8; 32] {
                     return Err(LiquidStakingError::Unauthorized.into());
                 }

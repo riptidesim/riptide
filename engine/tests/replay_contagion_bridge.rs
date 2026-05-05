@@ -9,7 +9,7 @@
 //! liquid-staking and lending bundles without touching the shipping
 //! fixtures:
 //!
-//! 1. `liquid_staking` is the real Sprint 10 depeg + redemption-run
+//! 1. `liquid_staking` is the real depeg + redemption-run
 //!    replay — `apply_slash(2500)` at tick 3 drops
 //!    `pool.exchange_rate_bps` from 10000 → 7500.
 //! 2. `lending` reuses the shipping `lending-whale-bad-debt` adapter
@@ -190,8 +190,8 @@ fn bridge_propagates_upstream_lst_state_into_downstream_lending_oracle() {
     // (`cli/src/compiler/schema.ts :: TickSnapshotSchema`,
     //  `SimulationSummarySchema`, `AgentFinalStateSchema`) requires
     // specific engine-owned fields on every replay result. The multi
-    // path must satisfy those contracts so T03/T04 can expose the
-    // proof through the normal CLI/report flow without the CLI
+    // path must satisfy those contracts so the normal CLI/report flow can
+    // expose the proof without the CLI
     // rejecting the payload.
     for (idx, snapshot) in result.timeseries.iter().enumerate() {
         let tick_val = snapshot.get("tick").and_then(|v| v.as_u64());
@@ -430,7 +430,7 @@ fn bridge_propagates_upstream_lst_state_into_downstream_lending_oracle() {
     // `lending.pool.bad_debt` from the qualified snapshot, the
     // invariant is evaluated against it, and an honest "no firing"
     // is recorded. The end-to-end "invariant fires because of the
-    // bridge" case is T04's named contagion proof.
+    // bridge" case is the named contagion proof.
     let invariants = result
         .summary
         .get("invariants_fired")
@@ -497,8 +497,8 @@ fn find_snapshot<'a>(
 /// — writes a valid `SimulationResult` JSON, exits cleanly, and
 /// satisfies the shared wire contract (lifecycle counters, component-
 /// qualified summary keys, namespaced agent identities). Without
-/// this, the Phase 1 substrate would only be reachable from Rust
-/// tests and the CLI/report flow in T03/T04 would hit a hard wall.
+/// this, the multi-component substrate would only be reachable from Rust
+/// tests and the CLI/report flow would hit a hard wall.
 #[test]
 fn engine_replay_config_flag_drives_multi_component_replay_end_to_end() {
     let repo = monorepo_root();
@@ -580,7 +580,7 @@ fn engine_replay_config_flag_drives_multi_component_replay_end_to_end() {
     );
 
     // Parse the binary's output through the same wire contract the
-    // CLI/report flow will consume in T04.
+    // CLI/report flow will consume.
     let raw = fs::read_to_string(&output).expect("read engine output");
     let result: riptide_engine::types::SimulationResult =
         serde_json::from_str(&raw).expect("engine output must be a valid SimulationResult");

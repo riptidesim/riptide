@@ -25,7 +25,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-const T03_TIMEOUT_MS = 180_000;
+const INVARIANT_EXIT_TIMEOUT_MS = 180_000;
 
 const REPO_ROOT = path.resolve(process.cwd(), "..");
 const ENGINE_MANIFEST = path.resolve(REPO_ROOT, "engine/Cargo.toml");
@@ -212,7 +212,7 @@ const BASE_ENGINE_ARGS = (fix: {
 
 test(
   "clean run (no invariants declared) exits 0",
-  { timeout: T03_TIMEOUT_MS },
+  { timeout: INVARIANT_EXIT_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
     const workDir = await mkdtemp(path.join(os.tmpdir(), "t03-clean-"));
@@ -232,7 +232,7 @@ test(
 
 test(
   "clean run with always-true invariant exits 0",
-  { timeout: T03_TIMEOUT_MS },
+  { timeout: INVARIANT_EXIT_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
     const workDir = await mkdtemp(path.join(os.tmpdir(), "t03-holds-"));
@@ -262,7 +262,7 @@ value = 0
 
 test(
   "firing invariant exits 1",
-  { timeout: T03_TIMEOUT_MS },
+  { timeout: INVARIANT_EXIT_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
     const workDir = await mkdtemp(path.join(os.tmpdir(), "t03-fires-"));
@@ -297,7 +297,7 @@ value = 0
 
 test(
   "--allow-invariant-violations restores exit 0",
-  { timeout: T03_TIMEOUT_MS },
+  { timeout: INVARIANT_EXIT_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
     const workDir = await mkdtemp(path.join(os.tmpdir(), "t03-allow-"));
@@ -334,7 +334,7 @@ value = 0
 
 test(
   "broken adapter (unknown invariant field) exits 2",
-  { timeout: T03_TIMEOUT_MS },
+  { timeout: INVARIANT_EXIT_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
     const workDir = await mkdtemp(path.join(os.tmpdir(), "t03-broken-"));
@@ -371,7 +371,7 @@ value = 0
 
 test(
   "malformed adapter (bad TOML) exits 2",
-  { timeout: T03_TIMEOUT_MS },
+  { timeout: INVARIANT_EXIT_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
     const workDir = await mkdtemp(path.join(os.tmpdir(), "t03-malformed-"));

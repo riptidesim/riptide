@@ -1,10 +1,9 @@
 //! On-chain account layouts for `perpetuals`.
 //!
-//! ships a **perps-lite** instruction set: init_market,
+//! This program ships a **perps-lite** instruction set: init_market,
 //! deposit/withdraw_collateral, open/close_position (long + short),
 //! liquidate_position. Funding rate and the insurance fund are
-//! deliberately out of scope — the task note carries the scope-cut
-//! rationale and can add them without reshaping these types.
+//! deliberately out of scope and can be added without reshaping these types.
 //!
 //! The oracle account is read as the `admin-mock` layout shipped by
 //! `programs/admin_mock_oracle`. The `OracleView` struct below is a
@@ -144,10 +143,9 @@ impl PositionState {
 
 /// Perps-fork instruction surface.
 ///
-/// ships the minimum that supports an oracle-shock →
+/// Ships the minimum that supports an oracle-shock →
 /// margin-cascade discovery story. No funding rate, no insurance fund,
-/// no progressive liquidation. See the task note for the full
-/// scope-cut rationale.
+/// no progressive liquidation.
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub enum PerpsInstructionData {
     /// Initialize a market. Signer becomes the admin; `oracle` account

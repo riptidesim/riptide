@@ -1,6 +1,6 @@
 // Per-scenario adapter resolution for `riptide run`.
 //
-// Resolution order (R9.1, applied per scenario):
+// Resolution order, applied per scenario:
 //   1. Global override — passed via `--adapter <path>` on the command
 //      line, applies to every scenario in the sweep. The escape valve
 //      for users who want to point every discovered scenario at one
@@ -17,7 +17,7 @@
 //      across mixed bundles.
 //   4. Scaffolded user-repo path — single `.toml` under
 //      `<cwd>/.riptide/adapters/`. Same heuristic the global resolver
-//      used pre-T09; preserved here as the per-scenario fallback for
+//      used previously; preserved here as the per-scenario fallback for
 //      drop-in users.
 //   5. Error — clear message about which step failed so the user
 //      knows what to add.

@@ -132,7 +132,7 @@ fn semantics_breadth_parser_rejects_missing_fixture_pack_path() {
 }
 
 #[test]
-fn semantics_breadth_parser_accepts_shipping_lending_phase3_shape() {
+fn semantics_breadth_parser_accepts_shipping_lending_semantics_shape() {
     let adapter = parse_adapter_str(LEGACY_LENDING, "fixtures/adapters/lending.toml").unwrap();
     let reparsed = parse_adapter_str(LEGACY_LENDING, "fixtures/adapters/lending.toml").unwrap();
     assert_eq!(adapter, reparsed);

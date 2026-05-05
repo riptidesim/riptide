@@ -1,9 +1,8 @@
 // Scenario-name glob matcher for `riptide run <pattern>`.
 //
-// Jest-style ergonomics over strict minimatch (intentional per
-// spec R3.2 example — `riptide run '*shock*'` matches
-// `perps/shock`, which strict minimatch would reject because `*`
-// doesn't cross `/`. We deliberately loosen).
+// Jest-style ergonomics over strict minimatch: `riptide run '*shock*'`
+// matches `perps/shock`, which strict minimatch would reject because `*`
+// doesn't cross `/`. We deliberately loosen.
 //
 // - `?`  matches a single character (any, including `/`)
 // - `*`  matches zero or more characters (any, including `/`)

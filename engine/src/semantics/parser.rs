@@ -1,8 +1,8 @@
 //! Parser policy notes for the semantics breadth substrate.
 //!
-//! The load-time parser accepts the additive Sprint 21 sub-blocks
-//! under `[semantics]`: `oracles.<role>`, `collections.<name>`, and
-//! `replay`. Multi-oracle weights are intentionally fail-closed: if a
+//! The load-time parser accepts additive sub-blocks under `[semantics]`:
+//! `oracles.<role>`, `collections.<name>`, and `replay`. Multi-oracle
+//! weights are intentionally fail-closed: if a
 //! role declares any `weight`, every oracle binding for that role must
 //! declare one, and a zero total weight returns the typed
 //! `MultiOracleWeightsAllZero` error. Treating zero-weight feeds as

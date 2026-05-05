@@ -1,4 +1,4 @@
-//! Liquid-staking-fork LiteSVM round-trip (T01 gate, Sprint 10).
+//! Liquid-staking-fork LiteSVM round-trip.
 //!
 //! End-to-end coverage that the shipped `liquid_staking.so` loads
 //! in LiteSVM and exercises every instruction of the liquid-staking
@@ -108,7 +108,7 @@ fn ls_so_path() -> PathBuf {
 /// Mirrors the load-bearing-gate discipline used by
 /// `perps_sibling_oracle_proof::skip_if_missing`:
 /// - `CI=<non-empty>` → HARD FAIL with a named `cargo build-sbf`
-///   diagnostic. CI must never report green on the T01/T02 gate
+///   diagnostic. CI must never report green on the round-trip gate
 ///   without actually exercising the liquid-staking bundle.
 /// - Local run → visible ATTENTION banner on stderr and the test
 ///   returns early. The banner makes a silent skip impossible to
@@ -122,7 +122,7 @@ fn skip_if_missing(paths: &[&Path]) -> bool {
     if ci {
         let list: Vec<String> = missing.iter().map(|p| p.display().to_string()).collect();
         panic!(
-            "CI={}: refusing to soft-skip Sprint 10 T01 gate on missing SBF \
+            "CI={}: refusing to soft-skip liquid-staking round-trip gate on missing SBF \
              artifact(s): {}.\n\
              Rebuild with:\n  \
              cargo build-sbf --manifest-path programs/liquid-staking/Cargo.toml",
@@ -132,7 +132,7 @@ fn skip_if_missing(paths: &[&Path]) -> bool {
     }
     for path in &missing {
         eprintln!(
-            "\x1b[33mATTENTION\x1b[0m T01 soft-skip: {} missing. \
+            "\x1b[33mATTENTION\x1b[0m liquid-staking round-trip soft-skip: {} missing. \
              Rebuild with `cargo build-sbf` — this round-trip did NOT run.",
             path.display()
         );
@@ -403,8 +403,8 @@ fn liquid_staking_withdrawal_queue_fires_and_settles() {
     }
 
     // Load-bearing proof that the queue branch is reachable in
-    // single-agent flows — covers R1.2's "withdrawal queue / pending
-    // redemption claims" requirement for Sprint 10.
+    // single-agent flows — covers the "withdrawal queue / pending
+    // redemption claims" requirement.
     let mut h = LsHarness::new();
     h.initialize_pool(10_000);
     h.create_stake_account();

@@ -5,7 +5,7 @@
 //! scope (init_market, deposit/withdraw_collateral, open/close_position,
 //! liquidate_position) against the real `admin_mock_oracle.so` oracle.
 //!
-//! Scope cuts (documented in the task note):
+//! Scope cuts:
 //! - No `update_funding_rate` — funding rate is a follow-up.
 //! The shipping `perpetuals.toml` leaves `[[scheduled_actions]]`
 //! empty so the engine's scheduled-action dispatch goes through

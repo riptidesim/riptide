@@ -115,8 +115,8 @@ pub struct PackEmission {
 
 /// Compute the canonical SHA256 of a `SimulationResult` using the
 /// same "replace output_path with __canonical__" normalization the
-/// Sprint 11 contagion fixture pins. Exposed so CLI / test callers
-/// can re-derive the hash without going through `emit_pack`.
+/// contagion fixture pins. Exposed so CLI / test callers can re-derive
+/// the hash without going through `emit_pack`.
 pub fn canonical_hash(result: &SimulationResult) -> String {
     let mut canonical = result.clone();
     canonical.run_config.output_path = "__canonical__".to_string();
@@ -369,7 +369,7 @@ fn normalize_outputs(root: &Path, outputs: &PackOutputs) -> PackOutputsRel {
     }
 }
 
-/// Machine-readable pack manifest. Fields are stable across Sprint 12;
+/// Machine-readable pack manifest. Fields are stable across this schema;
 /// additive-only changes require bumping `schema_version`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackManifest {

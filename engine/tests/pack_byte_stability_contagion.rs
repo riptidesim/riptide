@@ -1,4 +1,4 @@
-//! Pack byte-stability gate for the Sprint 11 contagion fixture.
+//! Pack byte-stability gate for the contagion fixture.
 //!
 //! Two load-bearing guarantees land here:
 //!
@@ -186,7 +186,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
     format!("{digest:x}")
 }
 
-/// Expected hashes pinned for the Sprint 11 contagion fixture pack.
+/// Expected hashes pinned for the contagion fixture pack.
 ///
 /// To regenerate after a deliberate pack-shape change:
 ///   RIPTIDE_DUMP_EXPECTED=1 cargo test --features litesvm-backend \
@@ -317,9 +317,9 @@ fn pack_hashes_match_pinned_expectations() {
         );
     }
 
-    // The Sprint 11 canonical hash must land inside the pack
-    // manifest byte-identically — the pack never fabricates a new
-    // hash, it just surfaces the one the SimulationResult carries.
+    // The canonical hash must land inside the pack manifest
+    // byte-identically — the pack never fabricates a new hash, it just
+    // surfaces the one the SimulationResult carries.
     let manifest_body = files
         .iter()
         .find(|(n, _)| n == "manifest.json")
@@ -327,7 +327,7 @@ fn pack_hashes_match_pinned_expectations() {
         .expect("pack has manifest.json");
     assert!(
         manifest_body.contains("d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb"),
-        "manifest.json must carry the Sprint 11 canonical hash verbatim; body=\n{manifest_body}",
+        "manifest.json must carry the canonical hash verbatim; body=\n{manifest_body}",
     );
 }
 
@@ -460,8 +460,8 @@ fn trace_surfaces_qualified_cross_component_keys() {
         .map(|(_, b)| String::from_utf8_lossy(b).into_owned())
         .expect("pack has trace.md");
 
-    // The qualified keys Sprint 11 pinned in the expected-summary
-    // fixture must appear in trace.md verbatim, so a reviewer can
+    // The qualified keys pinned in the expected-summary fixture must
+    // appear in trace.md verbatim, so a reviewer can
     // tie upstream depeg to downstream bad debt without opening
     // simulation-result.json.
     for key in &[

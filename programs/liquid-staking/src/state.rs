@@ -45,8 +45,7 @@ pub const DEFAULT_EXCHANGE_RATE_BPS: u64 = 10_000;
 /// below the full pool size. It is load-bearing for the bundle's
 /// failure shape: without this split the queue branch of
 /// `request_unstake` is unreachable from single-agent flows and the
-/// "pending redemption claims" requirement in Sprint 10 R1.2 is not
-/// honestly modeled.
+/// "pending redemption claims" requirement is not honestly modeled.
 pub const RESERVE_FRACTION_BPS: u64 = 2_000;
 
 /// Serialized length of [`PoolState`]. Pinned so the harness allocates
@@ -255,7 +254,7 @@ pub fn lst_to_assets(lst_amount: u64, exchange_rate_bps: u64) -> Result<u64, Liq
 /// stake 1_000, queue 500, then slash 50% of delegated stake. The raw
 /// ratio gives 600/500 = 12_000 bps (peg appears to strengthen). The
 /// honest ratio gives (600 - 500)/500 = 2_000 bps — an 80% depeg, which
-/// is what Sprint 10 R1.2 is modeling.
+/// is what the pending-redemption pressure case is modeling.
 ///
 /// With zero LST supply the rate is pinned to `DEFAULT_EXCHANGE_RATE_BPS`
 /// so a slash on a cold pool is idempotent.
@@ -290,8 +289,8 @@ mod tests {
 
     #[test]
     fn slash_while_queue_open_depegs_active_lst() {
-        // The Sprint 10 R1.2 regime. Pool state mirrors the trace in
-        // the bug writeup: stake 1_000 → queue 500 LST (pending=500,
+        // The pending-redemption pressure regime. Pool state mirrors the
+        // trace in the bug writeup: stake 1_000 → queue 500 LST (pending=500,
         // lst=500, total unchanged at 1_000) → slash 50% of delegated
         // (total 1_000 → 600). Pre-fix this returned 12_000 bps (peg
         // *strengthened*). The honest signal is 2_000 bps — an 80%

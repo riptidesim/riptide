@@ -1,7 +1,7 @@
 //! Economic semantics primitives.
 //!
-//! Sprint 19 phase 1 ships the bounded expression language used by
-//! `[semantics.derived]` and `[[semantics.invariants]]`. The evaluator
+//! Bounded expression language used by `[semantics.derived]` and
+//! `[[semantics.invariants]]`. The evaluator
 //! deliberately has no I/O, no time access, no user functions, and no
 //! loops.
 

@@ -1,8 +1,8 @@
 // `riptide readiness` — read-only external protocol support inspection.
 //
-// The command surfaces Sprint 25B readiness reports without depending on
-// campaign execution internals. JSON mode is stable and banner-free; Markdown
-// mode is reviewer-facing and uses the same report model.
+// The command surfaces readiness reports without depending on campaign
+// execution internals. JSON mode is stable and banner-free; Markdown mode is
+// reviewer-facing and uses the same report model.
 
 import { existsSync } from "node:fs";
 import { mkdir, readdir, stat, writeFile } from "node:fs/promises";

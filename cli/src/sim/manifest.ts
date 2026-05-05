@@ -196,7 +196,7 @@ function validatePrograms(
         level: "fail",
         code: "unsupported-loader",
         path: `${entryPath}.loader`,
-        message: `unsupported loader declaration ${JSON.stringify(loader)}; guided sims only load direct local .so programs in this phase`,
+        message: `unsupported loader declaration ${JSON.stringify(loader)}; guided sims currently load only direct local .so programs`,
         hint: "Use loader = \"direct\" or omit loader. Forked upgradeable loader program pairs are a separate guarded path."
       });
     }

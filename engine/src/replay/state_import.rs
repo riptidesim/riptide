@@ -30,7 +30,7 @@ use solana_sdk::pubkey::Pubkey;
 use crate::adapter::{ReplayBlock, ReplayStateSource};
 
 pub const MAINNET_RPC_NOT_IMPLEMENTED_MESSAGE: &str =
-    "mainnet-rpc state import is not implemented in v1; export your accounts to a fixture pack via `riptide pack-state` (planned Sprint 23+)";
+    "mainnet-rpc state import is not implemented in v1; export your accounts to a fixture pack via `riptide pack-state` (planned for a future release)";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StateImportError {

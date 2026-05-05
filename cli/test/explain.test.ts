@@ -268,7 +268,7 @@ test("renderAdapterExplain formats a parsed adapter byte-for-byte", () => {
     "Unsupported fields:",
     "  - reserve.fee_receiver",
     "",
-    "Inspection only — no IDL fetch, no validation against IDL. Sprint 13's adapter linter consumes this metadata.",
+    "Inspection only — no IDL fetch, no validation against IDL. The adapter linter consumes this metadata.",
     "",
   ].join("\n");
 

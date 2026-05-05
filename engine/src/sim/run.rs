@@ -295,7 +295,7 @@ where
             agent.mark_liquidated(0);
         }
     }
-    // Count any pre-existing liquidations from the seed phase.
+    // Count any pre-existing liquidations from setup.
     let mut cumulative_liquidations: u32 = agents
         .iter()
         .filter(|a| matches!(a.status, AgentStatus::Liquidated))

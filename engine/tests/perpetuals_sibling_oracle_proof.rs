@@ -42,7 +42,7 @@
 //! - Pairwise liquidation is deliberately out of scope. The generic
 //!   runtime's `execute_action` still ignores `target_idx`; this proof
 //!   asserts the close-path outcome changes because oracle bytes
-//!   changed, which is the Sprint 9 scope.
+//!   changed, which is the scoped claim.
 
 #![cfg(feature = "litesvm-backend")]
 
@@ -214,7 +214,7 @@ fn tmpdir(name: &str) -> PathBuf {
 
 // ---------------------------------------------------------------------------
 // Adapter TOML. Mirrors the shipping perpetuals.toml account shape but
-// *adds* the oracle binding the Sprint 9 engine work unblocks: shared
+// *adds* the oracle binding the generic engine path supports: shared
 // account owned by admin_mock_oracle via the local sibling-program
 // keypair convention, and a single declared `[[oracles]]` entry of
 // `kind = "admin-mock"` that binds to that account.
@@ -475,7 +475,7 @@ fn bootstrap_harness(name: &str) -> GenericHarness {
 /// Sibling-owned oracle account bootstrap + `push_oracle_price` writes
 /// change the program-visible close outcome — not because the account
 /// existence changed, but because the oracle bytes changed. This is the
-/// real-proof-path gate for Sprint 9's generic oracle story.
+/// real-proof-path gate for the generic oracle story.
 #[test]
 fn perps_close_outcome_shifts_after_generic_oracle_push() {
     if skip_if_missing(&[

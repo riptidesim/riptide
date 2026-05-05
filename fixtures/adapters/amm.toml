@@ -5,7 +5,7 @@
 # Drives `programs/amm/` (the AMM-lite target from ) through the
 # engine's generic primitive path.
 #
-# **Scope calls (documented in Obsidian Tasks//- notes):**
+# **Scope calls:**
 #
 # - `protocol = "generic"` (not `"amm"`). Same rationale as
 # perpetuals: `Protocol::Amm` would be a cosmetic 5-file ripple with
@@ -166,8 +166,7 @@ expr = "pool.k_last == 0 || pool.k_last == constant_product"
 severity = "warn"
 description = "Stored k should match the current reserve product once the pool has been initialized"
 
-# invariants. Per the task note (default to option 2:
-# simple structural bounds) we ship three upper-bound sanity checks
+# invariants. We ship three upper-bound sanity checks
 # that pass at tick 0 (zero-byte harness bootstrap — reserves / lp
 # supply / fee_bps all read as 0 before the processor's lazy-init
 # path fires on the first instruction) AND in normal operation, but

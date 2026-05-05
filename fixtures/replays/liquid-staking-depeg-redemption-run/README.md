@@ -174,6 +174,5 @@ security-minded engineer, not as a certification.
   `https://www.theblock.co/post/302443/kelp-rseth-depeg-june-2024`
 - Program surface + state machine: `programs/liquid-staking/src/`
 - Shipping adapter + invariants: `fixtures/adapters/liquid-staking.toml`
-- Bundle-level context (LST class, generic-oracle path,
-  single-program boundary):
-  `.specs/features/sprint-10-liquid-staking-proof/spec.md`
+- Bundle-level context: LST class, generic-oracle path, and
+  single-program boundary.

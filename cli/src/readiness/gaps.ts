@@ -620,7 +620,7 @@ function buildNextActions(
       case "campaign-inputs-missing":
         add(
           "campaign",
-          "Add campaign-ready input files after Sprint 25 campaign schema lands; do not treat this as campaign execution evidence."
+          "Add campaign-ready input files when campaign input schema is available; do not treat this as campaign execution evidence."
         );
         break;
     }
@@ -631,7 +631,7 @@ function buildNextActions(
   }
 
   if (actions.length === 0 && inspection.riptide.present && facts.validAdapters.length > 0) {
-    add("documentation", "Record the inspected support level and evidence paths in the readiness task note.");
+    add("documentation", "Record the inspected support level and evidence paths in readiness documentation.");
   }
 
   return actions;

@@ -1,13 +1,12 @@
 //! Minimal perps-lite fork.
 //!
-//! ships the first non-lending protocol-class target for
+//! This program ships the first non-lending protocol-class target for
 //! the 6-layer stack growth rhythm. **Perps-lite** scope: 5 instructions
 //! (init_market, deposit/withdraw_collateral, open/close_position, and
 //! liquidate_position) against a long OR short leg, reading the
 //! admin-mock oracle shipped by `programs/admin_mock_oracle`.
 //!
-//! Deliberately cut from the R3.1 max-spec (see the task note for
-//! the rationale):
+//! Deliberately cut from this minimal scope:
 //!
 //! - **No funding rate.** The engine's scheduled-actions machinery
 //! still wires through — the shipping `perpetuals.toml` leaves

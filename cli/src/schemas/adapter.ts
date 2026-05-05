@@ -417,7 +417,7 @@ export type Semantics = z.infer<typeof SemanticsSchema>;
 // which IDL the adapter was authored against, the generator, any
 // inferred assumptions the author baked in, and IDL fields the adapter
 // deliberately does not model. Every field is optional on parse so
-// pre-Sprint-12 adapters continue to validate byte-for-byte. Mirrors
+// legacy adapters continue to validate byte-for-byte. Mirrors
 // `engine/src/adapter/schema.rs::AdapterLineage`, including
 // `#[serde(deny_unknown_fields)]`.
 //

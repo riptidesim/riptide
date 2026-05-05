@@ -14,10 +14,8 @@
 # for the `w25-s40` cell — that cell specifically produces bad debt,
 # so the invariant would fire there too and the canonical summary
 # would diverge. Keeping the invariant scoped to the replay fixture
-# preserves the hero grid hash while satisfying the Done-when
-# clause "The bad_debt invariant (from ) fires at the
-# expected tick" (see `.specs/features/sprint-6-amm-replay/tasks.md`
-# and spec R2.3).
+# preserves the hero grid hash while satisfying the replay-level claim that
+# the `bad_debt` invariant fires at the expected tick.
 #
 # The `riptide replay` CLI's replay-config JSON (at
 # `fixtures/replays/lending-whale-bad-debt/config.json`) points at

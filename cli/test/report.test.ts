@@ -404,7 +404,7 @@ test("renderColoredTable renders generic metrics without lending labels", () => 
   assert.doesNotMatch(clean, /Final TVL/);
 });
 
-// T04 — `summary.invariants_fired` must render as a structured per-row
+// `summary.invariants_fired` must render as a structured per-row
 // block, never as `[object Object]`. The engine emits this key as an
 // array of `{ name, field, op, value, firings }` objects on any run
 // that declared invariants; the legacy renderer collapsed it via

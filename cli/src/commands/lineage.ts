@@ -1,12 +1,12 @@
 // `riptide lineage <adapter>` — reviewer-readable inspection of an
 // adapter's `[lineage]` block.
 //
-// Inspection-only in Sprint 12: this command does NOT fetch IDLs at
+// Inspection-only: this command does NOT fetch IDLs at
 // run-time, does NOT validate the adapter against the IDL, and does
 // NOT generate lineage automatically. It reads the TOML, locates the
 // optional `[lineage]` block, and prints it in a reviewer-readable
-// format. Sprint 13's adapter linter will consume the same metadata
-// to validate IDL-vs-adapter coverage.
+// format. The adapter linter consumes the same metadata to validate
+// IDL-vs-adapter coverage.
 //
 // Exit codes:
 //   0 — adapter loaded and lineage rendered (including the "no lineage
@@ -41,8 +41,8 @@ export interface LineageCommandDeps {
 }
 
 export interface LineageOptions {
-  // No options in Sprint 12 — a single positional adapter argument is
-  // the full surface. Reserved for Sprint 13 flags (e.g. `--json`).
+  // No options today: a single positional adapter argument is the full
+  // surface. Reserved for future flags (e.g. `--json`).
 }
 
 export function createLineageCommand(deps: LineageCommandDeps = {}): Command {
@@ -159,7 +159,7 @@ export function renderLineage(
   lines.push("");
 
   lines.push(
-    "Inspection only — no IDL fetch, no validation against IDL. Sprint 13's adapter linter consumes this metadata."
+    "Inspection only — no IDL fetch, no validation against IDL. The adapter linter consumes this metadata."
   );
   lines.push("");
 

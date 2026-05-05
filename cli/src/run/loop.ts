@@ -6,7 +6,7 @@
 // parsing; the command wrapper in `cli/src/commands/run.ts` owns I/O
 // and exit codes.
 //
-// Sequential-only this sprint (R3.6). Parallel execution is Sprint 9+.
+// Sequential-only today. Parallel execution is future work.
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -140,8 +140,8 @@ export interface RunLoopOptions {
  * - { kind: "setup_error", message } — discovery missing, file not
  *   found, no match for filter, etc. Caller exits 2.
  *
- * Disambiguation rule (R3.3 + T03 done-when #4): if the arg exists as
- * a `.json` file on disk, it ALWAYS wins over treating it as a glob.
+ * Disambiguation rule: if the arg exists as a `.json` file on disk, it
+ * ALWAYS wins over treating it as a glob.
  */
 export type ResolveResult =
   | { kind: "ok"; scenarios: ResolvedScenario[]; sourcePath?: string; warnings: string[] }
@@ -289,7 +289,7 @@ export interface RunScenariosInput {
    * When true, suppress live engine-stderr pass-through during each
    * scenario run. Captured stderr is attached to scenario records so
    * the formatter can surface it in the per-failure block. Default
-   * true for `riptide run` (quiet-by-default per R10.1); the CLI sets
+   * true for `riptide run` (quiet by default); the CLI sets
    * it false under `--verbose`.
    */
   silent?: boolean;
@@ -330,7 +330,7 @@ export interface RunOneContext {
   adapterSource?: string;
   /** True → orchestrator runs in silent mode, stderr captured not streamed. */
   silent?: boolean;
-  /** Artifact root directory override (T11). */
+  /** Artifact root directory override. */
   outputDir?: string;
   /** Exact artifact directory for a sweep cell or replay cell. */
   artifactDirOverride?: string;
@@ -780,10 +780,10 @@ export interface ScenarioRunInputs {
   /**
    * Override the run-config's `output_path` field. When set, `riptide
    * run` uses this directory regardless of what the scenario file
-   * declared — the T11 shape ("artifacts always inside .riptide/runs/
-   * inside the repo, not /tmp/ and not fixtures/"). Leaving this
-   * undefined preserves the pre-Phase-4 behavior of honoring the
-   * run-config field so script-direct callers aren't affected.
+   * declared — for `riptide run`, artifacts always live inside
+   * .riptide/runs/ in the repo, not /tmp/ and not fixtures/. Leaving this
+   * undefined preserves the legacy behavior of honoring the run-config field
+   * so script-direct callers aren't affected.
   */
   outputPathOverride?: string;
   /** Optional state pack override for this scenario. Relative paths resolve from cwd. */

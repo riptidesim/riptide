@@ -199,10 +199,8 @@ Loopscale integration will declare both — lineage to record the IDL
 and authoring trail, semantics to declare the `lending.v1` role
 mappings + extensions for that protocol's specifics.
 
-**Status:** design committed at
-[`../.specs/designs/economic-semantics-v1.md`](../.specs/designs/economic-semantics-v1.md);
-implementation is still in progress. No `[semantics]` block is
-authorable today — adapter authoring, lint, and adapt all read the
-existing `[lineage]` surface unchanged. This section is a
+**Status:** implementation is still in progress. No `[semantics]`
+block is authorable today — adapter authoring, lint, and adapt all
+read the existing `[lineage]` surface unchanged. This section is a
 forward-looking pointer for reviewers who want to know what the
 adapter surface is becoming.

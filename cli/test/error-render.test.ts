@@ -1,4 +1,4 @@
-// T04 — top-level CLI error rendering tests.
+// top-level CLI error rendering tests.
 //
 // Covers:
 // - default surface is message-first; no `Error:` prefix or stack

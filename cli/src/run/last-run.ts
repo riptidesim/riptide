@@ -1,9 +1,9 @@
 // `.riptide/last-run.json` schema + read/write helpers.
 //
-// schema_version = 1 — consumed by `--only-failing` and T04's output
+// schema_version = 1 — consumed by `--only-failing` and the output
 // formatter. Every `riptide run` invocation writes this file at the
 // end (including SIGINT-aborted runs). Documented here as the single
-// source of truth; T04's output formatter references this shape.
+// source of truth for the formatter.
 //
 // ----------------------------------------------------------------------
 // SCHEMA v1:
@@ -39,9 +39,9 @@
 //               adapter, etc.). No trustworthy SimulationResult.
 // - "skipped" — not executed because SIGINT landed before it started.
 //
-// Back-compat: readLastRun normalizes stale `status: "aborted"` values
-// (written pre-Phase-4) to `"error"`, so --only-failing keeps matching
-// the same scenarios without forcing a rerun.
+// Back-compat: readLastRun normalizes stale `status: "aborted"` values to
+// `"error"`, so --only-failing keeps matching the same scenarios without
+// forcing a rerun.
 //
 // ----------------------------------------------------------------------
 
@@ -87,9 +87,8 @@ export interface ScenarioRecord {
   /**
    * Captured engine stderr, populated when the run loop ran in silent
    * mode. Transient — not serialized to `.riptide/last-run.json` — used
-   * only for formatting per-failure detail blocks. Added in Phase 4 to
-   * de-duplicate stderr (was both pass-through live AND in the failure
-   * block; now only in the failure block).
+   * only for formatting per-failure detail blocks. This de-duplicates stderr
+   * that otherwise appeared both pass-through live and in the failure block.
    */
   engine_stderr?: string;
 }
@@ -132,8 +131,8 @@ export async function readLastRun(cwd: string): Promise<LastRun | null> {
     if (parsed.schema_version !== LAST_RUN_SCHEMA_VERSION) {
       return null;
     }
-    // Normalize pre-Phase-4 "aborted" status to "error" so
-    // --only-failing keeps working against stale files.
+    // Normalize stale "aborted" status to "error" so --only-failing keeps
+    // working against old files.
     for (const s of parsed.scenarios) {
       if ((s.status as string) === "aborted") {
         s.status = "error";

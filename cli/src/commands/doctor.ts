@@ -43,8 +43,7 @@ export interface DoctorCommandDeps {
 }
 
 export interface DoctorOptions {
-  // Reserved for future flags (`--json`, `--no-adapters`, ...). Sprint 13
-  // ships the bare command per the task spec.
+  // Reserved for future flags (`--json`, `--no-adapters`, ...).
   quiet?: boolean;
 }
 

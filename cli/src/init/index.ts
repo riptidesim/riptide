@@ -1369,7 +1369,7 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
     created.push(...harnessCreatedPaths);
   }
 
-  // .gitignore entries for volatile run output (R11.2). Appends to
+  // .gitignore entries for volatile run output. Appends to
   // an existing .gitignore when present, creates a fresh one otherwise.
   // We match exact-line entries to avoid duplicating on re-run.
   const gitignoreResult = await ensureGitignoreEntries(cwd);

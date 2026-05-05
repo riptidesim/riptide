@@ -21,7 +21,7 @@ import { resolveAdapterRuntime, validateAdapter } from "../schemas/adapter.js";
  * this slot when present and writes the raw bytes verbatim — that
  * preserves Rust's float-vs-integer encoding (`500.0` vs `500`) that
  * `JSON.stringify` would otherwise collapse. The byte preservation
- * is load-bearing for the Sprint 12 pack's canonical-hash surface:
+ * is load-bearing for the evidence pack canonical-hash surface:
  * the pack subcommand re-parses `simulation-result.json`, and any
  * serde_json round-trip loss here bubbles up as a hash drift between
  * the in-engine test fixtures and the CLI-emitted pack.
@@ -129,9 +129,9 @@ export interface OrchestratorOptions {
    * Absolute path to a pre-compiled `policies.json` sitting next to a
    * user-authored `run-config.json`. When set, the orchestrator skips
    * `compilePersonas` and hands the file to the engine verbatim. This
-   * is the path Sprint 4/5/6 shipping bundles rely on — their
-   * `policies.json` pairs are part of the determinism contract and the
-   * LLM-free persona fallback table only covers five lending archetypes.
+   * is the path older shipping bundles rely on — their `policies.json`
+   * pairs are part of the determinism contract and the LLM-free persona
+   * fallback table only covers five lending archetypes.
    */
   policiesPath?: string;
   /** Abort signal used by sweep fail-fast cancellation to terminate the engine process. */
@@ -357,13 +357,11 @@ export async function runOrchestrator(
     }
 
     const raw = await readFile(outputPath, "utf8");
-    // Simulate path does NOT attach the raw JSON — Sprint 4 /
-    // Sprint 5 / Sprint 6 hero-grid byte-stable fixtures pin the
-    // historical JSON.stringify output shape, and that shape is
-    // what CONTRIBUTING.md's byte-stable-fixture gates
-    // `89ca84…`, `1518bcfd…`, and `5de060cd…` are derived from.
-    // Replays carry their own in-memory canonical hash (Sprint 10
-    // / Sprint 11), so they opt-in to raw-byte preservation below.
+    // Simulate path does NOT attach the raw JSON — byte-stable fixtures pin
+    // the historical JSON.stringify output shape, and that shape is what
+    // CONTRIBUTING.md's byte-stable-fixture gates `89ca84…`, `1518bcfd…`,
+    // and `5de060cd…` are derived from. Replays carry their own in-memory
+    // canonical hash, so they opt in to raw-byte preservation below.
     return SimulationResultSchema.parse(JSON.parse(raw));
   } finally {
     await rm(tmpDir, { recursive: true, force: true });

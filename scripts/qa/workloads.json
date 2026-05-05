@@ -1,9 +1,9 @@
 {
-  "schema_version": "riptide.qa.s26.workloads.v1",
-  "description": "Reusable Sprint 26 QA and benchmark workload matrix. The runner keeps generated outputs under /tmp by default.",
+  "schema_version": "riptide.qa.workloads.v1",
+  "description": "Reusable QA and benchmark workload matrix. The runner keeps generated outputs under /tmp by default.",
   "defaults": {
     "case_studies_root": "/home/ailton/Work/riptide/case-studies",
-    "obsidian_report": "/home/ailton/Documents/Obsidian Vault/Riptide/QA - Sprint 26 Benchmark And Dev UX.md",
+    "report_path": "/tmp/riptide-qa-benchmark-report.md",
     "command_timeout_ms": 600000,
     "stress_command_timeout_ms": 3600000,
     "sample_interval_ms": 250,

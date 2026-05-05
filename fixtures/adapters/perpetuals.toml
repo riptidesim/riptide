@@ -268,7 +268,7 @@ triggers = []
 idl_source = "fixtures/idls/perpetuals.json"
 generator = "hand-authored"
 inferred_assumptions = [
-  "`protocol = \"generic\"` instead of a dedicated `Protocol::Perps` variant — the classification surface reads instruction and observation names, not the protocol enum, so a perps-specific variant would only be cosmetic at this sprint.",
+  "`protocol = \"generic\"` instead of a dedicated `Protocol::Perps` variant — the classification surface reads instruction and observation names, not the protocol enum, so a perps-specific variant would only be cosmetic.",
   "Only single-arg instructions (`deposit_collateral`, `withdraw_collateral`) are mapped as runtime-dispatchable actions; `open_position` / `close_position` / `liquidate_position` stay IDL-only for classification but are dispatched in the `perps_sibling_oracle_proof` integration test, not via persona draws.",
   "`initialize_market` is not mapped as a runtime action; the generic harness handles market state via its bootstrap path rather than racing persona draws through admin setup.",
   "The `market_config_initialized` (`market.max_leverage_bps > 0`) invariant is intentionally omitted because it fires once at tick 0 before lazy market init — this adapter leaves it to a future harness-level eager-init or a tick-0-skip invariant operator.",

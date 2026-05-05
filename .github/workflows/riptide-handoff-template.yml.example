@@ -193,9 +193,8 @@ jobs:
         # dependency tree — not npm's live caret-range resolution.
         # Every transitive dep version is byte-stable across time
         # for a given `RIPTIDE_CLI_SPEC`. If the shrinkwrap is
-        # missing from the installed package (e.g. an old CLI
-        # version from before Sprint 12 Phase 2), the install step
-        # exits 1 below.
+        # missing from the installed package (e.g. an older CLI
+        # release), the install step exits 1 below.
         run: |
           set -euo pipefail
           npm install --global --ignore-scripts "$RIPTIDE_CLI_SPEC"
@@ -206,7 +205,7 @@ jobs:
           if [ ! -f "${cli_root}/npm-shrinkwrap.json" ]; then
             echo "riptide-handoff: installed CLI at ${cli_root} is missing npm-shrinkwrap.json." >&2
             echo "  This means transitive npm deps were resolved from live ranges, not a locked tree." >&2
-            echo "  Upgrade RIPTIDE_CLI_SPEC to a Sprint-12-or-later release that ships the shrinkwrap." >&2
+            echo "  Upgrade RIPTIDE_CLI_SPEC to a release that ships the shrinkwrap." >&2
             exit 1
           fi
 

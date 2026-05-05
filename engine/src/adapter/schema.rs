@@ -554,9 +554,8 @@ pub struct Adapter {
     /// generator (hand-authored vs. `riptide-adapt@<sha>`), any
     /// inferred assumptions the author baked in that are not literally
     /// in the IDL, and IDL fields the adapter deliberately does not
-    /// model. Inspection-only in Sprint 12 — no IDL fetch, no
-    /// validation. Absent by default so every pre-Sprint-12 adapter
-    /// continues to parse byte-for-byte.
+    /// model. Inspection-only — no IDL fetch, no validation. Absent by
+    /// default so every legacy adapter continues to parse byte-for-byte.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lineage: Option<AdapterLineage>,
 }
@@ -937,17 +936,16 @@ pub struct AdapterLineage {
     pub inferred_assumptions: Vec<String>,
     /// IDL instruction / account / field names the adapter deliberately
     /// does not model. Empty by convention if every IDL surface is
-    /// mapped. Used by Sprint 13's linter as the authoritative list of
-    /// known gaps so the linter can distinguish "author chose to skip
-    /// this" from "author forgot this".
+    /// mapped. Used by the linter as the authoritative list of known gaps
+    /// so the linter can distinguish "author chose to skip this" from
+    /// "author forgot this".
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unsupported_fields: Vec<String>,
 }
 
 /// Supported comparison operators for declarative invariants.
 ///
-/// Deliberately flat — no AND/OR, no math, no user functions. The task
-/// note lives in the sprint doc: "keep it DUMB — no mini-language".
+/// Deliberately flat — no AND/OR, no math, no user functions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InvariantOp {
     #[serde(rename = "==")]

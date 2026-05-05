@@ -1,10 +1,10 @@
-//! AMM-fork LiteSVM round-trip ( · gate).
+//! AMM-fork LiteSVM round-trip gate.
 //!
 //! End-to-end coverage that the shipped `amm.so` loads in LiteSVM
 //! and exercises every instruction of the AMM-lite scope:
 //! `initialize_pool → add_liquidity → swap → remove_liquidity`.
 //!
-//! Scope cuts (documented in the task note):
+//! Scope cuts:
 //! - No real SPL token transfers — reserves are virtual u64 counters.
 //! - No LP mint — LP shares are per-agent counters on `LpPositionState`.
 //! - No oracle — price derives from reserves; `adapter.toml` has no

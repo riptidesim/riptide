@@ -5,7 +5,7 @@
 // per-failure detail. Exact format pinned by `cli/test/run-output.test.ts`
 // — do NOT change any literal below without updating the pin tests.
 //
-// FORMAT CONTRACT (R4.5 frozen + R9.2 classifier + R10 hygiene):
+// FORMAT CONTRACT:
 //
 // Per-scenario PASS line:    `✓ <name>  (<secs>s, 0 invariant fires)`
 // Per-scenario FAIL line:    `✗ <name>  (<secs>s, <N> invariant fires: <first-inv> at tick <tick>)`
@@ -14,14 +14,14 @@
 //   (triggers on `!process.stdout.isTTY` OR `NO_COLOR` set)
 // Summary line (always):     `<P> pass · <F> fail · <E> error · <K> skip`
 // Per-failure block (fail):  `  ✗ <name>` + one `    - <inv> at tick <tick>` per fire
-//                            + optional `    engine stderr:` tail (R10.4: never inline)
+//                            + optional `    engine stderr:` tail (never inline)
 // Per-failure block (error): `  ! <name>` + `    - error: <message>` + stderr tail
 // Dashboard echo:            printed only when `--serve` was passed
 //
-// Colors (R10.3): green ✓/pass · red ✗/fail · yellow !/error · bold summary.
+// Colors: green ✓/pass · red ✗/fail · yellow !/error · bold summary.
 // Paths displayed (either in the scenario line message or inside captured
-// stderr) are CWD-relativized before print (R10.2). Stderr capture is a
-// single source — no duplication between inline + summary (R10.4).
+// stderr) are CWD-relativized before print. Stderr capture is a single
+// source — no duplication between inline + summary.
 //
 // Schema for `.riptide/last-run.json` that this formatter + the
 // `--only-failing` filter both consume is documented at the top of

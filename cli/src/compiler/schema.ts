@@ -105,9 +105,9 @@ export const RunConfigSchema = z.object({
   personas: PersonaSelectionSchema,
   // Serde on the engine side accepts any string here (LiteSVM runs ignore
   // the field; only the validator-parity path connects to the URL). The
-  // CLI used to enforce `.url()`, but shipping run-configs authored before
-  // Sprint 4 carry a `"unused"` placeholder — rejecting those would break
-  // byte-stable rerun of every pre-Sprint-8 fixture via `riptide run`.
+  // CLI used to enforce `.url()`, but older shipping run-configs carry a
+  // `"unused"` placeholder — rejecting those would break byte-stable fixture
+  // reruns via `riptide run`.
   // Keep the Zod layer in lockstep with serde: accept any non-empty string.
   validator_url: z.string().min(1),
   output_path: z.string().min(1),
@@ -223,7 +223,7 @@ export const ExpressionInvariantRowSchema = z.object({
   first_tick: z.number().int().nonnegative().nullable(),
   firing_count: z.number().int().nonnegative(),
   observed: z.array(ExpressionInvariantObservedSchema).max(3),
-  // Sprint 19 aliases remain accepted while Sprint 20 pins the clearer names.
+  // Legacy aliases remain accepted while the clearer names are preferred.
   first_fired_tick: z.number().int().nonnegative().nullable().optional(),
   firings: z.number().int().nonnegative().optional()
 });

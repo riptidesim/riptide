@@ -18,8 +18,7 @@
 //! checked-in `expected-summary.json` baseline.
 //! 4. The declared `no_bad_debt` invariant fires **at tick 4** — the
 //! terminal cascade — and only there. This is the credibility
-//! claim (`tasks.md` "Done when" clause 3, spec R2.3): the
-//! replay does not just *observe* bad debt accrue, the engine's
+//! claim: the replay does not just *observe* bad debt accrue, the engine's
 //! machine-checkable invariant framework fires on it.
 
 #![cfg(feature = "litesvm-backend")]

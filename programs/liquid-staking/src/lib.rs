@@ -24,7 +24,7 @@
 //!   reserve buffer has enough liquidity to cover the queued request.
 //! - **No oracle reads inside the program.** The adapter still binds
 //!   one externally-owned oracle through `[[oracles]]` — honest
-//!   Sprint 9 generic path — but the program's instruction surface
+//!   generic path — but the program's instruction surface
 //!   does not read it. A later bundle can add a price-sanity hook.
 //! - **Single-shot slash.** `apply_slash` takes a bps and applies it
 //!   once; no progressive liquidation of validators.

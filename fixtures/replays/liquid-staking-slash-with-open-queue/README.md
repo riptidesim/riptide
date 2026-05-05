@@ -151,8 +151,7 @@ regimes**:
   `pending_unstake_assets`. Pre-fix and post-fix code diverge in the
   observable output (rate 26_000 bps vs 2_000 bps).
 
-The two fixtures together are the proof surface for the Sprint 10
-R1.2 depeg claim.
+The two fixtures together are the proof surface for the depeg claim.
 
 ## Honesty framing
 

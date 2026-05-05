@@ -422,8 +422,8 @@ fn stablecoin_redemption_queue_fires_and_settles() {
     }
 
     // Load-bearing proof that the queue branch is reachable in
-    // single-agent flows — covers R1.2's "pending redemption queue /
-    // reserve buffer exhaustion" pressure shape.
+    // single-agent flows — covers the "pending redemption queue / reserve
+    // buffer exhaustion" pressure shape.
     let mut h = SbHarness::new();
     h.initialize_pool();
     h.create_position();

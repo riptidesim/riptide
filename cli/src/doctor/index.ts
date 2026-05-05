@@ -438,11 +438,11 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
       hint = `run \`riptide lint ${d.name}\` to see uncovered fields`;
     }
   } else if (skipCount > 0 && passCount === 0) {
-    // Pure SKIP — no [lineage] block at all. Spec R3.6 lands skipped
-    // machine validation on the WARN surface, not PASS: a doctor run
-    // that exits 0 must mean every discovered adapter is actually
-    // machine-checked clean, not merely "nothing to check". Keep the
-    // note + hint actionable so the operator knows how to upgrade.
+    // Pure SKIP — no [lineage] block at all. Skipped machine validation
+    // belongs on the WARN surface, not PASS: a doctor run that exits 0 must
+    // mean every discovered adapter is actually machine-checked clean, not
+    // merely "nothing to check". Keep the note + hint actionable so the
+    // operator knows how to upgrade.
     lintStatus = "warn";
     note = "no [lineage] block — machine validation skipped";
     hint = `add a [lineage] block + idl_source to ${d.name} to unlock static validation`;
@@ -617,7 +617,7 @@ function siblingDeployKeypairPath(programSo: string): string | null {
 // ---------- adapter discovery ----------
 
 /**
- * Walk the adapter homes for the current repo shape. Spec R3.3:
+ * Walk the adapter homes for the current repo shape:
  *   - `.riptide/adapters/*.toml` when the user repo has one
  *   - `fixtures/adapters/*.toml` **as the monorepo fallback**
  *
@@ -643,13 +643,13 @@ function siblingDeployKeypairPath(programSo: string): string | null {
  * (e.g. running doctor inside `/tmp/.../child` inherited
  * `/tmp/.../fixtures/adapters/parent-hit.toml`). Dropped.
  *
- * **Scope note on packaged installs.** Sprint 13's install-first path
- * is `install.sh` + source checkout; the npm package is dry-run-
- * verified but not published, and `cli/package.json`'s `files` list
- * does not ship `fixtures/`. For a truly packaged CLI running from an
- * arbitrary cwd with nothing under `<cwd>`, all three layers will
- * miss and `discoverAdapters` returns `[]` — doctor then prints the
- * `run riptide init` hint. That is the honest behaviour today.
+ * **Scope note on packaged installs.** The install-first path is
+ * `install.sh` + source checkout; the npm package is dry-run-verified
+ * but not published, and `cli/package.json`'s `files` list does not ship
+ * `fixtures/`. For a truly packaged CLI running from an arbitrary cwd with
+ * nothing under `<cwd>`, all three layers will miss and `discoverAdapters`
+ * returns `[]` — doctor then prints the `run riptide init` hint. That is
+ * the honest behaviour today.
  */
 export function discoverAdapters(cwd: string): DiscoveredAdapter[] {
   const layers: Array<{ dir: string; source: AdapterDiscoverySource }> = [

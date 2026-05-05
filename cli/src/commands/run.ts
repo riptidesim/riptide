@@ -1,6 +1,6 @@
 // `riptide run` — jest-style multi-scenario runner.
 //
-// Behavior matrix (R3.1–R3.6):
+// Behavior matrix:
 //   $ riptide run                → discover all, run all (per-scenario adapter)
 //   $ riptide run <pattern>      → discover all, filter by glob
 //   $ riptide run <path.json>    → run a single run-config file (backward-compat)
@@ -10,10 +10,10 @@
 //
 // Disambiguation rule: if the positional arg ends in `.json` AND
 // exists on disk, it is treated as a file path. Otherwise it is a
-// glob pattern. Documented in the spec + resolveScenarios() docs.
+// glob pattern. Documented in resolveScenarios() docs.
 //
 // Adapter resolution: NOT done globally at startup. Each scenario
-// picks its own adapter via `cli/src/run/adapter.ts` per R9.1.
+// picks its own adapter via `cli/src/run/adapter.ts`.
 //
 // Exit codes per `cli/src/run/exit-codes.ts`:
 //   0 all-pass · 1 invariant-fire · 2 setup-error · 3 partial-abort · 130 SIGINT
@@ -76,7 +76,7 @@ export function createRunCommand(): Command {
     )
     .option(
       "-v, --verbose",
-      "Restore pass-through engine stderr during each scenario (today's pre-Phase-4 chatter). Default is quiet — engine output only surfaces in the per-failure summary block.",
+      "Restore pass-through engine stderr during each scenario. Default is quiet — engine output only surfaces in the per-failure summary block.",
       false
     )
     .option(
@@ -194,7 +194,7 @@ export function createRunCommand(): Command {
 
       // Global adapter override — passed through as a hint to the
       // per-scenario resolver in `cli/src/run/adapter.ts`. When unset,
-      // each scenario picks its own adapter per R9.1.
+      // each scenario picks its own adapter.
       const adapterOverride =
         typeof cliOpts.adapter === "string" && (cliOpts.adapter as string).length > 0
           ? path.resolve(cliOpts.adapter as string)
@@ -275,7 +275,7 @@ function failedScenariosAreInvariantOnly(summary: import("../run/loop.js").RunSu
  * Emit a machine-readable JSON blob on stdout for `--format json`.
  *
  * - Single-scenario mode writes the full SimulationResult read from
- *   the scenario's artifacts dir. This preserves the pre-Sprint-8
+ *   the scenario's artifacts dir. This preserves the legacy
  *   single-file CLI shape CI scripts may consume.
  * - Multi-scenario mode writes the RunSummary (the same shape that
  *   landed in `.riptide/last-run.json` plus totals).

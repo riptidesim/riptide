@@ -1,6 +1,6 @@
 // `riptide run` run-loop tests.
 //
-// Covers the seven done-when cases in T03's Obsidian note:
+// Covers the run command setup and execution cases:
 //   1. default discovers + runs every scenario (sequential order)
 //   2. glob pattern filters discovered list
 //   3. .json file path runs the single file (backward-compat)
@@ -646,7 +646,7 @@ test("runScenarios: SIGINT-terminated engine errors are interpreted as interrupt
 });
 
 test("runScenarios: distinguishes error (exit 2) from fail (invariant fire) in records", async () => {
-  // Mixed-bundle regression guard (T09 done-when #6): verify the
+  // Mixed-bundle regression guard: verify the
   // run loop records errored scenarios with status "error" and
   // invariant-firing scenarios with status "fail" in the same sweep.
   const root = await tmpRoot("run-mixed-classification");
@@ -852,7 +852,7 @@ test("matchScenarioName: bare token matches exact + prefix-with-slash", () => {
 test("matchScenarioName: * matches anywhere (jest-style, crosses /)", () => {
   assert.equal(matchScenarioName("hero-grid/w25-s40", "hero-grid/w25-*"), true);
   assert.equal(matchScenarioName("hero-grid/w25-s40/extra", "hero-grid/**"), true);
-  // Jest ergonomics per spec R3.2 example: `*` crosses `/` boundaries so
+  // Jest ergonomics: `*` crosses `/` boundaries so
   // the user can write `*shock*` and match any nested scenario.
   assert.equal(matchScenarioName("perps/shock", "*shock*"), true);
 });
@@ -976,7 +976,7 @@ test("extractInvariantFires: falls back to expression invariant summary rows", (
   ]);
 });
 
-// --- per-scenario adapter resolution (R9.1) ---
+// --- per-scenario adapter resolution ---
 
 test("resolveAdapterForScenario: --adapter override wins every other branch", async () => {
   const root = await tmpRoot("adapter-override");
@@ -1024,7 +1024,7 @@ test("resolveAdapterForScenario: scenario's run-config 'adapter' field wins over
 test("resolveAdapterForScenario: monorepo bundle fallback derives from first path segment", async () => {
   // Mixed-bundle scenarios in the monorepo must pick the bundle adapter
   // that matches their name prefix. resource-grinder scenarios must NOT
-  // end up using lending's adapter — that's the T09 bug.
+  // end up using lending's adapter — that is the mixed-bundle bug.
   const monorepo = await tmpRoot("adapter-bundle");
   const adaptersDir = path.join(monorepo, "fixtures", "adapters");
   await mkdir(adaptersDir, { recursive: true });
@@ -1248,8 +1248,8 @@ test("buildScenarioRun: explicit output_path in file wins over the default", asy
   assert.equal(build.runConfig.output_path, "my/custom/out");
 });
 
-test("buildScenarioRun: outputPathOverride wins over the run-config's output_path (T11)", async () => {
-  // T11 makes riptide-run always write to .riptide/runs/ regardless of
+test("buildScenarioRun: outputPathOverride wins over the run-config's output_path", async () => {
+  // riptide-run always write to .riptide/runs/ regardless of
   // what the scenario file declared. This is the override hook the loop
   // uses — verify it wins even when the file has an explicit path.
   const root = await tmpRoot("output-path-override");

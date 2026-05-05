@@ -10,10 +10,10 @@ use solana_sdk::pubkey::Pubkey;
 
 use crate::adapter::schema::{
     is_valid_semantic_class, AccountDecoder, AccountKind, ActionDefinition, Adapter, ArgLiteral,
-    CollectionFormula, InstructionMapping, LayoutFieldType, ObservationDefinition,
-    ObservationType, Protocol, ReplayStateSource, SemanticSourceBinding,
-    ACCOUNT_DECODER_PRESETS, LENDING_ACTIONS, LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS,
-    ORACLE_KINDS, SEMANTIC_CLASS_RE, SUPPORTED_SEMANTIC_CLASSES,
+    CollectionFormula, InstructionMapping, LayoutFieldType, ObservationDefinition, ObservationType,
+    Protocol, ReplayStateSource, SemanticSourceBinding, ACCOUNT_DECODER_PRESETS, LENDING_ACTIONS,
+    LENDING_OBSERVATIONS, LENDING_SNAPSHOT_METRICS, ORACLE_KINDS, SEMANTIC_CLASS_RE,
+    SUPPORTED_SEMANTIC_CLASSES,
 };
 use crate::adapter::schema::{semantic_class_requirements, SemanticClassRequirements};
 use crate::adapter::{errors::ErrorRegistryValidation, validate_error_entries};
@@ -316,7 +316,7 @@ impl fmt::Display for AdapterError {
             ),
             Self::MainnetRpcNotImplemented { path, key } => write!(
                 f,
-                "{}: `{}`: MainnetRpcNotImplemented; mainnet-rpc state import is not implemented in v1; export your accounts to a fixture pack via `riptide pack-state` (planned Sprint 23+)",
+                "{}: `{}`: MainnetRpcNotImplemented; mainnet-rpc state import is not implemented in v1; export your accounts to a fixture pack via `riptide pack-state` (planned for a future release)",
                 escape_diagnostic(path),
                 escape_diagnostic(key)
             ),

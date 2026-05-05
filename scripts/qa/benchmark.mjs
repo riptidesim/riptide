@@ -28,9 +28,8 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../..");
-const WORKLOADS_PATH = path.join(__dirname, "s26-workloads.json");
-const DEFAULT_OBSIDIAN_REPORT =
-  "/home/ailton/Documents/Obsidian Vault/Riptide/QA - Sprint 26 Benchmark And Dev UX.md";
+const WORKLOADS_PATH = path.join(__dirname, "workloads.json");
+const DEFAULT_REPORT_PATH = path.join("/tmp", "riptide-qa-benchmark-report.md");
 
 const CSV_COLUMNS = [
   "workload",
@@ -72,7 +71,7 @@ async function main() {
 
   const startedAt = new Date();
   const tempRoot = path.resolve(
-    cliArgs.out ?? path.join("/tmp", `riptide-s26-bench-${timestampForPath(startedAt)}`)
+    cliArgs.out ?? path.join("/tmp", `riptide-qa-bench-${timestampForPath(startedAt)}`)
   );
   const outputsRoot = path.join(tempRoot, "outputs");
   const stdoutRoot = path.join(outputsRoot, "stdout");
@@ -82,10 +81,10 @@ async function main() {
   const caseStudiesRoot = path.resolve(
     cliArgs.caseStudiesRoot ?? workloadConfig.defaults.case_studies_root
   );
-  const obsidianReport =
-    cliArgs.obsidianReport ??
-    workloadConfig.defaults.obsidian_report ??
-    DEFAULT_OBSIDIAN_REPORT;
+  const reportCopyPath =
+    cliArgs.reportPath ??
+    workloadConfig.defaults.report_path ??
+    DEFAULT_REPORT_PATH;
 
   await mkdir(stdoutRoot, { recursive: true });
   await mkdir(stderrRoot, { recursive: true });
@@ -93,7 +92,7 @@ async function main() {
   await mkdir(tempCaseStudiesRoot, { recursive: true });
 
   const ctx = {
-    schemaVersion: "riptide.qa.s26.results.v1",
+    schemaVersion: "riptide.qa.results.v1",
     profileName,
     profile,
     workloadConfig,
@@ -104,8 +103,8 @@ async function main() {
     homeRoot,
     tempCaseStudiesRoot,
     caseStudiesRoot,
-    obsidianReport,
-    skipObsidian: Boolean(cliArgs.skipObsidian),
+    reportCopyPath,
+    skipReportCopy: Boolean(cliArgs.skipReportCopy),
     repoRoot: REPO_ROOT,
     cliPath: path.join(REPO_ROOT, "cli", "dist", "src", "index.js"),
     commandIndex: 0,
@@ -137,7 +136,7 @@ async function main() {
         label: `${workloadName}/missing-definition`,
         command: "(workload lookup)",
         verdict: "fail",
-        failureReason: "workload is not defined in scripts/qa/s26-workloads.json",
+        failureReason: "workload is not defined in scripts/qa/workloads.json",
         nextAction: "Fix --only or add the workload definition."
       });
       continue;
@@ -170,7 +169,7 @@ async function main() {
             command: "(runner dispatch)",
             verdict: "fail",
             failureReason: "runner has no implementation for this workload",
-            nextAction: "Implement the workload in scripts/qa/s26-benchmark.mjs."
+            nextAction: "Implement the workload in scripts/qa/benchmark.mjs."
           });
       }
     } catch (error) {
@@ -200,7 +199,7 @@ function parseArgs(argv) {
     const arg = argv[index];
     if (arg === "--help" || arg === "-h") parsed.help = true;
     else if (arg === "--list") parsed.list = true;
-    else if (arg === "--skip-obsidian") parsed.skipObsidian = true;
+    else if (arg === "--skip-report-copy") parsed.skipReportCopy = true;
     else if (arg === "--profile") parsed.profile = argv[++index];
     else if (arg.startsWith("--profile=")) parsed.profile = arg.slice("--profile=".length);
     else if (arg === "--out") parsed.out = argv[++index];
@@ -209,27 +208,27 @@ function parseArgs(argv) {
     else if (arg.startsWith("--only=")) parsed.only = arg.slice("--only=".length);
     else if (arg === "--case-studies-root") parsed.caseStudiesRoot = argv[++index];
     else if (arg.startsWith("--case-studies-root=")) parsed.caseStudiesRoot = arg.slice("--case-studies-root=".length);
-    else if (arg === "--obsidian-report") parsed.obsidianReport = argv[++index];
-    else if (arg.startsWith("--obsidian-report=")) parsed.obsidianReport = arg.slice("--obsidian-report=".length);
+    else if (arg === "--report-path") parsed.reportPath = argv[++index];
+    else if (arg.startsWith("--report-path=")) parsed.reportPath = arg.slice("--report-path=".length);
     else throw new Error(`unknown argument ${arg}`);
   }
   return parsed;
 }
 
 function printHelp(config) {
-  process.stdout.write(`Riptide Sprint 26 QA benchmark harness
+  process.stdout.write(`Riptide QA benchmark harness
 
 Usage:
-  node scripts/qa/s26-benchmark.mjs --profile smoke --out /tmp/riptide-s26-bench-smoke
-  node scripts/qa/s26-benchmark.mjs --profile max --out /tmp/riptide-s26-bench-manual
+  node scripts/qa/benchmark.mjs --profile smoke --out /tmp/riptide-qa-bench-smoke
+  node scripts/qa/benchmark.mjs --profile max --out /tmp/riptide-qa-bench-manual
 
 Options:
   --profile <smoke|max>        Workload profile. Default: smoke
-  --out <dir>                  Benchmark root. Default: /tmp/riptide-s26-bench-<timestamp>
+  --out <dir>                  Benchmark root. Default: /tmp/riptide-qa-bench-<timestamp>
   --only <a,b>                 Run a comma-separated workload subset
   --case-studies-root <dir>    Source case-study root. Default: ${config.defaults.case_studies_root}
-  --obsidian-report <path>     Human report destination
-  --skip-obsidian              Do not copy report.md into the Obsidian vault
+  --report-path <path>         Human report destination
+  --skip-report-copy           Do not copy report.md to the configured report path
   --list                       List workload names
 `);
 }
@@ -1373,7 +1372,7 @@ async function writePerpetualsCampaign(ctx, workloadName, workload, budget) {
   const dest = path.join(dir, `perpetuals-budget-${budget}.toml`);
   const scenarioSource = path.dirname(scenarioPath);
   const text = `[campaign]
-name = "perps-funding-stress-s26-${budget}"
+name = "perps-funding-stress-${budget}"
 adapter = ${JSON.stringify(adapterPath)}
 class = ${JSON.stringify(workload.campaign_class)}
 risk_objective = "custom:perps-funding-stress"
@@ -1862,9 +1861,9 @@ async function writeBenchmarkOutputs(ctx) {
   const report = renderReport(ctx, summary, finishedAt);
   const reportPath = path.join(ctx.outputsRoot, "report.md");
   await writeFile(reportPath, report, "utf8");
-  if (!ctx.skipObsidian && ctx.obsidianReport) {
-    await mkdir(path.dirname(ctx.obsidianReport), { recursive: true });
-    await writeFile(ctx.obsidianReport, report, "utf8");
+  if (!ctx.skipReportCopy && ctx.reportCopyPath) {
+    await mkdir(path.dirname(ctx.reportCopyPath), { recursive: true });
+    await writeFile(ctx.reportCopyPath, report, "utf8");
   }
 }
 
@@ -1952,7 +1951,7 @@ function renderReport(ctx, summary, finishedAt) {
     entry.classifications.map((item) => `| ${item.class} | ${oneLine(item.line, 180)} |`)
   ).join("\n") || "| (none captured) | |";
 
-  return `# QA - Sprint 26 Benchmark And Dev UX
+  return `# QA Benchmark And Dev UX
 
 Generated: ${finishedAt}
 
@@ -2036,6 +2035,6 @@ function errorMessage(error) {
 }
 
 main().catch((error) => {
-  process.stderr.write(`s26-benchmark: ${errorMessage(error)}\n`);
+  process.stderr.write(`qa-benchmark: ${errorMessage(error)}\n`);
   process.exitCode = 1;
 });

@@ -11,7 +11,7 @@ name: contagion-proof-ci
 #      `scripts/ci/solana-release.sha256`, and only then extracts +
 #      prepends to PATH. No `curl | sh` — a swapped installer fails
 #      the checksum step and the workflow exits loudly.
-#   3. Builds the three programs the Sprint 11 contagion proof needs:
+#   3. Builds the three programs the contagion proof needs:
 #      liquid_staking, admin_mock_oracle, lending_pool.
 #   4. Builds the Rust engine and the Node CLI.
 #   5. Runs the deterministic engine gate that asserts the canonical
@@ -51,7 +51,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Sprint 11 canonical hash — the single source of truth for the
+  # Canonical hash — the single source of truth for the
   # proof's byte-stability. Change this only in lock-step with
   # `fixtures/replays/lst-lending-contagion-proof/expected-summary.json`
   # AND the engine test pin.

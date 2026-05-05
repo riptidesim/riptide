@@ -2,7 +2,7 @@
 // `cli/test/run-output.test.ts` — every change here must update the
 // pin test intentionally.
 //
-// Contract (R4.3 + R9.2):
+// Contract:
 // - 0   : all discovered scenarios ran + zero observed failures, zero errors
 // - 1   : one or more scenarios observed failure, either by invariant fire
 //         or by scenario actions failing with zero successful executions

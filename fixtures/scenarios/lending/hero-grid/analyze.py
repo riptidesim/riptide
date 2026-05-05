@@ -24,7 +24,7 @@ SHOCK_PCTS = [20, 30, 40]
 # this grid's discrete (whale_share, shock_pct) axes, the closest cell
 # is whale=25%, shock=40% — the highest whale concentration and the
 # largest shock the grid sweeps. That cell must sit inside the
-# non-zero region for R1.5 to hold: Riptide maps a danger region, and
+# non-zero region for the acceptance criterion to hold: Riptide maps a danger region, and
 # Solend's actual parameters sit inside it.
 SOLEND_2022_CELL = ("w25", "s40")
 

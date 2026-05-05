@@ -70,8 +70,7 @@ the same narrative shape.
 Do **not** modify `simulation-result.json` or `report.md`. Those
 are read-only inputs.
 
-Do **not** write to any other path (no STATE.md edits, no session
-transcripts, no sibling artifacts). One file in, one file out.
+Do **not** write to any other path. One file in, one file out.
 
 ## Flow
 
@@ -179,7 +178,7 @@ at the file is enough.
 - Modify `simulation-result.json` or `report.md`. Both are
   read-only inputs.
 - Write anywhere other than `<same-dir>/report-narrative.md`.
-  Don't touch STATE.md, session docs, or the dashboard.
+  Don't touch unrelated notes, logs, or dashboards.
 - Claim the run *proves* anything beyond the parameter point it
   sampled. The narrative names mechanism and cites tick numbers;
   the reader decides what to take from it. Match the "lab, not

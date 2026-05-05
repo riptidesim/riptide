@@ -95,7 +95,7 @@ test("renderLineage formats a block with headings, bullets, and IDL source", () 
     "  - LendingInstructionData::InitializeOracle",
     "  - LendingInstructionData::SetOraclePrice",
     "",
-    "Inspection only — no IDL fetch, no validation against IDL. Sprint 13's adapter linter consumes this metadata.",
+    "Inspection only — no IDL fetch, no validation against IDL. The adapter linter consumes this metadata.",
     "",
   ].join("\n");
 

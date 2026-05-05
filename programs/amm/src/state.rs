@@ -1,10 +1,9 @@
 //! On-chain account layouts for `amm`.
 //!
-//! ships an **AMM-lite** instruction set: initialize_pool,
+//! This program ships an **AMM-lite** instruction set: initialize_pool,
 //! add_liquidity, remove_liquidity, swap. Constant-product math
 //! (`reserve_a * reserve_b = k`) over virtual u64 reserves — no real SPL
-//! tokens, no LP mint, no oracle. task note carries the scope-cut
-//! rationale.
+//! tokens, no LP mint, no oracle.
 //!
 //! Every non-identity field is widened to u64/bool so the generic
 //! primitive's observation decoder (which only speaks u64/i64/bool/
@@ -201,10 +200,9 @@ pub fn compute_swap_output(
 
 /// AMM-fork instruction surface.
 ///
-/// ships the minimum that supports the four AMM failure
-/// modes targets (price manipulation via swap, impermanent
-/// loss spike, jit liquidity, reserve depletion). See the task note
-/// for the full scope-cut rationale.
+/// Ships the minimum that supports the four AMM failure
+/// mode targets (price manipulation via swap, impermanent
+/// loss spike, jit liquidity, reserve depletion).
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub enum AmmInstructionData {
     /// Initialize a pool. Signer becomes the admin. Seeds reserves to

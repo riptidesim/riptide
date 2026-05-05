@@ -18,9 +18,9 @@ export async function writeArtifacts(
   const target = path.join(outputPath, "simulation-result.json");
   // Prefer the engine-emitted bytes verbatim when the orchestrator
   // captured them. JSON.stringify on a parsed JS value collapses
-  // `500.0` to `500`, which drifts the canonical hash surfaced by
-  // the Sprint 12 pack. The orchestrator stashes the raw JSON on a
-  // symbol-keyed slot for exactly this reason.
+  // `500.0` to `500`, which drifts the canonical hash surfaced by the
+  // evidence pack. The orchestrator stashes the raw JSON on a symbol-keyed
+  // slot for exactly this reason.
   const rawJson = readRawJsonSlot(result);
   if (rawJson !== undefined) {
     await writeFile(target, rawJson);

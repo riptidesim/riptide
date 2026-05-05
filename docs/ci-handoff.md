@@ -262,7 +262,7 @@ adopter pins their own hash to their own replay fixture.
   and is not in today's workflow.
 - **No `riptide doctor`, no adapter linter, no run-time
   adapter-error polish, no CLI colors / spinners / watch mode.** The
-  DX hardening pass is the next sprint; today's handoff surface is
+  DX hardening pass is future work; this handoff surface is
   evidence-focused.
 - **No stablecoin or governance contagion bundles, no Cloud /
   alerting, no partner workflow integrations.**

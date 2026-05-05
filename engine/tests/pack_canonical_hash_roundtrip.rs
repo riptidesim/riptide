@@ -5,8 +5,8 @@
 //! the SimulationResult to disk, re-reads it, and hands it to the
 //! engine's `pack` subcommand; if any field loses fidelity across
 //! that round-trip, the pack hash drifts from the in-memory hash and
-//! Sprint 11's pinned `d04feab9…` is no longer the same string a
-//! reviewer sees in `manifest.json`. This test catches it.
+//! the pinned `d04feab9…` is no longer the same string a reviewer sees
+//! in `manifest.json`. This test catches it.
 
 #![cfg(feature = "litesvm-backend")]
 #![cfg(not(doctest))]
@@ -97,11 +97,10 @@ fn canonical_hash_survives_serde_roundtrip() {
         "canonical_hash drifted across serde_json round-trip — pack surfaces would disagree with the in-memory hash"
     );
 
-    // And both must match the pinned Sprint 11 contagion hash so the
-    // CLI-written pack and the in-memory test path report the same
-    // number to reviewers.
+    // And both must match the pinned contagion hash so the CLI-written
+    // pack and the in-memory test path report the same number to reviewers.
     assert_eq!(
         hash_in_memory, "d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb",
-        "canonical hash drifted from Sprint 11 pin",
+        "canonical hash drifted from pinned contagion hash",
     );
 }

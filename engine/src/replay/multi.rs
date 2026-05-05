@@ -9,8 +9,7 @@
 //! This module is replay-only composition. It does NOT implement a
 //! general multi-program scenario engine, an arbitrary cross-program
 //! transaction graph, or multi-oracle dispatch semantics. It is the
-//! minimum honest plumbing for the Sprint 11 cross-protocol contagion
-//! proof.
+//! minimum honest plumbing for the cross-protocol contagion proof.
 //!
 //! ## Config shape
 //!
@@ -148,8 +147,8 @@ pub struct ComponentEntry {
 
 /// Declared bridge that reads a qualified observation from an upstream
 /// component and writes a derived value into a downstream component's
-/// named oracle. Sprint 11 keeps this intentionally narrow: one scalar
-/// observation → one scalar oracle update.
+/// named oracle. This is intentionally narrow: one scalar observation →
+/// one scalar oracle update.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BridgeDef {
     pub name: String,
@@ -160,11 +159,11 @@ pub struct BridgeDef {
     pub transform: BridgeTransform,
 }
 
-/// Bridge transforms supported in Sprint 11. `kind` is a serde tag so
-/// adding further shapes later stays additive without breaking existing
-/// bridge configs. `bps-ratio` is the shape the Sprint 11 LST → lending
-/// contagion proof uses: an LST exchange rate expressed in basis points
-/// is scaled into a target oracle price via
+/// Bridge transforms supported by replay composition. `kind` is a serde tag
+/// so adding further shapes later stays additive without breaking existing
+/// bridge configs. `bps-ratio` is the shape the LST → lending contagion proof
+/// uses: an LST exchange rate expressed in basis points is scaled into a
+/// target oracle price via
 /// `base_price * (observation / denominator)`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
@@ -290,8 +289,8 @@ pub fn parse_replay_config(raw: &str) -> Result<ReplayConfigShape> {
         // appears AFTER its `target_component` in the declaration
         // order would silently degrade into "target sees the update
         // next tick", not "same-tick propagation", which breaks the
-        // Sprint 11 contagion-ordering contract (R2.2). Reject those
-        // configs at parse time instead.
+        // contagion-ordering contract. Reject those configs at parse time
+        // instead.
         let mut seen = BTreeSet::new();
         let mut order: BTreeMap<String, usize> = BTreeMap::new();
         for (idx, component) in cfg.components.iter().enumerate() {
@@ -1420,7 +1419,7 @@ fn lending_observation_values(
 ) -> Result<BTreeMap<String, ObservationValue>, PrimitiveError> {
     // Lending observations are exposed via snapshot_metrics (pool-level
     // aggregates). Per-agent position observations are not required for
-    // Sprint 11 bridge / invariant surface; the lending proof references
+    // the bridge / invariant surface; the lending proof references
     // `lending.pool.bad_debt` / `lending.summary.total_bad_debt` which
     // the snapshot/summary paths already carry.
     Ok(BTreeMap::new())
@@ -2345,8 +2344,8 @@ mod tests {
 
     #[test]
     fn multi_config_rejects_bridge_with_source_after_target_in_declaration_order() {
-        // The ordering contract (R2.2) is upstream-first: the source
-        // component must tick BEFORE the target so the bridge can
+        // The ordering contract is upstream-first: the source component
+        // must tick BEFORE the target so the bridge can
         // propagate within the same tick. If the config declares the
         // source AFTER the target, `run_multi_replay` would silently
         // degrade to "target sees the new oracle next tick", which is

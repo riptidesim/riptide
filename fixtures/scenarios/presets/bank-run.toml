@@ -7,7 +7,7 @@
 # criterion — "adding a second preset file requires zero engine changes"
 # — has a concrete artifact to test against.
 #
-# When a real `bank_run` scenario kind lands in a future sprint, replace
+# When a real `bank_run` scenario kind lands in a future release, replace
 # the `kind` below and add the matching Rust `Scenario` impl. Until then,
 # this file is loader-visible but behaviorally a steeper price shock.
 

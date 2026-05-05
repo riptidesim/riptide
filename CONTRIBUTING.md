@@ -233,7 +233,7 @@ Taxonomy lives in the `riptide-config` flow.
    So the classifier fires on the intended adapter class and stays quiet on the others.
 2. **Add a proposal template** in `propose.md`. Minimum a 1D sweep; ideally a 2D grid with full-cell materialization (see `whale-shock-grid`, `depositor-shock-grid`, `trade-size-volume-grid` for the pattern — every grid cell is a complete bootable sub-scenario).
 3. **Extend the Zod enum** in `cli/src/scenarios/validate.ts` with your new `failure_mode` value so fixture-mode `riptide scenarios --validate` accepts configs that reference it. User-repo proposals validate through `riptide run <slug> --adapter <adapter> --harness .riptide/harness --seeds 1 --seed-root 1337`.
-4. **Run the cold-chain validation flow** (three-session pattern — setup → cold test → scoring) against your adapter and record the verdict under `docs/case-studies/` or `Obsidian Vault/Riptide/Experiments/` as the shipping bundles did.
+4. **Run the cold-chain validation flow** (setup → cold test → scoring) against your adapter and record the verdict under `docs/case-studies/` as the shipping bundles did.
 
 Taxonomy is where Riptide's discrimination power lives. A good category fires precisely on its class and explains itself to the next reader — resist generic categories.
 
@@ -332,7 +332,7 @@ bash scripts/ci/harnessed-user-flow-smoke.sh
 
 If your PR flips any of these, include the conscious-retune justification in the PR description — why the new bytes are correct, what changed in the adapter / scenario / engine that causes the shift, and why the old hash is no longer load-bearing.
 
-Sprint 24 retune note: the AMM and perps scratch hashes intentionally changed when `amm.v1` and `perps-margin.v1` semantics were added to the shipped adapters. The simulation behavior remains deterministic; the bytes now include additive semantic output (`derived_observations` and expression-invariant inventory) for those classes, so the old pre-semantics hashes are no longer the active pins.
+Semantic-output retune note: the AMM and perps scratch hashes intentionally changed when `amm.v1` and `perps-margin.v1` semantics were added to the shipped adapters. The simulation behavior remains deterministic; the bytes now include additive semantic output (`derived_observations` and expression-invariant inventory) for those classes, so the old pre-semantics hashes are no longer the active pins.
 
 ---
 
@@ -355,7 +355,7 @@ docs/description       # Documentation
 1. **Run the regression gates** (see [Determinism & Regression Gates](#determinism--regression-gates)).
 2. **Test manually:** run the shipping demo (`riptide run lending/hero-grid/w25-s40`) and confirm the hash is unchanged.
 3. **Keep PRs focused.** One logical change per PR. Don't mix an adapter addition with a skill rewrite.
-4. **Scrub for sprint numbers + internal task IDs.** Nothing user-facing should carry internal sprint/phase references.
+4. **Scrub for internal planning labels.** Nothing user-facing should carry private planning references or task IDs.
 
 ### PR description
 

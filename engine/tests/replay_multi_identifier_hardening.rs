@@ -288,8 +288,8 @@ fn accepts_bridge_source_field_with_dotted_path() {
 
 #[test]
 fn accepts_the_canonical_shipping_contagion_proof_config() {
-    // Belt-and-braces: after the hardening, the Sprint 11 shipping
-    // contagion proof config must continue to parse cleanly.
+    // Belt-and-braces: after the hardening, the shipping contagion proof
+    // config must continue to parse cleanly.
     let raw = std::fs::read_to_string(
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()

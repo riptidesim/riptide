@@ -1,4 +1,4 @@
-// T03 — `riptide doctor` integration tests.
+// `riptide doctor` integration tests.
 //
 // Covers:
 // - all-pass exit 0
@@ -160,7 +160,7 @@ async function setupRepo(opts: {
 
 // ---- discoverAdapters ----
 //
-// Sprint 13 R3.3: discovery is layered, not unioned. The first
+// Adapter discovery: discovery is layered, not unioned. The first
 // on-disk layer that yields any adapter wins; later layers do not
 // contribute. This guarantees a downstream user repo with its own
 // `.riptide/adapters/` cannot inherit shipping adapters from a
@@ -258,7 +258,7 @@ test("discoverAdapters: module-root fallback — source-checkout CLI still finds
   // `cd cli && riptide doctor` contributor case after a build). This
   // test runs in exactly that shape — it is a source-checkout
   // regression gate, NOT a claim about arbitrary npm-installed
-  // packages; Sprint 13's `cli/package.json` does not ship fixtures,
+  // packages; `cli/package.json` does not ship fixtures,
   // so a truly packaged install returns `[]` here by design.
   const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-doctor-fallback-"));
   const found = discoverAdapters(cwd);
@@ -272,7 +272,7 @@ test("discoverAdapters: module-root fallback — source-checkout CLI still finds
 // ---- runDoctor / buildDoctorReport ----
 //
 // Important: these tests deliberately do NOT filter discovery down to
-// the temp cwd. Sprint 13 R3.3 makes discovery layered — the first
+// the temp cwd. Adapter discovery makes discovery layered — the first
 // layer that yields any adapter wins — so a user repo with its own
 // `.riptide/adapters/` must not inherit shipping fixtures from the
 // surrounding Riptide checkout. If these tests start failing because
@@ -294,7 +294,7 @@ test("runDoctor: healthy toolchain + clean adapter → exit 0", async () => {
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -327,7 +327,7 @@ test("runDoctor: missing required tool → exit 2 with hint", async () => {
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, "cargo-build-sbf": undefined }),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -358,7 +358,7 @@ test("runDoctor: missing engine binary → exit 2 with build hint", async () => 
           resolveEngine: async () => {
             throw new Error("Could not locate the riptide-engine binary");
           },
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -376,7 +376,7 @@ test("runDoctor: missing engine binary → exit 2 with build hint", async () => 
 // Review regression #1: a generic adapter with no [lineage] block
 // must land as WARN (exit 1), not PASS. The prior behavior shortcut
 // through exitCode: 0 because the only finding was a SKIP, which
-// violated Sprint 13 R3.6 — skipped machine validation belongs on the
+// violated skipped machine validation — skipped machine validation belongs on the
 // warning surface, not all-clear.
 test("runDoctor: adapter with no [lineage] block → lint=warn, doctor exit 1", async () => {
   const noLineage = `protocol = "generic"
@@ -484,7 +484,7 @@ test("runDoctor: drifted npm version → exit 1 (WARN)", async () => {
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, npm: "0.0.1" }),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -510,7 +510,7 @@ test("runDoctor: drifted cargo version → exit 1 (WARN)", async () => {
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, cargo: "cargo 0.1.0 (old)" }),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -536,7 +536,7 @@ test("runDoctor: drifted cargo-build-sbf version → exit 1 (WARN)", async () =>
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, "cargo-build-sbf": "0.0.1" }),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -562,7 +562,7 @@ test("runDoctor: drifted Rust version → exit 1 (WARN), no FAIL", async () => {
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, rustc: "rustc 1.50.0 (very old)" }),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -596,7 +596,7 @@ test("runDoctor: discovered adapter with broken instruction → lint FAIL → do
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -624,7 +624,7 @@ test("runDoctor: adapter present + no IDL on disk → idl-unreadable FAIL", asyn
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -814,7 +814,7 @@ test("runDoctor: generic adapter with dead program_so → load=fail (mirrors eng
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -854,7 +854,7 @@ test("runDoctor: generic adapter with dead idl_path → load=fail", async () => 
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -992,7 +992,7 @@ triggers = []
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -1065,7 +1065,7 @@ triggers = []
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -1116,7 +1116,7 @@ deposit = { action = "deposit", amount = "amount" }
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           resolveEngine: async () => "/fake/target/release/riptide-engine",
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.
@@ -1160,7 +1160,7 @@ test("runDoctor: never spawns the engine — resolveEngine stub is the only call
             resolveCalls += 1;
             return "/fake/target/release/riptide-engine";
           },
-          // No sandboxed discovery override — Sprint 13's R3.3 is
+          // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
           // false-correctness at the call site.

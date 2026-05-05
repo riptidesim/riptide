@@ -213,7 +213,7 @@ reference.
 
 - [`../liquid-staking-depeg-redemption-run/`](../liquid-staking-depeg-redemption-run/)
   — the LST analogue: `apply_slash` + withdrawal-run instead of
-  `apply_hedge_loss` + redemption-run. Same two-phase pressure
+  `apply_hedge_loss` + redemption-run. Same two-step pressure
   geometry on a different protocol class.
 - [`../lst-lending-contagion-proof/`](../lst-lending-contagion-proof/)
   — the multi-program composition shape this bundle explicitly does
@@ -238,6 +238,5 @@ security-minded engineer, not as a certification.
   `programs/stablecoin/src/`
 - Shipping adapter + invariants:
   `fixtures/adapters/stablecoin.toml`
-- Bundle-level context (stablecoin class, generic-oracle path,
-  single-program boundary, hedge-gap internalization rationale):
-  `.specs/features/sprint-14-stablecoin-bundle/spec.md`
+- Bundle-level context: stablecoin class, generic-oracle path,
+  single-program boundary, and hedge-gap internalization rationale.

@@ -1,8 +1,8 @@
 // `riptide run` jest-style output formatter + exit code pin tests.
 //
-// Pins the format contract from R4.1 / R4.2 / R4.3 / R4.5. Any
+// Pins the format contract from format contract. Any
 // change to these literals forces a conscious test update — this
-// is the Sprint 8 contract CI integrations will depend on from
+// is the CLI output contract CI integrations will depend on from
 // here on.
 //
 // Covers:
@@ -292,7 +292,7 @@ test("formatSummaryLine: exact shape '<P> pass · <F> fail · <E> error · <K> s
   assert.equal(formatSummaryLine(summary), "3 pass · 1 fail · 0 error · 2 skip");
 });
 
-test("formatSummaryLine: errors counted separately from skip (R9.2 classifier expansion)", () => {
+test("formatSummaryLine: errors counted separately from skip (error classifier expansion)", () => {
   const summary: RunSummary = {
     pass: 1,
     fail: 0,
@@ -749,7 +749,7 @@ test("exit code: 1 when at least one invariant fired", () => {
   assert.equal(EXIT_CODES.INVARIANT_FIRE, 1);
 });
 
-test("exit code: 2 when one or more scenarios errored (R9.2 reclassification)", () => {
+test("exit code: 2 when one or more scenarios errored (error reclassification)", () => {
   const summary: RunSummary = {
     pass: 1,
     fail: 0,

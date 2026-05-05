@@ -9,16 +9,16 @@ This is not an audit proof. A green run means the local Riptide checkout complet
 From the Riptide repo root:
 
 ```bash
-node scripts/qa/s26-benchmark.mjs --profile smoke --out /tmp/riptide-s26-bench-smoke
+node scripts/qa/benchmark.mjs --profile smoke --out /tmp/riptide-qa-bench-smoke
 ```
 
 For the full max-stress path:
 
 ```bash
-node scripts/qa/s26-benchmark.mjs --profile max --out /tmp/riptide-s26-bench-manual
+node scripts/qa/benchmark.mjs --profile max --out /tmp/riptide-qa-bench-manual
 ```
 
-When `--out` is omitted, the runner writes to `/tmp/riptide-s26-bench-<timestamp>`. Every run creates these roots:
+When `--out` is omitted, the runner writes to `/tmp/riptide-qa-bench-<timestamp>`. Every run creates these roots:
 
 | Path | Purpose |
 | --- | --- |
@@ -26,26 +26,26 @@ When `--out` is omitted, the runner writes to `/tmp/riptide-s26-bench-<timestamp
 | `<out>/home` | Temporary HOME for normal benchmark commands. |
 | `<out>/case-studies` | Thin temporary copies of case-study repos. |
 
-The runner can also copy `outputs/report.md` to the local project vault for internal benchmark notes.
+The runner can also copy `outputs/report.md` to a configured report path.
 
-Pass `--skip-obsidian` to suppress that copy.
+Pass `--skip-report-copy` to suppress that copy.
 
 ## Profiles
 
 `smoke` is intended for quick local validation. It runs CLI discoverability, the flagship lending campaign with a small `--max-runs` cap, perpetuals readiness/direct-run checks, and intentional failure UX checks.
 
-`max` runs every workload in `scripts/qa/s26-workloads.json`, including case-study init/dev-UX sweeps, larger campaign budgets, perps stress variants, and the cold developer path through `./install.sh`.
+`max` runs every workload in `scripts/qa/workloads.json`, including case-study init/dev-UX sweeps, larger campaign budgets, perps stress variants, and the cold developer path through `./install.sh`.
 
 Use a targeted subset while iterating:
 
 ```bash
-node scripts/qa/s26-benchmark.mjs --profile smoke --only cli-discoverability,failure-recovery-ux
+node scripts/qa/benchmark.mjs --profile smoke --only cli-discoverability,failure-recovery-ux
 ```
 
 List workload names:
 
 ```bash
-node scripts/qa/s26-benchmark.mjs --list
+node scripts/qa/benchmark.mjs --list
 ```
 
 ## Outputs
@@ -60,7 +60,7 @@ The runner writes:
 | `determinism.json` | Stable artifact comparisons for repeated campaign runs. |
 | `stdout/` | Capped stdout logs, one file per command. |
 | `stderr/` | Capped stderr logs, one file per command. |
-| `report.md` | Human summary copied into the Obsidian vault unless `--skip-obsidian` is set. |
+| `report.md` | Human summary copied to the configured report path unless `--skip-report-copy` is set. |
 
 `summary.csv` uses these columns:
 
@@ -93,7 +93,7 @@ The final report groups failed and expected findings into:
 The declarative workload matrix lives in:
 
 ```text
-scripts/qa/s26-workloads.json
+scripts/qa/workloads.json
 ```
 
 The runner owns dynamic setup that JSON cannot express cleanly: creating temporary campaign TOMLs, copying case-study repos into `/tmp`, mutating malformed inputs, comparing deterministic artifacts, and finding retained `rerun.sh` scripts.

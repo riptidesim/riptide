@@ -6,8 +6,6 @@
 // `<cwd>/.riptide/pack/<run-id>/`. Keeping emission engine-side means
 // the Rust pack module is the single source of truth for pack shape
 // and byte-stability — the CLI only ferries paths.
-//
-// Sprint 12 / T01 / T02.
 
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";

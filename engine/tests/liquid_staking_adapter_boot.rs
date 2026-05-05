@@ -1,11 +1,11 @@
-//! Liquid-staking-fork adapter + oracle-wiring boot gate (T02, Sprint 10).
+//! Liquid-staking-fork adapter + oracle-wiring boot gate.
 //!
 //! Proves two things about the shipping liquid-staking adapter at
 //! `fixtures/adapters/liquid-staking.toml`:
 //!
 //! 1. **Adapter validation green** — `load_adapter` parses the TOML,
 //!    resolves the program `.so`, the IDL, and the externally-owned
-//!    oracle sibling `.so` + keypair without triggering the Sprint 9
+//!    oracle sibling `.so` + keypair without triggering the
 //!    generic-oracle validation path's error branches.
 //! 2. **Minimal boot run** — `GenericHarness::bootstrap` materializes
 //!    the pool (shared), per-agent stake accounts, and the declared
@@ -62,7 +62,7 @@ fn admin_mock_oracle_keypair() -> PathBuf {
 
 /// Hard-fail-under-CI skip gate (mirrors
 /// `perps_sibling_oracle_proof::skip_if_missing`). CI must never report
-/// green on the T02 gate without actually exercising the liquid-staking
+/// green on the boot gate without actually exercising the liquid-staking
 /// adapter boot path.
 fn skip_if_missing(paths: &[&Path]) -> bool {
     let missing: Vec<&&Path> = paths.iter().filter(|p| !p.exists()).collect();
@@ -73,7 +73,7 @@ fn skip_if_missing(paths: &[&Path]) -> bool {
     if ci {
         let list: Vec<String> = missing.iter().map(|p| p.display().to_string()).collect();
         panic!(
-            "CI={}: refusing to soft-skip Sprint 10 T02 gate on missing SBF \
+            "CI={}: refusing to soft-skip liquid-staking adapter boot gate on missing SBF \
              artifact(s): {}.\n\
              Rebuild with:\n  \
              cargo build-sbf --manifest-path programs/liquid-staking/Cargo.toml\n  \
@@ -84,7 +84,7 @@ fn skip_if_missing(paths: &[&Path]) -> bool {
     }
     for path in &missing {
         eprintln!(
-            "\x1b[33mATTENTION\x1b[0m T02 soft-skip: {} missing. \
+            "\x1b[33mATTENTION\x1b[0m liquid-staking adapter boot soft-skip: {} missing. \
              Rebuild with `cargo build-sbf` — this adapter boot did NOT run.",
             path.display()
         );
@@ -92,7 +92,7 @@ fn skip_if_missing(paths: &[&Path]) -> bool {
     true
 }
 
-/// T02 gate: loading + bootstrapping the shipping adapter lands the
+/// Loading + bootstrapping the shipping adapter lands the
 /// pool, per-agent stake accounts, and the declared oracle account
 /// under honest sibling-program ownership; the harness dispatches
 /// every runtime action end-to-end.
@@ -113,7 +113,7 @@ fn liquid_staking_adapter_boots_through_generic_harness() {
     // `load_adapter` runs the full pipeline: parse, resolve paths,
     // validate `[[oracles]]`, check sibling-program keypair, cross-
     // check IDL field sizes against `[accounts].*.space`. A failure
-    // here turns the T02 gate red.
+    // here turns the boot gate red.
     let adapter = load_adapter(&ls_adapter_path())
         .expect("load_adapter must accept the shipping liquid-staking adapter");
     assert!(
@@ -123,7 +123,7 @@ fn liquid_staking_adapter_boots_through_generic_harness() {
     assert_eq!(
         adapter.oracles.len(),
         1,
-        "adapter declares exactly one `[[oracles]]` entry (Sprint 9 single-oracle limit)"
+        "adapter declares exactly one `[[oracles]]` entry (single-oracle limit)"
     );
     let oracle = &adapter.oracles[0];
     assert_eq!(oracle.name, "stake_price_feed");
@@ -144,7 +144,7 @@ fn liquid_staking_adapter_boots_through_generic_harness() {
     assert!(
         oracle_account.owner.is_some(),
         "oracle account MUST declare an external owner (sibling admin_mock_oracle) to exercise \
-         the honest Sprint 9 generic-oracle binding path"
+         the honest generic-oracle binding path"
     );
 
     // ---- (2) Bootstrap through GenericHarness ----
@@ -173,7 +173,7 @@ fn liquid_staking_adapter_boots_through_generic_harness() {
         .expect("agent 1 stake_account bootstrapped");
 
     // Oracle materialized under sibling-program ownership — NOT under
-    // the simulated program's id. This is the Sprint 9 honesty gate:
+    // the simulated program's id. This is the generic-oracle honesty gate:
     // a bundle-local shortcut would leave the oracle owned by
     // program_id; the real path places it under the admin-mock owner.
     let sibling_keypair =

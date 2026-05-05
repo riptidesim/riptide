@@ -8,7 +8,7 @@
 // Honesty rules baked into this module:
 // - JSON IDL is the only machine-checkable source kind today.
 // - Rust-source `idl_source` (e.g. `programs/lending_pool/src/state.rs`)
-//   is warn-only. Do NOT attempt to parse Rust in Sprint 13.
+//   is warn-only. Do NOT attempt to parse Rust here.
 // - Missing `[lineage]` block is an explicit `SKIP`, not a PASS.
 // - Uncovered source surfaces may warn. Never silently claim full
 //   coverage.
@@ -180,7 +180,7 @@ export async function lintAdapter(input: LintInput): Promise<LintReport> {
       subject: `[lineage].idl_source = "${idlSource}"`,
       message: hasSemantics
         ? "lineage source is non-JSON and remains inspection-only; the adapter's [semantics] block was machine-checked by lint."
-        : "machine validation is only available for JSON IDL sources; this source kind is inspection-only in Sprint 13.",
+        : "machine validation is only available for JSON IDL sources; this source kind is inspection-only.",
       hint: hasSemantics
         ? "Use `riptide lineage <adapter>` for reviewer-readable lineage inspection; semantics lint has already validated the economic preflight."
         : "Use `riptide lineage <adapter>` for reviewer-readable inspection of the authored lineage.",

@@ -672,7 +672,7 @@ base_price = 50.0
     ) -> (Pubkey, solana_account::Account) {
         // Inspect the harness's private state through its documented
         // public wrappers. We use the raw LiteSVM handle the harness
-        // exposes via `inspect_shared_account` added in T02.
+        // exposes via `inspect_shared_account`.
         let pubkey = harness
             .inspect_shared_account_pubkey(name)
             .unwrap_or_else(|| panic!("shared account `{name}` missing from harness"));
@@ -923,12 +923,11 @@ exponent = {exponent}
 
     #[test]
     fn push_is_noop_when_adapter_declares_no_oracle() {
-        // Regression floor: generic adapters that pre-date Sprint 9 do
-        // NOT declare `[[oracles]]` (perpetuals, amm). The tick loop
-        // still calls `push_oracle_price` on every tick via the shared
-        // sim runner, so the no-declaration path must remain a silent
-        // no-op — otherwise the perps-scratch and amm-scratch hashes
-        // regress and this sprint blows the floor.
+        // Regression floor: generic adapters that do not declare
+        // `[[oracles]]` (perpetuals, amm) must keep working. The tick loop
+        // still calls `push_oracle_price` on every tick via the shared sim
+        // runner, so the no-declaration path must remain a silent no-op —
+        // otherwise the perps-scratch and amm-scratch hashes regress.
         let grinder_so = resource_grinder_so();
         let grinder_idl = resource_grinder_idl();
         if skip_if_missing(&[&grinder_so, &grinder_idl]) {

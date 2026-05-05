@@ -1,9 +1,9 @@
 // `riptide lint <adapter>` — static adapter validator.
 //
-// Sprint 13 surface. The command reads an adapter TOML, resolves the
-// `[lineage].idl_source`, and — when the source is a JSON IDL — cross
-// checks the adapter's mapped instructions / args / accounts / dotted
-// field references against the IDL.
+// Reads an adapter TOML, resolves the `[lineage].idl_source`, and —
+// when the source is a JSON IDL — cross-checks the adapter's mapped
+// instructions / args / accounts / dotted field references against the
+// IDL.
 //
 // Honesty rules:
 // - JSON IDL is the only machine-checkable source kind.

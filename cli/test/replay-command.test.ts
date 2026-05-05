@@ -8,7 +8,7 @@ import path from "node:path";
 
 import { SimulationResultSchema } from "../src/compiler/schema.js";
 
-const T04_TIMEOUT_MS = 180_000;
+const REPLAY_TIMEOUT_MS = 180_000;
 
 const CLI_ROOT = process.cwd();
 const REPO_ROOT = path.resolve(CLI_ROOT, "..");
@@ -88,7 +88,7 @@ async function runReplayCommand(args: string[]): Promise<CliRunResult> {
 
 test(
   "`riptide replay` runs end-to-end and emits schema-compatible JSON",
-  { timeout: T04_TIMEOUT_MS },
+  { timeout: REPLAY_TIMEOUT_MS },
   async () => {
     ensureEngineAndProgramReady();
     const workDir = await mkdtemp(path.join(os.tmpdir(), "t04-replay-cli-"));
@@ -177,7 +177,7 @@ test(
 
 test(
   "invariant firing on replay still surfaces the full SimulationResult (exit 1)",
-  { timeout: T04_TIMEOUT_MS },
+  { timeout: REPLAY_TIMEOUT_MS },
   async () => {
     // re-review #1: previously the CLI's catch block threw
     // away the orchestrator-parsed SimulationResult on exit 1 and
