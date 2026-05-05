@@ -27,3 +27,6 @@ fixtures/replays/*/.riptide/pack/
 
 # Replay engine build artifacts — re-generated on every `riptide replay` run
 fixtures/replays/*/riptide-output/
+
+# Local readiness/report exports; keep out of the GitHub repository.
+reports/case-study-readiness/
