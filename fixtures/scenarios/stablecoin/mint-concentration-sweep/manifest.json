@@ -1,0 +1,6 @@
+{
+  "adapter": "fixtures/adapters/stablecoin.toml",
+  "slug": "mint-concentration-sweep",
+  "failure_mode": "collateral_ratio_spiral",
+  "rationale": "Sweep midpoint for top-minter concentration: 14 of 25 agents are leverage-looper slots, making mint pressure intentionally concentrated while still retaining cautious-minter, panic-redeemer, and arb-redeemer tails. Runtime boundary: stablecoin-fork does not enforce mint caps or top-N mint share limits, so this fixture is a deterministic smoke shape rather than a stress claim."
+}

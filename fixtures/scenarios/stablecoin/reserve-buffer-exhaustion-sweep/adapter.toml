@@ -1,0 +1,142 @@
+protocol = "generic"
+program_so = "../../../../programs/stablecoin/target/deploy/stablecoin.so"
+idl_path = "../../../idls/stablecoin.json"
+
+[accounts.pool]
+kind = "shared"
+space = 121
+
+[accounts.position]
+kind = "agent"
+space = 105
+
+[accounts.oracle]
+kind = "shared"
+space = 50
+owner = { program_so = "../../../../programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so" }
+
+[instructions]
+initialize_pool    = { action = "initialize_pool" }
+deposit_collateral = { action = "deposit_collateral", amount = "amount" }
+mint_stable        = { action = "mint_stable", amount = "amount" }
+request_redeem     = { action = "request_redeem", amount = "stable_amount" }
+claim_redeem       = { action = "claim_redeem" }
+
+[state_mapping]
+"pool.collateral_assets"              = "pool.collateral_assets"
+"pool.stable_supply"                  = "pool.stable_supply"
+"pool.reserve_buffer_assets"          = "pool.reserve_buffer_assets"
+"pool.pending_redemption_assets"      = "pool.pending_redemption_assets"
+"pool.pending_redemption_count"       = "pool.pending_redemption_count"
+"pool.effective_collateral_ratio_bps" = "pool.effective_collateral_ratio_bps"
+"pool.cumulative_hedge_loss_bps"      = "pool.cumulative_hedge_loss_bps"
+"position.collateral_deposited"       = "position.collateral_deposited"
+"position.stable_minted"              = "position.stable_minted"
+"position.pending_redeem_assets"      = "position.pending_redeem_assets"
+"position.claimable_collateral"       = "position.claimable_collateral"
+"position.cumulative_claimed"         = "position.cumulative_claimed"
+
+[actions.initialize_pool]
+label = "Initialize the stablecoin pool"
+takes = []
+
+[actions.deposit_collateral]
+label = "Deposit collateral into the stablecoin pool"
+takes = ["amount"]
+
+[actions.mint_stable]
+label = "Mint stablecoins against already-deposited collateral"
+takes = ["amount"]
+
+[actions.request_redeem]
+label = "Burn stablecoins and post a redemption claim"
+takes = ["stable_amount"]
+
+[actions.claim_redeem]
+label = "Flush claimable collateral"
+takes = []
+
+[observations]
+"pool.collateral_assets"              = "uint"
+"pool.stable_supply"                  = "uint"
+"pool.reserve_buffer_assets"          = "uint"
+"pool.pending_redemption_assets"      = "uint"
+"pool.pending_redemption_count"       = "uint"
+"pool.effective_collateral_ratio_bps" = "uint"
+"pool.cumulative_hedge_loss_bps"      = "uint"
+"position.collateral_deposited"       = "uint"
+"position.stable_minted"              = "uint"
+"position.pending_redeem_assets"      = "uint"
+"position.claimable_collateral"       = "uint"
+"position.cumulative_claimed"         = "uint"
+
+[[invariants]]
+name = "no_redemption_queue_formation"
+field = "pool.pending_redemption_count"
+op = "=="
+value = 0
+
+[personas.cautious-minter]
+label = "Cautious minter"
+action_rate_multiplier = 0.0
+action_weights = { initialize_pool = 0.0, deposit_collateral = 0.0, mint_stable = 0.0, request_redeem = 0.0, claim_redeem = 0.0 }
+triggers = []
+
+[personas.leverage-looper]
+label = "Leverage looper"
+action_rate_multiplier = 0.0
+action_weights = { initialize_pool = 0.0, deposit_collateral = 0.0, mint_stable = 0.0, request_redeem = 0.0, claim_redeem = 0.0 }
+triggers = []
+
+[personas.panic-redeemer]
+label = "Panic redeemer"
+action_rate_multiplier = 0.0
+action_weights = { initialize_pool = 0.0, deposit_collateral = 0.0, mint_stable = 0.0, request_redeem = 0.0, claim_redeem = 0.0 }
+triggers = []
+
+[personas.arb-redeemer]
+label = "Arb redeemer"
+action_rate_multiplier = 0.0
+action_weights = { initialize_pool = 0.0, deposit_collateral = 0.0, mint_stable = 0.0, request_redeem = 0.0, claim_redeem = 0.0 }
+triggers = []
+
+[[scheduled_actions]]
+name = "initialize_pool"
+instruction = "initialize_pool"
+interval_ticks = 3
+accounts = ["pool", "oracle"]
+
+[[scheduled_actions]]
+name = "seed_collateral"
+instruction = "deposit_collateral"
+interval_ticks = 3
+accounts = ["pool", "position"]
+args = { amount = 10000 }
+
+[[scheduled_actions]]
+name = "seed_supply"
+instruction = "mint_stable"
+interval_ticks = 3
+accounts = ["pool", "position"]
+args = { amount = 5000 }
+
+[[scheduled_actions]]
+name = "drain_reserve"
+instruction = "request_redeem"
+interval_ticks = 3
+accounts = ["pool", "position"]
+args = { stable_amount = 2000 }
+
+[[scheduled_actions]]
+name = "force_queue"
+instruction = "request_redeem"
+interval_ticks = 3
+accounts = ["pool", "position"]
+args = { stable_amount = 1000 }
+
+[[oracles]]
+name = "stablecoin_nav_feed"
+kind = "admin-mock"
+account = "oracle"
+base_price = 1.0
+exponent = -2

@@ -1,0 +1,6725 @@
+{
+  "run_config": {
+    "agents": 15,
+    "ticks": 32,
+    "scenario": "sandwich-volume-spike",
+    "seed": 4603,
+    "personas": [
+      "botter",
+      "botter",
+      "botter",
+      "botter",
+      "botter",
+      "botter",
+      "botter",
+      "botter",
+      "botter",
+      "botter",
+      "botter",
+      "botter",
+      "grinder",
+      "grinder",
+      "casual"
+    ],
+    "validator_url": "http://localhost:8899",
+    "output_path": "fixtures/scenarios/amm/sandwich-volume-spike"
+  },
+  "seed": 4603,
+  "total_ticks": 32,
+  "timeseries": [
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 0,
+        "liquidity_value": 0,
+        "lp_share_value": 0,
+        "price_impact_bps": 0,
+        "reserve_ratio": 0,
+        "spot_price": 0
+      },
+      "lp_position.lp_shares": 0.0,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 0.0,
+      "pool.k_last": 0.0,
+      "pool.last_swap_price": 0.0,
+      "pool.reserve_a": 0.0,
+      "pool.reserve_b": 0.0,
+      "pool.total_lp_supply": 0.0,
+      "tick": 0
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1002502005000,
+        "liquidity_value": 2002502,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1002497
+      },
+      "lp_position.lp_shares": 0.26666666666666666,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1002502005000.0,
+      "pool.last_swap_price": 1002497.0,
+      "pool.reserve_a": 1000002.0,
+      "pool.reserve_b": 1002500.0,
+      "pool.total_lp_supply": 2000004.0,
+      "tick": 1
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1005004020000,
+        "liquidity_value": 2005004,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1004995
+      },
+      "lp_position.lp_shares": 0.5333333333333333,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1005004020000.0,
+      "pool.last_swap_price": 1004995.0,
+      "pool.reserve_a": 1000004.0,
+      "pool.reserve_b": 1005000.0,
+      "pool.total_lp_supply": 2000008.0,
+      "tick": 2
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1007506045000,
+        "liquidity_value": 2007506,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1007493
+      },
+      "lp_position.lp_shares": 0.8,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1007506045000.0,
+      "pool.last_swap_price": 1007493.0,
+      "pool.reserve_a": 1000006.0,
+      "pool.reserve_b": 1007500.0,
+      "pool.total_lp_supply": 2000012.0,
+      "tick": 3
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1011009099000,
+        "liquidity_value": 2011009,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1010990
+      },
+      "lp_position.lp_shares": 1.2,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1011009099000.0,
+      "pool.last_swap_price": 1010990.0,
+      "pool.reserve_a": 1000009.0,
+      "pool.reserve_b": 1011000.0,
+      "pool.total_lp_supply": 2000018.0,
+      "tick": 4
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1013511148500,
+        "liquidity_value": 2013511,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1013488
+      },
+      "lp_position.lp_shares": 1.4666666666666666,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1013511148500.0,
+      "pool.last_swap_price": 1013488.0,
+      "pool.reserve_a": 1000011.0,
+      "pool.reserve_b": 1013500.0,
+      "pool.total_lp_supply": 2000022.0,
+      "tick": 5
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1015012180000,
+        "liquidity_value": 2015012,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1014987
+      },
+      "lp_position.lp_shares": 1.6,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1015012180000.0,
+      "pool.last_swap_price": 1014987.0,
+      "pool.reserve_a": 1000012.0,
+      "pool.reserve_b": 1015000.0,
+      "pool.total_lp_supply": 2000024.0,
+      "tick": 6
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1017514245000,
+        "liquidity_value": 2017514,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1017485
+      },
+      "lp_position.lp_shares": 1.8666666666666667,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1017514245000.0,
+      "pool.last_swap_price": 1017485.0,
+      "pool.reserve_a": 1000014.0,
+      "pool.reserve_b": 1017500.0,
+      "pool.total_lp_supply": 2000028.0,
+      "tick": 7
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1020016320000,
+        "liquidity_value": 2020016,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1019983
+      },
+      "lp_position.lp_shares": 2.1333333333333333,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1020016320000.0,
+      "pool.last_swap_price": 1019983.0,
+      "pool.reserve_a": 1000016.0,
+      "pool.reserve_b": 1020000.0,
+      "pool.total_lp_supply": 2000032.0,
+      "tick": 8
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1022518405000,
+        "liquidity_value": 2022518,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1022481
+      },
+      "lp_position.lp_shares": 2.4,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1022518405000.0,
+      "pool.last_swap_price": 1022481.0,
+      "pool.reserve_a": 1000018.0,
+      "pool.reserve_b": 1022500.0,
+      "pool.total_lp_supply": 2000036.0,
+      "tick": 9
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1024019456000,
+        "liquidity_value": 2024019,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1023980
+      },
+      "lp_position.lp_shares": 2.533333333333333,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1024019456000.0,
+      "pool.last_swap_price": 1023980.0,
+      "pool.reserve_a": 1000019.0,
+      "pool.reserve_b": 1024000.0,
+      "pool.total_lp_supply": 2000038.0,
+      "tick": 10
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1026521556500,
+        "liquidity_value": 2026521,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1026478
+      },
+      "lp_position.lp_shares": 2.8,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1026521556500.0,
+      "pool.last_swap_price": 1026478.0,
+      "pool.reserve_a": 1000021.0,
+      "pool.reserve_b": 1026500.0,
+      "pool.total_lp_supply": 2000042.0,
+      "tick": 11
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1029023667000,
+        "liquidity_value": 2029023,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1028976
+      },
+      "lp_position.lp_shares": 3.066666666666667,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1029023667000.0,
+      "pool.last_swap_price": 1028976.0,
+      "pool.reserve_a": 1000023.0,
+      "pool.reserve_b": 1029000.0,
+      "pool.total_lp_supply": 2000046.0,
+      "tick": 12
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1032526845000,
+        "liquidity_value": 2032526,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1032473
+      },
+      "lp_position.lp_shares": 3.466666666666667,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1032526845000.0,
+      "pool.last_swap_price": 1032473.0,
+      "pool.reserve_a": 1000026.0,
+      "pool.reserve_b": 1032500.0,
+      "pool.total_lp_supply": 2000052.0,
+      "tick": 13
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1035028980000,
+        "liquidity_value": 2035028,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1034971
+      },
+      "lp_position.lp_shares": 3.7333333333333334,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1035028980000.0,
+      "pool.last_swap_price": 1034971.0,
+      "pool.reserve_a": 1000028.0,
+      "pool.reserve_b": 1035000.0,
+      "pool.total_lp_supply": 2000056.0,
+      "tick": 14
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1037531125000,
+        "liquidity_value": 2037530,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1037468
+      },
+      "lp_position.lp_shares": 4.0,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1037531125000.0,
+      "pool.last_swap_price": 1037468.0,
+      "pool.reserve_a": 1000030.0,
+      "pool.reserve_b": 1037500.0,
+      "pool.total_lp_supply": 2000060.0,
+      "tick": 15
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1040033280000,
+        "liquidity_value": 2040032,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1039966
+      },
+      "lp_position.lp_shares": 4.266666666666667,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1040033280000.0,
+      "pool.last_swap_price": 1039966.0,
+      "pool.reserve_a": 1000032.0,
+      "pool.reserve_b": 1040000.0,
+      "pool.total_lp_supply": 2000064.0,
+      "tick": 16
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1043536522500,
+        "liquidity_value": 2043535,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1043463
+      },
+      "lp_position.lp_shares": 4.666666666666667,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1043536522500.0,
+      "pool.last_swap_price": 1043463.0,
+      "pool.reserve_a": 1000035.0,
+      "pool.reserve_b": 1043500.0,
+      "pool.total_lp_supply": 2000070.0,
+      "tick": 17
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1046038702000,
+        "liquidity_value": 2046037,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1045961
+      },
+      "lp_position.lp_shares": 4.933333333333334,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1046038702000.0,
+      "pool.last_swap_price": 1045961.0,
+      "pool.reserve_a": 1000037.0,
+      "pool.reserve_b": 1046000.0,
+      "pool.total_lp_supply": 2000074.0,
+      "tick": 18
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1048540891500,
+        "liquidity_value": 2048539,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1048459
+      },
+      "lp_position.lp_shares": 5.2,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1048540891500.0,
+      "pool.last_swap_price": 1048459.0,
+      "pool.reserve_a": 1000039.0,
+      "pool.reserve_b": 1048500.0,
+      "pool.total_lp_supply": 2000078.0,
+      "tick": 19
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1051043091000,
+        "liquidity_value": 2051041,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1050956
+      },
+      "lp_position.lp_shares": 5.466666666666667,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1051043091000.0,
+      "pool.last_swap_price": 1050956.0,
+      "pool.reserve_a": 1000041.0,
+      "pool.reserve_b": 1051000.0,
+      "pool.total_lp_supply": 2000082.0,
+      "tick": 20
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1054546398000,
+        "liquidity_value": 2054544,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1054453
+      },
+      "lp_position.lp_shares": 5.866666666666666,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1054546398000.0,
+      "pool.last_swap_price": 1054453.0,
+      "pool.reserve_a": 1000044.0,
+      "pool.reserve_b": 1054500.0,
+      "pool.total_lp_supply": 2000088.0,
+      "tick": 21
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1057048622000,
+        "liquidity_value": 2057046,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1056951
+      },
+      "lp_position.lp_shares": 6.133333333333334,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1057048622000.0,
+      "pool.last_swap_price": 1056951.0,
+      "pool.reserve_a": 1000046.0,
+      "pool.reserve_b": 1057000.0,
+      "pool.total_lp_supply": 2000092.0,
+      "tick": 22
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1058549749500,
+        "liquidity_value": 2058547,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1058450
+      },
+      "lp_position.lp_shares": 6.266666666666667,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1058549749500.0,
+      "pool.last_swap_price": 1058450.0,
+      "pool.reserve_a": 1000047.0,
+      "pool.reserve_b": 1058500.0,
+      "pool.total_lp_supply": 2000094.0,
+      "tick": 23
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1061051989000,
+        "liquidity_value": 2061049,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1060948
+      },
+      "lp_position.lp_shares": 6.533333333333333,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1061051989000.0,
+      "pool.last_swap_price": 1060948.0,
+      "pool.reserve_a": 1000049.0,
+      "pool.reserve_b": 1061000.0,
+      "pool.total_lp_supply": 2000098.0,
+      "tick": 24
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1064555354000,
+        "liquidity_value": 2064552,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1064444
+      },
+      "lp_position.lp_shares": 6.933333333333334,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1064555354000.0,
+      "pool.last_swap_price": 1064444.0,
+      "pool.reserve_a": 1000052.0,
+      "pool.reserve_b": 1064500.0,
+      "pool.total_lp_supply": 2000104.0,
+      "tick": 25
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1066056498000,
+        "liquidity_value": 2066053,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1065943
+      },
+      "lp_position.lp_shares": 7.066666666666666,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1066056498000.0,
+      "pool.last_swap_price": 1065943.0,
+      "pool.reserve_a": 1000053.0,
+      "pool.reserve_b": 1066000.0,
+      "pool.total_lp_supply": 2000106.0,
+      "tick": 26
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1067557645000,
+        "liquidity_value": 2067554,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1067442
+      },
+      "lp_position.lp_shares": 7.2,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1067557645000.0,
+      "pool.last_swap_price": 1067442.0,
+      "pool.reserve_a": 1000054.0,
+      "pool.reserve_b": 1067500.0,
+      "pool.total_lp_supply": 2000108.0,
+      "tick": 27
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1069058795000,
+        "liquidity_value": 2069055,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1068941
+      },
+      "lp_position.lp_shares": 7.333333333333333,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1069058795000.0,
+      "pool.last_swap_price": 1068941.0,
+      "pool.reserve_a": 1000055.0,
+      "pool.reserve_b": 1069000.0,
+      "pool.total_lp_supply": 2000110.0,
+      "tick": 28
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1072562205000,
+        "liquidity_value": 2072558,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1072437
+      },
+      "lp_position.lp_shares": 7.733333333333333,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1072562205000.0,
+      "pool.last_swap_price": 1072437.0,
+      "pool.reserve_a": 1000058.0,
+      "pool.reserve_b": 1072500.0,
+      "pool.total_lp_supply": 2000116.0,
+      "tick": 29
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1076065636000,
+        "liquidity_value": 2076061,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1075934
+      },
+      "lp_position.lp_shares": 8.133333333333333,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1076065636000.0,
+      "pool.last_swap_price": 1075934.0,
+      "pool.reserve_a": 1000061.0,
+      "pool.reserve_b": 1076000.0,
+      "pool.total_lp_supply": 2000122.0,
+      "tick": 30
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1079569088000,
+        "liquidity_value": 2079564,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1079430
+      },
+      "lp_position.lp_shares": 8.533333333333333,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1079569088000.0,
+      "pool.last_swap_price": 1079430.0,
+      "pool.reserve_a": 1000064.0,
+      "pool.reserve_b": 1079500.0,
+      "pool.total_lp_supply": 2000128.0,
+      "tick": 31
+    },
+    {
+      "active_agents": 15,
+      "derived_observations": {
+        "constant_product": 1083072561000,
+        "liquidity_value": 2083067,
+        "lp_share_value": 1,
+        "price_impact_bps": 30,
+        "reserve_ratio": 0,
+        "spot_price": 1082927
+      },
+      "lp_position.lp_shares": 8.933333333333334,
+      "pool.cumulative_fees": 0.0,
+      "pool.cumulative_volume": 0.0,
+      "pool.fee_bps": 30.0,
+      "pool.k_last": 1083072561000.0,
+      "pool.last_swap_price": 1082927.0,
+      "pool.reserve_a": 1000067.0,
+      "pool.reserve_b": 1083000.0,
+      "pool.total_lp_supply": 2000134.0,
+      "tick": 32
+    }
+  ],
+  "events": [
+    {
+      "tick": 1,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 25,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 26,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 27,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 28,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 29,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 30,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 31,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "action": "swap",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 32,
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "action": "add_liquidity",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    }
+  ],
+  "agents": [
+    {
+      "agent_id": "agent-001",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-002",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-003",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-004",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-005",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-006",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-007",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-008",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-009",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-010",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-011",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-012",
+      "persona_id": "botter",
+      "persona_label": "AMM high-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-013",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 19,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-014",
+      "persona_id": "grinder",
+      "persona_label": "AMM baseline (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 16,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-015",
+      "persona_id": "casual",
+      "persona_label": "AMM low-rate (smoke)",
+      "status": "active",
+      "final_balance": 20000.0,
+      "pnl": 0.0,
+      "total_actions": 32,
+      "triggers_activated": 0
+    }
+  ],
+  "summary": {
+    "agents_active": 15,
+    "agents_depleted": 0,
+    "agents_liquidated": 0,
+    "expression_invariants": [
+      {
+        "expr": "(reserve_a.reserve_a == 0 && reserve_b.reserve_b == 0) || (reserve_a.reserve_a > 0 && reserve_b.reserve_b > 0)",
+        "firing_count": 0,
+        "firings": 0,
+        "first_fired_tick": null,
+        "first_tick": null,
+        "name": "reserve_pair_nonzero_together",
+        "observed": [],
+        "severity": "warn"
+      },
+      {
+        "expr": "(lp_supply.total_lp_supply == 0 && liquidity_value == 0) || (lp_supply.total_lp_supply > 0 && liquidity_value > 0)",
+        "firing_count": 0,
+        "firings": 0,
+        "first_fired_tick": null,
+        "first_tick": null,
+        "name": "lp_supply_backed_by_liquidity",
+        "observed": [],
+        "severity": "warn"
+      },
+      {
+        "expr": "fee_config.fee_bps <= 10000",
+        "firing_count": 0,
+        "firings": 0,
+        "first_fired_tick": null,
+        "first_tick": null,
+        "name": "fee_config_bounded",
+        "observed": [],
+        "severity": "warn"
+      },
+      {
+        "expr": "pool.k_last == 0 || pool.k_last == constant_product",
+        "firing_count": 0,
+        "firings": 0,
+        "first_fired_tick": null,
+        "first_tick": null,
+        "name": "stored_k_tracks_current_product",
+        "observed": [],
+        "severity": "warn"
+      }
+    ],
+    "invariants_fired": [
+      {
+        "field": "pool.fee_bps",
+        "firings": 0,
+        "name": "fee_bps_bounded",
+        "op": "<=",
+        "value": 10000.0
+      },
+      {
+        "field": "lp_position.lp_shares",
+        "firings": 0,
+        "name": "lp_shares_bounded",
+        "op": "<=",
+        "value": 100000000000000.0
+      },
+      {
+        "field": "pool.total_lp_supply",
+        "firings": 0,
+        "name": "total_lp_supply_bounded",
+        "op": "<=",
+        "value": 100000000000000.0
+      }
+    ],
+    "lp_position.lp_shares_avg": 4.335353535353535,
+    "lp_position.lp_shares_max": 8.933333333333334,
+    "lp_position.lp_shares_min": 0.0,
+    "pool.cumulative_fees_avg": 0.0,
+    "pool.cumulative_fees_max": 0.0,
+    "pool.cumulative_fees_min": 0.0,
+    "pool.cumulative_volume_avg": 0.0,
+    "pool.cumulative_volume_max": 0.0,
+    "pool.cumulative_volume_min": 0.0,
+    "pool.fee_bps_avg": 29.09090909090909,
+    "pool.fee_bps_max": 30.0,
+    "pool.fee_bps_min": 0.0,
+    "pool.k_last_avg": 1010246428015.1515,
+    "pool.k_last_max": 1083072561000.0,
+    "pool.k_last_min": 0.0,
+    "pool.last_swap_price_avg": 1010177.2727272727,
+    "pool.last_swap_price_max": 1082927.0,
+    "pool.last_swap_price_min": 0.0,
+    "pool.reserve_a_avg": 969729.4848484849,
+    "pool.reserve_a_max": 1000067.0,
+    "pool.reserve_a_min": 0.0,
+    "pool.reserve_b_avg": 1010212.1212121212,
+    "pool.reserve_b_max": 1083000.0,
+    "pool.reserve_b_min": 0.0,
+    "pool.total_lp_supply_avg": 1939458.9696969697,
+    "pool.total_lp_supply_max": 2000134.0,
+    "pool.total_lp_supply_min": 0.0
+  },
+  "semantics": {
+    "class": "amm.v1",
+    "roles_bound": [
+      {
+        "role_name": "fee_config",
+        "source": "account.pool"
+      },
+      {
+        "role_name": "lp_supply",
+        "source": "account.pool"
+      },
+      {
+        "role_name": "pool",
+        "source": "account.pool"
+      },
+      {
+        "role_name": "reserve_a",
+        "source": "account.pool"
+      },
+      {
+        "role_name": "reserve_b",
+        "source": "account.pool"
+      }
+    ],
+    "derived_observation_definitions": [
+      {
+        "name": "constant_product",
+        "expr": "reserve_a.reserve_a * reserve_b.reserve_b"
+      },
+      {
+        "name": "liquidity_value",
+        "expr": "reserve_a.reserve_a + reserve_b.reserve_b"
+      },
+      {
+        "name": "lp_share_value",
+        "expr": "liquidity_value / max(lp_supply.total_lp_supply, 1)"
+      },
+      {
+        "name": "price_impact_bps",
+        "expr": "fee_config.fee_bps"
+      },
+      {
+        "name": "reserve_ratio",
+        "expr": "reserve_a.reserve_a / max(reserve_b.reserve_b, 1)"
+      },
+      {
+        "name": "spot_price",
+        "expr": "pool.last_swap_price"
+      }
+    ]
+  },
+  "simulation_boundaries": [
+    "In-process LiteSVM backend (no external validator).",
+    "Generic adapters expose only adapter-defined actions/observations; no default TVL/health semantics are inferred.",
+    "Pool-wide TVL/utilization metrics are zeroed on the generic path until a protocol-specific aggregate is declared.",
+    "Custom actions do not mutate engine cash/PnL by default; only on-chain account observations are authoritative."
+  ]
+}

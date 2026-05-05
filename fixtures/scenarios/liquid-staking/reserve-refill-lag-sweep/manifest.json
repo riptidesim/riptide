@@ -1,0 +1,6 @@
+{
+  "adapter": "fixtures/adapters/liquid-staking.toml",
+  "slug": "reserve-refill-lag-sweep",
+  "failure_mode": "reserve_buffer_exhaustion",
+  "rationale": "Sweep midpoint for reserve-refill lag under steady redemption pressure. The 24-agent population keeps steady-staker reserve inflow present while nine panic-exiter slots and three arb-redeemer slots keep claim pressure active. Runtime boundary: the shipping LST adapter exposes reserve_buffer but not an explicit refill-lag knob, so the cold run is a deterministic smoke shape unless an existing invariant fires."
+}
