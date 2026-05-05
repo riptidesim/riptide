@@ -52,7 +52,7 @@ pub struct World {
 
 impl World {
     pub fn new(program_id: Pubkey) -> Self {
-        let admin = Keypair::new();
+        let admin = deterministic_admin_keypair();
         let mut svm = LiteSVM::new()
             .with_builtins()
             .with_sysvars()
@@ -557,6 +557,10 @@ fn account_state_hash(pubkey: &Pubkey, account: &Account) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+fn deterministic_admin_keypair() -> Keypair {
+    Keypair::new_from_array([0xAD; 32])
+}
+
 impl Default for World {
     fn default() -> Self {
         Self::new(Pubkey::default())
@@ -580,6 +584,28 @@ mod tests {
 
         assert!(outcome.ok);
         assert_eq!(world.tx_log()[0].label.as_deref(), Some("transfer"));
+    }
+
+    #[test]
+    fn process_transaction_signatures_are_stable_across_worlds() {
+        let recipient = Pubkey::new_from_array([9; 32]);
+        let mut left = World::default();
+        let mut right = World::default();
+        left.airdrop(&recipient, 1_000_000_000).unwrap();
+        right.airdrop(&recipient, 1_000_000_000).unwrap();
+
+        assert_eq!(left.admin_pubkey(), right.admin_pubkey());
+
+        let left_ix = transfer(&left.admin_pubkey(), &recipient, 1);
+        let right_ix = transfer(&right.admin_pubkey(), &recipient, 1);
+        let left_outcome = left
+            .process_transaction(&[left_ix], Some("stable_transfer"))
+            .unwrap();
+        let right_outcome = right
+            .process_transaction(&[right_ix], Some("stable_transfer"))
+            .unwrap();
+
+        assert_eq!(left_outcome.signature, right_outcome.signature);
     }
 
     #[test]

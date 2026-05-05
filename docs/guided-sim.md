@@ -35,6 +35,17 @@ orderbook models.
 | Campaign scheduling | Future / separate | `riptide campaign run` remains the adapter/scenario campaign runner. Guided-sim campaign scheduling needs an explicit future command path rather than hidden adapter-campaign behavior. |
 | Audit-equivalent or automatic universal fuzzing | Out of scope | A green guided simulation is simulation evidence for the declared setup, not an audit result or complete coverage proof. |
 
+## Worked example
+
+`case-studies/anchor-uniswap-v2` is an external guided-sim example for a
+single-program AMM. The project supplies `.riptide/sim/Riptide.toml`,
+project-owned Rust flows for `initialize_pool`, `add_liquidity`, `swap`,
+and `remove_liquidity`, plus declared invariants for the AMM state. The
+readiness-corpus status remains L4 generic-E2E with the note
+"guided-sim wired (declared invariants only, not exhaustive coverage)".
+
+Riptide provides Trident-class guided simulation support when the project supplies correct `.riptide/sim/Riptide.toml` configuration and project-owned Rust flows/services. This is manually guided support with deterministic bootstrap, artifacts, regression hashes, and reviewable evidence; it is not automatic universal fuzzing, audit signoff, protocol safety certification, or complete coverage proof.
+
 ## Generate the crate
 
 Run the generator against an IDL-backed generic adapter:
