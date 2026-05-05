@@ -106,7 +106,7 @@ of interest — the `request_unstake` cohort at tick 3, the
 `apply_slash` at tick 4 against the open queue, and the
 `no_catastrophic_depeg` firing are all surfaced), `rerun.sh`, and
 `inputs/` + `outputs/` path indices. Paths are repo-relative. See
-[`../../docs/pack.md`](../../docs/pack.md) for the full pack shape
+[`../../../docs/pack.md`](../../../docs/pack.md) for the full pack shape
 reference.
 
 ## Regenerating `expected-summary.json`

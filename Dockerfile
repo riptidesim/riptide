@@ -3,9 +3,10 @@
 # Riptide Docker image.
 #
 # Produces a single runnable image that ships the engine, the
-# TypeScript CLI, and all five on-chain programs pre-built as `.so`
-# artifacts, with every fixture/scenario/replay/adapter tree in place
-# so `docker run <image> run fixtures/scenarios/...` works end-to-end.
+# TypeScript CLI, and the selected shipped on-chain program artifacts
+# copied below, with every fixture/scenario/replay/adapter tree in place
+# so `docker run <image> run fixtures/scenarios/...` works end-to-end
+# for adapters whose `.so` files are present in the image.
 #
 # Toolchain pins (TOOLCHAIN.md — do not drift):
 #   - Rust           1.91.1
@@ -133,7 +134,7 @@ RUN npm ci --no-audit --no-fund --ignore-scripts \
  && npm run build \
  && test -f /src/cli/dist/src/index.js
 
-# --- Build all six shipped on-chain programs --------------------------------
+# --- Build shipped on-chain artifacts copied into the runtime image ----------
 # Order by heaviest-first so a failure surfaces early in the most
 # diagnostic spot. Each `cargo build-sbf` lands its .so at
 # `<manifest>/target/deploy/<name>.so`. Adapter TOMLs use relative

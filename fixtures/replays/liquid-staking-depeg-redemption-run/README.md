@@ -112,7 +112,7 @@ repo-relative input / output paths), `summary.md` (executive summary),
 and the redemption-run at tick 4 surface in the trace table),
 `rerun.sh` (POSIX-sh rerun recipe), and `inputs/` + `outputs/` path
 indices. Paths are repo-relative; the pack embeds no absolute host
-paths. See [`../../docs/pack.md`](../../docs/pack.md) for the full
+paths. See [`../../../docs/pack.md`](../../../docs/pack.md) for the full
 pack shape reference.
 
 ## Artifacts

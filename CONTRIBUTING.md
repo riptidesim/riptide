@@ -77,7 +77,7 @@ This is the most common question for new contributors. Most contributions are *n
 | **Git** | — |
 | **Linux** | Primary supported OS (macOS is untested; Windows is out of scope) |
 | **Rust** | Stable channel (see [`TOOLCHAIN.md`](TOOLCHAIN.md) for exact pins) |
-| **Node.js 18+** | For the CLI wrapper |
+| **Node.js 20+** | For the CLI wrapper; see [`TOOLCHAIN.md`](TOOLCHAIN.md) for the pinned development version |
 | **`cargo-build-sbf`** | For compiling on-chain programs — install via the [Anza tooling installer](https://docs.anza.xyz/cli/install) |
 
 ### Clone and install

@@ -118,9 +118,9 @@ the June 2022 coordinates happen to land inside the region the map flags.
 > parameter space where the program's math lost headroom, and the dev is the
 > one who decides whether that point matters.
 
-This is the canonical wording. It is copy-pasted verbatim into `README.md`,
-`PROJECT.md`, the demo README, the grant draft, and the Workstream 3 anchor
-slide. Do not paraphrase it in downstream touchpoints.
+This is the canonical wording for downstream touchpoints. Keep the scope
+language intact when reusing the case study in README, demo, pitch, or
+handoff material.
 
 ## Conclusion
 

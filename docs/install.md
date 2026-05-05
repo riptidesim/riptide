@@ -102,8 +102,8 @@ docker run --rm -v "$PWD:/work" -w /work riptide run \
 ```
 
 The Dockerfile pins Rust, Node, npm, Solana CLI, `cargo-build-sbf`,
-platform tools, and the base images. It builds all shipped example
-programs in the image.
+platform tools, and the base images. It builds the shipped program
+artifacts copied into the image.
 
 ## Rebuild Pieces Manually
 
@@ -197,15 +197,25 @@ Windows PowerShell:
 irm https://riptide.run/install.ps1 | iex
 ```
 
-Package and image paths:
+Package-manager and registry paths are not the primary distribution
+surface yet. Use the hosted installer, source checkout, or local Docker
+build above until these artifacts are published:
 
 ```bash
+# Planned after npm publication:
 npm install -g @riptide/cli
+
+# Planned after crates.io publication:
 cargo install riptide-engine
+
+# Planned after GHCR publication:
 docker pull ghcr.io/riptidesim/riptide
 ```
 
-The curl and PowerShell commands expect matching GitHub Release assets for the requested version. GHCR, crates.io, and npm publication remain separate distribution paths.
+The curl and PowerShell commands expect matching GitHub Release assets
+for the requested version. GHCR, crates.io, and npm publication remain
+separate distribution paths and should be documented as supported only
+after the corresponding artifacts exist.
 
 ## Further Reading
 

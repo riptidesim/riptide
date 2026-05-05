@@ -21,7 +21,10 @@ npm install -g @riptide/cli
 riptide --help
 ```
 
-First supported published target: Linux x86_64. macOS and Windows can use source builds or the repo Dockerfile until prebuilts ship.
+For the npm package, the current postinstall binary map targets Linux
+x86_64 first. macOS and Windows users should use the hosted release
+installer, a source checkout, or the repo Dockerfile until npm binaries
+are added for those platforms.
 
 ## Commands
 

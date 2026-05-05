@@ -55,13 +55,13 @@ and `inputs/paths.json` + `outputs/paths.json` (repo-relative
 references, no duplication). All paths are repo-relative; the pack
 carries no absolute paths, hostnames, usernames, or tmp locations.
 
-See [`../../docs/pack.md`](../../docs/pack.md) for the full pack
+See [`../../../docs/pack.md`](../../../docs/pack.md) for the full pack
 shape reference. Riptide's shipping GitHub Actions workflow
-[`.github/workflows/contagion-proof-ci.yml`](../../.github/workflows/contagion-proof-ci.yml)
+[`.github/workflows/contagion-proof-ci.yml`](../../../.github/workflows/contagion-proof-ci.yml)
 reruns this exact fixture on every push from a cold checkout and
 asserts the canonical hash below against the emitted pack's
 `manifest.json.canonical_hash`; see
-[`../../docs/ci-handoff.md`](../../docs/ci-handoff.md) for the CI
+[`../../../docs/ci-handoff.md`](../../../docs/ci-handoff.md) for the CI
 handoff surface and the downstream-adoption template.
 
 ## Bridge description
