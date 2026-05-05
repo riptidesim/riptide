@@ -7,8 +7,10 @@
 # seed, sha256 the outputs, assert byte-identical across replays.
 #
 # This is a throwaway determinism gate — ships the persona files
-# and this script as the bundle's end-to-end shape check; it is NOT
-# the cold-chain validation story (that's ).
+# and this script as the bundle's end-to-end shape check. The runtime
+# copy strips additive [semantics] metadata so the Sprint 5 raw scratch
+# hash remains a stable pre-semantics canary; semantic-pack behavior is
+# covered by the dedicated semantics tests.
 
 set -euo pipefail
 
@@ -44,15 +46,22 @@ WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 # --- Build the runtime adapter: truncate the shipping perpetuals.toml
-# at the `# === SIDECAR-CUT ===` marker (everything above stays;
-# the smoke-test personas below it are dropped), then append each
-# persona file so the [personas.*] block is the perps library.
+# at the `# === SIDECAR-CUT ===` marker (everything above stays except
+# the additive [semantics] block; the smoke-test personas below it are
+# dropped), then append each persona file so the [personas.*] block is
+# the perps library.
 # Relative program_so / idl_path are rewritten to absolute repo
 # paths because the adapter file lives in $WORK_DIR/ at runtime.
 RUNTIME_ADAPTER="$WORK_DIR/perpetuals.runtime.toml"
 PROGRAM_SO_ABS="$REPO_ROOT/programs/perpetuals/target/deploy/perpetuals.so"
 IDL_PATH_ABS="$REPO_ROOT/fixtures/idls/perpetuals.json"
 awk '/^# === SIDECAR-CUT ===$/ { exit } { print }' "$BASE_ADAPTER" \
+  | awk '
+      /^\[semantics\]$/ { skip = 1; next }
+      skip && /^\[\[?semantics[.\]]/ { next }
+      skip && /^\[/ { skip = 0 }
+      !skip { print }
+    ' \
   | sed -e "s|^program_so *=.*|program_so = \"$PROGRAM_SO_ABS\"|" \
         -e "s|^idl_path *=.*|idl_path = \"$IDL_PATH_ABS\"|" \
   > "$RUNTIME_ADAPTER"
