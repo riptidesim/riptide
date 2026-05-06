@@ -2,6 +2,7 @@
 /dist/
 /programs/*/target/
 /cli/node_modules/
+/cli/studio-app/node_modules/
 /cli/dist/
 /cli/test-ledger/
 /test-ledger/

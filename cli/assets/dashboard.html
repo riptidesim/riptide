@@ -1133,14 +1133,53 @@
       return scenarios.find((s) => s.name === STATE.selectedScenarioName) || scenarios[0] || null;
     }
 
+    // When the dashboard is mounted under Studio it receives a
+    // `?source=<workspace-relative-path>` URL parameter that scopes
+    // every API call to a specific run/collection without changing
+    // the dashboard's existing endpoint shapes. Standalone
+    // `riptide run --serve` / `riptide replay --serve` use is
+    // unaffected because no `source` param is present in the URL.
+    function dashboardSource() {
+      try {
+        return new URLSearchParams(window.location.search).get("source") || "";
+      } catch {
+        return "";
+      }
+    }
+
+    function dashboardWorkspace() {
+      try {
+        return new URLSearchParams(window.location.search).get("workspace") || "";
+      } catch {
+        return "";
+      }
+    }
+
+    function apiUrl(pathname, name) {
+      const params = new URLSearchParams();
+      const source = dashboardSource();
+      const workspace = dashboardWorkspace();
+      if (workspace) params.set("workspace", workspace);
+      if (source) params.set("source", source);
+      if (name) params.set("scenario", name);
+      const query = params.toString();
+      return query ? `${pathname}?${query}` : pathname;
+    }
+
     function scenarioQuery(name) {
-      return name ? `?scenario=${encodeURIComponent(name)}` : "";
+      const params = new URLSearchParams();
+      const source = dashboardSource();
+      const workspace = dashboardWorkspace();
+      if (workspace) params.set("workspace", workspace);
+      if (source) params.set("source", source);
+      if (name) params.set("scenario", name);
+      const query = params.toString();
+      return query ? `?${query}` : "";
     }
 
     function updateRawLinks(name) {
-      const query = scenarioQuery(name);
-      document.getElementById("rawResultLink").href = `/api/result${query}`;
-      document.getElementById("rawReportLink").href = `/api/report${query}`;
+      document.getElementById("rawResultLink").href = apiUrl("/api/result", name);
+      document.getElementById("rawReportLink").href = apiUrl("/api/report", name);
     }
 
     function renderMeta(result, scenario) {
@@ -1863,10 +1902,10 @@
     }
 
     async function loadCollection() {
-      const res = await fetch("/api/collection", { headers: { accept: "application/json" } });
+      const res = await fetch(apiUrl("/api/collection"), { headers: { accept: "application/json" } });
       if (res.ok) return res.json();
 
-      const fallback = await fetch("/api/result", { headers: { accept: "application/json" } });
+      const fallback = await fetch(apiUrl("/api/result"), { headers: { accept: "application/json" } });
       if (!fallback.ok) {
         throw new Error(`/api/collection returned ${res.status}; /api/result returned ${fallback.status}`);
       }
@@ -2080,7 +2119,7 @@
 
     async function loadScenarioResult(name, scenario) {
       try {
-        const res = await fetch(`/api/result${scenarioQuery(name)}`, { headers: { accept: "application/json" } });
+        const res = await fetch(apiUrl("/api/result", name), { headers: { accept: "application/json" } });
         if (!res.ok) throw new Error(`/api/result returned ${res.status}`);
         const result = await res.json();
         STATE.selectedResult = result;
@@ -2165,7 +2204,7 @@
 
     async function loadLabels() {
       try {
-        const res = await fetch("/api/labels", { headers: { accept: "application/json" } });
+        const res = await fetch(apiUrl("/api/labels"), { headers: { accept: "application/json" } });
         if (!res.ok) return {};
         const labels = await res.json();
         return labels && typeof labels === "object" && !Array.isArray(labels) ? labels : {};
