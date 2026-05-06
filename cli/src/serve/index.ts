@@ -66,7 +66,7 @@ const DEFAULT_PORT = 4173;
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_MAX_ATTEMPTS = 10;
 
-type DashboardSource =
+export type DashboardSource =
   | { kind: "single"; artifactsDir: string; baseDir: string }
   | { kind: "collection"; collectionPath: string; baseDir: string };
 
@@ -116,7 +116,7 @@ async function readFirstExistingAsset(filename: string): Promise<string> {
   );
 }
 
-async function readOptionalFile(filePath: string): Promise<string | null> {
+export async function readOptionalFile(filePath: string): Promise<string | null> {
   try {
     return await readFile(filePath, "utf8");
   } catch (err) {
@@ -134,7 +134,7 @@ async function readOptionalFile(filePath: string): Promise<string | null> {
  * `simulation-result.json` and `report.md`; this is the display-layer fix.
  * The files on disk are untouched.
  */
-function relativizeDisplayPaths(raw: string, baseDir: string): string {
+export function relativizeDisplayPaths(raw: string, baseDir: string): string {
   const prefixes = new Set<string>([process.cwd(), baseDir].filter(Boolean));
   let out = raw;
   for (const prefix of prefixes) {
@@ -170,7 +170,7 @@ function sendNotFound(res: ServerResponse, pathname: string): void {
   });
 }
 
-function makeDashboardSource(sourcePath: string): DashboardSource {
+export function makeDashboardSource(sourcePath: string): DashboardSource {
   const abs = path.resolve(sourcePath);
   if (path.extname(abs) === ".json") {
     return {
@@ -202,7 +202,7 @@ async function readCollection(
   return JSON.parse(raw) as RunCollection;
 }
 
-async function collectionForSource(source: DashboardSource): Promise<RunCollection> {
+export async function collectionForSource(source: DashboardSource): Promise<RunCollection> {
   if (source.kind === "collection") {
     return readCollection(source);
   }
@@ -454,7 +454,7 @@ function selectScenario(collection: RunCollection, searchParams: URLSearchParams
   return { ok: true, scenario: first };
 }
 
-async function selectFileFromSource(
+export async function selectFileFromSource(
   source: DashboardSource,
   searchParams: URLSearchParams,
   kind: "result" | "report"

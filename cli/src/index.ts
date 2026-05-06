@@ -18,6 +18,7 @@ import { createReplayCommand } from "./commands/replay.js";
 import { createRunCommand } from "./commands/run.js";
 import { createScenariosCommand } from "./commands/scenarios.js";
 import { createSimCommand } from "./commands/sim.js";
+import { createStudioCommand } from "./commands/studio.js";
 import { createTemplateCommand } from "./commands/template.js";
 import { cliPackageVersion } from "./banner.js";
 import { renderCliError } from "./errors/render.js";
@@ -37,6 +38,7 @@ addRootCommand(createReadinessCommand(), "Inspect local protocol evidence readin
 addRootCommand(createCampaignCommand(), "Validate, plan, and run campaign sweeps", "Start here:");
 addRootCommand(createRunCommand(), "Run scenarios or a single run-config", "Start here:");
 addRootCommand(createReviewCommand(), "Review an evidence pack or campaign root", "Start here:");
+addRootCommand(createStudioCommand(), "Open Riptide Studio (local visual control plane)", "Start here:");
 addRootCommand(createDoctorCommand(), "Check toolchain, engine, and adapters", "Start here:");
 
 addRootCommand(createReplayCommand(), "Replay a declared trajectory", "Advanced/support:");
@@ -65,6 +67,7 @@ program.addHelpText(
     "  riptide campaign plan .riptide/campaigns/<risk>.campaign.toml",
     "  riptide campaign run .riptide/campaigns/<risk>.campaign.toml",
     "  riptide review <campaign-root>",
+    "  riptide studio --no-open",
     "",
     "Run `riptide <command> --help` for command-specific options.",
     ""
