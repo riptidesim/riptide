@@ -7,7 +7,7 @@ export type IconName =
   | "external" | "copy" | "send" | "paperclip" | "stop" | "folder"
   | "terminal" | "edit" | "eye" | "refresh" | "database" | "download"
   | "sparkles" | "cpu" | "code" | "flame" | "target" | "coin" | "tx"
-  | "activity" | "flag" | "dot" | "wallet" | "branch" | "link";
+  | "activity" | "flag" | "dot" | "wallet" | "branch" | "link" | "gem" | "cursorArrow" | "terminalSquare";
 
 interface IconProps {
   name: IconName;
@@ -62,7 +62,10 @@ const PATHS: Record<IconName, ReactElement> = {
   dot: <><circle cx="12" cy="12" r="2"/></>,
   wallet: <><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7H5a2 2 0 0 1 0-4h12V5a1 1 0 0 0-1-1H5a2 2 0 0 0-2 2z"/><circle cx="17" cy="13" r="1"/></>,
   branch: <><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="7" r="2"/><path d="M6 7v10"/><path d="M18 9c0 4-6 4-6 8"/></>,
-  link: <><path d="M10 14a4 4 0 0 1 0-5l3-3a4 4 0 1 1 6 6l-1.5 1.5"/><path d="M14 10a4 4 0 0 1 0 5l-3 3a4 4 0 1 1-6-6L6.5 10.5"/></>
+  link: <><path d="M10 14a4 4 0 0 1 0-5l3-3a4 4 0 1 1 6 6l-1.5 1.5"/><path d="M14 10a4 4 0 0 1 0 5l-3 3a4 4 0 1 1-6-6L6.5 10.5"/></>,
+  gem: <><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M11 3 8 9 12 21"/><path d="M13 3 16 9 12 21"/><path d="M2 9h20"/></>,
+  cursorArrow: <><path d="M3 3l7.5 18 2.5-7.5 7.5-2.5z"/></>,
+  terminalSquare: <><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="7 9 10 12 7 15"/><line x1="13" y1="15" x2="17" y2="15"/></>
 };
 
 export function Icon({ name, size = 16, color = "currentColor", strokeWidth = 1.5, style }: IconProps) {

@@ -343,11 +343,97 @@ const AGENT_TAGLINE: Record<string, string> = {
 };
 
 const MODEL_OPTIONS: Record<string, string[]> = {
-  "claude-code": ["default", "claude-sonnet-4.6", "claude-opus-4.7", "claude-haiku-4.5"],
-  codex: ["default", "gpt-5.1-codex", "gpt-5.1"],
-  gemini: ["default", "gemini-2.5-pro", "gemini-2.5-flash"],
-  cursor: ["default"],
-  opencode: ["default"]
+  "claude-code": [
+    "default",
+    "claude-haiku-4.5",
+    "claude-haiku-4.6",
+    "claude-opus-4.6",
+    "claude-opus-4.7",
+    "claude-sonnet-4.5",
+    "claude-sonnet-4.6"
+  ],
+  codex: [
+    "default",
+    "codex-mini",
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-5.3-codex",
+    "gpt-5.3-codex-spark",
+    "gpt-5.4",
+    "o3",
+    "o3-mini",
+    "o4-mini"
+  ],
+  gemini: [
+    "default",
+    "auto",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-pro"
+  ],
+  cursor: [
+    "default",
+    "auto",
+    "composer-1",
+    "composer-1.5",
+    "gemini-3-flash",
+    "gemini-3-pro",
+    "gemini-3.1-pro",
+    "gpt-5.1-codex-max",
+    "gpt-5.1-codex-max-high",
+    "gpt-5.1-codex-mini",
+    "gpt-5.1-high",
+    "gpt-5.2",
+    "gpt-5.2-codex",
+    "gpt-5.2-codex-fast",
+    "gpt-5.2-codex-high",
+    "gpt-5.2-codex-high-fast"
+  ],
+  opencode: [
+    "default",
+    "gpt-5-codex",
+    "gpt-5.1-codex",
+    "gpt-5.1-codex-max",
+    "gpt-5.1-codex-mini",
+    "gpt-5.2",
+    "gpt-5.2-codex",
+    "gpt-5.3-codex",
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "big-pickle",
+    "gpt-5-nano",
+    "hy3-preview-free",
+    "minimax-m2.5-free",
+    "nemotron-3-super-free"
+  ]
+};
+
+const MODEL_LABEL: Record<string, string> = {
+  default: "Default",
+  auto: "Auto",
+  "claude-haiku-4.5": "Claude Haiku 4.5",
+  "claude-haiku-4.6": "Claude Haiku 4.6",
+  "claude-opus-4.6": "Claude Opus 4.6",
+  "claude-opus-4.7": "Claude Opus 4.7",
+  "claude-sonnet-4.5": "Claude Sonnet 4.5",
+  "claude-sonnet-4.6": "Claude Sonnet 4.6",
+  "codex-mini": "Codex Mini",
+  "gemini-2.0-flash": "Gemini 2.0 Flash",
+  "gemini-2.0-flash-lite": "Gemini 2.0 Flash Lite",
+  "gemini-2.5-flash": "Gemini 2.5 Flash",
+  "gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite",
+  "gemini-2.5-pro": "Gemini 2.5 Pro"
+};
+
+const AGENT_ICON: Record<string, "sparkles" | "code" | "gem" | "cursorArrow" | "terminalSquare"> = {
+  "claude-code": "sparkles",
+  codex: "code",
+  gemini: "gem",
+  cursor: "cursorArrow",
+  opencode: "terminalSquare"
 };
 
 function AgentStep({ agents, loading, agentId, setAgentId, model, setModel, onReprobe }: AgentStepProps) {
@@ -400,7 +486,8 @@ function AgentStep({ agents, loading, agentId, setAgentId, model, setModel, onRe
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
             {recommended.map((a) => (
               <AgentCard key={a.id} agent={a} tagline={AGENT_TAGLINE[a.id] ?? a.label}
-                selected={agentId === a.id} onSelect={() => a.detected && setAgentId(a.id)} showRecommended />
+                selected={agentId === a.id} onSelect={() => a.detected && setAgentId(a.id)} showRecommended
+                iconName={AGENT_ICON[a.id] ?? "sparkles"} />
             ))}
           </div>
 
@@ -418,7 +505,8 @@ function AgentStep({ agents, loading, agentId, setAgentId, model, setModel, onRe
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
               {others.map((a) => (
                 <AgentCard key={a.id} agent={a} tagline={AGENT_TAGLINE[a.id] ?? a.label}
-                  selected={agentId === a.id} onSelect={() => a.detected && setAgentId(a.id)} />
+                  selected={agentId === a.id} onSelect={() => a.detected && setAgentId(a.id)}
+                  iconName={AGENT_ICON[a.id] ?? "sparkles"} />
               ))}
             </div>
           )}
@@ -428,7 +516,7 @@ function AgentStep({ agents, loading, agentId, setAgentId, model, setModel, onRe
           </div>
           <select className="select" value={model} onChange={(e) => setModel(e.target.value)} style={{ maxWidth: 380 }}>
             {modelChoices.map((m) => (
-              <option key={m} value={m}>{m === "default" ? "Default" : m}</option>
+              <option key={m} value={m}>{MODEL_LABEL[m] ?? m}</option>
             ))}
           </select>
 
@@ -465,28 +553,32 @@ interface AgentCardProps {
   selected: boolean;
   onSelect: () => void;
   showRecommended?: boolean;
+  iconName: "sparkles" | "code" | "gem" | "cursorArrow" | "terminalSquare";
 }
 
-function AgentCard({ agent, tagline, selected, onSelect, showRecommended }: AgentCardProps) {
+function AgentCard({ agent, tagline, selected, onSelect, showRecommended, iconName }: AgentCardProps) {
   const disabled = !agent.detected;
   return (
-    <button onClick={onSelect} disabled={disabled} style={{
-      position: "relative", background: "var(--rt-slate-panel)",
-      border: selected ? "1px solid var(--rt-teal)" : "1px solid var(--rt-slate-line)",
-      boxShadow: selected ? "0 0 0 3px rgba(20,184,182,0.10)" : "none",
-      borderRadius: 10, padding: "20px 14px 18px", textAlign: "center",
-      cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.55 : 1,
-      display: "flex", flexDirection: "column", alignItems: "center", gap: 8, minHeight: 132
-    }}>
+    <div style={{ position: "relative", paddingTop: 10 }}>
       {showRecommended && agent.detected && (
         <span style={{
-          position: "absolute", top: -10, left: "50%", transform: "translateX(-50%)",
+          position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
           font: '600 10px "IBM Plex Mono"', letterSpacing: "0.04em",
           background: "rgba(34,197,94,0.16)", color: "var(--rt-pass)",
-          border: "1px solid rgba(34,197,94,0.35)", padding: "2px 8px", borderRadius: 999
+          border: "1px solid rgba(34,197,94,0.35)", padding: "2px 10px", borderRadius: 999,
+          zIndex: 2, whiteSpace: "nowrap"
         }}>Recommended</span>
       )}
-      <Icon name="sparkles" size={20} color={selected ? "var(--rt-teal)" : "var(--rt-fog)"} />
+      <button onClick={onSelect} disabled={disabled} style={{
+        position: "relative", background: "var(--rt-slate-panel)",
+        border: selected ? "1px solid var(--rt-teal)" : "1px solid var(--rt-slate-line)",
+        boxShadow: selected ? "0 0 0 3px rgba(20,184,182,0.10)" : "none",
+        borderRadius: 10, padding: "22px 14px 18px", textAlign: "center",
+        cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.55 : 1,
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+        minHeight: 132, width: "100%"
+      }}>
+      <Icon name={iconName} size={22} color={selected ? "var(--rt-teal)" : "var(--rt-fog)"} />
       <div style={{ font: "600 15px Inter", color: "var(--rt-off-white)" }}>{agent.label}</div>
       <div style={{ font: "400 12px Inter", color: "var(--rt-fog-dim)" }}>{tagline}</div>
       {!agent.detected && (
@@ -494,7 +586,8 @@ function AgentCard({ agent, tagline, selected, onSelect, showRecommended }: Agen
           not detected on PATH
         </div>
       )}
-    </button>
+      </button>
+    </div>
   );
 }
 
