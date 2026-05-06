@@ -1,18 +1,17 @@
 // Studio HTTP server.
 //
-// Localhost-only, read-only, file-backed dev server for the Riptide
-// Studio app. Mirrors the existing dashboard server's stdlib-only
-// shape (see `cli/src/serve/index.ts`) but is tightly scoped to the
-// `/api/studio/*` surface and the `studio.html` shell.
+// Localhost-only, file-backed dev server for the Riptide Studio app.
+// Serves the React + Vite production bundle when present, falls back
+// to the legacy `studio.html` migration shell otherwise.
 //
 // Trust boundary:
 // - Bind defaults to `127.0.0.1`.
 // - No generic shell endpoint.
-// - The server only reads from the configured workspace and the
-//   optional case-studies root. There is no write path in Phase 1.
+// - The job launcher accepts only structured allowlisted payloads.
+// - The config-intent endpoint never mutates files.
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,11 +29,14 @@ import {
   readResultBody,
   resolveDashboardSource
 } from "./dashboard-mount.js";
+import { StudioJobQueue, type JobKind, type JobPlanPreview, type JobValidationError } from "./jobs.js";
+import { generateConfigIntent } from "./config-intent.js";
 
 export interface StudioServerHandle {
   url: string;
   port: number;
   host: string;
+  jobs: StudioJobQueue;
   close: () => Promise<void>;
 }
 
@@ -49,6 +51,8 @@ export interface StartStudioServerOptions {
   maxAttempts?: number;
   /** Bind address. Defaults to 127.0.0.1. */
   host?: string;
+  /** Optional pre-built job queue (used by tests). */
+  jobQueue?: StudioJobQueue;
 }
 
 interface StudioContext {
@@ -57,6 +61,7 @@ interface StudioContext {
   workspaces: StudioWorkspace[];
   workspacesById: Map<string, StudioWorkspace>;
   startedAt: string;
+  jobs: StudioJobQueue;
 }
 
 const DEFAULT_PORT = 4173;
@@ -64,10 +69,36 @@ const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_MAX_ATTEMPTS = 10;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 
-function resolveAssetPath(filename: string): string[] {
+const STATIC_MIME: Record<string, string> = {
+  ".html": "text/html",
+  ".js": "application/javascript",
+  ".mjs": "application/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".ico": "image/x-icon",
+  ".map": "application/json",
+  ".txt": "text/plain"
+};
+
+function studioBundleRoots(): string[] {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  // dev: cli/src/studio/server.ts → cli/assets/<file>
-  // built: cli/dist/src/studio/server.js → cli/dist/assets/<file> or cli/assets/<file>
+  // Possible layouts:
+  //   dev:    cli/src/studio/server.ts -> cli/assets/studio/
+  //   built:  cli/dist/src/studio/server.js -> cli/dist/assets/studio/
+  //                                       and cli/assets/studio/
+  return [
+    path.resolve(here, "..", "..", "..", "assets", "studio"),
+    path.resolve(here, "..", "..", "assets", "studio"),
+    path.resolve(here, "..", "assets", "studio")
+  ];
+}
+
+function legacyAssetCandidates(filename: string): string[] {
+  const here = path.dirname(fileURLToPath(import.meta.url));
   return [
     path.resolve(here, "..", "..", "..", "assets", filename),
     path.resolve(here, "..", "..", "assets", filename),
@@ -75,8 +106,20 @@ function resolveAssetPath(filename: string): string[] {
   ];
 }
 
-async function readFirstExistingAsset(filename: string): Promise<string> {
-  const candidates = resolveAssetPath(filename);
+async function findStudioBundleRoot(): Promise<string | null> {
+  for (const candidate of studioBundleRoots()) {
+    try {
+      const s = await stat(path.join(candidate, "index.html"));
+      if (s.isFile()) return candidate;
+    } catch {
+      // try next
+    }
+  }
+  return null;
+}
+
+async function readFirstExistingLegacyAsset(filename: string): Promise<string> {
+  const candidates = legacyAssetCandidates(filename);
   let lastErr: unknown = null;
   for (const candidate of candidates) {
     try {
@@ -88,6 +131,45 @@ async function readFirstExistingAsset(filename: string): Promise<string> {
   throw new Error(
     `riptide studio: could not find asset \"${filename}\" in any of:\n  ${candidates.join("\n  ")}\n  last error: ${(lastErr as Error)?.message ?? String(lastErr)}`
   );
+}
+
+async function readBundleFile(bundleRoot: string, relPath: string): Promise<{ body: Buffer; type: string } | null> {
+  const candidate = path.resolve(bundleRoot, relPath.replace(/^\/+/, ""));
+  const rel = path.relative(bundleRoot, candidate);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
+  try {
+    const body = await readFile(candidate);
+    const ext = path.extname(candidate).toLowerCase();
+    const type = STATIC_MIME[ext] ?? "application/octet-stream";
+    return { body, type };
+  } catch {
+    return null;
+  }
+}
+
+async function serveStudioRoot(res: ServerResponse): Promise<void> {
+  const bundleRoot = await findStudioBundleRoot();
+  if (bundleRoot) {
+    const file = await readBundleFile(bundleRoot, "index.html");
+    if (file) {
+      sendBuffer(res, 200, file.body, file.type);
+      return;
+    }
+  }
+  const html = await readFirstExistingLegacyAsset("studio.html");
+  sendText(res, 200, html, "text/html");
+}
+
+async function serveStudioAssetIfPresent(
+  res: ServerResponse,
+  pathname: string
+): Promise<boolean> {
+  const bundleRoot = await findStudioBundleRoot();
+  if (!bundleRoot) return false;
+  const file = await readBundleFile(bundleRoot, pathname);
+  if (!file) return false;
+  sendBuffer(res, 200, file.body, file.type);
+  return true;
 }
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
@@ -114,6 +196,20 @@ function sendText(
   res.end(body);
 }
 
+function sendBuffer(res: ServerResponse, status: number, body: Buffer, contentType: string): void {
+  const headers: Record<string, string | number> = {
+    "content-length": body.byteLength,
+    "cache-control": "no-store"
+  };
+  if (contentType.startsWith("text/") || contentType === "application/json" || contentType === "application/javascript") {
+    headers["content-type"] = `${contentType}; charset=utf-8`;
+  } else {
+    headers["content-type"] = contentType;
+  }
+  res.writeHead(status, headers);
+  res.end(body);
+}
+
 function sendNotFound(res: ServerResponse, pathname: string): void {
   sendJson(res, 404, {
     error: "not_found",
@@ -127,6 +223,10 @@ function sendNotFound(res: ServerResponse, pathname: string): void {
       "GET /api/studio/graph",
       "GET /api/studio/report",
       "GET /api/studio/jobs",
+      "POST /api/studio/jobs",
+      "POST /api/studio/jobs/plan",
+      "POST /api/studio/jobs/:id/cancel",
+      "POST /api/studio/config/intent",
       "GET /api/collection",
       "GET /api/result",
       "GET /api/report",
@@ -171,25 +271,151 @@ function selectWorkspace(
   return primary;
 }
 
+async function readBody(req: IncomingMessage, limitBytes = 64 * 1024): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    req.on("data", (chunk: Buffer) => {
+      total += chunk.length;
+      if (total > limitBytes) {
+        reject(new Error(`request body exceeded ${limitBytes} bytes`));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf8");
+      if (raw.length === 0) return resolve({});
+      try {
+        resolve(JSON.parse(raw));
+      } catch (err) {
+        reject(new Error(`invalid JSON body: ${(err as Error).message}`));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+function isJobValidationError(value: unknown): value is JobValidationError {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "status" in value &&
+    "payload" in value &&
+    typeof (value as { status: unknown }).status === "number"
+  );
+}
+
+function asJobLaunchInput(body: unknown): { workspaceId: string; kind: JobKind; params: Record<string, string> } | { error: { status: number; payload: Record<string, unknown> } } {
+  if (!body || typeof body !== "object") {
+    return { error: { status: 400, payload: { error: "invalid_body", message: "expected JSON object" } } };
+  }
+  const o = body as Record<string, unknown>;
+  const workspaceId = typeof o.workspace === "string" ? o.workspace : "";
+  const kind = typeof o.kind === "string" ? (o.kind as JobKind) : ("" as JobKind);
+  const rawParams = (o.params ?? {}) as Record<string, unknown>;
+  if (!workspaceId) {
+    return { error: { status: 400, payload: { error: "missing_workspace", message: "workspace is required" } } };
+  }
+  if (!kind) {
+    return { error: { status: 400, payload: { error: "missing_kind", message: "kind is required" } } };
+  }
+  const params: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rawParams)) {
+    if (typeof v !== "string") {
+      return { error: { status: 400, payload: { error: "invalid_params", message: `params.${k} must be a string` } } };
+    }
+    params[k] = v;
+  }
+  return { workspaceId, kind, params };
+}
+
 function makeRequestHandler(ctx: StudioContext) {
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const method = (req.method ?? "GET").toUpperCase();
-    if (method !== "GET" && method !== "HEAD") {
-      res.writeHead(405, { allow: "GET, HEAD" });
-      res.end();
-      return;
-    }
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const pathname = url.pathname;
 
     try {
+      // ---- Routes that allow POST ----
+      const jobCancelMatch = /^\/api\/studio\/jobs\/([^/]+)\/cancel$/.exec(pathname);
+      if (pathname === "/api/studio/jobs" && method === "POST") {
+        const body = await readBody(req);
+        const parsed = asJobLaunchInput(body);
+        if ("error" in parsed) {
+          sendJson(res, parsed.error.status, parsed.error.payload);
+          return;
+        }
+        let result: Awaited<ReturnType<typeof ctx.jobs.launch>>;
+        try {
+          result = await ctx.jobs.launch(parsed);
+        } catch (err) {
+          sendJson(res, 400, { error: "invalid_launch", message: (err as Error).message });
+          return;
+        }
+        if (isJobValidationError(result)) {
+          sendJson(res, result.status, result.payload);
+          return;
+        }
+        sendJson(res, 201, { schema_version: "studio-job.v1", job: result });
+        return;
+      }
+      if (pathname === "/api/studio/jobs/plan" && method === "POST") {
+        const body = await readBody(req);
+        const parsed = asJobLaunchInput(body);
+        if ("error" in parsed) {
+          sendJson(res, parsed.error.status, parsed.error.payload);
+          return;
+        }
+        let plan: JobPlanPreview | JobValidationError;
+        try {
+          plan = ctx.jobs.plan(parsed);
+        } catch (err) {
+          sendJson(res, 400, { error: "invalid_plan", message: (err as Error).message });
+          return;
+        }
+        if (isJobValidationError(plan)) {
+          sendJson(res, plan.status, plan.payload);
+          return;
+        }
+        sendJson(res, 200, { schema_version: "studio-job-plan.v1", plan });
+        return;
+      }
+      if (jobCancelMatch && method === "POST") {
+        const id = jobCancelMatch[1] as string;
+        const job = await ctx.jobs.cancel(id);
+        if (!job) {
+          sendJson(res, 404, { error: "job_not_found", message: `no job with id ${id}` });
+          return;
+        }
+        sendJson(res, 200, { schema_version: "studio-job.v1", job });
+        return;
+      }
+      if (pathname === "/api/studio/config/intent" && method === "POST") {
+        const body = await readBody(req);
+        const result = generateConfigIntent(body);
+        if ("status" in result && typeof result.status === "number") {
+          sendJson(res, result.status, result.payload);
+          return;
+        }
+        sendJson(res, 200, result);
+        return;
+      }
+
+      // ---- Everything else is GET/HEAD only ----
+      if (method !== "GET" && method !== "HEAD") {
+        res.writeHead(405, { allow: "GET, HEAD" });
+        res.end();
+        return;
+      }
+
       if (pathname === "/" || pathname === "/index.html") {
-        const html = await readFirstExistingAsset("studio.html");
-        sendText(res, 200, html, "text/html");
+        await serveStudioRoot(res);
         return;
       }
       if (pathname === "/dashboard" || pathname === "/dashboard/") {
-        const html = await readFirstExistingAsset("dashboard.html");
+        const html = await readFirstExistingLegacyAsset("dashboard.html");
         sendText(res, 200, html, "text/html");
         return;
       }
@@ -341,19 +567,27 @@ function makeRequestHandler(ctx: StudioContext) {
         return;
       }
       if (pathname === "/api/studio/jobs") {
-        // Phase 1 placeholder: empty job list until T08 lands the
-        // launcher. Surface the route so the shell knows the contract.
         sendJson(res, 200, {
           schema_version: "studio-jobs.v1",
-          jobs: [],
-          warnings: [
-            {
-              message: "job launcher is queued for Sprint 31 T08",
-              next_action: "Run jobs from the CLI for now (`riptide run`, `riptide campaign run`)."
-            }
-          ]
+          jobs: ctx.jobs.list()
         });
         return;
+      }
+      const jobIdMatch = /^\/api\/studio\/jobs\/([^/]+)$/.exec(pathname);
+      if (jobIdMatch) {
+        const id = jobIdMatch[1] as string;
+        const job = ctx.jobs.get(id);
+        if (!job) {
+          sendJson(res, 404, { error: "job_not_found", message: `no job with id ${id}` });
+          return;
+        }
+        sendJson(res, 200, { schema_version: "studio-job.v1", job });
+        return;
+      }
+      // Static asset fallback for the React bundle (assets/, vite/, etc.).
+      if (pathname.startsWith("/assets/") || pathname.startsWith("/vite.svg") || pathname.endsWith(".js") || pathname.endsWith(".css") || pathname.endsWith(".map")) {
+        const served = await serveStudioAssetIfPresent(res, pathname);
+        if (served) return;
       }
       sendNotFound(res, pathname);
     } catch (err) {
@@ -394,12 +628,23 @@ export async function startStudioServer(
     cwd: workspace,
     caseStudiesRoot
   });
+  const jobQueue = options.jobQueue ?? new StudioJobQueue();
+  jobQueue.setWorkspaces(workspaces);
+  for (const ws of workspaces) {
+    try {
+      await jobQueue.hydrate(ws);
+    } catch {
+      // ignore hydration errors per workspace; surface in job records elsewhere.
+    }
+  }
+
   const ctx: StudioContext = {
     workspace,
     caseStudiesRoot,
     workspaces,
     workspacesById: new Map(workspaces.map((w) => [w.id, w])),
-    startedAt: new Date().toISOString()
+    startedAt: new Date().toISOString(),
+    jobs: jobQueue
   };
 
   const handle = makeRequestHandler(ctx);
@@ -437,6 +682,7 @@ export async function startStudioServer(
         url,
         port: actualPort,
         host,
+        jobs: jobQueue,
         close: () =>
           new Promise<void>((resolve) => {
             for (const sock of sockets) {

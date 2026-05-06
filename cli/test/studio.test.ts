@@ -13,6 +13,14 @@ import {
   indexWorkspaceArtifacts,
   type StudioArtifactIndex
 } from "../src/studio/artifacts.js";
+import {
+  isValidationError,
+  StudioJobQueue,
+  type JobLaunchInput,
+  type JobPlanPreview,
+  type JobValidationError
+} from "../src/studio/jobs.js";
+import { generateConfigIntent } from "../src/studio/config-intent.js";
 import type { SimulationResult } from "../src/compiler/schema.js";
 
 async function tmpRoot(label: string): Promise<string> {
@@ -502,7 +510,7 @@ test("studio server workspaces and artifacts endpoints expose discovered state",
   );
 });
 
-test("studio jobs route still returns the Phase 1 placeholder", async () => {
+test("studio jobs route returns the persisted job list (empty by default)", async () => {
   const root = await tmpRoot("server-jobs-stub");
   await mkdir(path.join(root, ".riptide"), { recursive: true });
 
@@ -634,7 +642,11 @@ test("studio dashboard mount rejects sources that escape the workspace", async (
   });
 });
 
-test("studio server serves the static studio.html shell from /", async () => {
+test("studio server serves the React app or legacy shell from /", async () => {
+  // The CLI prefers the React + Vite production bundle when present
+  // (cli/assets/studio/index.html). Otherwise it falls back to the
+  // legacy single-file Phase 2 shell at cli/assets/studio.html. Both
+  // surfaces are titled "Riptide Studio" and reference the API path.
   const root = await tmpRoot("server-html");
   await mkdir(path.join(root, ".riptide"), { recursive: true });
 
@@ -644,11 +656,11 @@ test("studio server serves the static studio.html shell from /", async () => {
     assert.match(response.headers.get("content-type") ?? "", /text\/html/);
     const body = await response.text();
     assert.match(body, /Riptide Studio/);
-    assert.match(body, /\/api\/studio\/health/);
+    assert.match(body, /\/api\/studio/);
   });
 });
 
-test("studio server rejects non-GET methods", async () => {
+test("studio server rejects non-GET methods on read-only routes", async () => {
   const root = await tmpRoot("server-methods");
   await mkdir(path.join(root, ".riptide"), { recursive: true });
   await withServer({ workspace: root }, async (handle) => {
@@ -656,6 +668,8 @@ test("studio server rejects non-GET methods", async () => {
       method: "POST"
     });
     assert.equal(response.status, 405);
+    const workspaces = await fetch(`${handle.url}/api/studio/workspaces`, { method: "DELETE" });
+    assert.equal(workspaces.status, 405);
   });
 });
 
@@ -678,5 +692,448 @@ test("studio server returns a 404 with route map for unknown paths", async () =>
     const payload = (await response.json()) as { error: string; routes: string[] };
     assert.equal(payload.error, "not_found");
     assert.ok(payload.routes.includes("GET /api/studio/health"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sprint 31 / T09 — local job queue + launcher
+// ---------------------------------------------------------------------------
+
+function harmlessJobQueue(): StudioJobQueue {
+  // Replace spawn behaviour with `node -e <script>` invocations that
+  // exit immediately. The harness still validates argv/cwd handling
+  // and persistence under .riptide/studio/jobs/ — the actual command
+  // is just `node -e "process.exit(0)"`.
+  return new StudioJobQueue({
+    cliBin: { node: process.execPath, entry: "-e" },
+    concurrency: 1
+  });
+}
+
+test("studio job queue maps each allowlisted kind to a deterministic argv", async () => {
+  const root = await tmpRoot("jobs-allowlist");
+  await mkdir(path.join(root, ".riptide", "scenarios", "alpha"), { recursive: true });
+  const queue = harmlessJobQueue();
+  const workspaces = await discoverStudioWorkspaces({ cwd: root });
+  queue.setWorkspaces(workspaces);
+
+  const cases: Array<{ input: JobLaunchInput; expect: string[] }> = [
+    {
+      input: { workspaceId: "current", kind: "run", params: {} },
+      expect: ["riptide", "run", "--quiet"]
+    },
+    {
+      input: { workspaceId: "current", kind: "run", params: { scenario: "alpha" } },
+      expect: ["riptide", "run", "alpha", "--quiet"]
+    },
+    {
+      input: {
+        workspaceId: "current",
+        kind: "replay",
+        params: { config: ".riptide/replays/x/replay-config.json" }
+      },
+      expect: ["riptide", "replay", ".riptide/replays/x/replay-config.json", "--quiet"]
+    },
+    {
+      input: {
+        workspaceId: "current",
+        kind: "campaign-validate",
+        params: { campaign: ".riptide/campaigns/c.campaign.toml" }
+      },
+      expect: ["riptide", "campaign", "validate", ".riptide/campaigns/c.campaign.toml"]
+    },
+    {
+      input: {
+        workspaceId: "current",
+        kind: "campaign-plan",
+        params: { campaign: ".riptide/campaigns/c.campaign.toml" }
+      },
+      expect: ["riptide", "campaign", "plan", ".riptide/campaigns/c.campaign.toml"]
+    },
+    {
+      input: {
+        workspaceId: "current",
+        kind: "campaign-run",
+        params: { campaign: ".riptide/campaigns/c.campaign.toml" }
+      },
+      expect: ["riptide", "campaign", "run", ".riptide/campaigns/c.campaign.toml"]
+    },
+    {
+      input: { workspaceId: "current", kind: "review", params: { pack: ".riptide/pack/alpha" } },
+      expect: ["riptide", "review", ".riptide/pack/alpha", "--quiet"]
+    },
+    {
+      input: { workspaceId: "current", kind: "readiness", params: {} },
+      expect: ["riptide", "readiness", ".", "--json", "--out", ".riptide/readiness"]
+    }
+  ];
+
+  for (const c of cases) {
+    const plan = queue.plan(c.input);
+    assert.ok(!isValidationError(plan), `plan failed for ${c.input.kind}`);
+    const p = plan as JobPlanPreview;
+    assert.deepEqual(p.argv, c.expect, `argv for ${c.input.kind}`);
+    assert.equal(p.cwd, workspaces[0]?.path);
+    assert.ok(p.command_string.length > 0);
+  }
+});
+
+test("studio job queue rejects unknown kinds and missing required params", () => {
+  const queue = harmlessJobQueue();
+  const ws: StudioWorkspace = {
+    id: "current",
+    label: "x",
+    source: "current",
+    path: "/tmp/does-not-matter",
+    riptide_path: "/tmp/does-not-matter/.riptide",
+    has_riptide: true,
+    warnings: []
+  };
+  queue.setWorkspaces([ws]);
+  const bad = queue.plan({ workspaceId: "current", kind: "destroy" as never, params: {} });
+  assert.ok(isValidationError(bad) && bad.status === 400);
+  const missing = queue.plan({ workspaceId: "current", kind: "replay", params: {} });
+  assert.ok(isValidationError(missing) && missing.status === 400);
+  assert.match(((missing as JobValidationError).payload.message as string) ?? "", /config/);
+});
+
+test("studio job queue rejects publish/push/release tokens even via params", () => {
+  const queue = harmlessJobQueue();
+  const ws: StudioWorkspace = {
+    id: "current",
+    label: "x",
+    source: "current",
+    path: "/tmp/does-not-matter",
+    riptide_path: "/tmp/does-not-matter/.riptide",
+    has_riptide: true,
+    warnings: []
+  };
+  queue.setWorkspaces([ws]);
+  // Direct shape: a campaign whose name embeds `push`. The token
+  // appears verbatim in argv and must be rejected.
+  const result = queue.plan({
+    workspaceId: "current",
+    kind: "campaign-validate",
+    params: { campaign: "publish" }
+  });
+  assert.ok(isValidationError(result) && result.status === 400);
+  assert.match(((result as JobValidationError).payload.error as string) ?? "", /forbidden/);
+});
+
+test("studio job queue rejects shell metacharacters and absolute paths", () => {
+  const queue = harmlessJobQueue();
+  const ws: StudioWorkspace = {
+    id: "current",
+    label: "x",
+    source: "current",
+    path: "/tmp/does-not-matter",
+    riptide_path: "/tmp/does-not-matter/.riptide",
+    has_riptide: true,
+    warnings: []
+  };
+  queue.setWorkspaces([ws]);
+  for (const evil of ["/etc/passwd", "../escape", "x;rm -rf .", "x && id", "x|less"]) {
+    assert.throws(
+      () =>
+        queue.plan({
+          workspaceId: "current",
+          kind: "replay",
+          params: { config: evil }
+        }),
+      /must not escape|must be a workspace-relative|metacharacters|absolute/
+    );
+  }
+});
+
+test("studio job queue persists job history under .riptide/studio/jobs/", async () => {
+  const root = await tmpRoot("jobs-persist");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  const queue = harmlessJobQueue();
+  const workspaces = await discoverStudioWorkspaces({ cwd: root });
+  queue.setWorkspaces(workspaces);
+
+  // Use a kind that uses our `node -e` shim. We pass a tiny script
+  // via params.scenario; the actual argv we want spawn() to invoke is
+  // `node -e <script>` because cliBin.entry is "-e".
+  // In effect: argv becomes [node, "-e", "run", "process.exit(0);", "--quiet"]
+  // — node treats the `-e` script as the next arg. We override by
+  // patching argv: use the review kind which only emits `["riptide","review"]`,
+  // which under the harmless shim becomes `node -e riptide review` ->
+  // node interprets `riptide` as the script and exits with an error
+  // unless we use a real script. Instead, use a fake kind via direct
+  // spawn — for persistence we just need a job to land on disk.
+  const result = await queue.launch({
+    workspaceId: "current",
+    kind: "readiness",
+    params: {}
+  });
+  assert.ok(!isValidationError(result), `launch returned validation error: ${JSON.stringify(result)}`);
+  await queue.waitIdle();
+
+  const dir = path.join(root, ".riptide", "studio", "jobs");
+  const { readdir } = await import("node:fs/promises");
+  const persisted = await readdir(dir);
+  assert.ok(persisted.length >= 1, "at least one job persisted");
+  assert.ok(persisted.every((f) => f.endsWith(".json")));
+});
+
+test("studio jobs HTTP plan rejects publish-shaped commands and accepts run", async () => {
+  const root = await tmpRoot("jobs-http-plan");
+  await mkdir(path.join(root, ".riptide", "scenarios", "alpha"), { recursive: true });
+  await withServer({ workspace: root }, async (handle) => {
+    const planRes = await fetch(`${handle.url}/api/studio/jobs/plan`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workspace: "current",
+        kind: "run",
+        params: { scenario: "alpha" }
+      })
+    });
+    assert.equal(planRes.status, 200);
+    const planBody = (await planRes.json()) as { plan: JobPlanPreview };
+    assert.deepEqual(planBody.plan.argv, ["riptide", "run", "alpha", "--quiet"]);
+    assert.equal(planBody.plan.kind, "run");
+    assert.equal(planBody.plan.expected_artifact, ".riptide/runs/alpha/simulation-result.json");
+
+    const forbidden = await fetch(`${handle.url}/api/studio/jobs/plan`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workspace: "current",
+        kind: "campaign-validate",
+        params: { campaign: "push" }
+      })
+    });
+    assert.equal(forbidden.status, 400);
+    const forbiddenBody = (await forbidden.json()) as { error: string };
+    assert.equal(forbiddenBody.error, "forbidden_command");
+  });
+});
+
+test("studio jobs HTTP launch persists to disk and lists in /api/studio/jobs", async () => {
+  const root = await tmpRoot("jobs-http-launch");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  // Use a job queue that maps to a no-op `node -e <script>` so we don't
+  // depend on the compiled CLI being on disk during the test.
+  const fakeQueue = new StudioJobQueue({
+    cliBin: { node: process.execPath, entry: "-e" },
+    concurrency: 1
+  });
+  await withServer({ workspace: root, jobQueue: fakeQueue }, async (handle) => {
+    const launch = await fetch(`${handle.url}/api/studio/jobs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workspace: "current",
+        kind: "readiness",
+        params: {}
+      })
+    });
+    assert.equal(launch.status, 201);
+    const body = (await launch.json()) as { job: { id: string; argv: string[]; cwd: string } };
+    assert.equal(body.job.cwd, path.resolve(root));
+    assert.deepEqual(body.job.argv, [
+      "riptide",
+      "readiness",
+      ".",
+      "--json",
+      "--out",
+      ".riptide/readiness"
+    ]);
+
+    await fakeQueue.waitIdle();
+
+    const list = (await getJson(`${handle.url}/api/studio/jobs`)) as {
+      jobs: Array<{ id: string; status: string }>;
+    };
+    assert.ok(list.jobs.some((j) => j.id === body.job.id));
+
+    const detail = (await getJson(`${handle.url}/api/studio/jobs/${body.job.id}`)) as {
+      job: { status: string };
+    };
+    assert.ok(["succeeded", "failed", "cancelled"].includes(detail.job.status));
+
+    const cancel = await fetch(`${handle.url}/api/studio/jobs/${body.job.id}/cancel`, {
+      method: "POST"
+    });
+    assert.equal(cancel.status, 200);
+  });
+});
+
+test("studio jobs HTTP rejects non-allowlisted kinds and bad payloads", async () => {
+  const root = await tmpRoot("jobs-http-reject");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  await withServer({ workspace: root }, async (handle) => {
+    const badKind = await fetch(`${handle.url}/api/studio/jobs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ workspace: "current", kind: "destroy", params: {} })
+    });
+    assert.equal(badKind.status, 400);
+
+    const noBody = await fetch(`${handle.url}/api/studio/jobs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: ""
+    });
+    assert.equal(noBody.status, 400);
+
+    const noKind = await fetch(`${handle.url}/api/studio/jobs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ workspace: "current" })
+    });
+    assert.equal(noKind.status, 400);
+  });
+});
+
+test("studio jobs hydration surfaces persisted jobs after restart", async () => {
+  const root = await tmpRoot("jobs-hydrate");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+
+  // First server: launch a job, persist it.
+  const firstQueue = new StudioJobQueue({
+    cliBin: { node: process.execPath, entry: "-e" },
+    concurrency: 1
+  });
+  const handleA = await startStudioServer({
+    workspace: root,
+    port: 0,
+    maxAttempts: 1,
+    jobQueue: firstQueue
+  });
+  try {
+    const launch = await fetch(`${handleA.url}/api/studio/jobs`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ workspace: "current", kind: "readiness", params: {} })
+    });
+    assert.equal(launch.status, 201);
+    await firstQueue.waitIdle();
+  } finally {
+    await handleA.close();
+  }
+
+  // Second server: a fresh queue should still see the persisted job.
+  const secondQueue = new StudioJobQueue({
+    cliBin: { node: process.execPath, entry: "-e" },
+    concurrency: 1
+  });
+  const handleB = await startStudioServer({
+    workspace: root,
+    port: 0,
+    maxAttempts: 1,
+    jobQueue: secondQueue
+  });
+  try {
+    const list = (await getJson(`${handleB.url}/api/studio/jobs`)) as {
+      jobs: Array<{ id: string }>;
+    };
+    assert.ok(list.jobs.length >= 1, "previous job survives restart");
+  } finally {
+    await handleB.close();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Sprint 31 / T10 — chat-like config handoff
+// ---------------------------------------------------------------------------
+
+test("config intent generator returns prompt + proposed files for a complete payload", () => {
+  const result = generateConfigIntent({
+    workspace_id: "lending",
+    protocol_class: "lending",
+    repo_path: "/abs/path/to/lending",
+    risk_goal: "no_bad_debt",
+    scenario_target: "whale-shock",
+    evidence_boundary: "campaign-grid",
+    notes: "Use cautious yield farmers."
+  });
+  if (!("schema_version" in result)) {
+    throw new Error(`unexpected validation error: ${JSON.stringify(result.payload)}`);
+  }
+  assert.equal(result.schema_version, "studio-config-intent.v1");
+  assert.equal(result.intent.protocol_class, "lending");
+  assert.equal(result.intent.evidence_boundary, "campaign-grid");
+  assert.ok(result.proposed_files.some((f: { path: string }) => f.path === ".riptide/adapters/lending.toml"));
+  assert.ok(result.proposed_files.some((f: { path: string }) => f.path.includes("whale-shock")));
+  assert.ok(result.validation_commands.includes("riptide doctor"));
+  assert.ok(result.handoff_prompt.includes("riptide-config"));
+  assert.ok(result.handoff_prompt.includes("/abs/path/to/lending"));
+  assert.ok(!/already (?:edited|applied|wrote)/.test(result.handoff_prompt));
+});
+
+test("config intent generator rejects missing fields and unknown protocol classes", () => {
+  const missing = generateConfigIntent({
+    workspace_id: "current",
+    protocol_class: "lending",
+    repo_path: "/abs",
+    risk_goal: "no_bad_debt"
+  } as Record<string, unknown>);
+  assert.ok("status" in missing && missing.status === 400);
+
+  const wrong = generateConfigIntent({
+    workspace_id: "current",
+    protocol_class: "rocketscience",
+    repo_path: "/abs",
+    risk_goal: "no_bad_debt",
+    scenario_target: "x",
+    evidence_boundary: "current-state-only"
+  });
+  assert.ok("status" in wrong && wrong.status === 400);
+});
+
+test("config intent HTTP endpoint returns the prompt and never claims it edited files", async () => {
+  const root = await tmpRoot("config-intent-http");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  await withServer({ workspace: root }, async (handle) => {
+    const ok = await fetch(`${handle.url}/api/studio/config/intent`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workspace_id: "current",
+        protocol_class: "amm",
+        repo_path: root,
+        risk_goal: "no_value_loss",
+        scenario_target: "swap-stress",
+        evidence_boundary: "current-state-only"
+      })
+    });
+    assert.equal(ok.status, 200);
+    const body = (await ok.json()) as {
+      handoff_prompt: string;
+      proposed_files: Array<{ path: string }>;
+      notes: string[];
+    };
+    assert.match(body.handoff_prompt, /riptide-config/);
+    assert.ok(body.proposed_files.some((f) => f.path.includes("amm")));
+    assert.ok(body.notes.some((n) => /did not edit/i.test(n)));
+
+    const bad = await fetch(`${handle.url}/api/studio/config/intent`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({})
+    });
+    assert.equal(bad.status, 400);
+  });
+});
+
+test("studio loads case-study workspaces from --case-studies-root", async () => {
+  const caseRoot = await tmpRoot("case-studies-root");
+  for (const name of ["lending", "anchor-uniswap-v2"]) {
+    await mkdir(path.join(caseRoot, name, ".riptide"), { recursive: true });
+  }
+  const cwd = await tmpRoot("primary");
+  await mkdir(path.join(cwd, ".riptide"), { recursive: true });
+
+  await withServer({ workspace: cwd, caseStudiesRoot: caseRoot }, async (handle) => {
+    const list = (await getJson(`${handle.url}/api/studio/workspaces`)) as {
+      workspaces: Array<{ id: string; source: string }>;
+    };
+    const ids = list.workspaces.map((w) => w.id);
+    assert.equal(list.workspaces[0]?.source, "current");
+    assert.ok(ids.includes("lending"));
+    assert.ok(ids.includes("anchor-uniswap-v2"));
   });
 });
