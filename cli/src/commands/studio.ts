@@ -12,6 +12,7 @@
 //   root provided on the command line. There is no write path here.
 
 import path from "node:path";
+import { spawn } from "node:child_process";
 
 import { Command } from "commander";
 
@@ -81,11 +82,24 @@ export function createStudioCommand(): Command {
       lines.push(`  ctrl-c to stop.`);
       process.stderr.write(lines.join("\n") + "\n");
 
-      // Phase 1 ships only the `--no-open` path. Browser launching is
-      // explicit user opt-in for later sprints; CI and headless
-      // environments must never need it.
+      if (opts.open !== false) {
+        openInBrowser(handle.url);
+      }
       await blockUntilSignal(handle);
     });
+}
+
+function openInBrowser(url: string): void {
+  const cmd =
+    process.platform === "darwin" ? "open" :
+    process.platform === "win32" ? "cmd" :
+    "xdg-open";
+  const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
+  try {
+    const child = spawn(cmd, args, { stdio: "ignore", detached: true });
+    child.unref();
+    child.on("error", () => {});
+  } catch {}
 }
 
 function parsePort(raw: string | undefined): number | undefined {

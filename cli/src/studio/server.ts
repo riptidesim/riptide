@@ -31,6 +31,15 @@ import {
 } from "./dashboard-mount.js";
 import { StudioJobQueue, type JobKind, type JobPlanPreview, type JobValidationError } from "./jobs.js";
 import { generateConfigIntent } from "./config-intent.js";
+import { probeAgents } from "./agents.js";
+import { detectProgramForStudio } from "./program-detect.js";
+import {
+  RiptideDirExistsError,
+  ProgramDetectionError,
+  scaffold,
+  type ScaffoldOptions
+} from "../init/index.js";
+import { PROTOCOL_CHOICES, type Protocol } from "../init/personas-catalog.js";
 
 export interface StudioServerHandle {
   url: string;
@@ -219,10 +228,14 @@ function sendNotFound(res: ServerResponse, pathname: string): void {
       "GET /dashboard",
       "GET /api/studio/health",
       "GET /api/studio/workspaces",
+      "GET /api/studio/agents",
+      "GET /api/studio/protocols",
+      "GET /api/studio/detect-program",
       "GET /api/studio/artifacts",
       "GET /api/studio/graph",
       "GET /api/studio/report",
       "GET /api/studio/jobs",
+      "POST /api/studio/init",
       "POST /api/studio/jobs",
       "POST /api/studio/jobs/plan",
       "POST /api/studio/jobs/:id/cancel",
@@ -295,6 +308,63 @@ async function readBody(req: IncomingMessage, limitBytes = 64 * 1024): Promise<u
     });
     req.on("error", reject);
   });
+}
+
+async function refreshWorkspaces(ctx: StudioContext): Promise<void> {
+  const next = await discoverStudioWorkspaces({
+    cwd: ctx.workspace,
+    caseStudiesRoot: ctx.caseStudiesRoot
+  });
+  ctx.workspaces = next;
+  ctx.workspacesById = new Map(next.map((w) => [w.id, w]));
+  ctx.jobs.setWorkspaces(next);
+}
+
+const PROGRAM_NAME_RE = /^[a-z][a-z0-9-]*$/;
+const PROTOCOL_VALUES: ReadonlySet<Protocol> = new Set(
+  PROTOCOL_CHOICES.map((c) => c.value)
+);
+
+function asInitInput(
+  body: unknown
+):
+  | { programName: string; protocol: Protocol }
+  | { error: { status: number; payload: Record<string, unknown> } } {
+  if (!body || typeof body !== "object") {
+    return { error: { status: 400, payload: { error: "invalid_body", message: "expected JSON object" } } };
+  }
+  const o = body as Record<string, unknown>;
+  const rawName =
+    typeof o.program_name === "string" ? o.program_name :
+    typeof o.programName === "string" ? o.programName : "";
+  const programName = rawName.trim();
+  if (!programName) {
+    return { error: { status: 400, payload: { error: "missing_program_name", message: "program_name is required" } } };
+  }
+  if (!PROGRAM_NAME_RE.test(programName)) {
+    return {
+      error: {
+        status: 400,
+        payload: {
+          error: "invalid_program_name",
+          message: "program_name must be lowercase letters, numbers, or dashes; must start with a letter"
+        }
+      }
+    };
+  }
+  const rawProtocol = typeof o.protocol === "string" ? o.protocol : "";
+  if (!PROTOCOL_VALUES.has(rawProtocol as Protocol)) {
+    return {
+      error: {
+        status: 400,
+        payload: {
+          error: "invalid_protocol",
+          message: `protocol must be one of: ${Array.from(PROTOCOL_VALUES).join(", ")}`
+        }
+      }
+    };
+  }
+  return { programName, protocol: rawProtocol as Protocol };
 }
 
 function isJobValidationError(value: unknown): value is JobValidationError {
@@ -402,6 +472,46 @@ function makeRequestHandler(ctx: StudioContext) {
         sendJson(res, 200, result);
         return;
       }
+      if (pathname === "/api/studio/init" && method === "POST") {
+        const body = await readBody(req);
+        const parsed = asInitInput(body);
+        if ("error" in parsed) {
+          sendJson(res, parsed.error.status, parsed.error.payload);
+          return;
+        }
+        const scaffoldOptions: ScaffoldOptions = {
+          cwd: ctx.workspace,
+          force: false,
+          mode: "minimal",
+          blank: true,
+          programName: parsed.programName,
+          protocol: parsed.protocol
+        };
+        try {
+          const result = await scaffold(scaffoldOptions);
+          await refreshWorkspaces(ctx);
+          sendJson(res, 201, {
+            schema_version: "studio-init.v1",
+            program_name: result.programName,
+            protocol: parsed.protocol,
+            created: result.created,
+            warnings: result.warnings,
+            workspaces: ctx.workspaces
+          });
+          return;
+        } catch (err) {
+          if (err instanceof RiptideDirExistsError) {
+            sendJson(res, 409, { error: "riptide_dir_exists", message: err.message });
+            return;
+          }
+          if (err instanceof ProgramDetectionError) {
+            sendJson(res, 400, { error: "program_detection", message: err.message });
+            return;
+          }
+          sendJson(res, 500, { error: "scaffold_failed", message: (err as Error).message });
+          return;
+        }
+      }
 
       // ---- Everything else is GET/HEAD only ----
       if (method !== "GET" && method !== "HEAD") {
@@ -435,6 +545,20 @@ function makeRequestHandler(ctx: StudioContext) {
           schema_version: "studio-workspaces.v1",
           workspaces: ctx.workspaces
         });
+        return;
+      }
+      if (pathname === "/api/studio/agents") {
+        const agents = await probeAgents();
+        sendJson(res, 200, { schema_version: "studio-agents.v1", agents });
+        return;
+      }
+      if (pathname === "/api/studio/protocols") {
+        sendJson(res, 200, { schema_version: "studio-protocols.v1", protocols: PROTOCOL_CHOICES });
+        return;
+      }
+      if (pathname === "/api/studio/detect-program") {
+        const detection = detectProgramForStudio(ctx.workspace);
+        sendJson(res, 200, { schema_version: "studio-detect-program.v1", ...detection });
         return;
       }
       if (pathname === "/api/studio/artifacts") {
