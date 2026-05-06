@@ -1,6 +1,8 @@
 // Adapted from Trident (MIT) — https://github.com/Ackee-Blockchain/trident
 
-use std::{any::Any, collections::BTreeMap, fs, path::PathBuf, process::ExitCode, str::FromStr};
+use std::{
+    any::Any, cell::Cell, collections::BTreeMap, fs, path::PathBuf, process::ExitCode, str::FromStr,
+};
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
@@ -65,6 +67,7 @@ impl Default for RunnerConfig {
 
 pub struct SimulationRunner<T: RiptideSimulation> {
     config: RunnerConfig,
+    replay_flow_sequence: Option<Vec<usize>>,
     _marker: std::marker::PhantomData<T>,
 }
 
@@ -72,6 +75,19 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
     pub fn new(config: RunnerConfig) -> Self {
         Self {
             config,
+            replay_flow_sequence: None,
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn new_with_replay_flow_sequence(
+        config: RunnerConfig,
+        replay_flow_sequence: impl Into<Vec<usize>>,
+    ) -> Self {
+        Self {
+            config,
+            replay_flow_sequence: Some(replay_flow_sequence.into()),
             _marker: std::marker::PhantomData,
         }
     }
@@ -123,19 +139,129 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
         let mut simulation = T::default();
         simulation.world().set_rng_seed(seed);
         let mut flow_counts = BTreeMap::new();
+        let mut flow_trace = Vec::new();
+        let mut first_failing_flow_step = None;
+        let mut first_failure = None;
+        let active_trace_idx: Cell<Option<usize>> = Cell::new(None);
+        let active_non_flow_context: Cell<Option<GuidedSimFailureContext>> = Cell::new(None);
         let mut dispatched_flows = 0u64;
         let table = T::__riptide_flow_table();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            simulation.__riptide_init()?;
-            for _ in 0..self.config.flows_per_iteration {
-                let idx = pick_flow(table, simulation.world())?;
-                let name = table[idx].name.to_owned();
+            let init_context = GuidedSimFailureContext::new("init", None, simulation.world());
+            active_non_flow_context.set(Some(init_context));
+            if let Err(run_error) = simulation.__riptide_init() {
+                let failure_message = format!("{run_error:#}");
+                if first_failure.is_none() {
+                    first_failure = Some(GuidedSimFailureArtifact::from_context(
+                        init_context,
+                        simulation.world(),
+                        "returned_error",
+                        failure_message,
+                    ));
+                }
+                active_non_flow_context.set(None);
+                return Err(run_error);
+            }
+            active_non_flow_context.set(None);
+
+            for step_index in 0..self.config.flows_per_iteration {
+                let selection_context = GuidedSimFailureContext::new(
+                    "flow_selection",
+                    Some(step_index),
+                    simulation.world(),
+                );
+                active_non_flow_context.set(Some(selection_context));
+                let idx = match select_flow(
+                    table,
+                    simulation.world(),
+                    self.replay_flow_sequence.as_deref(),
+                    step_index,
+                ) {
+                    Ok(idx) => idx,
+                    Err(run_error) => {
+                        let failure_message = format!("{run_error:#}");
+                        if first_failure.is_none() {
+                            first_failure = Some(GuidedSimFailureArtifact::from_context(
+                                selection_context,
+                                simulation.world(),
+                                "returned_error",
+                                failure_message,
+                            ));
+                        }
+                        active_non_flow_context.set(None);
+                        return Err(run_error);
+                    }
+                };
+                active_non_flow_context.set(None);
+
+                let flow = &table[idx];
+                let tx_log_start = simulation.world().tx_log().len();
+                let service_ticks_before = simulation.world().service_tick_count();
+                flow_trace.push(GuidedSimFlowTraceStep {
+                    step_index,
+                    flow_index: idx,
+                    flow_name: flow.name.to_owned(),
+                    tx_log_start: tx_log_start as u64,
+                    tx_log_end: tx_log_start as u64,
+                    service_ticks_before,
+                    service_ticks_after: service_ticks_before,
+                    status: "passed".to_owned(),
+                    expected_errors: 0,
+                    unexpected_errors: 0,
+                    failure_message: None,
+                });
+                let trace_idx = flow_trace.len() - 1;
+                active_trace_idx.set(Some(trace_idx));
+
+                let name = flow.name.to_owned();
                 *flow_counts.entry(name).or_insert(0) += 1;
                 dispatched_flows = dispatched_flows.saturating_add(1);
-                simulation.__riptide_dispatch_flow(idx)?;
+                if let Err(run_error) = simulation.__riptide_dispatch_flow(idx) {
+                    let failure_message = format!("{run_error:#}");
+                    finalize_flow_trace_step(
+                        &mut flow_trace[trace_idx],
+                        simulation.world(),
+                        "returned_error",
+                        Some(failure_message),
+                    );
+                    if first_failing_flow_step.is_none() {
+                        first_failing_flow_step = Some(flow_trace[trace_idx].clone());
+                    }
+                    if first_failure.is_none() {
+                        first_failure = Some(GuidedSimFailureArtifact::from_flow_trace(
+                            &flow_trace[trace_idx],
+                        ));
+                    }
+                    active_trace_idx.set(None);
+                    return Err(run_error);
+                }
                 simulation.world().tick_services();
+                finalize_flow_trace_step(
+                    &mut flow_trace[trace_idx],
+                    simulation.world(),
+                    "passed",
+                    None,
+                );
+                active_trace_idx.set(None);
             }
-            simulation.__riptide_end()
+
+            let end_context = GuidedSimFailureContext::new("end", None, simulation.world());
+            active_non_flow_context.set(Some(end_context));
+            if let Err(run_error) = simulation.__riptide_end() {
+                let failure_message = format!("{run_error:#}");
+                if first_failure.is_none() {
+                    first_failure = Some(GuidedSimFailureArtifact::from_context(
+                        end_context,
+                        simulation.world(),
+                        "returned_error",
+                        failure_message,
+                    ));
+                }
+                active_non_flow_context.set(None);
+                return Err(run_error);
+            }
+            active_non_flow_context.set(None);
+            Ok(())
         }));
 
         let mut error = None;
@@ -151,17 +277,54 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
                 error = Some(format!("{run_error:#}"));
             }
             Err(payload) => {
+                let panic_error = format!("simulation panicked: {}", panic_message(&payload));
+                if let Some(trace_idx) = active_trace_idx.take() {
+                    finalize_flow_trace_step(
+                        &mut flow_trace[trace_idx],
+                        simulation.world(),
+                        "panic",
+                        Some(panic_error.clone()),
+                    );
+                    if first_failing_flow_step.is_none() {
+                        first_failing_flow_step = Some(flow_trace[trace_idx].clone());
+                    }
+                    if first_failure.is_none() {
+                        first_failure = Some(GuidedSimFailureArtifact::from_flow_trace(
+                            &flow_trace[trace_idx],
+                        ));
+                    }
+                } else if let Some(context) = active_non_flow_context.take() {
+                    if first_failure.is_none() {
+                        first_failure = Some(GuidedSimFailureArtifact::from_context(
+                            context,
+                            simulation.world(),
+                            "panic",
+                            panic_error.clone(),
+                        ));
+                    }
+                }
                 dump_tx_log(simulation.world());
                 panic = true;
-                error = Some(format!("simulation panicked: {}", panic_message(&payload)));
+                error = Some(panic_error);
             }
         }
 
+        let regression_context =
+            GuidedSimFailureContext::new("regression", None, simulation.world());
         let regression = match collect_regression_hashes(simulation.world()) {
             Ok(regression) => regression,
             Err(regression_error) => {
+                let failure_message = format!("regression hash failed: {regression_error:#}");
                 if error.is_none() {
-                    error = Some(format!("regression hash failed: {regression_error:#}"));
+                    error = Some(failure_message.clone());
+                }
+                if first_failure.is_none() {
+                    first_failure = Some(GuidedSimFailureArtifact::from_context(
+                        regression_context,
+                        simulation.world(),
+                        "returned_error",
+                        failure_message,
+                    ));
                 }
                 RegressionArtifact::default()
             }
@@ -193,6 +356,9 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
                 status,
                 dispatched_flows,
                 flow_counts,
+                flow_trace,
+                first_failing_flow_step,
+                first_failure,
                 tx_outcomes: tx_log,
                 service_ticks: world.service_tick_count(),
                 regression,
@@ -238,6 +404,39 @@ fn pick_flow(table: &[FlowSpec], world: &mut World) -> Result<usize> {
     Ok(table.len() - 1)
 }
 
+fn select_flow(
+    table: &[FlowSpec],
+    world: &mut World,
+    replay_flow_sequence: Option<&[usize]>,
+    step_index: u64,
+) -> Result<usize> {
+    match replay_flow_sequence {
+        Some(sequence) => replay_flow_index(table, sequence, step_index),
+        None => pick_flow(table, world),
+    }
+}
+
+fn replay_flow_index(table: &[FlowSpec], sequence: &[usize], step_index: u64) -> Result<usize> {
+    if table.is_empty() {
+        anyhow::bail!("simulation has no #[flow] methods");
+    }
+    let sequence_index = usize::try_from(step_index)
+        .map_err(|_| anyhow!("replay step index {step_index} exceeds platform usize"))?;
+    let flow_index = *sequence.get(sequence_index).ok_or_else(|| {
+        anyhow!(
+            "replay flow sequence exhausted at step {step_index}: {} entries available",
+            sequence.len()
+        )
+    })?;
+    if flow_index >= table.len() {
+        anyhow::bail!(
+            "replay flow index {flow_index} at step {step_index} is out of range for {} configured flows",
+            table.len()
+        );
+    }
+    Ok(flow_index)
+}
+
 fn iteration_seed(mut seed: [u8; 32], iteration: u64) -> [u8; 32] {
     let bytes = iteration.to_le_bytes();
     for (idx, byte) in bytes.iter().enumerate() {
@@ -256,6 +455,7 @@ struct IterationRun {
 #[derive(Debug, Serialize)]
 struct GuidedSimRunArtifact {
     schema_version: u32,
+    trace_schema_version: u32,
     status: String,
     iterations_requested: u64,
     flows_per_iteration: u64,
@@ -269,6 +469,7 @@ impl GuidedSimRunArtifact {
     fn new(config: &RunnerConfig) -> Self {
         Self {
             schema_version: 1,
+            trace_schema_version: 1,
             status: "running".to_owned(),
             iterations_requested: config.iterations,
             flows_per_iteration: config.flows_per_iteration,
@@ -335,11 +536,99 @@ struct GuidedSimIterationArtifact {
     status: String,
     dispatched_flows: u64,
     flow_counts: BTreeMap<String, u64>,
+    flow_trace: Vec<GuidedSimFlowTraceStep>,
+    first_failing_flow_step: Option<GuidedSimFlowTraceStep>,
+    first_failure: Option<GuidedSimFailureArtifact>,
     tx_outcomes: Vec<TxOutcome>,
     service_ticks: u64,
     regression: RegressionArtifact,
     error: Option<String>,
     panic: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct GuidedSimFlowTraceStep {
+    step_index: u64,
+    flow_index: usize,
+    flow_name: String,
+    tx_log_start: u64,
+    tx_log_end: u64,
+    service_ticks_before: u64,
+    service_ticks_after: u64,
+    status: String,
+    expected_errors: u64,
+    unexpected_errors: u64,
+    failure_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct GuidedSimFailureArtifact {
+    stage: String,
+    status: String,
+    step_index: Option<u64>,
+    flow_index: Option<usize>,
+    flow_name: Option<String>,
+    tx_log_start: u64,
+    tx_log_end: u64,
+    service_ticks_before: u64,
+    service_ticks_after: u64,
+    failure_message: String,
+}
+
+impl GuidedSimFailureArtifact {
+    fn from_flow_trace(step: &GuidedSimFlowTraceStep) -> Self {
+        Self {
+            stage: "flow".to_owned(),
+            status: step.status.clone(),
+            step_index: Some(step.step_index),
+            flow_index: Some(step.flow_index),
+            flow_name: Some(step.flow_name.clone()),
+            tx_log_start: step.tx_log_start,
+            tx_log_end: step.tx_log_end,
+            service_ticks_before: step.service_ticks_before,
+            service_ticks_after: step.service_ticks_after,
+            failure_message: step.failure_message.clone().unwrap_or_default(),
+        }
+    }
+
+    fn from_context(
+        context: GuidedSimFailureContext,
+        world: &World,
+        status: &str,
+        failure_message: String,
+    ) -> Self {
+        Self {
+            stage: context.stage.to_owned(),
+            status: status.to_owned(),
+            step_index: context.step_index,
+            flow_index: None,
+            flow_name: None,
+            tx_log_start: context.tx_log_start as u64,
+            tx_log_end: world.tx_log().len() as u64,
+            service_ticks_before: context.service_ticks_before,
+            service_ticks_after: world.service_tick_count(),
+            failure_message,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct GuidedSimFailureContext {
+    stage: &'static str,
+    step_index: Option<u64>,
+    tx_log_start: usize,
+    service_ticks_before: u64,
+}
+
+impl GuidedSimFailureContext {
+    fn new(stage: &'static str, step_index: Option<u64>, world: &World) -> Self {
+        Self {
+            stage,
+            step_index,
+            tx_log_start: world.tx_log().len(),
+            service_ticks_before: world.service_tick_count(),
+        }
+    }
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -385,6 +674,39 @@ fn collect_regression_hashes(world: &World) -> Result<RegressionArtifact> {
         account_hashes,
         expected_state_hashes: config.state_hashes.clone(),
     })
+}
+
+fn finalize_flow_trace_step(
+    step: &mut GuidedSimFlowTraceStep,
+    world: &World,
+    status: &str,
+    failure_message: Option<String>,
+) {
+    let tx_log_end = world.tx_log().len();
+    let (expected_errors, unexpected_errors) =
+        tx_error_counts(world.tx_log(), step.tx_log_start as usize, tx_log_end);
+    step.tx_log_end = tx_log_end as u64;
+    step.service_ticks_after = world.service_tick_count();
+    step.status = status.to_owned();
+    step.expected_errors = expected_errors;
+    step.unexpected_errors = unexpected_errors;
+    step.failure_message = failure_message;
+}
+
+fn tx_error_counts(tx_log: &[TxOutcome], start: usize, end: usize) -> (u64, u64) {
+    let mut expected_errors = 0u64;
+    let mut unexpected_errors = 0u64;
+    for outcome in tx_log.iter().take(end).skip(start) {
+        if outcome.ok {
+            continue;
+        }
+        if outcome.expected_error {
+            expected_errors = expected_errors.saturating_add(1);
+        } else {
+            unexpected_errors = unexpected_errors.saturating_add(1);
+        }
+    }
+    (expected_errors, unexpected_errors)
 }
 
 fn write_run_artifact(out_dir: &PathBuf, artifact: &GuidedSimRunArtifact) -> Result<()> {
@@ -498,6 +820,7 @@ mod tests {
     use crate::riptide_sim;
     use serde_json::Value;
     use solana_account::Account;
+    use solana_system_interface::instruction::transfer;
 
     #[derive(Default)]
     struct CounterSim {
@@ -548,10 +871,76 @@ mod tests {
         let raw = fs::read_to_string(out_dir.join("guided-sim-run.json")).unwrap();
         let value: Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(value["schema_version"], 1);
+        assert_eq!(value["trace_schema_version"], 1);
         assert_eq!(value["status"], "passed");
         assert_eq!(value["totals"]["iterations"], 2);
         assert_eq!(value["totals"]["flows"], 6);
         assert_eq!(value["iterations"][0]["flow_counts"]["only_flow"], 3);
+        assert!(value["iterations"][0]["first_failing_flow_step"].is_null());
+        assert!(value["iterations"][0]["first_failure"].is_null());
+        let trace = value["iterations"][0]["flow_trace"].as_array().unwrap();
+        assert_eq!(trace.len(), 3);
+        assert_eq!(trace[0]["step_index"], 0);
+        assert_eq!(trace[0]["flow_index"], 0);
+        assert_eq!(trace[0]["flow_name"], "only_flow");
+        assert_eq!(trace[0]["tx_log_start"], 0);
+        assert_eq!(trace[0]["tx_log_end"], 0);
+        assert_eq!(trace[0]["service_ticks_before"], 0);
+        assert_eq!(trace[0]["service_ticks_after"], 0);
+        assert_eq!(trace[0]["status"], "passed");
+        assert_eq!(trace[0]["expected_errors"], 0);
+        assert_eq!(trace[0]["unexpected_errors"], 0);
+        assert!(trace[0]["failure_message"].is_null());
+
+        let _ = fs::remove_dir_all(out_dir);
+    }
+
+    struct NoopService;
+
+    impl crate::Service for NoopService {
+        fn tick(&mut self, _world: &mut World) {}
+    }
+
+    #[derive(Default)]
+    struct ServiceTickSim {
+        world: World,
+    }
+
+    #[riptide_sim]
+    impl ServiceTickSim {
+        #[init]
+        fn init(&mut self) {
+            self.world.add_service(NoopService);
+        }
+
+        #[flow(weight = 100)]
+        fn step(&mut self) {}
+
+        #[end]
+        fn end(&mut self) {}
+    }
+
+    #[test]
+    fn runner_trace_records_service_tick_offsets() {
+        let out_dir = unique_temp_dir();
+        let config = RunnerConfig {
+            flows_per_iteration: 2,
+            out_dir: Some(out_dir.clone()),
+            ..RunnerConfig::default()
+        };
+
+        SimulationRunner::<ServiceTickSim>::new(config)
+            .run()
+            .unwrap();
+
+        let raw = fs::read_to_string(out_dir.join("guided-sim-run.json")).unwrap();
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        let trace = value["iterations"][0]["flow_trace"].as_array().unwrap();
+        assert_eq!(trace[0]["service_ticks_before"], 0);
+        assert_eq!(trace[0]["service_ticks_after"], 1);
+        assert_eq!(trace[1]["service_ticks_before"], 1);
+        assert_eq!(trace[1]["service_ticks_after"], 2);
+        assert_eq!(value["iterations"][0]["service_ticks"], 2);
 
         let _ = fs::remove_dir_all(out_dir);
     }
@@ -598,6 +987,355 @@ mod tests {
         assert!(fs::read_to_string(out_dir.join("failing-seed.txt"))
             .unwrap()
             .contains(value["retained_failing_seed"].as_str().unwrap()));
+        let trace = value["iterations"][0]["flow_trace"].as_array().unwrap();
+        assert_eq!(trace.len(), 1);
+        assert_eq!(trace[0]["step_index"], 0);
+        assert_eq!(trace[0]["flow_index"], 0);
+        assert_eq!(trace[0]["flow_name"], "failing_flow");
+        assert_eq!(trace[0]["status"], "returned_error");
+        assert_eq!(trace[0]["tx_log_start"], 0);
+        assert_eq!(trace[0]["tx_log_end"], 0);
+        assert_eq!(trace[0]["service_ticks_before"], 0);
+        assert_eq!(trace[0]["service_ticks_after"], 0);
+        assert!(trace[0]["failure_message"]
+            .as_str()
+            .unwrap()
+            .contains("intentional flow failure"));
+        assert_eq!(value["iterations"][0]["first_failing_flow_step"], trace[0]);
+        assert_eq!(value["iterations"][0]["first_failure"]["stage"], "flow");
+        assert_eq!(
+            value["iterations"][0]["first_failure"]["status"],
+            "returned_error"
+        );
+        assert_eq!(value["iterations"][0]["first_failure"]["step_index"], 0);
+        assert_eq!(value["iterations"][0]["first_failure"]["flow_index"], 0);
+        assert_eq!(
+            value["iterations"][0]["first_failure"]["flow_name"],
+            "failing_flow"
+        );
+
+        let _ = fs::remove_dir_all(out_dir);
+    }
+
+    #[derive(Default)]
+    struct ReplayTraceSim {
+        world: World,
+        fragile_hits: u64,
+    }
+
+    #[riptide_sim]
+    impl ReplayTraceSim {
+        #[init]
+        fn init(&mut self) {
+            self.fragile_hits = 0;
+        }
+
+        #[flow(weight = 0)]
+        fn skipped(&mut self) {}
+
+        #[flow(weight = 100)]
+        fn fragile(&mut self) -> Result<()> {
+            self.fragile_hits = self.fragile_hits.saturating_add(1);
+            anyhow::ensure!(
+                self.fragile_hits < 2,
+                "fragile replay failure on second hit"
+            );
+            Ok(())
+        }
+
+        #[end]
+        fn end(&mut self) {}
+    }
+
+    #[test]
+    fn runner_replay_sequence_preserves_traced_counts_and_failure_step() {
+        let original_dir = unique_temp_dir();
+        let original_config = RunnerConfig {
+            flows_per_iteration: 3,
+            out_dir: Some(original_dir.clone()),
+            ..RunnerConfig::default()
+        };
+
+        let original_error = SimulationRunner::<ReplayTraceSim>::new(original_config)
+            .run()
+            .unwrap_err()
+            .to_string();
+        assert!(original_error.contains("fragile replay failure on second hit"));
+
+        let original_raw = fs::read_to_string(original_dir.join("guided-sim-run.json")).unwrap();
+        let original_value: Value = serde_json::from_str(&original_raw).unwrap();
+        let original_trace = original_value["iterations"][0]["flow_trace"]
+            .as_array()
+            .unwrap();
+        let replay_sequence = original_trace
+            .iter()
+            .map(|step| step["flow_index"].as_u64().unwrap() as usize)
+            .collect::<Vec<_>>();
+        assert_eq!(replay_sequence, vec![1, 1]);
+
+        let replay_dir = unique_temp_dir();
+        let replay_config = RunnerConfig {
+            flows_per_iteration: replay_sequence.len() as u64,
+            out_dir: Some(replay_dir.clone()),
+            ..RunnerConfig::default()
+        };
+        let replay_error = SimulationRunner::<ReplayTraceSim>::new_with_replay_flow_sequence(
+            replay_config,
+            replay_sequence,
+        )
+        .run()
+        .unwrap_err()
+        .to_string();
+        assert!(replay_error.contains("fragile replay failure on second hit"));
+
+        let replay_raw = fs::read_to_string(replay_dir.join("guided-sim-run.json")).unwrap();
+        let replay_value: Value = serde_json::from_str(&replay_raw).unwrap();
+        assert_eq!(
+            replay_value["iterations"][0]["flow_counts"],
+            original_value["iterations"][0]["flow_counts"]
+        );
+        assert_eq!(
+            replay_value["iterations"][0]["first_failing_flow_step"],
+            original_value["iterations"][0]["first_failing_flow_step"]
+        );
+
+        let _ = fs::remove_dir_all(original_dir);
+        let _ = fs::remove_dir_all(replay_dir);
+    }
+
+    #[test]
+    fn runner_replay_rejects_bad_flow_index() {
+        let out_dir = unique_temp_dir();
+        let config = RunnerConfig {
+            out_dir: Some(out_dir.clone()),
+            ..RunnerConfig::default()
+        };
+
+        let error = SimulationRunner::<CounterSim>::new_with_replay_flow_sequence(config, vec![1])
+            .run()
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("replay flow index 1 at step 0 is out of range"));
+
+        let raw = fs::read_to_string(out_dir.join("guided-sim-run.json")).unwrap();
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        let first_failure = &value["iterations"][0]["first_failure"];
+        assert_eq!(first_failure["stage"], "flow_selection");
+        assert_eq!(first_failure["status"], "returned_error");
+        assert_eq!(first_failure["step_index"], 0);
+        assert!(first_failure["failure_message"]
+            .as_str()
+            .unwrap()
+            .contains("replay flow index 1 at step 0 is out of range"));
+
+        let _ = fs::remove_dir_all(out_dir);
+    }
+
+    #[derive(Default)]
+    struct ExpectedErrorSim {
+        world: World,
+    }
+
+    #[riptide_sim]
+    impl ExpectedErrorSim {
+        #[init]
+        fn init(&mut self) {}
+
+        #[flow(weight = 100)]
+        fn expected_error_flow(&mut self) -> Result<()> {
+            let recipient = Pubkey::new_from_array([12; 32]);
+            let ix = transfer(&self.world.admin_pubkey(), &recipient, u64::MAX);
+            self.world
+                .process_transaction_expect_error(&[ix], Some("too_large_transfer"))?;
+            Ok(())
+        }
+
+        #[end]
+        fn end(&mut self) {}
+    }
+
+    #[test]
+    fn runner_trace_summarizes_expected_error_outcomes() {
+        let out_dir = unique_temp_dir();
+        let config = RunnerConfig {
+            out_dir: Some(out_dir.clone()),
+            ..RunnerConfig::default()
+        };
+
+        SimulationRunner::<ExpectedErrorSim>::new(config)
+            .run()
+            .unwrap();
+
+        let raw = fs::read_to_string(out_dir.join("guided-sim-run.json")).unwrap();
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        let trace = &value["iterations"][0]["flow_trace"][0];
+        assert_eq!(trace["status"], "passed");
+        assert_eq!(trace["tx_log_start"], 0);
+        assert_eq!(trace["tx_log_end"], 1);
+        assert_eq!(trace["expected_errors"], 1);
+        assert_eq!(trace["unexpected_errors"], 0);
+        assert!(value["iterations"][0]["first_failing_flow_step"].is_null());
+        assert!(value["iterations"][0]["first_failure"].is_null());
+
+        let _ = fs::remove_dir_all(out_dir);
+    }
+
+    #[derive(Default)]
+    struct PanickingSim {
+        world: World,
+    }
+
+    #[riptide_sim]
+    impl PanickingSim {
+        #[init]
+        fn init(&mut self) {}
+
+        #[flow(weight = 100)]
+        fn panicking_flow(&mut self) {
+            panic!("intentional flow panic");
+        }
+
+        #[end]
+        fn end(&mut self) {}
+    }
+
+    #[test]
+    fn runner_trace_records_first_failing_step_for_panic() {
+        let out_dir = unique_temp_dir();
+        let config = RunnerConfig {
+            out_dir: Some(out_dir.clone()),
+            ..RunnerConfig::default()
+        };
+
+        let error = SimulationRunner::<PanickingSim>::new(config)
+            .run()
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("simulation panicked: intentional flow panic"));
+
+        let raw = fs::read_to_string(out_dir.join("guided-sim-run.json")).unwrap();
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["status"], "failed");
+        assert_eq!(value["totals"]["panics"], 1);
+        assert_eq!(value["iterations"][0]["status"], "panic");
+        assert_eq!(value["iterations"][0]["panic"], true);
+        let trace = value["iterations"][0]["flow_trace"].as_array().unwrap();
+        assert_eq!(trace.len(), 1);
+        assert_eq!(trace[0]["flow_name"], "panicking_flow");
+        assert_eq!(trace[0]["status"], "panic");
+        assert!(trace[0]["failure_message"]
+            .as_str()
+            .unwrap()
+            .contains("intentional flow panic"));
+        assert_eq!(value["iterations"][0]["first_failing_flow_step"], trace[0]);
+        assert_eq!(value["iterations"][0]["first_failure"]["stage"], "flow");
+        assert_eq!(value["iterations"][0]["first_failure"]["status"], "panic");
+        assert_eq!(
+            value["iterations"][0]["first_failure"]["failure_message"],
+            trace[0]["failure_message"]
+        );
+
+        let _ = fs::remove_dir_all(out_dir);
+    }
+
+    #[derive(Default)]
+    struct EndFailingSim {
+        world: World,
+    }
+
+    #[riptide_sim]
+    impl EndFailingSim {
+        #[init]
+        fn init(&mut self) {}
+
+        #[flow(weight = 100)]
+        fn passing_flow(&mut self) {}
+
+        #[end]
+        fn end(&mut self) -> Result<()> {
+            anyhow::bail!("intentional end failure")
+        }
+    }
+
+    #[test]
+    fn runner_trace_records_first_failure_for_end_error() {
+        let out_dir = unique_temp_dir();
+        let config = RunnerConfig {
+            out_dir: Some(out_dir.clone()),
+            ..RunnerConfig::default()
+        };
+
+        let error = SimulationRunner::<EndFailingSim>::new(config)
+            .run()
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("intentional end failure"));
+
+        let raw = fs::read_to_string(out_dir.join("guided-sim-run.json")).unwrap();
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["status"], "failed");
+        assert_eq!(value["iterations"][0]["flow_trace"][0]["status"], "passed");
+        assert!(value["iterations"][0]["first_failing_flow_step"].is_null());
+        let first_failure = &value["iterations"][0]["first_failure"];
+        assert_eq!(first_failure["stage"], "end");
+        assert_eq!(first_failure["status"], "returned_error");
+        assert!(first_failure["step_index"].is_null());
+        assert!(first_failure["flow_index"].is_null());
+        assert!(first_failure["flow_name"].is_null());
+        assert!(first_failure["failure_message"]
+            .as_str()
+            .unwrap()
+            .contains("intentional end failure"));
+
+        let _ = fs::remove_dir_all(out_dir);
+    }
+
+    #[derive(Default)]
+    struct EndPanickingSim {
+        world: World,
+    }
+
+    #[riptide_sim]
+    impl EndPanickingSim {
+        #[init]
+        fn init(&mut self) {}
+
+        #[flow(weight = 100)]
+        fn passing_flow(&mut self) {}
+
+        #[end]
+        fn end(&mut self) {
+            panic!("intentional end panic");
+        }
+    }
+
+    #[test]
+    fn runner_trace_records_first_failure_for_end_panic() {
+        let out_dir = unique_temp_dir();
+        let config = RunnerConfig {
+            out_dir: Some(out_dir.clone()),
+            ..RunnerConfig::default()
+        };
+
+        let error = SimulationRunner::<EndPanickingSim>::new(config)
+            .run()
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("simulation panicked: intentional end panic"));
+
+        let raw = fs::read_to_string(out_dir.join("guided-sim-run.json")).unwrap();
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["status"], "failed");
+        assert_eq!(value["iterations"][0]["status"], "panic");
+        assert_eq!(value["iterations"][0]["flow_trace"][0]["status"], "passed");
+        assert!(value["iterations"][0]["first_failing_flow_step"].is_null());
+        let first_failure = &value["iterations"][0]["first_failure"];
+        assert_eq!(first_failure["stage"], "end");
+        assert_eq!(first_failure["status"], "panic");
+        assert!(first_failure["failure_message"]
+            .as_str()
+            .unwrap()
+            .contains("intentional end panic"));
 
         let _ = fs::remove_dir_all(out_dir);
     }
@@ -717,6 +1455,15 @@ mod tests {
         let value: Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(value["status"], "failed");
         assert!(value["retained_failing_seed"].is_string());
+        assert_eq!(value["iterations"][0]["flow_trace"][0]["status"], "passed");
+        assert!(value["iterations"][0]["first_failing_flow_step"].is_null());
+        let first_failure = &value["iterations"][0]["first_failure"];
+        assert_eq!(first_failure["stage"], "regression");
+        assert_eq!(first_failure["status"], "returned_error");
+        assert!(first_failure["failure_message"]
+            .as_str()
+            .unwrap()
+            .contains("regression hash mismatch"));
 
         let _ = fs::remove_dir_all(out_dir);
     }

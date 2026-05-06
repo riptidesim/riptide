@@ -19,7 +19,7 @@ pub use rng::RiptideRng;
 pub use runner::{run, FlowSpec, IntoSimResult, RiptideSimulation, RunnerConfig, SimulationRunner};
 pub use services::Service;
 pub use spl::{spl_mint_data, spl_token_2022_mint_data, spl_token_account_data};
-pub use world::{TxOutcome, World};
+pub use world::{TxOutcome, World, WorldTransactionBuilder};
 
 pub use anyhow;
 pub use borsh;

@@ -50,6 +50,21 @@ pub struct World {
     regression_config: RegressionConfig,
 }
 
+pub struct WorldTransactionBuilder<'world> {
+    world: &'world mut World,
+    instructions: Vec<Instruction>,
+    label: Option<String>,
+    signer_pubkeys: Vec<Pubkey>,
+    expectation: TxExpectation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TxExpectation {
+    Outcome,
+    Success,
+    Error,
+}
+
 impl World {
     pub fn new(program_id: Pubkey) -> Self {
         let admin = deterministic_admin_keypair();
@@ -181,6 +196,10 @@ impl World {
         self.add_program_from_so(program_id, so_path)
     }
 
+    pub fn transaction(&mut self) -> WorldTransactionBuilder<'_> {
+        WorldTransactionBuilder::new(self)
+    }
+
     pub fn process_transaction(
         &mut self,
         ixs: &[Instruction],
@@ -195,15 +214,7 @@ impl World {
         label: Option<&str>,
     ) -> Result<TxOutcome> {
         let outcome = self.process_transaction_outcome(ixs, label)?;
-        if outcome.ok {
-            Ok(outcome)
-        } else {
-            Err(anyhow!(
-                "transaction `{}` failed: {}",
-                label.unwrap_or("unlabelled"),
-                outcome.error.as_deref().unwrap_or("unknown error")
-            ))
-        }
+        enforce_expected_success(outcome, label)
     }
 
     pub fn process_transaction_expect_error(
@@ -211,21 +222,8 @@ impl World {
         ixs: &[Instruction],
         label: Option<&str>,
     ) -> Result<TxOutcome> {
-        let mut outcome = self.process_transaction_outcome(ixs, label)?;
-        if outcome.ok {
-            Err(anyhow!(
-                "transaction `{}` succeeded, but the simulation expected an error",
-                label.unwrap_or("unlabelled")
-            ))
-        } else {
-            outcome.expected_error = true;
-            if let Some(last) = self.tx_log.last_mut() {
-                if last.signature == outcome.signature {
-                    last.expected_error = true;
-                }
-            }
-            Ok(outcome)
-        }
+        let outcome = self.process_transaction_outcome(ixs, label)?;
+        self.enforce_expected_error(outcome, label)
     }
 
     pub fn process_transaction_outcome(
@@ -233,18 +231,27 @@ impl World {
         ixs: &[Instruction],
         label: Option<&str>,
     ) -> Result<TxOutcome> {
+        let signer_pubkeys = self.legacy_transaction_signers(ixs);
+        self.send_transaction_with_signers(ixs, label, &signer_pubkeys)
+    }
+
+    fn process_transaction_outcome_with_selected_signers(
+        &mut self,
+        ixs: &[Instruction],
+        label: Option<&str>,
+        selected_signers: &[Pubkey],
+    ) -> Result<TxOutcome> {
+        let signer_pubkeys = self.resolve_transaction_signers(ixs, label, selected_signers)?;
+        self.send_transaction_with_signers(ixs, label, &signer_pubkeys)
+    }
+
+    fn send_transaction_with_signers(
+        &mut self,
+        ixs: &[Instruction],
+        label: Option<&str>,
+        signer_pubkeys: &[Pubkey],
+    ) -> Result<TxOutcome> {
         let blockhash = self.svm.latest_blockhash();
-        let mut signer_pubkeys = vec![self.admin.pubkey()];
-        for ix in ixs {
-            for account in &ix.accounts {
-                if account.is_signer
-                    && self.signers.contains_key(&account.pubkey)
-                    && !signer_pubkeys.contains(&account.pubkey)
-                {
-                    signer_pubkeys.push(account.pubkey);
-                }
-            }
-        }
         let signers = signer_pubkeys
             .iter()
             .map(|pubkey| {
@@ -283,6 +290,82 @@ impl World {
         };
         self.tx_log.push(outcome.clone());
         Ok(outcome)
+    }
+
+    fn legacy_transaction_signers(&self, ixs: &[Instruction]) -> Vec<Pubkey> {
+        let mut signer_pubkeys = vec![self.admin.pubkey()];
+        for ix in ixs {
+            for account in &ix.accounts {
+                if account.is_signer
+                    && self.signers.contains_key(&account.pubkey)
+                    && !signer_pubkeys.contains(&account.pubkey)
+                {
+                    signer_pubkeys.push(account.pubkey);
+                }
+            }
+        }
+        signer_pubkeys
+    }
+
+    fn resolve_transaction_signers(
+        &self,
+        ixs: &[Instruction],
+        label: Option<&str>,
+        selected_signers: &[Pubkey],
+    ) -> Result<Vec<Pubkey>> {
+        let label = label.unwrap_or("unlabelled");
+        let admin = self.admin.pubkey();
+        let required_signers = required_instruction_signers(ixs);
+        let mut signer_pubkeys = vec![admin];
+
+        for pubkey in selected_signers {
+            if !self.signers.contains_key(pubkey) {
+                anyhow::bail!(
+                    "transaction `{label}` requested signer {pubkey}, but World has no registered keypair"
+                );
+            }
+            if *pubkey != admin && !required_signers.contains(pubkey) {
+                anyhow::bail!(
+                    "transaction `{label}` requested signer {pubkey}, but no instruction requires that signer"
+                );
+            }
+            push_unique_pubkey(&mut signer_pubkeys, *pubkey);
+        }
+
+        for pubkey in required_signers {
+            if pubkey == admin {
+                continue;
+            }
+            if !self.signers.contains_key(&pubkey) {
+                anyhow::bail!(
+                    "transaction `{label}` requires signer {pubkey}, but World has no registered keypair"
+                );
+            }
+            push_unique_pubkey(&mut signer_pubkeys, pubkey);
+        }
+
+        Ok(signer_pubkeys)
+    }
+
+    fn enforce_expected_error(
+        &mut self,
+        mut outcome: TxOutcome,
+        label: Option<&str>,
+    ) -> Result<TxOutcome> {
+        if outcome.ok {
+            Err(anyhow!(
+                "transaction `{}` succeeded, but the simulation expected an error",
+                label.unwrap_or("unlabelled")
+            ))
+        } else {
+            outcome.expected_error = true;
+            if let Some(last) = self.tx_log.last_mut() {
+                if last.signature == outcome.signature {
+                    last.expected_error = true;
+                }
+            }
+            Ok(outcome)
+        }
     }
 
     pub fn tx_log(&self) -> &[TxOutcome] {
@@ -546,6 +629,110 @@ impl World {
     }
 }
 
+impl<'world> WorldTransactionBuilder<'world> {
+    fn new(world: &'world mut World) -> Self {
+        Self {
+            world,
+            instructions: Vec::new(),
+            label: None,
+            signer_pubkeys: Vec::new(),
+            expectation: TxExpectation::Success,
+        }
+    }
+
+    pub fn instruction(mut self, instruction: Instruction) -> Self {
+        self.instructions.push(instruction);
+        self
+    }
+
+    pub fn instructions(mut self, instructions: impl IntoIterator<Item = Instruction>) -> Self {
+        self.instructions.extend(instructions);
+        self
+    }
+
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    pub fn signer(mut self, pubkey: Pubkey) -> Self {
+        push_unique_pubkey(&mut self.signer_pubkeys, pubkey);
+        self
+    }
+
+    pub fn signers(mut self, pubkeys: impl IntoIterator<Item = Pubkey>) -> Self {
+        for pubkey in pubkeys {
+            push_unique_pubkey(&mut self.signer_pubkeys, pubkey);
+        }
+        self
+    }
+
+    pub fn expect_success(mut self) -> Self {
+        self.expectation = TxExpectation::Success;
+        self
+    }
+
+    pub fn expect_error(mut self) -> Self {
+        self.expectation = TxExpectation::Error;
+        self
+    }
+
+    pub fn record_outcome(mut self) -> Self {
+        self.expectation = TxExpectation::Outcome;
+        self
+    }
+
+    pub fn send(self) -> Result<TxOutcome> {
+        let Self {
+            world,
+            instructions,
+            label,
+            signer_pubkeys,
+            expectation,
+        } = self;
+        let outcome = world.process_transaction_outcome_with_selected_signers(
+            &instructions,
+            label.as_deref(),
+            &signer_pubkeys,
+        )?;
+        match expectation {
+            TxExpectation::Outcome => Ok(outcome),
+            TxExpectation::Success => enforce_expected_success(outcome, label.as_deref()),
+            TxExpectation::Error => world.enforce_expected_error(outcome, label.as_deref()),
+        }
+    }
+}
+
+fn enforce_expected_success(outcome: TxOutcome, label: Option<&str>) -> Result<TxOutcome> {
+    if outcome.ok {
+        Ok(outcome)
+    } else {
+        Err(anyhow!(
+            "transaction `{}` failed: {}",
+            label.unwrap_or("unlabelled"),
+            outcome.error.as_deref().unwrap_or("unknown error")
+        ))
+    }
+}
+
+fn required_instruction_signers(ixs: &[Instruction]) -> Vec<Pubkey> {
+    let mut required = Vec::new();
+    for ix in ixs {
+        for account in &ix.accounts {
+            if account.is_signer {
+                push_unique_pubkey(&mut required, account.pubkey);
+            }
+        }
+    }
+    required
+}
+
+fn push_unique_pubkey(pubkeys: &mut Vec<Pubkey>, pubkey: Pubkey) {
+    if !pubkeys.contains(&pubkey) {
+        pubkeys.push(pubkey);
+    }
+}
+
 fn account_state_hash(pubkey: &Pubkey, account: &Account) -> String {
     let mut hasher = Sha256::new();
     hasher.update(pubkey.as_ref());
@@ -625,6 +812,125 @@ mod tests {
             Some("too_large_transfer")
         );
         assert!(world.tx_log()[0].expected_error);
+    }
+
+    #[test]
+    fn process_transaction_outcome_preserves_legacy_missing_signer_panic() {
+        let mut world = World::default();
+        let missing_authority = Keypair::new_from_array([6; 32]).pubkey();
+        let recipient = Pubkey::new_unique();
+        world.airdrop(&recipient, 1_000_000_000).unwrap();
+        let ix = transfer(&missing_authority, &recipient, 1);
+
+        let previous_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            world
+                .process_transaction_outcome(&[ix], Some("legacy_missing_signer"))
+                .unwrap();
+        }));
+        std::panic::set_hook(previous_hook);
+
+        assert!(result.is_err());
+        assert!(world.tx_log().is_empty());
+    }
+
+    #[test]
+    fn transaction_builder_runs_instruction_with_label_and_selected_signer() {
+        let mut world = World::default();
+        let authority = Keypair::new_from_array([3; 32]);
+        let authority_pubkey = world.register_keypair(authority);
+        let recipient = Pubkey::new_from_array([4; 32]);
+        world.airdrop(&authority_pubkey, 1_000_000_000).unwrap();
+        world.airdrop(&recipient, 1_000_000_000).unwrap();
+        let recipient_before = world.get_account(&recipient).unwrap().lamports;
+        let ix = transfer(&authority_pubkey, &recipient, 7);
+
+        let outcome = world
+            .transaction()
+            .label("builder_transfer")
+            .instruction(ix)
+            .signer(authority_pubkey)
+            .expect_success()
+            .send()
+            .unwrap();
+
+        assert!(outcome.ok);
+        assert_eq!(outcome.label.as_deref(), Some("builder_transfer"));
+        assert_eq!(world.tx_log()[0].label.as_deref(), Some("builder_transfer"));
+        assert_eq!(
+            world.get_account(&recipient).unwrap().lamports,
+            recipient_before + 7
+        );
+    }
+
+    #[test]
+    fn transaction_builder_records_expected_error() {
+        let mut world = World::default();
+        let recipient = Pubkey::new_unique();
+        let ix = transfer(&world.admin_pubkey(), &recipient, u64::MAX);
+
+        let outcome = world
+            .transaction()
+            .label("builder_too_large_transfer")
+            .instruction(ix)
+            .expect_error()
+            .send()
+            .unwrap();
+
+        assert!(!outcome.ok);
+        assert!(outcome.expected_error);
+        assert!(outcome.error.is_some());
+        assert_eq!(
+            world.tx_log()[0].label.as_deref(),
+            Some("builder_too_large_transfer")
+        );
+        assert!(world.tx_log()[0].expected_error);
+    }
+
+    #[test]
+    fn transaction_builder_can_return_raw_outcome() {
+        let mut world = World::default();
+        let recipient = Pubkey::new_unique();
+        let ix = transfer(&world.admin_pubkey(), &recipient, u64::MAX);
+
+        let outcome = world
+            .transaction()
+            .label("builder_raw_outcome")
+            .instruction(ix)
+            .record_outcome()
+            .send()
+            .unwrap();
+
+        assert!(!outcome.ok);
+        assert!(!outcome.expected_error);
+        assert_eq!(
+            world.tx_log()[0].label.as_deref(),
+            Some("builder_raw_outcome")
+        );
+        assert!(!world.tx_log()[0].expected_error);
+    }
+
+    #[test]
+    fn transaction_builder_reports_missing_required_signer() {
+        let mut world = World::default();
+        let missing_authority = Keypair::new_from_array([5; 32]).pubkey();
+        let recipient = Pubkey::new_unique();
+        world.airdrop(&recipient, 1_000_000_000).unwrap();
+        let ix = transfer(&missing_authority, &recipient, 1);
+
+        let error = world
+            .transaction()
+            .label("missing_authority")
+            .instruction(ix)
+            .expect_success()
+            .send()
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("transaction `missing_authority` requires signer"));
+        assert!(error.contains("World has no registered keypair"));
+        assert!(world.tx_log().is_empty());
     }
 
     #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq)]
