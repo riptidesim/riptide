@@ -1,4 +1,4 @@
-import type { ArtifactIndex, JobListPayload, Workspace } from "../api";
+import type { Artifact, ArtifactIndex, JobListPayload, Workspace } from "../api";
 import type { ViewKey } from "../components/Sidebar";
 import { StatusPill } from "../components/StatusPill";
 
@@ -29,11 +29,24 @@ export function OverviewView({
   const recentReports = artifacts
     ? artifacts.artifacts
         .filter((a) =>
-          ["markdown-summary", "readiness-report", "campaign-root"].includes(a.kind)
+          [
+            "markdown-summary",
+            "readiness-report",
+            "campaign-root",
+            "pack",
+            "guided-sim",
+            "retained-case"
+          ].includes(a.kind)
         )
         .sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))
         .slice(0, 5)
     : [];
+  const latestEvidence = artifacts
+    ? (artifacts.artifacts
+        .filter((a) => !["adapter", "scenario", "campaign-input"].includes(a.kind))
+        .sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))
+        .at(0) ?? null)
+    : null;
   const queuedJobs = jobs?.jobs.filter((j) => j.status === "queued" || j.status === "running") ?? [];
 
   return (
@@ -69,7 +82,9 @@ export function OverviewView({
 
       <div className="rt-grid-cols-2">
         <div className="rt-card">
-          <div className="rt-page-kicker">LATEST RUN COLLECTION</div>
+          <div className="rt-page-kicker">
+            {collection ? "LATEST RUN COLLECTION" : "LATEST EVIDENCE"}
+          </div>
           {collection ? (
             <>
               <h3>{collection.label}</h3>
@@ -90,6 +105,36 @@ export function OverviewView({
                   onClick={() => setView("dashboard")}
                 >
                   Open dashboard
+                </button>
+              </div>
+            </>
+          ) : latestEvidence ? (
+            <>
+              <h3>{latestEvidence.label}</h3>
+              <div className="rt-meta">{latestEvidence.relative_path}</div>
+              <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <StatusPill text={latestEvidence.kind.replace(/-/g, " ")} tone="info" />
+                <StatusPill text={latestEvidence.status} />
+                <StatusPill text={latestEvidence.verdict} />
+                <StatusPill text={latestEvidence.coverage} tone="info" />
+                <StatusPill text={latestEvidence.confidence} tone="info" />
+              </div>
+              <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {isReportableEvidence(latestEvidence) ? (
+                  <button
+                    className="rt-btn"
+                    type="button"
+                    onClick={() => openArtifactReport(latestEvidence.id)}
+                  >
+                    Open report
+                  </button>
+                ) : null}
+                <button
+                  className="rt-btn rt-btn--ghost"
+                  type="button"
+                  onClick={() => setView("library")}
+                >
+                  Open library
                 </button>
               </div>
             </>
@@ -173,13 +218,13 @@ export function OverviewView({
         </div>
       )}
 
-      <h2>Recent reports & summaries</h2>
+      <h2>Recent evidence & reports</h2>
       {recentReports.length === 0 ? (
         <div className="rt-empty">
-          <strong>No summaries yet.</strong>
+          <strong>No evidence artifacts yet.</strong>
           Markdown reports appear under <code className="rt-code-inline">.riptide/</code>,
           campaign roots under <code className="rt-code-inline">.riptide/campaigns/</code>, and
-          readiness reports under <code className="rt-code-inline">.riptide/readiness/</code>.
+          replay packs under <code className="rt-code-inline">.riptide/pack/</code>.
         </div>
       ) : (
         <div className="rt-grid-cols-2">
@@ -202,6 +247,18 @@ export function OverviewView({
       )}
     </>
   );
+}
+
+function isReportableEvidence(artifact: Artifact): boolean {
+  return [
+    "run",
+    "campaign-root",
+    "pack",
+    "guided-sim",
+    "readiness-report",
+    "markdown-summary",
+    "retained-case"
+  ].includes(artifact.kind);
 }
 
 function WarningList({ warnings }: { warnings: { message: string; next_action: string }[] }) {

@@ -32,11 +32,11 @@ const COLUMN_TITLES: Record<number, string> = {
   7: "Reports & packs"
 };
 
-const NODE_W = 200;
+const NODE_W = 124;
 const NODE_H = 56;
-const COL_W = 240;
+const COL_W = 136;
 const ROW_H = 76;
-const PAD_X = 24;
+const PAD_X = 16;
 const PAD_Y = 56;
 
 export function DiagramView({ workspace }: Props) {
@@ -100,7 +100,7 @@ export function DiagramView({ workspace }: Props) {
                   letterSpacing="0.14em"
                   textAnchor="start"
                 >
-                  {c.title.toUpperCase()}
+                  {truncate(c.title.toUpperCase(), 18)}
                 </text>
               ))}
               {layout.edges.map((edge) => (
@@ -124,11 +124,12 @@ export function DiagramView({ workspace }: Props) {
                   style={{ cursor: "pointer" }}
                 >
                   <rect width={NODE_W} height={NODE_H} rx={8} ry={8} />
+                  <title>{`${n.node.kind}: ${n.node.label}`}</title>
                   <text x={10} y={20} className="rt-diagram-label">
                     {n.node.kind.toUpperCase()}
                   </text>
                   <text x={10} y={38}>
-                    {truncate(n.node.label, 26)}
+                    {truncate(n.node.label, 15)}
                   </text>
                 </g>
               ))}
@@ -229,7 +230,7 @@ function layoutGraph(graph: Graph): Layout {
     };
   });
   const colCount = usedColumns.length === 0 ? 1 : (usedColumns.at(-1) ?? 0) + 1;
-  const width = Math.max(800, PAD_X * 2 + colCount * COL_W);
+  const width = Math.max(960, PAD_X * 2 + (colCount - 1) * COL_W + NODE_W + PAD_X);
   const height = Math.max(320, PAD_Y + maxRows * ROW_H + 24);
   const columnTitles = usedColumns.map((c) => ({
     x: PAD_X + c * COL_W,
