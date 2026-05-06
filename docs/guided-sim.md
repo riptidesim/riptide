@@ -183,6 +183,32 @@ seeds, flow counts, labelled transaction outcomes, compute units,
 expected-error counts, service tick count, regression account hashes when
 enabled, and the retained failing seed.
 
+The artifact also carries additive ordered trace metadata. Root
+`trace_schema_version` labels the trace shape without replacing
+`schema_version`. Each iteration has `flow_trace`, an ordered list of
+flow steps with:
+
+- `step_index`, `flow_index`, and `flow_name`
+- `tx_log_start` and `tx_log_end` offsets into that iteration's
+  `tx_outcomes` array
+- `service_ticks_before` and `service_ticks_after`
+- `status`: `passed`, `returned_error`, or `panic`
+- `expected_errors` and `unexpected_errors` for the transaction outcomes
+  in that step's offset range
+- `failure_message`, which is `null` for passed steps
+
+Passed iterations set `first_failure` and `first_failing_flow_step` to
+`null`. Failed iterations set `first_failure` to the first failed stage
+with status, tx-log offsets, service-tick offsets, and a failure
+message. When the failure happened inside a flow step,
+`first_failing_flow_step` copies that non-passed trace entry; failures
+from `init`, flow selection, `end`, or regression hashing keep
+`first_failing_flow_step` null so the artifact does not misattribute a
+non-flow failure to a flow. These fields are additive: older
+`guided-sim-run.json` artifacts that only have `schema_version`,
+`flow_counts`, `tx_outcomes`, `totals`, and `retained_failing_seed`
+remain valid review inputs.
+
 Review the artifact directly:
 
 ```bash
@@ -192,9 +218,18 @@ riptide review .riptide/sim/artifacts/run-001
 
 Review mode reads the artifact cold. It does not rerun the simulation,
 execute `rerun.sh`, or claim adapter-campaign coverage. It summarizes the
-retained failing seed, flow table, labelled transaction outcomes, failure
-reason, and rerun command so another reviewer can decide whether to rerun
-or inspect the Rust flow/service code.
+retained failing seed, flow table, compact flow trace, labelled
+transaction outcomes, failure reason, first failing flow step when one is
+present, and rerun command so another reviewer can decide whether to
+rerun or inspect the Rust flow/service code.
+
+Trace-bearing artifacts get a small `Flow Trace` table that reports step
+counts, status counts, a flow-name preview, transaction-log offsets, and
+expected/unexpected error counts. Older artifacts that do not have trace
+fields still review normally; review output marks them as legacy trace
+inputs and falls back to `flow_counts` and `tx_outcomes`. JSON review
+payloads include stable `trace_summary`, `first_failure`, and
+`first_failing_flow_step` fields for downstream tooling.
 
 Reuse a retained seed with `riptide sim debug` to dump labelled
 transaction outcomes:

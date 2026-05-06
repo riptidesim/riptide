@@ -40,6 +40,64 @@ export interface ReviewCommandDeps {
 
 type JsonRecord = Record<string, unknown>;
 
+interface GuidedTraceStepSummary {
+  iteration: number | string;
+  step_index: number;
+  flow_index: number;
+  flow_name: string;
+  tx_log_start: number;
+  tx_log_end: number;
+  service_ticks_before: number;
+  service_ticks_after: number;
+  status: "passed" | "returned_error" | "panic";
+  expected_errors: number;
+  unexpected_errors: number;
+  failure_message: string | null;
+}
+
+interface GuidedFirstFailureSummary {
+  iteration: number | string;
+  stage: string;
+  status: "returned_error" | "panic";
+  step_index: number | null;
+  flow_index: number | null;
+  flow_name: string | null;
+  tx_log_start: number;
+  tx_log_end: number;
+  service_ticks_before: number;
+  service_ticks_after: number;
+  failure_message: string;
+}
+
+interface GuidedTraceIterationSummary {
+  iteration: number | string;
+  status: string;
+  steps: number;
+  passed_steps: number;
+  returned_error_steps: number;
+  panic_steps: number;
+  flow_sequence_preview: string[];
+  flow_sequence_truncated: boolean;
+  tx_log_start: number | null;
+  tx_log_end: number | null;
+  expected_errors: number;
+  unexpected_errors: number;
+  first_failing_flow_step: GuidedTraceStepSummary | null;
+  first_failure: GuidedFirstFailureSummary | null;
+}
+
+interface GuidedTraceSummary {
+  available: boolean;
+  schema_version: number | null;
+  iterations: GuidedTraceIterationSummary[];
+  first_failing_flow_step: GuidedTraceStepSummary | null;
+  first_failure: GuidedFirstFailureSummary | null;
+}
+
+const GUIDED_TRACE_PREVIEW_LIMIT = 8;
+const GUIDED_TRACE_STEP_STATUSES = new Set(["passed", "returned_error", "panic"]);
+const GUIDED_FAILURE_STATUSES = new Set(["returned_error", "panic"]);
+
 export function createReviewCommand(deps: ReviewCommandDeps = {}): Command {
   return new Command("review")
     .description("Validate a Riptide evidence pack, campaign root, or guided-sim artifact and emit reviewer markdown")
@@ -178,6 +236,7 @@ async function runGuidedSimReview(
     }
   ];
   validateGuidedSimArtifact(artifactPath, artifact, validationResults);
+  const traceSummary = summarizeGuidedSimTrace(artifactPath, artifact, validationResults);
 
   const rerunPath = path.join(artifactRoot, "rerun.sh");
   let rerunCommand = await readGuidedSimRerunCommand(rerunPath);
@@ -197,6 +256,7 @@ async function runGuidedSimReview(
     artifactRoot,
     artifactPath,
     artifact,
+    traceSummary,
     validationResults,
     rerunCommand
   });
@@ -211,6 +271,9 @@ async function runGuidedSimReview(
           status: stringValue(artifact.status) ?? "unknown",
           retained_failing_seed: stringValue(artifact.retained_failing_seed),
           failure_reason: firstGuidedSimFailure(artifact),
+          first_failure: traceSummary.first_failure,
+          first_failing_flow_step: traceSummary.first_failing_flow_step,
+          trace_summary: traceSummary,
           flow_counts: aggregateGuidedSimFlows(artifact),
           tx_outcomes: guidedSimTxOutcomes(artifact),
           rerun_command: rerunCommand,
@@ -272,6 +335,7 @@ function renderGuidedSimReviewMarkdown(input: {
   artifactRoot: string;
   artifactPath: string;
   artifact: JsonRecord;
+  traceSummary: GuidedTraceSummary;
   validationResults: ValidationResult[];
   rerunCommand: string;
 }): string {
@@ -311,6 +375,13 @@ function renderGuidedSimReviewMarkdown(input: {
 
   lines.push(
     "",
+    "## Flow Trace",
+    ""
+  );
+  appendGuidedTraceMarkdown(lines, input.traceSummary);
+
+  lines.push(
+    "",
     "## Transaction Labels",
     "",
     "| Iteration | Label | Status | Expected error | Compute units | Error |",
@@ -331,6 +402,8 @@ function renderGuidedSimReviewMarkdown(input: {
     "## Failure",
     "",
     `- Failure reason: ${failure ? tableCell(failure) : "none"}`,
+    `- First failing flow step: ${formatFirstFailingFlowStep(input.traceSummary.first_failing_flow_step)}`,
+    `- First failure stage: ${formatFirstFailure(input.traceSummary.first_failure)}`,
     `- Rerun command: \`${input.rerunCommand}\``,
     "",
     "## Validation",
@@ -347,6 +420,376 @@ function renderGuidedSimReviewMarkdown(input: {
     ""
   );
   return lines.join("\n");
+}
+
+function summarizeGuidedSimTrace(
+  artifactPath: string,
+  artifact: JsonRecord,
+  validationResults: ValidationResult[]
+): GuidedTraceSummary {
+  const iterations = guidedSimIterations(artifact);
+  const traceSchemaPresent = hasOwn(artifact, "trace_schema_version");
+  const traceFieldsPresent = iterations.some((iteration) =>
+    hasOwn(iteration, "flow_trace") ||
+    hasOwn(iteration, "first_failing_flow_step") ||
+    hasOwn(iteration, "first_failure")
+  );
+
+  if (!traceSchemaPresent && !traceFieldsPresent) {
+    validationResults.push({
+      step: "guided-sim-trace",
+      status: "pass",
+      message: "trace metadata absent; reviewing legacy guided-sim artifact",
+      path: artifactPath,
+    });
+    return {
+      available: false,
+      schema_version: null,
+      iterations: [],
+      first_failing_flow_step: null,
+      first_failure: null,
+    };
+  }
+
+  if (!traceSchemaPresent) {
+    throw guidedTraceValidationError(
+      artifactPath,
+      "trace_schema_version",
+      "expected trace_schema_version: 1 when flow_trace fields are present"
+    );
+  }
+
+  if (integerValue(artifact.trace_schema_version) !== 1) {
+    throw guidedTraceValidationError(
+      artifactPath,
+      "trace_schema_version",
+      "expected number 1"
+    );
+  }
+
+  const summaries: GuidedTraceIterationSummary[] = [];
+  let firstFailingFlowStep: GuidedTraceStepSummary | null = null;
+  let firstFailure: GuidedFirstFailureSummary | null = null;
+  for (const [iterationIndex, iteration] of iterations.entries()) {
+    const iterationId = numberValue(iteration.iteration) ?? iterationIndex;
+    const outcomes = Array.isArray(iteration.tx_outcomes) ? iteration.tx_outcomes : [];
+    if (!Array.isArray(iteration.flow_trace)) {
+      throw guidedTraceValidationError(
+        artifactPath,
+        `iterations[${iterationIndex}].flow_trace`,
+        "expected an array of flow trace steps"
+      );
+    }
+    const steps = iteration.flow_trace.map((step, stepIndex) =>
+      parseGuidedTraceStep(
+        artifactPath,
+        step,
+        `iterations[${iterationIndex}].flow_trace[${stepIndex}]`,
+        iterationId,
+        outcomes.length
+      )
+    );
+    const parsedFirstStep = parseNullableGuidedTraceStep(
+      artifactPath,
+      iteration.first_failing_flow_step,
+      `iterations[${iterationIndex}].first_failing_flow_step`,
+      iterationId,
+      outcomes.length
+    );
+    if (parsedFirstStep?.status === "passed") {
+      throw guidedTraceValidationError(
+        artifactPath,
+        `iterations[${iterationIndex}].first_failing_flow_step.status`,
+        "expected returned_error or panic"
+      );
+    }
+    const parsedFirstFailure = parseNullableGuidedFirstFailure(
+      artifactPath,
+      iteration.first_failure,
+      `iterations[${iterationIndex}].first_failure`,
+      iterationId,
+      outcomes.length
+    );
+    if (firstFailingFlowStep === null && parsedFirstStep !== null) {
+      firstFailingFlowStep = parsedFirstStep;
+    }
+    if (firstFailure === null && parsedFirstFailure !== null) {
+      firstFailure = parsedFirstFailure;
+    }
+    summaries.push(summarizeGuidedTraceIteration(iteration, iterationId, steps, parsedFirstStep, parsedFirstFailure));
+  }
+
+  validationResults.push({
+    step: "guided-sim-trace",
+    status: "pass",
+    message: `trace_schema_version 1 with ${summaries.reduce((sum, iteration) => sum + iteration.steps, 0)} flow step${summaries.reduce((sum, iteration) => sum + iteration.steps, 0) === 1 ? "" : "s"}`,
+    path: artifactPath,
+  });
+
+  return {
+    available: true,
+    schema_version: 1,
+    iterations: summaries,
+    first_failing_flow_step: firstFailingFlowStep,
+    first_failure: firstFailure,
+  };
+}
+
+function summarizeGuidedTraceIteration(
+  iteration: JsonRecord,
+  iterationId: number | string,
+  steps: GuidedTraceStepSummary[],
+  firstFailingFlowStep: GuidedTraceStepSummary | null,
+  firstFailure: GuidedFirstFailureSummary | null
+): GuidedTraceIterationSummary {
+  const txStarts = steps.map((step) => step.tx_log_start);
+  const txEnds = steps.map((step) => step.tx_log_end);
+  return {
+    iteration: iterationId,
+    status: stringValue(iteration.status) ?? "unknown",
+    steps: steps.length,
+    passed_steps: steps.filter((step) => step.status === "passed").length,
+    returned_error_steps: steps.filter((step) => step.status === "returned_error").length,
+    panic_steps: steps.filter((step) => step.status === "panic").length,
+    flow_sequence_preview: steps.slice(0, GUIDED_TRACE_PREVIEW_LIMIT).map((step) => step.flow_name),
+    flow_sequence_truncated: steps.length > GUIDED_TRACE_PREVIEW_LIMIT,
+    tx_log_start: txStarts.length > 0 ? Math.min(...txStarts) : null,
+    tx_log_end: txEnds.length > 0 ? Math.max(...txEnds) : null,
+    expected_errors: steps.reduce((sum, step) => sum + step.expected_errors, 0),
+    unexpected_errors: steps.reduce((sum, step) => sum + step.unexpected_errors, 0),
+    first_failing_flow_step: firstFailingFlowStep,
+    first_failure: firstFailure,
+  };
+}
+
+function parseNullableGuidedTraceStep(
+  artifactPath: string,
+  value: unknown,
+  fieldPath: string,
+  iteration: number | string,
+  txOutcomeCount: number
+): GuidedTraceStepSummary | null {
+  if (value === null) return null;
+  if (value === undefined) {
+    throw guidedTraceValidationError(artifactPath, fieldPath, "expected null or a trace step object");
+  }
+  return parseGuidedTraceStep(artifactPath, value, fieldPath, iteration, txOutcomeCount);
+}
+
+function parseGuidedTraceStep(
+  artifactPath: string,
+  value: unknown,
+  fieldPath: string,
+  iteration: number | string,
+  txOutcomeCount: number
+): GuidedTraceStepSummary {
+  const record = objectValue(value);
+  if (!record) {
+    throw guidedTraceValidationError(artifactPath, fieldPath, "expected a trace step object");
+  }
+  const status = expectEnumField(
+    artifactPath,
+    record,
+    "status",
+    `${fieldPath}.status`,
+    GUIDED_TRACE_STEP_STATUSES
+  ) as GuidedTraceStepSummary["status"];
+  const failureMessage = expectNullableStringField(
+    artifactPath,
+    record,
+    "failure_message",
+    `${fieldPath}.failure_message`
+  );
+  if (status === "passed" && failureMessage !== null) {
+    throw guidedTraceValidationError(
+      artifactPath,
+      `${fieldPath}.failure_message`,
+      "expected null for passed trace steps"
+    );
+  }
+  if (status !== "passed" && !failureMessage) {
+    throw guidedTraceValidationError(
+      artifactPath,
+      `${fieldPath}.failure_message`,
+      "expected a non-empty failure message for returned_error or panic steps"
+    );
+  }
+
+  const txLogStart = expectIntegerField(artifactPath, record, "tx_log_start", `${fieldPath}.tx_log_start`);
+  const txLogEnd = expectIntegerField(artifactPath, record, "tx_log_end", `${fieldPath}.tx_log_end`);
+  if (txLogEnd < txLogStart) {
+    throw guidedTraceValidationError(
+      artifactPath,
+      `${fieldPath}.tx_log_end`,
+      "expected tx_log_end to be greater than or equal to tx_log_start"
+    );
+  }
+  if (txLogEnd > txOutcomeCount) {
+    throw guidedTraceValidationError(
+      artifactPath,
+      `${fieldPath}.tx_log_end`,
+      `expected tx_log_end <= tx_outcomes.length (${txOutcomeCount})`
+    );
+  }
+
+  const serviceTicksBefore = expectIntegerField(
+    artifactPath,
+    record,
+    "service_ticks_before",
+    `${fieldPath}.service_ticks_before`
+  );
+  const serviceTicksAfter = expectIntegerField(
+    artifactPath,
+    record,
+    "service_ticks_after",
+    `${fieldPath}.service_ticks_after`
+  );
+  if (serviceTicksAfter < serviceTicksBefore) {
+    throw guidedTraceValidationError(
+      artifactPath,
+      `${fieldPath}.service_ticks_after`,
+      "expected service_ticks_after to be greater than or equal to service_ticks_before"
+    );
+  }
+
+  return {
+    iteration,
+    step_index: expectIntegerField(artifactPath, record, "step_index", `${fieldPath}.step_index`),
+    flow_index: expectIntegerField(artifactPath, record, "flow_index", `${fieldPath}.flow_index`),
+    flow_name: expectStringField(artifactPath, record, "flow_name", `${fieldPath}.flow_name`),
+    tx_log_start: txLogStart,
+    tx_log_end: txLogEnd,
+    service_ticks_before: serviceTicksBefore,
+    service_ticks_after: serviceTicksAfter,
+    status,
+    expected_errors: expectIntegerField(artifactPath, record, "expected_errors", `${fieldPath}.expected_errors`),
+    unexpected_errors: expectIntegerField(artifactPath, record, "unexpected_errors", `${fieldPath}.unexpected_errors`),
+    failure_message: failureMessage,
+  };
+}
+
+function parseNullableGuidedFirstFailure(
+  artifactPath: string,
+  value: unknown,
+  fieldPath: string,
+  iteration: number | string,
+  txOutcomeCount: number
+): GuidedFirstFailureSummary | null {
+  if (value === null) return null;
+  if (value === undefined) {
+    throw guidedTraceValidationError(artifactPath, fieldPath, "expected null or a first-failure object");
+  }
+  const record = objectValue(value);
+  if (!record) {
+    throw guidedTraceValidationError(artifactPath, fieldPath, "expected a first-failure object");
+  }
+  const txLogStart = expectIntegerField(artifactPath, record, "tx_log_start", `${fieldPath}.tx_log_start`);
+  const txLogEnd = expectIntegerField(artifactPath, record, "tx_log_end", `${fieldPath}.tx_log_end`);
+  if (txLogEnd < txLogStart) {
+    throw guidedTraceValidationError(
+      artifactPath,
+      `${fieldPath}.tx_log_end`,
+      "expected tx_log_end to be greater than or equal to tx_log_start"
+    );
+  }
+  if (txLogEnd > txOutcomeCount) {
+    throw guidedTraceValidationError(
+      artifactPath,
+      `${fieldPath}.tx_log_end`,
+      `expected tx_log_end <= tx_outcomes.length (${txOutcomeCount})`
+    );
+  }
+  const serviceTicksBefore = expectIntegerField(
+    artifactPath,
+    record,
+    "service_ticks_before",
+    `${fieldPath}.service_ticks_before`
+  );
+  const serviceTicksAfter = expectIntegerField(
+    artifactPath,
+    record,
+    "service_ticks_after",
+    `${fieldPath}.service_ticks_after`
+  );
+  if (serviceTicksAfter < serviceTicksBefore) {
+    throw guidedTraceValidationError(
+      artifactPath,
+      `${fieldPath}.service_ticks_after`,
+      "expected service_ticks_after to be greater than or equal to service_ticks_before"
+    );
+  }
+  return {
+    iteration,
+    stage: expectStringField(artifactPath, record, "stage", `${fieldPath}.stage`),
+    status: expectEnumField(
+      artifactPath,
+      record,
+      "status",
+      `${fieldPath}.status`,
+      GUIDED_FAILURE_STATUSES
+    ) as GuidedFirstFailureSummary["status"],
+    step_index: nullableIntegerField(artifactPath, record, "step_index", `${fieldPath}.step_index`),
+    flow_index: nullableIntegerField(artifactPath, record, "flow_index", `${fieldPath}.flow_index`),
+    flow_name: nullableStringField(artifactPath, record, "flow_name", `${fieldPath}.flow_name`),
+    tx_log_start: txLogStart,
+    tx_log_end: txLogEnd,
+    service_ticks_before: serviceTicksBefore,
+    service_ticks_after: serviceTicksAfter,
+    failure_message: expectStringField(artifactPath, record, "failure_message", `${fieldPath}.failure_message`),
+  };
+}
+
+function appendGuidedTraceMarkdown(lines: string[], summary: GuidedTraceSummary): void {
+  if (!summary.available) {
+    lines.push("- Trace metadata: not present; using legacy flow counts and transaction labels.");
+    return;
+  }
+  lines.push(
+    `- Trace schema: ${summary.schema_version}`,
+    "",
+    "| Iteration | Steps | Status | Flow preview | Tx range | Expected errors | Unexpected errors |",
+    "|---|---:|---|---|---|---:|---:|"
+  );
+  for (const iteration of summary.iterations) {
+    lines.push(
+      `| ${iteration.iteration} | ${iteration.steps} | ${traceStatusDisplay(iteration)} | ${tableCell(traceFlowPreview(iteration))} | ${traceTxRange(iteration)} | ${iteration.expected_errors} | ${iteration.unexpected_errors} |`
+    );
+  }
+  if (summary.iterations.length === 0) {
+    lines.push("| - | 0 | (none) | (none) | - | 0 | 0 |");
+  }
+}
+
+function traceStatusDisplay(iteration: GuidedTraceIterationSummary): string {
+  const parts = [];
+  if (iteration.passed_steps > 0) parts.push(`${iteration.passed_steps} passed`);
+  if (iteration.returned_error_steps > 0) parts.push(`${iteration.returned_error_steps} returned_error`);
+  if (iteration.panic_steps > 0) parts.push(`${iteration.panic_steps} panic`);
+  return parts.length > 0 ? parts.join(", ") : iteration.status;
+}
+
+function traceFlowPreview(iteration: GuidedTraceIterationSummary): string {
+  if (iteration.flow_sequence_preview.length === 0) return "(none)";
+  const suffix = iteration.flow_sequence_truncated ? " -> ..." : "";
+  return `${iteration.flow_sequence_preview.join(" -> ")}${suffix}`;
+}
+
+function traceTxRange(iteration: GuidedTraceIterationSummary): string {
+  if (iteration.tx_log_start === null || iteration.tx_log_end === null) return "-";
+  return `${iteration.tx_log_start}..${iteration.tx_log_end}`;
+}
+
+function formatFirstFailingFlowStep(step: GuidedTraceStepSummary | null): string {
+  if (!step) return "none";
+  const failure = step.failure_message ? `; ${tableCell(step.failure_message)}` : "";
+  return `iteration ${step.iteration}, step ${step.step_index}, flow ${step.flow_name} (#${step.flow_index}), status ${step.status}, tx ${step.tx_log_start}..${step.tx_log_end}, service ticks ${step.service_ticks_before}->${step.service_ticks_after}${failure}`;
+}
+
+function formatFirstFailure(failure: GuidedFirstFailureSummary | null): string {
+  if (!failure) return "none";
+  const flow = failure.flow_name === null ? "" : `, flow ${failure.flow_name} (#${failure.flow_index ?? ""})`;
+  const step = failure.step_index === null ? "" : `, step ${failure.step_index}`;
+  return `iteration ${failure.iteration}, stage ${failure.stage}, status ${failure.status}${step}${flow}, tx ${failure.tx_log_start}..${failure.tx_log_end}, service ticks ${failure.service_ticks_before}->${failure.service_ticks_after}; ${tableCell(failure.failure_message)}`;
 }
 
 function aggregateGuidedSimFlows(artifact: JsonRecord): Record<string, number> {
@@ -767,6 +1210,104 @@ function sampledParametersDisplay(value: JsonRecord | null): string {
     .join(", ");
 }
 
+function expectIntegerField(
+  artifactPath: string,
+  record: JsonRecord,
+  key: string,
+  fieldPath: string
+): number {
+  const value = integerValue(record[key]);
+  if (value === null) {
+    throw guidedTraceValidationError(artifactPath, fieldPath, "expected a non-negative integer");
+  }
+  return value;
+}
+
+function nullableIntegerField(
+  artifactPath: string,
+  record: JsonRecord,
+  key: string,
+  fieldPath: string
+): number | null {
+  if (!hasOwn(record, key) || record[key] === null) return null;
+  const value = integerValue(record[key]);
+  if (value === null) {
+    throw guidedTraceValidationError(artifactPath, fieldPath, "expected null or a non-negative integer");
+  }
+  return value;
+}
+
+function expectStringField(
+  artifactPath: string,
+  record: JsonRecord,
+  key: string,
+  fieldPath: string
+): string {
+  const value = record[key];
+  if (typeof value !== "string" || value.length === 0) {
+    throw guidedTraceValidationError(artifactPath, fieldPath, "expected a non-empty string");
+  }
+  return value;
+}
+
+function nullableStringField(
+  artifactPath: string,
+  record: JsonRecord,
+  key: string,
+  fieldPath: string
+): string | null {
+  if (!hasOwn(record, key) || record[key] === null) return null;
+  const value = record[key];
+  if (typeof value !== "string") {
+    throw guidedTraceValidationError(artifactPath, fieldPath, "expected null or a string");
+  }
+  return value;
+}
+
+function expectNullableStringField(
+  artifactPath: string,
+  record: JsonRecord,
+  key: string,
+  fieldPath: string
+): string | null {
+  if (!hasOwn(record, key)) {
+    throw guidedTraceValidationError(artifactPath, fieldPath, "expected null or a string");
+  }
+  return nullableStringField(artifactPath, record, key, fieldPath);
+}
+
+function expectEnumField(
+  artifactPath: string,
+  record: JsonRecord,
+  key: string,
+  fieldPath: string,
+  allowed: Set<string>
+): string {
+  const value = expectStringField(artifactPath, record, key, fieldPath);
+  if (!allowed.has(value)) {
+    throw guidedTraceValidationError(
+      artifactPath,
+      fieldPath,
+      `expected one of ${Array.from(allowed).join(", ")}`
+    );
+  }
+  return value;
+}
+
+function guidedTraceValidationError(
+  artifactPath: string,
+  fieldPath: string,
+  expected: string
+): ReviewValidationError {
+  return new ReviewValidationError(
+    `malformed guided-sim trace metadata\n  path: ${artifactPath}\n  field: ${fieldPath}\n  expected: ${expected}\n  next: regenerate guided-sim-run.json with the current riptide sim run, or remove partial trace fields from a legacy artifact`
+  );
+}
+
+function hasOwn(record: JsonRecord, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(record, key);
+}
+
 function objectValue(value: unknown): JsonRecord | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as JsonRecord
@@ -779,6 +1320,10 @@ function stringValue(value: unknown): string | null {
 
 function numberValue(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function integerValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
 function numberDisplay(value: unknown): string {

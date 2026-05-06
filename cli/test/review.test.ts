@@ -263,6 +263,368 @@ test("review accepts guided sim artifacts with flow labels and rerun evidence", 
   assert.equal(payload.schema_version, "guided-sim-review.v1");
   assert.equal(payload.retained_failing_seed, retainedSeed);
   assert.equal((payload.flow_counts as Record<string, unknown>).mutate_external_dependency, 1);
+  assert.equal((payload.trace_summary as Record<string, unknown>).available, false);
+});
+
+test("review summarizes trace-bearing passed guided sim artifacts", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-review-guided-trace-pass-"));
+  const artifactDir = path.join(root, ".riptide", "sim", "artifacts", "run-001");
+  await mkdir(artifactDir, { recursive: true });
+  await writeFile(
+    path.join(artifactDir, "guided-sim-run.json"),
+    JSON.stringify(
+      {
+        schema_version: 1,
+        trace_schema_version: 1,
+        status: "passed",
+        iterations_requested: 1,
+        flows_per_iteration: 2,
+        base_seed: "ab".repeat(32),
+        retained_failing_seed: null,
+        totals: {
+          iterations: 1,
+          flows: 2,
+          tx_success: 2,
+          expected_errors: 0,
+          unexpected_errors: 0,
+          compute_units: 12,
+          service_ticks: 2,
+          errors: 0,
+          panics: 0
+        },
+        iterations: [
+          {
+            iteration: 0,
+            seed: "ab".repeat(32),
+            status: "passed",
+            dispatched_flows: 2,
+            flow_counts: {
+              guided_flow: 1,
+              settle: 1
+            },
+            flow_trace: [
+              {
+                step_index: 0,
+                flow_index: 0,
+                flow_name: "guided_flow",
+                tx_log_start: 0,
+                tx_log_end: 1,
+                service_ticks_before: 0,
+                service_ticks_after: 1,
+                status: "passed",
+                expected_errors: 0,
+                unexpected_errors: 0,
+                failure_message: null
+              },
+              {
+                step_index: 1,
+                flow_index: 1,
+                flow_name: "settle",
+                tx_log_start: 1,
+                tx_log_end: 2,
+                service_ticks_before: 1,
+                service_ticks_after: 2,
+                status: "passed",
+                expected_errors: 0,
+                unexpected_errors: 0,
+                failure_message: null
+              }
+            ],
+            first_failing_flow_step: null,
+            first_failure: null,
+            tx_outcomes: [
+              {
+                label: "guided_flow_tx",
+                ok: true,
+                expected_error: false,
+                signature: "1".repeat(64),
+                error: null,
+                logs: [],
+                compute_units_consumed: 5
+              },
+              {
+                label: "settle_tx",
+                ok: true,
+                expected_error: false,
+                signature: "2".repeat(64),
+                error: null,
+                logs: [],
+                compute_units_consumed: 7
+              }
+            ],
+            service_ticks: 2,
+            regression: {
+              enabled: false,
+              account_hashes: {},
+              expected_state_hashes: []
+            },
+            error: null,
+            panic: false
+          }
+        ]
+      },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
+  await writeFile(
+    path.join(artifactDir, "rerun.sh"),
+    [
+      "#!/bin/sh",
+      "set -eu",
+      "riptide sim run .riptide/sim --iterations 1 --flows 2 --seed abababab --out .riptide/sim/artifacts/run-001",
+      ""
+    ].join("\n"),
+    "utf8"
+  );
+
+  const { stdout, stderr } = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "review", artifactDir, "--quiet"],
+    { cwd: root }
+  );
+
+  assert.equal(stderr, "");
+  assert.match(stdout, /## Flow Trace/);
+  assert.match(stdout, /Trace schema: 1/);
+  assert.match(stdout, /guided_flow -> settle/);
+  assert.match(stdout, /First failing flow step: none/);
+  assert.match(stdout, /First failure stage: none/);
+  assert.match(stdout, /pass: trace_schema_version 1 with 2 flow steps/);
+
+  const { stdout: jsonStdout } = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "sim", "review", artifactDir, "--json"],
+    { cwd: root }
+  );
+  const payload = JSON.parse(jsonStdout) as Record<string, unknown>;
+  const traceSummary = payload.trace_summary as Record<string, unknown>;
+  assert.equal(traceSummary.available, true);
+  assert.equal(traceSummary.schema_version, 1);
+  assert.equal(payload.first_failing_flow_step, null);
+  const iterations = traceSummary.iterations as Array<Record<string, unknown>>;
+  assert.equal(iterations[0]!.steps, 2);
+  assert.deepEqual(iterations[0]!.flow_sequence_preview, ["guided_flow", "settle"]);
+});
+
+test("review reports the first failing guided trace flow step", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-review-guided-trace-fail-"));
+  const artifactDir = path.join(root, ".riptide", "sim", "artifacts", "run-002");
+  await mkdir(artifactDir, { recursive: true });
+  const failureStep = {
+    step_index: 1,
+    flow_index: 1,
+    flow_name: "borrow_against_dependency",
+    tx_log_start: 1,
+    tx_log_end: 2,
+    service_ticks_before: 1,
+    service_ticks_after: 1,
+    status: "returned_error",
+    expected_errors: 0,
+    unexpected_errors: 1,
+    failure_message: "external dependency drift crossed invariant"
+  };
+  await writeFile(
+    path.join(artifactDir, "guided-sim-run.json"),
+    JSON.stringify(
+      {
+        schema_version: 1,
+        trace_schema_version: 1,
+        status: "failed",
+        iterations_requested: 1,
+        flows_per_iteration: 2,
+        base_seed: "de".repeat(32),
+        retained_failing_seed: "ef".repeat(32),
+        totals: {
+          iterations: 1,
+          flows: 2,
+          tx_success: 1,
+          expected_errors: 0,
+          unexpected_errors: 1,
+          compute_units: 99,
+          service_ticks: 1,
+          errors: 1,
+          panics: 0
+        },
+        iterations: [
+          {
+            iteration: 0,
+            seed: "ef".repeat(32),
+            status: "failed",
+            dispatched_flows: 2,
+            flow_counts: {
+              mutate_external_dependency: 1,
+              borrow_against_dependency: 1
+            },
+            flow_trace: [
+              {
+                step_index: 0,
+                flow_index: 0,
+                flow_name: "mutate_external_dependency",
+                tx_log_start: 0,
+                tx_log_end: 1,
+                service_ticks_before: 0,
+                service_ticks_after: 1,
+                status: "passed",
+                expected_errors: 0,
+                unexpected_errors: 0,
+                failure_message: null
+              },
+              failureStep
+            ],
+            first_failing_flow_step: failureStep,
+            first_failure: {
+              stage: "flow",
+              status: "returned_error",
+              step_index: 1,
+              flow_index: 1,
+              flow_name: "borrow_against_dependency",
+              tx_log_start: 1,
+              tx_log_end: 2,
+              service_ticks_before: 1,
+              service_ticks_after: 1,
+              failure_message: "external dependency drift crossed invariant"
+            },
+            tx_outcomes: [
+              {
+                label: "dependency_update",
+                ok: true,
+                expected_error: false,
+                signature: "1".repeat(64),
+                error: null,
+                logs: [],
+                compute_units_consumed: 9
+              },
+              {
+                label: "external_dependency_tick",
+                ok: false,
+                expected_error: false,
+                signature: "2".repeat(64),
+                error: "custom program error: 0x2a",
+                logs: ["Program log: dependency stale"],
+                compute_units_consumed: 90
+              }
+            ],
+            service_ticks: 1,
+            regression: {
+              enabled: false,
+              account_hashes: {},
+              expected_state_hashes: []
+            },
+            error: "external dependency drift crossed invariant",
+            panic: false
+          }
+        ]
+      },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
+  await writeFile(
+    path.join(artifactDir, "rerun.sh"),
+    [
+      "#!/bin/sh",
+      "set -eu",
+      "riptide sim run .riptide/sim --iterations 1 --flows 2 --seed dededede --out .riptide/sim/artifacts/run-002",
+      ""
+    ].join("\n"),
+    "utf8"
+  );
+
+  const { stdout, stderr } = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "review", artifactDir, "--quiet"],
+    { cwd: root }
+  );
+
+  assert.equal(stderr, "");
+  assert.match(stdout, /First failing flow step: iteration 0, step 1, flow borrow_against_dependency \(#1\), status returned_error/);
+  assert.match(stdout, /First failure stage: iteration 0, stage flow, status returned_error, step 1, flow borrow_against_dependency \(#1\)/);
+  assert.match(stdout, /external dependency drift crossed invariant/);
+
+  const { stdout: jsonStdout } = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "sim", "review", artifactDir, "--json"],
+    { cwd: root }
+  );
+  const payload = JSON.parse(jsonStdout) as Record<string, unknown>;
+  assert.equal((payload.first_failing_flow_step as Record<string, unknown>).flow_name, "borrow_against_dependency");
+  assert.equal((payload.first_failure as Record<string, unknown>).stage, "flow");
+});
+
+test("review rejects malformed guided trace fields with an actionable error", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-review-guided-trace-malformed-"));
+  const artifactDir = path.join(root, ".riptide", "sim", "artifacts", "run-003");
+  await mkdir(artifactDir, { recursive: true });
+  await writeFile(
+    path.join(artifactDir, "guided-sim-run.json"),
+    JSON.stringify(
+      {
+        schema_version: 1,
+        trace_schema_version: 1,
+        status: "passed",
+        iterations_requested: 1,
+        flows_per_iteration: 1,
+        base_seed: "aa".repeat(32),
+        retained_failing_seed: null,
+        totals: {
+          iterations: 1,
+          flows: 1,
+          tx_success: 0,
+          expected_errors: 0,
+          unexpected_errors: 0,
+          compute_units: 0,
+          service_ticks: 0,
+          errors: 0,
+          panics: 0
+        },
+        iterations: [
+          {
+            iteration: 0,
+            status: "passed",
+            flow_counts: {},
+            flow_trace: {
+              step_index: 0
+            },
+            tx_outcomes: [],
+            service_ticks: 0,
+            regression: {
+              enabled: false,
+              account_hashes: {},
+              expected_state_hashes: []
+            },
+            error: null,
+            panic: false
+          }
+        ]
+      },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
+  await writeFile(
+    path.join(artifactDir, "rerun.sh"),
+    ["#!/bin/sh", "set -eu", "riptide sim run .riptide/sim --out .riptide/sim/artifacts/run-003", ""].join("\n"),
+    "utf8"
+  );
+
+  await assert.rejects(
+    () =>
+      execFileAsync(process.execPath, [cliEntrypoint, "review", artifactDir, "--quiet"], {
+        cwd: root
+      }),
+    (err: unknown) => {
+      const error = err as { code?: number; stderr?: string };
+      assert.equal(error.code, 2);
+      assert.match(error.stderr ?? "", /malformed guided-sim trace metadata/);
+      assert.match(error.stderr ?? "", /field: iterations\[0\]\.flow_trace/);
+      assert.match(error.stderr ?? "", /regenerate guided-sim-run\.json with the current riptide sim run/);
+      return true;
+    }
+  );
 });
 
 test("review collects fired semantic expression invariants before legacy rows", () => {
