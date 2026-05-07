@@ -24,7 +24,8 @@ use crate::{
     },
     sim::run::{
         apply_position_observation, build_invariants_summary, build_summary, program_error_info,
-        record_lending_tick_snapshot, record_tick_snapshot, SimulationAbort,
+        record_generic_tick_snapshot, record_lending_tick_snapshot, record_tick_snapshot,
+        SimulationAbort,
     },
     types::{
         InvariantViolation, Policy, PositionSizing, PositionSizingStrategy, RunConfig, SimEvent,
@@ -274,6 +275,8 @@ where
     let mut events = Vec::new();
     let mut timeseries = Vec::new();
     let mut invariant_violations: Vec<InvariantViolation> = Vec::new();
+    let mut expression_invariant_fires: Vec<ExpressionInvariantFire> = Vec::new();
+    let mut role_binding_anchor: Option<ReplayRoleBindingAnchor> = None;
 
     for tick in 0..=bundle.total_ticks {
         if tick > 0 {
@@ -293,19 +296,47 @@ where
                 &mut agents,
                 Some(&mut events),
             )?;
+            if let Some(anchor) = replay_role_binding_anchor(
+                adapter.semantics.as_ref(),
+                adapter,
+                instruction,
+                &actor_index,
+            )? {
+                role_binding_anchor = Some(anchor);
+            }
         }
 
-        record_tick_snapshot(
-            harness,
-            tick,
-            &agents,
-            &adapter.invariants,
-            &mut invariant_violations,
-            &mut events,
-            std::iter::empty::<(String, Value)>(),
-            &mut timeseries,
-        )
-        .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+        if adapter.semantics.is_some() {
+            let role_binding_context = role_binding_anchor
+                .as_ref()
+                .map(ReplayRoleBindingAnchor::as_context)
+                .unwrap_or_else(|| RoleBindingContext::tick_snapshot(&agents));
+            record_generic_tick_snapshot(
+                harness,
+                tick,
+                &agents,
+                &adapter.invariants,
+                adapter.semantics.as_ref(),
+                role_binding_context,
+                &mut invariant_violations,
+                &mut expression_invariant_fires,
+                &mut events,
+                std::iter::empty::<(String, Value)>(),
+                &mut timeseries,
+            )?;
+        } else {
+            record_tick_snapshot(
+                harness,
+                tick,
+                &agents,
+                &adapter.invariants,
+                &mut invariant_violations,
+                &mut events,
+                std::iter::empty::<(String, Value)>(),
+                &mut timeseries,
+            )
+            .map_err(|e| SimulationAbort::Infra(e.to_string()))?;
+        }
     }
 
     let final_price = timeseries
@@ -324,6 +355,12 @@ where
         summary.insert(
             "invariants_fired".into(),
             build_invariants_summary(&adapter.invariants, &invariant_violations),
+        );
+    }
+    if let Some(semantics) = adapter.semantics.as_ref() {
+        summary.insert(
+            "expression_invariants".into(),
+            build_expression_invariants_summary(&semantics.invariants, &expression_invariant_fires),
         );
     }
 

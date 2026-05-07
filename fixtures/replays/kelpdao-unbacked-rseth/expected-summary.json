@@ -1,0 +1,22 @@
+{
+  "result_sha256": "ff46b6a1bbcddc4064f1f6eae58c65c291b4856167e800c1c475825c788d0b09",
+  "total_ticks": 2,
+  "event_count": 3,
+  "expression_invariant_firings": {
+    "full_backing": 2
+  },
+  "expression_invariant_first_firing_tick": {
+    "full_backing": 1
+  },
+  "summary": {
+    "agents_active": 6,
+    "agents_depleted": 0,
+    "agents_liquidated": 0,
+    "pool.exchange_rate_bps_max": 10000.0,
+    "pool.exchange_rate_bps_min": 10000.0,
+    "pool.lst_supply_max": 15000.0,
+    "pool.lst_supply_min": 10000.0,
+    "pool.total_assets_max": 10000.0,
+    "pool.total_assets_min": 10000.0
+  }
+}
