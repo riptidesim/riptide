@@ -66,6 +66,12 @@ export interface StudioArtifactEntry {
   canonical_hash?: string;
   /** Number of invariant fires when known. */
   invariant_fire_count?: number;
+  /** Optional aggregate status totals from collection-style artifacts. */
+  totals_by_status?: Record<string, number>;
+  /** Optional aggregate verdict totals from collection-style artifacts. */
+  totals_by_verdict?: Record<string, number>;
+  /** Optional aggregate coverage totals from collection-style artifacts. */
+  totals_by_coverage?: Record<string, number>;
   /** Free-form per-artifact metadata (small and stable). */
   meta?: Record<string, string | number | boolean | null>;
   /** Warnings about missing/malformed sub-artifacts, with next actions. */
@@ -217,6 +223,9 @@ async function collectRunCollection(
     verdict,
     coverage,
     confidence,
+    totals_by_status: entry.parsed?.totals_by_status,
+    totals_by_verdict: entry.parsed?.totals_by_verdict,
+    totals_by_coverage: entry.parsed?.totals_by_coverage,
     meta,
     warnings
   });

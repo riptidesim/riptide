@@ -3,7 +3,8 @@
 // A "workspace" is a directory that contains (or could contain) a
 // `.riptide/` folder. Studio shows the current repo as the primary
 // workspace and, when `--case-studies-root` is given, every immediate
-// subdirectory of that root that has a `.riptide/` folder.
+// subdirectory of that root. Missing `.riptide/` folders are still shown so
+// Studio can bootstrap those workspaces from the GUI.
 //
 // The discovery is read-only and deterministic: results are sorted
 // alphabetically by id, with the current workspace pinned first. We
@@ -14,18 +15,20 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
+import { listProjects, type RegistryPaths } from "./registry.js";
+
 export interface StudioWorkspaceWarning {
   message: string;
   next_action: string;
 }
 
 export interface StudioWorkspace {
-  /** Stable identifier used in API queries — slug for case-studies, "current" for cwd. */
+  /** Stable identifier used in API queries — slug for case-studies, "current" for cwd, registry id for registered projects. */
   id: string;
   /** Display label shown in the UI. */
   label: string;
-  /** Source: "current" (cwd) or "case-study". */
-  source: "current" | "case-study";
+  /** Source: "current" (cwd), "case-study", or "registered" (added via the wizard). */
+  source: "current" | "case-study" | "registered";
   /** Absolute repo path. */
   path: string;
   /** Path to `.riptide/`. May not exist yet. */
@@ -41,6 +44,8 @@ export interface DiscoverWorkspacesOptions {
   cwd: string;
   /** Optional case-studies parent directory. Each child with `.riptide/` is a workspace. */
   caseStudiesRoot?: string;
+  /** Optional registry overrides (tests). */
+  registryPaths?: RegistryPaths;
 }
 
 const PRIMARY_ID = "current" as const;
@@ -60,8 +65,55 @@ export async function discoverStudioWorkspaces(
     ? await discoverCaseStudyWorkspaces(path.resolve(options.caseStudiesRoot))
     : [];
 
-  const out = [primary, ...studies];
+  const registered = await discoverRegisteredWorkspaces({
+    cwdAbsolute: cwd,
+    registryPaths: options.registryPaths
+  });
+
+  const out = dedupeByPath([primary, ...studies, ...registered]);
   return out.sort((a, b) => primaryFirst(a, b) || compareStrings(a.id, b.id));
+}
+
+function dedupeByPath(workspaces: StudioWorkspace[]): StudioWorkspace[] {
+  const seen = new Set<string>();
+  const out: StudioWorkspace[] = [];
+  for (const workspace of workspaces) {
+    const key = path.resolve(workspace.path);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(workspace);
+  }
+  return out;
+}
+
+interface DiscoverRegisteredOptions {
+  cwdAbsolute: string;
+  registryPaths?: RegistryPaths;
+}
+
+async function discoverRegisteredWorkspaces(
+  options: DiscoverRegisteredOptions
+): Promise<StudioWorkspace[]> {
+  let projects: Awaited<ReturnType<typeof listProjects>>;
+  try {
+    projects = await listProjects(options.registryPaths);
+  } catch {
+    return [];
+  }
+  const out: StudioWorkspace[] = [];
+  for (const entry of projects) {
+    const absolute = path.resolve(entry.path);
+    if (absolute === options.cwdAbsolute) continue;
+    out.push(
+      await describeWorkspace({
+        id: entry.id,
+        label: entry.label,
+        source: "registered",
+        repoPath: absolute
+      })
+    );
+  }
+  return out;
 }
 
 async function discoverCaseStudyWorkspaces(root: string): Promise<StudioWorkspace[]> {
@@ -74,9 +126,6 @@ async function discoverCaseStudyWorkspaces(root: string): Promise<StudioWorkspac
     if (!entry.isDirectory()) continue;
     if (entry.name.startsWith(".")) continue;
     const repoPath = path.join(root, entry.name);
-    const riptidePath = path.join(repoPath, ".riptide");
-    const riptideStat = await safeStat(riptidePath);
-    if (!riptideStat || !riptideStat.isDirectory()) continue;
     out.push(
       await describeWorkspace({
         id: entry.name,
@@ -92,7 +141,7 @@ async function discoverCaseStudyWorkspaces(root: string): Promise<StudioWorkspac
 interface DescribeInput {
   id: string;
   label: string;
-  source: "current" | "case-study";
+  source: "current" | "case-study" | "registered";
   repoPath: string;
 }
 

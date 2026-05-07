@@ -22,6 +22,14 @@ const assetTargetDir = path.join(cliRoot, "dist", "assets");
 await rm(assetTargetDir, { recursive: true, force: true });
 await cp(assetSourceDir, assetTargetDir, { recursive: true, force: true });
 
+// Bundled Claude Code skills that `riptide init` installs into a project's
+// `.claude/skills/` so users get the same configuration UX on `git clone`
+// without depending on a global skill installation.
+const skillsSourceDir = path.join(cliRoot, "skills");
+const skillsTargetDir = path.join(cliRoot, "dist", "skills");
+await rm(skillsTargetDir, { recursive: true, force: true });
+await cp(skillsSourceDir, skillsTargetDir, { recursive: true, force: true });
+
 // Guided simulations generate a Rust crate that depends on riptide-sim.
 // The Rust crates are not published to crates.io yet, so packaged CLI
 // installs must carry a small vendored copy for generated Cargo.toml

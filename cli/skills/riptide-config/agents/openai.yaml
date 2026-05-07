@@ -1,0 +1,4 @@
+interface:
+  display_name: "Riptide Config"
+  short_description: "Configure adapter, harness, scenarios, and campaign readiness."
+  default_prompt: "Configure this repo for Riptide end to end, validate a one-seed smoke, and prepare campaign readiness."

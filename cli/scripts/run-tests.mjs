@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { mkdtempSync, readdirSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const testDir = path.resolve("dist", "test");
@@ -15,7 +16,10 @@ if (filterWords.length > 0) {
 }
 args.push(...testFiles);
 
-const result = spawnSync(process.execPath, args, { stdio: "inherit" });
+const env = { ...process.env };
+env.RIPTIDE_REGISTRY_HOME ??= mkdtempSync(path.join(os.tmpdir(), "riptide-test-registry-"));
+
+const result = spawnSync(process.execPath, args, { stdio: "inherit", env });
 if (result.error) {
   throw result.error;
 }

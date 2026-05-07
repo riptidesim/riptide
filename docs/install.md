@@ -28,7 +28,16 @@ Useful options:
 curl -fsSL https://riptide.run/install | sh -s -- --version 0.7.0
 curl -fsSL https://riptide.run/install | sh -s -- --bin-dir "$HOME/bin"
 curl -fsSL https://riptide.run/install | sh -s -- --dry-run
+curl -fsSL https://riptide.run/install | sh -s -- --no-agent-skills
 ```
+
+By default, the hosted installer also installs the bundled agent skills
+into `${CODEX_HOME:-$HOME/.codex}/skills` and
+`${CLAUDE_HOME:-$HOME/.claude}/skills`, including `riptide-config`.
+It symlinks to the active Riptide bundle on Linux/macOS and leaves any
+existing non-Riptide-managed skill directory untouched. Set
+`RIPTIDE_INSTALL_AGENT_SKILLS=0` or pass `--no-agent-skills` to skip
+that step.
 
 Release bundles are produced by [`../scripts/package-release.sh`](../scripts/package-release.sh). The release artifact contract is:
 
@@ -141,6 +150,11 @@ The default next step is the merged setup skill:
 and starter campaign readiness in one loop. It should finish with
 `campaign_ready = yes`, `blocked = <reason>`, or
 `unsupported = <boundary>`.
+
+If you used the hosted installer, `riptide-config` is installed into
+Codex and Claude Code skill folders automatically unless agent skill
+installation was disabled or a user-authored skill with the same name
+already existed.
 
 When it reports campaign readiness, run the campaign and review the
 printed campaign root:

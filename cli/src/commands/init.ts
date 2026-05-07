@@ -35,6 +35,8 @@ export interface InitOptions {
   profile?: Protocol;
   yes?: boolean;
   wizard?: boolean;
+  /** Set by --no-skills; commander stores --no-X as `skills: false`. */
+  skills?: boolean;
 }
 
 // Injection seam for tests: real wizard talks to a TTY, so callers can
@@ -64,7 +66,11 @@ export function createInitCommand(deps: InitDeps = {}): Command {
     )
     .option("--wizard", "Run the advanced interactive questionnaire scaffold", false)
     .option("--yes", "Non-interactive minimal init (kept for scripts)", false)
-    .option("--quiet", "Suppress interactive banner and use non-interactive minimal init", false);
+    .option("--quiet", "Suppress interactive banner and use non-interactive minimal init", false)
+    .option(
+      "--no-skills",
+      "Skip installing bundled Claude Code skills under .claude/skills/"
+    );
 
   return command.action(async (options: InitOptions) => {
     printInitBanner({ flags: { quiet: Boolean(options.quiet) } });
@@ -98,7 +104,8 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
       ticks: wizardAnswers?.ticks,
       scenarios: wizardAnswers?.scenarios,
       invariants: wizardAnswers?.invariants,
-      seeds: wizardAnswers?.seeds
+      seeds: wizardAnswers?.seeds,
+      installSkills: options.skills !== false
     });
 
     process.stderr.write(

@@ -11,14 +11,6 @@ export type PageId =
   | "tutorial"
   | "settings";
 
-export interface Workspace {
-  id: string;
-  label: string;
-  name: string;
-  color: string;
-  notif: boolean;
-}
-
 export interface NavGroup {
   kind: "group";
   id: string;
@@ -36,38 +28,33 @@ export interface NavItem {
 
 export type NavEntry = NavGroup | NavItem;
 
-export const WORKSPACES: Workspace[] = [
-  { id: "lend", label: "LF", name: "lending-fund", color: "#14B8B6", notif: false },
-  { id: "perp", label: "PX", name: "perp-x", color: "#7A8A99", notif: true },
-  { id: "amm", label: "KS", name: "kelp-swap", color: "#0E8A88", notif: false },
-  { id: "lst", label: "TS", name: "tide-stake", color: "#2A3B4E", notif: false }
-];
-
 export const NAV: NavEntry[] = [
   { kind: "item", id: "overview", label: "Overview", icon: "home" },
-  { kind: "item", id: "handoff", label: "Config handoff", icon: "handoff" },
+  { kind: "item", id: "handoff", label: "Agent chat", icon: "handoff" },
   { kind: "item", id: "adapter", label: "Adapter", icon: "cpu" },
   { kind: "group", id: "work", label: "WORK" },
-  { kind: "item", id: "campaigns", label: "Campaigns", icon: "flame", badge: 6 },
+  { kind: "item", id: "campaigns", label: "Campaigns", icon: "flame" },
   { kind: "item", id: "library", label: "Library", icon: "book" },
   { kind: "group", id: "evidence", label: "EVIDENCE" },
-  { kind: "item", id: "jobs", label: "Job queue", icon: "queue", badge: 3, badgeAccent: true },
-  { kind: "item", id: "reports", label: "Reports", icon: "file", badge: 6 },
+  { kind: "item", id: "jobs", label: "Job queue", icon: "queue" },
+  { kind: "item", id: "reports", label: "Reports", icon: "file" },
   { kind: "group", id: "help", label: "HELP" },
   { kind: "item", id: "tutorial", label: "Tutorial", icon: "book" }
 ];
 
-export interface AgentAdapter {
-  id: string;
-  label: string;
-  detail: string;
-  dot: "pass" | "queued" | "fail";
+export function workspaceInitials(label: string): string {
+  const parts = label.split(/[-_\s]+/).filter(Boolean);
+  if (parts.length === 0) return "??";
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
 }
 
-export const AGENT_ADAPTERS: AgentAdapter[] = [
-  { id: "cc", label: "Claude Code", detail: "local · v0.18.2", dot: "pass" },
-  { id: "cdx", label: "Codex", detail: "local · v1.4.0", dot: "pass" },
-  { id: "gem", label: "Gemini CLI", detail: "local · v0.9.1", dot: "queued" },
-  { id: "cur", label: "Cursor", detail: "not detected", dot: "fail" },
-  { id: "oc", label: "OpenCode", detail: "not detected", dot: "fail" }
-];
+export function workspaceColor(id: string, source: "current" | "case-study" | "registered"): string {
+  if (source === "current") return "#14B8B6";
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  const palette = source === "registered"
+    ? ["#1E5F7E", "#3F6F7A", "#5B7A8B", "#256C68", "#3A6B5C"]
+    : ["#0E8A88", "#7A8A99", "#2A3B4E", "#3F6F7A", "#5B7A8B"];
+  return palette[Math.abs(h) % palette.length]!;
+}

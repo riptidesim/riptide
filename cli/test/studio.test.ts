@@ -31,7 +31,9 @@ async function withServer<T>(
   options: Parameters<typeof startStudioServer>[0],
   fn: (handle: StudioServerHandle) => Promise<T>
 ): Promise<T> {
-  const handle = await startStudioServer({ port: 0, maxAttempts: 1, ...options });
+  const serverOptions = options ?? {};
+  const registryPaths = serverOptions.registryPaths ?? { home: await tmpRoot("registry") };
+  const handle = await startStudioServer({ port: 0, maxAttempts: 1, ...serverOptions, registryPaths });
   try {
     return await fn(handle);
   } finally {
@@ -342,16 +344,19 @@ test("studio workspace discovery surfaces case-study subfolders deterministicall
     caseStudiesRoot: studies
   });
 
-  assert.equal(workspaces.length, 3);
+  assert.equal(workspaces.length, 4);
   assert.equal(workspaces[0]!.id, "current");
   assert.deepEqual(
     workspaces.slice(1).map((w: StudioWorkspace) => w.id),
-    ["amm", "lending"]
+    ["amm", "lending", "no-riptide"]
   );
-  for (const ws of workspaces.slice(1)) {
+  for (const ws of workspaces.slice(1, 3)) {
     assert.equal(ws.source, "case-study");
     assert.equal(ws.has_riptide, true);
   }
+  assert.equal(workspaces[3]!.source, "case-study");
+  assert.equal(workspaces[3]!.has_riptide, false);
+  assert.equal(workspaces[3]!.warnings.length, 1);
 });
 
 test("studio artifact index is deterministic and surfaces every supported kind", async () => {
@@ -402,6 +407,13 @@ test("studio artifact index is deterministic and surfaces every supported kind",
   assert.equal(typeof collection!.verdict, "string");
   assert.equal(collection!.status, "fail");
   assert.equal(collection!.confidence, "low");
+  assert.deepEqual(collection!.totals_by_verdict, {
+    "failure-observed": 1,
+    "no-failure-observed": 1,
+    inconclusive: 0,
+    "setup-error": 0,
+    interrupted: 0
+  });
 
   const adapter = index.artifacts.find((a) => a.id === "adapter:lending.toml");
   assert.equal(adapter!.meta?.protocol, "generic");
@@ -510,6 +522,32 @@ test("studio server workspaces and artifacts endpoints expose discovered state",
   );
 });
 
+test("studio remembers discovered riptide workspaces in the user registry", async () => {
+  const home = await tmpRoot("server-remember-current");
+  const studies = await tmpRoot("server-remember-studies");
+  const registryPaths = { home: await tmpRoot("server-remember-registry") };
+  await mkdir(path.join(home, ".riptide"), { recursive: true });
+  await mkdir(path.join(studies, "amm", ".riptide"), { recursive: true });
+  await mkdir(path.join(studies, "draft"), { recursive: true });
+
+  await withServer(
+    { workspace: home, caseStudiesRoot: studies, registryPaths },
+    async (handle) => {
+      const registry = (await getJson(`${handle.url}/api/studio/registry`)) as {
+        schema_version: string;
+        projects: Array<{ label: string; path: string; last_opened_at: string | null }>;
+      };
+      assert.equal(registry.schema_version, "studio-registry.v1");
+      assert.deepEqual(
+        registry.projects.map((project) => project.path).sort(),
+        [home, path.join(studies, "amm")].sort()
+      );
+      assert.ok(registry.projects.every((project) => typeof project.last_opened_at === "string"));
+      assert.ok(!registry.projects.some((project) => project.path === path.join(studies, "draft")));
+    }
+  );
+});
+
 test("studio jobs route returns the persisted job list (empty by default)", async () => {
   const root = await tmpRoot("server-jobs-stub");
   await mkdir(path.join(root, ".riptide"), { recursive: true });
@@ -521,6 +559,58 @@ test("studio jobs route returns the persisted job list (empty by default)", asyn
     };
     assert.equal(jobs.schema_version, "studio-jobs.v1");
     assert.deepEqual(jobs.jobs, []);
+  });
+});
+
+test("studio directory picker route returns an allowlisted selected path", async () => {
+  const root = await tmpRoot("server-picker");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  const selected = path.join(root, "new-workspace");
+
+  await withServer(
+    {
+      workspace: root,
+      directoryPicker: async () => ({ path: selected, cancelled: false })
+    },
+    async (handle) => {
+      const response = await fetch(`${handle.url}/api/studio/pick-directory`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}"
+      });
+      assert.equal(response.status, 200);
+      const body = (await response.json()) as {
+        schema_version: string;
+        path: string | null;
+        cancelled: boolean;
+      };
+      assert.equal(body.schema_version, "studio-pick-directory.v1");
+      assert.equal(body.path, selected);
+      assert.equal(body.cancelled, false);
+    }
+  );
+});
+
+test("studio browse-directory route lists child directories without native dialogs", async () => {
+  const root = await tmpRoot("server-browser");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  await mkdir(path.join(root, "alpha"), { recursive: true });
+  await mkdir(path.join(root, "beta"), { recursive: true });
+  await writeFile(path.join(root, "not-a-dir.txt"), "ignore me", "utf8");
+
+  await withServer({ workspace: root }, async (handle) => {
+    const response = await fetch(`${handle.url}/api/studio/browse-directory?path=${encodeURIComponent(root)}`);
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      schema_version: string;
+      path: string;
+      parent: string | null;
+      entries: Array<{ name: string; path: string }>;
+    };
+    assert.equal(body.schema_version, "studio-directory-list.v1");
+    assert.equal(body.path, root);
+    assert.ok(body.parent);
+    assert.deepEqual(body.entries.map((entry) => entry.name), [".riptide", "alpha", "beta"]);
   });
 });
 
@@ -778,6 +868,73 @@ test("studio job queue maps each allowlisted kind to a deterministic argv", asyn
   }
 });
 
+test("studio job queue attaches campaign harness when available", async () => {
+  const root = await tmpRoot("jobs-campaign-harness");
+  await mkdir(path.join(root, ".riptide", "harness"), { recursive: true });
+  await writeFile(
+    path.join(root, ".riptide", "harness", "Cargo.toml"),
+    '[package]\nname = "campaign-harness"\nversion = "0.1.0"\nedition = "2021"\n'
+  );
+
+  const queue = harmlessJobQueue();
+  queue.setWorkspaces([
+    {
+      id: "current",
+      label: "x",
+      source: "current",
+      path: root,
+      riptide_path: path.join(root, ".riptide"),
+      has_riptide: true,
+      warnings: []
+    }
+  ]);
+
+  const auto = queue.plan({
+    workspaceId: "current",
+    kind: "campaign-run",
+    params: { campaign: ".riptide/campaigns/c.campaign.toml" }
+  });
+  assert.ok(!isValidationError(auto), `plan failed: ${JSON.stringify(auto)}`);
+  assert.deepEqual((auto as JobPlanPreview).argv, [
+    "riptide",
+    "campaign",
+    "run",
+    ".riptide/campaigns/c.campaign.toml",
+    "--harness",
+    ".riptide/harness"
+  ]);
+  assert.match((auto as JobPlanPreview).notes.join(" "), /Detected \.riptide\/harness/);
+
+  const explicit = queue.plan({
+    workspaceId: "current",
+    kind: "campaign-run",
+    params: {
+      campaign: ".riptide/campaigns/c.campaign.toml",
+      harness: ".riptide/custom-harness"
+    }
+  });
+  assert.ok(!isValidationError(explicit), `plan failed: ${JSON.stringify(explicit)}`);
+  assert.deepEqual((explicit as JobPlanPreview).argv, [
+    "riptide",
+    "campaign",
+    "run",
+    ".riptide/campaigns/c.campaign.toml",
+    "--harness",
+    ".riptide/custom-harness"
+  ]);
+
+  const escaped = queue.plan({
+    workspaceId: "current",
+    kind: "campaign-run",
+    params: {
+      campaign: ".riptide/campaigns/c.campaign.toml",
+      harness: "../outside"
+    }
+  });
+  assert.ok(isValidationError(escaped));
+  assert.equal((escaped as JobValidationError).payload.error, "invalid_param");
+});
+
 test("studio job queue rejects unknown kinds and missing required params", () => {
   const queue = harmlessJobQueue();
   const ws: StudioWorkspace = {
@@ -990,6 +1147,7 @@ test("studio jobs HTTP rejects non-allowlisted kinds and bad payloads", async ()
 
 test("studio jobs hydration surfaces persisted jobs after restart", async () => {
   const root = await tmpRoot("jobs-hydrate");
+  const registryPaths = { home: await tmpRoot("jobs-hydrate-registry") };
   await mkdir(path.join(root, ".riptide"), { recursive: true });
 
   // First server: launch a job, persist it.
@@ -1001,7 +1159,8 @@ test("studio jobs hydration surfaces persisted jobs after restart", async () => 
     workspace: root,
     port: 0,
     maxAttempts: 1,
-    jobQueue: firstQueue
+    jobQueue: firstQueue,
+    registryPaths
   });
   try {
     const launch = await fetch(`${handleA.url}/api/studio/jobs`, {
@@ -1024,7 +1183,8 @@ test("studio jobs hydration surfaces persisted jobs after restart", async () => 
     workspace: root,
     port: 0,
     maxAttempts: 1,
-    jobQueue: secondQueue
+    jobQueue: secondQueue,
+    registryPaths
   });
   try {
     const list = (await getJson(`${handleB.url}/api/studio/jobs`)) as {
@@ -1124,16 +1284,20 @@ test("studio loads case-study workspaces from --case-studies-root", async () => 
   for (const name of ["lending", "anchor-uniswap-v2"]) {
     await mkdir(path.join(caseRoot, name, ".riptide"), { recursive: true });
   }
+  await mkdir(path.join(caseRoot, "fresh-case"), { recursive: true });
   const cwd = await tmpRoot("primary");
   await mkdir(path.join(cwd, ".riptide"), { recursive: true });
 
   await withServer({ workspace: cwd, caseStudiesRoot: caseRoot }, async (handle) => {
     const list = (await getJson(`${handle.url}/api/studio/workspaces`)) as {
-      workspaces: Array<{ id: string; source: string }>;
+      workspaces: Array<{ id: string; source: string; has_riptide: boolean }>;
     };
     const ids = list.workspaces.map((w) => w.id);
     assert.equal(list.workspaces[0]?.source, "current");
     assert.ok(ids.includes("lending"));
     assert.ok(ids.includes("anchor-uniswap-v2"));
+    const fresh = list.workspaces.find((w) => w.id === "fresh-case");
+    assert.equal(fresh?.source, "case-study");
+    assert.equal(fresh?.has_riptide, false);
   });
 });

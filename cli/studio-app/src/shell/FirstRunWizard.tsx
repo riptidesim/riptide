@@ -9,19 +9,21 @@ import {
   type ProtocolChoice,
   type StudioWorkspace
 } from "../api";
-import { Icon } from "../ui/Icon";
+import { Icon, type IconName } from "../ui/Icon";
 import { Kicker } from "../ui/primitives";
+import { AGENT_TAGLINE, AGENT_ICON, MODEL_OPTIONS, MODEL_LABEL } from "../agentMeta";
 
 type Step = 0 | 1 | 2;
 
 interface FirstRunWizardProps {
   workspace: StudioWorkspace;
   onDone: (workspaces: StudioWorkspace[]) => void;
+  onPickAgent?: (pref: { agentId: string; model: string }) => void;
 }
 
 const PROGRAM_NAME_RE = /^[a-z][a-z0-9-]*$/;
 
-export function FirstRunWizard({ workspace, onDone }: FirstRunWizardProps) {
+export function FirstRunWizard({ workspace, onDone, onPickAgent }: FirstRunWizardProps) {
   const [step, setStep] = useState<Step>(0);
   const [detection, setDetection] = useState<ProgramDetection | null>(null);
   const [detectionLoading, setDetectionLoading] = useState(true);
@@ -35,14 +37,12 @@ export function FirstRunWizard({ workspace, onDone }: FirstRunWizardProps) {
   const [model, setModel] = useState("default");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [agentProbing, setAgentProbing] = useState(false);
 
   function reprobeAgents() {
-    setAgentsLoading(true);
     return api
       .agents()
-      .then((res) => { setAgents(res.agents); })
-      .catch(() => {})
-      .finally(() => setAgentsLoading(false));
+      .then((res) => { setAgents(res.agents); });
   }
 
   useEffect(() => {
@@ -52,14 +52,14 @@ export function FirstRunWizard({ workspace, onDone }: FirstRunWizardProps) {
   useEffect(() => {
     setDetectionLoading(true);
     api
-      .detectProgram()
+      .detectProgram(workspace.id)
       .then((res) => {
         setDetection(res);
         if (res.programName) setProgramName(res.programName);
       })
       .catch(() => {})
       .finally(() => setDetectionLoading(false));
-  }, []);
+  }, [workspace.id]);
 
   useEffect(() => {
     setAgentsLoading(true);
@@ -76,13 +76,21 @@ export function FirstRunWizard({ workspace, onDone }: FirstRunWizardProps) {
 
   const programNameValid = PROGRAM_NAME_RE.test(programName);
   const canContinue =
-    step === 0 ? programNameValid && protocol.length > 0 : step === 1 ? agents.some((a) => a.id === agentId) : true;
+    step === 0 ? programNameValid && protocol.length > 0
+    : step === 1 ? agents.some((a) => a.id === agentId) && !agentProbing
+    : true;
 
   async function submit() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await api.init({ programName, protocol });
+      const res = await api.init({
+        programName,
+        protocol,
+        path: workspace.path,
+        label: workspace.label
+      });
+      onPickAgent?.({ agentId, model });
       onDone(res.workspaces);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : (err as Error).message;
@@ -93,7 +101,7 @@ export function FirstRunWizard({ workspace, onDone }: FirstRunWizardProps) {
 
   return (
     <div className="scrim">
-      <div className="modal" style={{ maxWidth: 920, height: 720 }}>
+      <div className="modal" style={{ maxWidth: 920 }}>
         <Header step={step} />
         <Stepper step={step} />
         <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
@@ -121,6 +129,7 @@ export function FirstRunWizard({ workspace, onDone }: FirstRunWizardProps) {
               model={model}
               setModel={setModel}
               onReprobe={reprobeAgents}
+              onProbingChange={setAgentProbing}
             />
           )}
           {step === 2 && (
@@ -332,128 +341,39 @@ interface AgentStepProps {
   model: string;
   setModel: (m: string) => void;
   onReprobe: () => Promise<void>;
+  onProbingChange: (probing: boolean) => void;
 }
 
-const AGENT_TAGLINE: Record<string, string> = {
-  "claude-code": "Local Claude agent",
-  codex: "Local Codex agent",
-  gemini: "Local Gemini agent",
-  cursor: "Local Cursor agent",
-  opencode: "Local multi-provider agent"
-};
-
-const MODEL_OPTIONS: Record<string, string[]> = {
-  "claude-code": [
-    "default",
-    "claude-haiku-4.5",
-    "claude-haiku-4.6",
-    "claude-opus-4.6",
-    "claude-opus-4.7",
-    "claude-sonnet-4.5",
-    "claude-sonnet-4.6"
-  ],
-  codex: [
-    "default",
-    "codex-mini",
-    "gpt-5",
-    "gpt-5-mini",
-    "gpt-5-nano",
-    "gpt-5.3-codex",
-    "gpt-5.3-codex-spark",
-    "gpt-5.4",
-    "o3",
-    "o3-mini",
-    "o4-mini"
-  ],
-  gemini: [
-    "default",
-    "auto",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.5-pro"
-  ],
-  cursor: [
-    "default",
-    "auto",
-    "composer-1",
-    "composer-1.5",
-    "gemini-3-flash",
-    "gemini-3-pro",
-    "gemini-3.1-pro",
-    "gpt-5.1-codex-max",
-    "gpt-5.1-codex-max-high",
-    "gpt-5.1-codex-mini",
-    "gpt-5.1-high",
-    "gpt-5.2",
-    "gpt-5.2-codex",
-    "gpt-5.2-codex-fast",
-    "gpt-5.2-codex-high",
-    "gpt-5.2-codex-high-fast"
-  ],
-  opencode: [
-    "default",
-    "gpt-5-codex",
-    "gpt-5.1-codex",
-    "gpt-5.1-codex-max",
-    "gpt-5.1-codex-mini",
-    "gpt-5.2",
-    "gpt-5.2-codex",
-    "gpt-5.3-codex",
-    "gpt-5.4",
-    "gpt-5.4-mini",
-    "big-pickle",
-    "gpt-5-nano",
-    "hy3-preview-free",
-    "minimax-m2.5-free",
-    "nemotron-3-super-free"
-  ]
-};
-
-const MODEL_LABEL: Record<string, string> = {
-  default: "Default",
-  auto: "Auto",
-  "claude-haiku-4.5": "Claude Haiku 4.5",
-  "claude-haiku-4.6": "Claude Haiku 4.6",
-  "claude-opus-4.6": "Claude Opus 4.6",
-  "claude-opus-4.7": "Claude Opus 4.7",
-  "claude-sonnet-4.5": "Claude Sonnet 4.5",
-  "claude-sonnet-4.6": "Claude Sonnet 4.6",
-  "codex-mini": "Codex Mini",
-  "gemini-2.0-flash": "Gemini 2.0 Flash",
-  "gemini-2.0-flash-lite": "Gemini 2.0 Flash Lite",
-  "gemini-2.5-flash": "Gemini 2.5 Flash",
-  "gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite",
-  "gemini-2.5-pro": "Gemini 2.5 Pro"
-};
-
-const AGENT_ICON: Record<string, "sparkles" | "code" | "gem" | "cursorArrow" | "terminalSquare"> = {
-  "claude-code": "sparkles",
-  codex: "code",
-  gemini: "gem",
-  cursor: "cursorArrow",
-  opencode: "terminalSquare"
-};
-
-function AgentStep({ agents, loading, agentId, setAgentId, model, setModel, onReprobe }: AgentStepProps) {
+function AgentStep({ agents, loading, agentId, setAgentId, model, setModel, onReprobe, onProbingChange }: AgentStepProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [probing, setProbing] = useState(false);
-  const [probeMessage, setProbeMessage] = useState<string | null>(null);
+  const [probePassed, setProbePassed] = useState(false);
+  const [probeError, setProbeError] = useState<string | null>(null);
 
   const recommended = agents.filter((a) => a.recommended);
   const others = agents.filter((a) => !a.recommended);
   const selected = agents.find((a) => a.id === agentId) ?? null;
   const modelChoices = MODEL_OPTIONS[agentId] ?? ["default"];
 
+  useEffect(() => {
+    onProbingChange(probing);
+    return () => onProbingChange(false);
+  }, [probing, onProbingChange]);
+
+  useEffect(() => {
+    setProbePassed(false);
+    setProbeError(null);
+  }, [agentId]);
+
   async function runProbe() {
     setProbing(true);
-    setProbeMessage(null);
+    setProbePassed(false);
+    setProbeError(null);
     try {
       await onReprobe();
-      setProbeMessage("Probe complete. Detected agents updated.");
+      setProbePassed(true);
     } catch (err) {
-      setProbeMessage((err as Error).message);
+      setProbeError((err as Error).message);
     } finally {
       setProbing(false);
     }
@@ -461,17 +381,17 @@ function AgentStep({ agents, loading, agentId, setAgentId, model, setModel, onRe
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
         <div style={{
-          width: 36, height: 36, borderRadius: 8, background: "var(--rt-slate-2)",
-          border: "1px solid var(--rt-slate-line)", display: "flex", alignItems: "center", justifyContent: "center"
+          width: 28, height: 28, borderRadius: 6, background: "var(--rt-slate-2)",
+          border: "1px solid var(--rt-slate-line)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
         }}>
-          <Icon name="sparkles" size={16} color="var(--rt-teal)" />
+          <Icon name="sparkles" size={14} color="var(--rt-teal)" />
         </div>
         <div>
-          <div style={{ font: "600 16px Inter", color: "var(--rt-off-white)" }}>Connect a coding agent</div>
-          <div style={{ font: "400 13px Inter", color: "var(--rt-fg-2)", marginTop: 3 }}>
-            Studio sends authoring tasks (drafting personas, scenarios, invariants) to a local agent CLI.
+          <div style={{ font: "600 14px Inter", color: "var(--rt-off-white)" }}>Connect a coding agent</div>
+          <div style={{ font: "400 12px Inter", color: "var(--rt-fg-2)", marginTop: 1 }}>
+            Studio sends authoring tasks to a local agent CLI.
           </div>
         </div>
       </div>
@@ -480,10 +400,10 @@ function AgentStep({ agents, loading, agentId, setAgentId, model, setModel, onRe
         <ProbingSkeleton />
       ) : (
         <>
-          <div style={{ font: '500 10px "IBM Plex Mono"', color: "var(--rt-fog-dim)", letterSpacing: "0.08em", marginBottom: 8 }}>
-            ADAPTER TYPE
+          <div style={{ font: '500 10px "IBM Plex Mono"', color: "var(--rt-fog-dim)", letterSpacing: "0.08em", marginBottom: 6 }}>
+            AGENT
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }}>
             {recommended.map((a) => (
               <AgentCard key={a.id} agent={a} tagline={AGENT_TAGLINE[a.id] ?? a.label}
                 selected={agentId === a.id} onSelect={() => a.detected && setAgentId(a.id)} showRecommended
@@ -493,16 +413,16 @@ function AgentStep({ agents, loading, agentId, setAgentId, model, setModel, onRe
 
           <button type="button" onClick={() => setMoreOpen((v) => !v)}
             style={{
-              display: "flex", alignItems: "center", gap: 8, background: "transparent",
-              border: "none", color: "var(--rt-fog)", cursor: "pointer", padding: "10px 0", font: "500 13px Inter"
+              display: "flex", alignItems: "center", gap: 6, background: "transparent",
+              border: "none", color: "var(--rt-fog)", cursor: "pointer", padding: "6px 0", font: "500 12.5px Inter"
             }}>
-            <Icon name="chevron" size={12}
+            <Icon name="chevron" size={11}
               style={{ transition: "transform 120ms", transform: moreOpen ? "rotate(90deg)" : "rotate(0deg)" }} />
-            More Agent Adapter Types
+            More agents
           </button>
 
           {moreOpen && others.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }}>
               {others.map((a) => (
                 <AgentCard key={a.id} agent={a} tagline={AGENT_TAGLINE[a.id] ?? a.label}
                   selected={agentId === a.id} onSelect={() => a.detected && setAgentId(a.id)}
@@ -511,7 +431,7 @@ function AgentStep({ agents, loading, agentId, setAgentId, model, setModel, onRe
             </div>
           )}
 
-          <div style={{ font: '500 10px "IBM Plex Mono"', color: "var(--rt-fog-dim)", letterSpacing: "0.08em", margin: "20px 0 6px" }}>
+          <div style={{ font: '500 10px "IBM Plex Mono"', color: "var(--rt-fog-dim)", letterSpacing: "0.08em", margin: "12px 0 5px" }}>
             MODEL
           </div>
           <select className="select" value={model} onChange={(e) => setModel(e.target.value)} style={{ maxWidth: 380 }}>
@@ -520,27 +440,38 @@ function AgentStep({ agents, loading, agentId, setAgentId, model, setModel, onRe
             ))}
           </select>
 
-          <div className="card" style={{ marginTop: 22, padding: 16, display: "flex", alignItems: "center", gap: 14 }}>
+          <div className="card" style={{ marginTop: 14, padding: 12, display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ flex: 1 }}>
-              <div style={{ font: "500 13px Inter", color: "var(--rt-off-white)", marginBottom: 4 }}>
-                Adapter environment check
+              <div style={{ font: "500 12.5px Inter", color: "var(--rt-off-white)", marginBottom: 2 }}>
+                Agent probe
               </div>
-              <div style={{ font: "400 12px Inter", color: "var(--rt-fg-2)" }}>
+              <div style={{ font: "400 11.5px Inter", color: "var(--rt-fg-2)" }}>
                 Re-probes for {selected?.label ?? "the selected agent"} and reports its version.
               </div>
-              {probeMessage && (
-                <div style={{
-                  font: '400 11px "IBM Plex Mono"',
-                  color: probing ? "var(--rt-fog-dim)" : "var(--rt-teal)",
-                  marginTop: 6
-                }}>{probeMessage}</div>
-              )}
             </div>
             <button className="btn btn--ghost btn--sm" onClick={runProbe} disabled={probing}>
               <Icon name={probing ? "refresh" : "cpu"} size={12} />
-              {probing ? "Probing…" : "Test now"}
+              {probing ? "Testing..." : "Test now"}
             </button>
           </div>
+          {probePassed && (
+            <div style={{
+              marginTop: 8, padding: "10px 14px", borderRadius: 8,
+              background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.35)",
+              display: "flex", alignItems: "center", gap: 8,
+              font: "500 13px Inter", color: "var(--rt-pass)"
+            }}>
+              <Icon name="check" size={13} color="var(--rt-pass)" />
+              Passed
+            </div>
+          )}
+          {probeError && (
+            <div style={{
+              marginTop: 8, padding: "10px 14px", borderRadius: 8,
+              background: "var(--rt-slate-2)", border: "1px solid var(--rt-slate-line)",
+              font: '400 12px "IBM Plex Mono"', color: "var(--rt-fog-dim)"
+            }}>{probeError}</div>
+          )}
         </>
       )}
     </div>
@@ -553,19 +484,19 @@ interface AgentCardProps {
   selected: boolean;
   onSelect: () => void;
   showRecommended?: boolean;
-  iconName: "sparkles" | "code" | "gem" | "cursorArrow" | "terminalSquare";
+  iconName: IconName;
 }
 
 function AgentCard({ agent, tagline, selected, onSelect, showRecommended, iconName }: AgentCardProps) {
   const disabled = !agent.detected;
   return (
-    <div style={{ position: "relative", paddingTop: 10 }}>
+    <div style={{ position: "relative" }}>
       {showRecommended && agent.detected && (
         <span style={{
-          position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
-          font: '600 10px "IBM Plex Mono"', letterSpacing: "0.04em",
+          position: "absolute", top: 6, right: 6,
+          font: '600 9px "IBM Plex Mono"', letterSpacing: "0.04em",
           background: "rgba(34,197,94,0.16)", color: "var(--rt-pass)",
-          border: "1px solid rgba(34,197,94,0.35)", padding: "2px 10px", borderRadius: 999,
+          border: "1px solid rgba(34,197,94,0.35)", padding: "1px 6px", borderRadius: 999,
           zIndex: 2, whiteSpace: "nowrap"
         }}>Recommended</span>
       )}
@@ -573,16 +504,16 @@ function AgentCard({ agent, tagline, selected, onSelect, showRecommended, iconNa
         position: "relative", background: "var(--rt-slate-panel)",
         border: selected ? "1px solid var(--rt-teal)" : "1px solid var(--rt-slate-line)",
         boxShadow: selected ? "0 0 0 3px rgba(20,184,182,0.10)" : "none",
-        borderRadius: 10, padding: "22px 14px 18px", textAlign: "center",
+        borderRadius: 8, padding: "12px 10px 10px", textAlign: "center",
         cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.55 : 1,
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
-        minHeight: 132, width: "100%"
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+        minHeight: 86, width: "100%"
       }}>
-      <Icon name={iconName} size={22} color={selected ? "var(--rt-teal)" : "var(--rt-fog)"} />
-      <div style={{ font: "600 15px Inter", color: "var(--rt-off-white)" }}>{agent.label}</div>
-      <div style={{ font: "400 12px Inter", color: "var(--rt-fog-dim)" }}>{tagline}</div>
+      <Icon name={iconName} size={18} color={selected ? "var(--rt-teal)" : "var(--rt-fog)"} />
+      <div style={{ font: "600 13px Inter", color: "var(--rt-off-white)" }}>{agent.label}</div>
+      <div style={{ font: "400 11px Inter", color: "var(--rt-fog-dim)" }}>{tagline}</div>
       {!agent.detected && (
-        <div style={{ font: '400 10px "IBM Plex Mono"', color: "var(--rt-fog-faint)", marginTop: 2 }}>
+        <div style={{ font: '400 10px "IBM Plex Mono"', color: "var(--rt-fog-faint)", marginTop: 1 }}>
           not detected on PATH
         </div>
       )}

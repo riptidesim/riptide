@@ -39,23 +39,28 @@ export function PageLabel({ children }: { children: ReactNode }) {
 
 interface EmptyStateProps {
   icon?: IconName;
+  iconImage?: string;
   title: string;
-  body: string;
+  body: ReactNode;
   ctaLabel?: string;
   onCta?: () => void;
+  footer?: ReactNode;
 }
 
-export function EmptyState({ icon = "sparkles", title, body, ctaLabel, onCta }: EmptyStateProps) {
+export function EmptyState({ icon = "sparkles", iconImage, title, body, ctaLabel, onCta, footer }: EmptyStateProps) {
   return (
     <div className="empty">
-      <div className="empty__icon"><Icon name={icon} size={20} /></div>
+      <div className="empty__icon">
+        {iconImage ? <img src={iconImage} alt="" style={{ width: 28, height: 28 }} /> : <Icon name={icon} size={20} />}
+      </div>
       <h3 className="empty__title">{title}</h3>
-      <p className="empty__body">{body}</p>
+      <div className="empty__body">{body}</div>
       {ctaLabel && (
-        <button className="btn btn--primary btn--sm" onClick={onCta}>
+        <button className="btn btn--primary" onClick={onCta}>
           {ctaLabel}
         </button>
       )}
+      {footer && <div className="empty__body">{footer}</div>}
     </div>
   );
 }

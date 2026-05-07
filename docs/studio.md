@@ -23,7 +23,7 @@ Useful flags:
 | `--port <port>` | `4173` | Falls back to nearby ports if taken. |
 | `--host <host>` | `127.0.0.1` | Loopback only (`127.0.0.1`, `localhost`, `::1`). Other binds are rejected. |
 | `--workspace <path>` | `cwd` | Workspace root. Same as the positional argument. |
-| `--case-studies-root <dir>` | _(none)_ | Each immediate subfolder with `.riptide/` becomes a case-study workspace. |
+| `--case-studies-root <dir>` | _(none)_ | Each immediate subfolder becomes a case-study workspace; missing `.riptide/` folders are shown so they can be bootstrapped from Studio. |
 | `--no-open` | n/a | Studio prints the URL and blocks on Ctrl-C. CI/headless safe. |
 
 ## What you get
@@ -87,7 +87,7 @@ no publish/push/release tokens.
 | `replay` | `config` | `riptide replay <config> --quiet` |
 | `campaign-validate` | `campaign` | `riptide campaign validate <campaign>` |
 | `campaign-plan` | `campaign` | `riptide campaign plan <campaign>` |
-| `campaign-run` | `campaign` | `riptide campaign run <campaign>` |
+| `campaign-run` | `campaign`, `harness` (optional) | `riptide campaign run <campaign> [--harness <harness>]` |
 | `review` | `pack`, `out` (optional) | `riptide review <pack> --quiet [--out <out>]` |
 | `readiness` | `out` (optional) | `riptide readiness . --json --out <out>` |
 
@@ -95,6 +95,8 @@ Per-param validation:
 
 - All path params must be **workspace-relative** (no absolute paths,
   no `..` escape, no shell metacharacters).
+- When `harness` is omitted for `campaign-run`, Studio auto-attaches
+  `.riptide/harness` if that directory exists in the active workspace.
 - Every `argv` element is checked against a forbidden token set
   (`push`, `publish`, `release`, `login`, `install`, `uninstall`,
   `rm`, `mv`, `delete`, `deploy`).

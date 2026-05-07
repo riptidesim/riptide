@@ -34,6 +34,7 @@ import {
   shouldScaffoldHarness,
   type InitHarnessMode
 } from "./options.js";
+import { installBundledSkills } from "./skills.js";
 
 export interface ScaffoldOptions {
   cwd: string;
@@ -60,6 +61,13 @@ export interface ScaffoldOptions {
   harnessMode?: InitHarnessMode;
   /** Number of seeds generated run-configs should request by default. */
   seeds?: number;
+  /**
+   * Install bundled Claude Code skills (e.g. `riptide-config`) into
+   * `<cwd>/.claude/skills/`. Defaults to true so a freshly-scaffolded
+   * project has the same agent UX as the developer's local setup,
+   * regardless of whether they have user-level skills installed.
+   */
+  installSkills?: boolean;
 }
 
 export interface ScaffoldResult {
@@ -944,6 +952,8 @@ ${scenariosLine}
 ${harnessLayoutLine}
 ## Skill-First Setup
 
+\`riptide init\` also dropped the bundled \`riptide-config\` skill into \`.claude/skills/riptide-config/\` so any coding agent run from this repo picks it up automatically — even on a fresh clone or a machine that doesn't have it installed under \`~/.claude/skills/\`. Pass \`--no-skills\` if you want to opt out.
+
 Invoke \`/riptide-config\` from your coding agent at the repo root. It treats this thin scaffold as normal input and owns:
 
 - adapter TOML repair and validation
@@ -1379,6 +1389,19 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
   const gitignoreResult = await ensureGitignoreEntries(cwd);
   if (gitignoreResult.touched) {
     created.push(".gitignore");
+  }
+
+  // Install bundled Claude Code skills under .claude/skills/. Existing
+  // skill directories are preserved unless --force is set, so a user
+  // who has customized their riptide-config skill won't lose their edits
+  // by re-running init.
+  if (options.installSkills !== false) {
+    try {
+      const skillResult = await installBundledSkills({ cwd, force });
+      created.push(...skillResult.installed);
+    } catch (err) {
+      warnings.push(`failed to install bundled skills: ${(err as Error).message}`);
+    }
   }
 
   return {

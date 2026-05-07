@@ -450,11 +450,21 @@ function buildArgvForKind(
       }
       ensureSafeRelative(campaign, "campaign");
       const sub = kind === "campaign-validate" ? "validate" : kind === "campaign-plan" ? "plan" : "run";
+      const argv = ["campaign", sub, campaign];
+      const notes = kind === "campaign-run" ? ["Campaign run can spawn many child runs and may take several minutes."] : [];
+      if (kind === "campaign-run") {
+        const harness = resolveCampaignHarnessParam(params, workspace);
+        if ("error" in harness) return { error: harness.error };
+        if (harness.path) {
+          argv.push("--harness", harness.path);
+          notes.push(harness.note);
+        }
+      }
       return {
-        argv: ["campaign", sub, campaign],
+        argv,
         outputPath: kind === "campaign-run" ? ".riptide/campaigns/" : null,
         expectedArtifact: kind === "campaign-run" ? ".riptide/campaigns/" : null,
-        notes: kind === "campaign-run" ? ["Campaign run can spawn many child runs and may take several minutes."] : []
+        notes
       };
     }
     case "review": {
@@ -502,6 +512,42 @@ function buildArgvForKind(
         error: validationError(400, "invalid_kind", `unsupported job kind: ${kind}`)
       };
   }
+}
+
+function resolveCampaignHarnessParam(
+  params: Record<string, string>,
+  workspace: StudioWorkspace
+): { path: string | null; note: string } | { error: JobValidationError } {
+  const requested = (params.harness ?? "").trim();
+  if (requested.length > 0) {
+    try {
+      ensureSafeRelative(requested, "harness");
+    } catch (err) {
+      return {
+        error: validationError(400, "invalid_param", (err as Error).message)
+      };
+    }
+    return {
+      path: requested,
+      note: `Using harness ${requested}.`
+    };
+  }
+
+  const defaultHarness = ".riptide/harness";
+  if (
+    existsSync(path.join(workspace.path, defaultHarness, "Cargo.toml")) ||
+    existsSync(path.join(workspace.path, defaultHarness))
+  ) {
+    return {
+      path: defaultHarness,
+      note: "Detected .riptide/harness and attached it to the campaign run."
+    };
+  }
+
+  return {
+    path: null,
+    note: ""
+  };
 }
 
 function ensureSafeRelative(rel: string, label: string): void {

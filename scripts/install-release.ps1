@@ -15,7 +15,8 @@ param(
   [string]$ReleaseBaseUrl = $(if ($env:RIPTIDE_RELEASE_BASE_URL) { $env:RIPTIDE_RELEASE_BASE_URL } else { "" }),
   [string]$Repo = $(if ($env:RIPTIDE_GITHUB_REPO) { $env:RIPTIDE_GITHUB_REPO } else { "riptidesim/riptide" }),
   [switch]$DryRun,
-  [switch]$Force
+  [switch]$Force,
+  [switch]$NoAgentSkills
 )
 
 Set-StrictMode -Version Latest
@@ -209,6 +210,82 @@ function Restore-PreviousInstall {
   }
 }
 
+function Test-AgentSkillsEnabled {
+  if ($NoAgentSkills) { return $false }
+  if (-not $env:RIPTIDE_INSTALL_AGENT_SKILLS) { return $true }
+  return ($env:RIPTIDE_INSTALL_AGENT_SKILLS -notmatch "^(0|false|no|off)$")
+}
+
+function Install-AgentSkillForAgent {
+  param(
+    [string]$AgentLabel,
+    [string]$SkillsDir,
+    [string]$SkillSource,
+    [string]$SkillName
+  )
+
+  $target = Join-Path $SkillsDir $SkillName
+  $marker = ".riptide-managed-skill"
+  try {
+    New-Item -ItemType Directory -Path $SkillsDir -Force | Out-Null
+
+    if (Test-Path -LiteralPath $target) {
+      $markerPath = Join-Path $target $marker
+      if (Test-Path -LiteralPath $markerPath) {
+        Remove-Item -LiteralPath $target -Recurse -Force
+      } else {
+        Warn-Styled "$AgentLabel skill exists and is not Riptide-managed; leaving it unchanged: $target"
+        return
+      }
+    }
+
+    Copy-Item -LiteralPath $SkillSource -Destination $target -Recurse -Force
+    Set-Content `
+      -LiteralPath (Join-Path $target $marker) `
+      -Value @("installed by riptide release installer", "source: $SkillSource") `
+      -Encoding ASCII
+    Ok "installed $AgentLabel skill: $SkillName"
+    Info $target
+  } catch {
+    Warn-Styled "could not install $AgentLabel skill $SkillName into ${SkillsDir}: $($_.Exception.Message)"
+  }
+}
+
+function Install-AgentSkills {
+  param([string]$CurrentRoot)
+
+  if (-not (Test-AgentSkillsEnabled)) {
+    Info "agent skill install disabled"
+    return
+  }
+
+  $sourceRoot = Join-Path $CurrentRoot "skills"
+  if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container)) {
+    Warn-Styled "release bundle has no skills directory; skipping agent skill install"
+    return
+  }
+
+  $codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
+  $claudeHome = if ($env:CLAUDE_HOME) { $env:CLAUDE_HOME } else { Join-Path $HOME ".claude" }
+  $codexSkills = Join-Path $codexHome "skills"
+  $claudeSkills = Join-Path $claudeHome "skills"
+  $found = $false
+
+  Get-ChildItem -LiteralPath $sourceRoot -Directory | ForEach-Object {
+    $skillPath = $_.FullName
+    if (-not (Test-Path -LiteralPath (Join-Path $skillPath "SKILL.md") -PathType Leaf)) {
+      return
+    }
+    $found = $true
+    Install-AgentSkillForAgent -AgentLabel "Codex" -SkillsDir $codexSkills -SkillSource $skillPath -SkillName $_.Name
+    Install-AgentSkillForAgent -AgentLabel "Claude" -SkillsDir $claudeSkills -SkillSource $skillPath -SkillName $_.Name
+  }
+
+  if (-not $found) {
+    Warn-Styled "release bundle has no installable skills; expected directories with SKILL.md under $sourceRoot"
+  }
+}
+
 $target = Get-Target
 $asset = "riptide-$target.zip"
 
@@ -233,6 +310,7 @@ Write-Styled ("  version      {0}" -f $Version) -Color Gray
 Write-Styled ("  archive      {0}" -f $archiveUrl) -Color Gray
 Write-Styled ("  install dir  {0}" -f $current) -Color Gray
 Write-Styled ("  launcher     {0}" -f $launcher) -Color Gray
+Write-Styled ("  agent skills {0}" -f ($(if (Test-AgentSkillsEnabled) { "enabled" } else { "disabled" }))) -Color Gray
 Rule
 
 if ($DryRun) {
@@ -324,6 +402,9 @@ try {
   Remove-Item -LiteralPath $previous -Recurse -Force -ErrorAction SilentlyContinue
   Ok "installed: $installedVersion"
   Info "staged bundle: $stagedVersion"
+
+  Step "installing agent skills"
+  Install-AgentSkills -CurrentRoot $current
 
   $normalizedBin = $BinDir.TrimEnd("\")
   $pathEntries = @()

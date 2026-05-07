@@ -11,7 +11,8 @@
 // - The config-intent endpoint never mutates files.
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { readFile, stat } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,8 +32,12 @@ import {
 } from "./dashboard-mount.js";
 import { StudioJobQueue, type JobKind, type JobPlanPreview, type JobValidationError } from "./jobs.js";
 import { generateConfigIntent } from "./config-intent.js";
-import { probeAgents } from "./agents.js";
+import { probeAgents, type AgentProbeResult } from "./agents.js";
 import { detectProgramForStudio } from "./program-detect.js";
+import { ChatStore } from "./chat/store.js";
+import { ChatService } from "./chat/runner.js";
+import { handleChatRoute, type ChatRouteServiceError } from "./chat/route.js";
+import type { AgentId } from "./chat/types.js";
 import {
   RiptideDirExistsError,
   ProgramDetectionError,
@@ -40,6 +45,14 @@ import {
   type ScaffoldOptions
 } from "../init/index.js";
 import { PROTOCOL_CHOICES, type Protocol } from "../init/personas-catalog.js";
+import {
+  listProjects,
+  rememberProject,
+  registerProject,
+  removeProject,
+  type RegistryPaths
+} from "./registry.js";
+import { homedir } from "node:os";
 
 export interface StudioServerHandle {
   url: string;
@@ -62,7 +75,19 @@ export interface StartStudioServerOptions {
   host?: string;
   /** Optional pre-built job queue (used by tests). */
   jobQueue?: StudioJobQueue;
+  /** Optional native directory picker override (used by tests). */
+  directoryPicker?: StudioDirectoryPicker;
+  /** Optional registry overrides (tests). */
+  registryPaths?: RegistryPaths;
 }
+
+export interface StudioDirectoryPickResult {
+  path: string | null;
+  cancelled: boolean;
+  message?: string;
+}
+
+export type StudioDirectoryPicker = () => Promise<StudioDirectoryPickResult>;
 
 interface StudioContext {
   workspace: string;
@@ -71,6 +96,10 @@ interface StudioContext {
   workspacesById: Map<string, StudioWorkspace>;
   startedAt: string;
   jobs: StudioJobQueue;
+  chatServices: Map<string, ChatService>;
+  agentProbeCache: AgentProbeResult[];
+  directoryPicker: StudioDirectoryPicker;
+  registryPaths?: RegistryPaths;
 }
 
 const DEFAULT_PORT = 4173;
@@ -230,16 +259,28 @@ function sendNotFound(res: ServerResponse, pathname: string): void {
       "GET /api/studio/workspaces",
       "GET /api/studio/agents",
       "GET /api/studio/protocols",
+      "GET /api/studio/browse-directory",
       "GET /api/studio/detect-program",
       "GET /api/studio/artifacts",
       "GET /api/studio/graph",
       "GET /api/studio/report",
       "GET /api/studio/jobs",
+      "GET /api/studio/registry",
+      "POST /api/studio/registry",
+      "DELETE /api/studio/registry/:id",
       "POST /api/studio/init",
+      "POST /api/studio/pick-directory",
       "POST /api/studio/jobs",
       "POST /api/studio/jobs/plan",
       "POST /api/studio/jobs/:id/cancel",
       "POST /api/studio/config/intent",
+      "GET /api/studio/chat/threads",
+      "POST /api/studio/chat/threads",
+      "GET /api/studio/chat/threads/:id",
+      "DELETE /api/studio/chat/threads/:id",
+      "POST /api/studio/chat/threads/:id/runs",
+      "GET /api/studio/chat/runs/:runId/stream",
+      "POST /api/studio/chat/runs/:runId/abort",
       "GET /api/collection",
       "GET /api/result",
       "GET /api/report",
@@ -313,11 +354,34 @@ async function readBody(req: IncomingMessage, limitBytes = 64 * 1024): Promise<u
 async function refreshWorkspaces(ctx: StudioContext): Promise<void> {
   const next = await discoverStudioWorkspaces({
     cwd: ctx.workspace,
-    caseStudiesRoot: ctx.caseStudiesRoot
+    caseStudiesRoot: ctx.caseStudiesRoot,
+    registryPaths: ctx.registryPaths
   });
+  await rememberDiscoveredWorkspaces(next, ctx.registryPaths);
   ctx.workspaces = next;
   ctx.workspacesById = new Map(next.map((w) => [w.id, w]));
   ctx.jobs.setWorkspaces(next);
+}
+
+async function rememberDiscoveredWorkspaces(
+  workspaces: StudioWorkspace[],
+  registryPaths: RegistryPaths | undefined
+): Promise<void> {
+  for (const workspace of workspaces) {
+    if (!workspace.has_riptide) continue;
+    try {
+      await rememberProject(
+        {
+          label: workspace.label,
+          path: workspace.path
+        },
+        registryPaths
+      );
+    } catch {
+      // The registry is convenience state. Studio should still launch if
+      // the user-level file is temporarily unwritable or malformed.
+    }
+  }
 }
 
 const PROGRAM_NAME_RE = /^[a-z][a-z0-9-]*$/;
@@ -328,7 +392,7 @@ const PROTOCOL_VALUES: ReadonlySet<Protocol> = new Set(
 function asInitInput(
   body: unknown
 ):
-  | { programName: string; protocol: Protocol }
+  | { programName: string; protocol: Protocol; targetPath: string | null; label: string | null }
   | { error: { status: number; payload: Record<string, unknown> } } {
   if (!body || typeof body !== "object") {
     return { error: { status: 400, payload: { error: "invalid_body", message: "expected JSON object" } } };
@@ -364,7 +428,278 @@ function asInitInput(
       }
     };
   }
-  return { programName, protocol: rawProtocol as Protocol };
+  const rawPath =
+    typeof o.path === "string" ? o.path :
+    typeof o.target_path === "string" ? o.target_path : "";
+  let targetPath: string | null = null;
+  if (rawPath.trim().length > 0) {
+    const expanded = expandHome(rawPath.trim());
+    if (!path.isAbsolute(expanded)) {
+      return {
+        error: {
+          status: 400,
+          payload: { error: "invalid_path", message: "path must be absolute (starting with / or ~)" }
+        }
+      };
+    }
+    targetPath = path.resolve(expanded);
+  }
+  const rawLabel = typeof o.label === "string" ? o.label.trim() : "";
+  return {
+    programName,
+    protocol: rawProtocol as Protocol,
+    targetPath,
+    label: rawLabel.length > 0 ? rawLabel : null
+  };
+}
+
+function expandHome(input: string): string {
+  if (input === "~") return homedir();
+  if (input.startsWith("~/")) return path.join(homedir(), input.slice(2));
+  return input;
+}
+
+async function browseDirectory(
+  requestedPath: string | null
+): Promise<
+  | {
+      schema_version: "studio-directory-list.v1";
+      path: string;
+      parent: string | null;
+      entries: Array<{ name: string; path: string }>;
+    }
+  | { status: number; payload: Record<string, unknown> }
+> {
+  const target = resolveBrowsePath(requestedPath);
+  if (!target) {
+    return {
+      status: 400,
+      payload: {
+        error: "invalid_path",
+        message: "directory path must be absolute or start with ~"
+      }
+    };
+  }
+
+  let targetStat;
+  try {
+    targetStat = await stat(target);
+  } catch (err) {
+    return {
+      status: 404,
+      payload: {
+        error: "directory_not_found",
+        message: `cannot read ${target}: ${(err as Error).message}`
+      }
+    };
+  }
+  if (!targetStat.isDirectory()) {
+    return {
+      status: 400,
+      payload: {
+        error: "not_a_directory",
+        message: `${target} is not a directory`
+      }
+    };
+  }
+
+  let entries;
+  try {
+    entries = await readdir(target, { withFileTypes: true });
+  } catch (err) {
+    return {
+      status: 403,
+      payload: {
+        error: "directory_unreadable",
+        message: `cannot list ${target}: ${(err as Error).message}`
+      }
+    };
+  }
+
+  const dirs = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({
+      name: entry.name,
+      path: path.join(target, entry.name)
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const parent = path.dirname(target);
+  return {
+    schema_version: "studio-directory-list.v1",
+    path: target,
+    parent: parent === target ? null : parent,
+    entries: dirs.slice(0, 250)
+  };
+}
+
+function resolveBrowsePath(value: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return homedir();
+  const expanded = expandHome(trimmed);
+  if (!path.isAbsolute(expanded)) return null;
+  return path.resolve(expanded);
+}
+
+async function pickDirectoryWithNativeDialog(): Promise<StudioDirectoryPickResult> {
+  if (process.platform === "darwin") {
+    return runFirstDirectoryPicker([
+      {
+        command: "osascript",
+        args: [
+          "-e",
+          'POSIX path of (choose folder with prompt "Select Riptide workspace folder")'
+        ]
+      }
+    ]);
+  }
+
+  if (process.platform === "win32") {
+    return runFirstDirectoryPicker([
+      {
+        command: "powershell.exe",
+        args: [
+          "-NoProfile",
+          "-STA",
+          "-Command",
+          [
+            "Add-Type -AssemblyName System.Windows.Forms;",
+            "$d = New-Object System.Windows.Forms.FolderBrowserDialog;",
+            "$d.Description = 'Select Riptide workspace folder';",
+            "$d.ShowNewFolderButton = $true;",
+            "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {",
+            "  [Console]::Out.WriteLine($d.SelectedPath)",
+            "} else {",
+            "  exit 1",
+            "}"
+          ].join(" ")
+        ]
+      }
+    ]);
+  }
+
+  if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+    return {
+      path: null,
+      cancelled: false,
+      message: "No graphical session is available; paste an absolute path manually."
+    };
+  }
+
+  const home = homedir();
+  return runFirstDirectoryPicker([
+    {
+      command: "zenity",
+      args: [
+        "--file-selection",
+        "--directory",
+        "--title=Select Riptide workspace folder",
+        `--filename=${home}${path.sep}`
+      ]
+    },
+    {
+      command: "kdialog",
+      args: [
+        "--title",
+        "Select Riptide workspace folder",
+        "--getexistingdirectory",
+        home
+      ]
+    },
+    {
+      command: "yad",
+      args: [
+        "--file",
+        "--directory",
+        "--title=Select Riptide workspace folder",
+        `--filename=${home}${path.sep}`
+      ]
+    }
+  ]);
+}
+
+interface DirectoryPickerCommand {
+  command: string;
+  args: string[];
+}
+
+async function runFirstDirectoryPicker(
+  candidates: DirectoryPickerCommand[]
+): Promise<StudioDirectoryPickResult> {
+  const errors: string[] = [];
+  for (const candidate of candidates) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await runDirectoryPickerCommand(candidate);
+    if (result.kind === "success") {
+      return { path: path.resolve(result.path), cancelled: false };
+    }
+    if (result.kind === "cancelled") {
+      return { path: null, cancelled: true };
+    }
+    errors.push(result.message);
+  }
+  return {
+    path: null,
+    cancelled: false,
+    message: `No supported native folder picker is available (${errors.join("; ")}). Paste an absolute path manually.`
+  };
+}
+
+type DirectoryPickerRunResult =
+  | { kind: "success"; path: string }
+  | { kind: "cancelled" }
+  | { kind: "unavailable"; message: string };
+
+async function runDirectoryPickerCommand(
+  candidate: DirectoryPickerCommand
+): Promise<DirectoryPickerRunResult> {
+  try {
+    const { stdout } = await execFilePromise(candidate.command, candidate.args);
+    const picked = stdout.trim();
+    if (picked.length === 0) return { kind: "cancelled" };
+    return { kind: "success", path: picked };
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException & { stdout?: string; stderr?: string; code?: unknown };
+    const picked = typeof e.stdout === "string" ? e.stdout.trim() : "";
+    if (picked.length > 0) return { kind: "success", path: picked };
+    if (e.code === "ENOENT") {
+      return { kind: "unavailable", message: `${candidate.command} not found` };
+    }
+    const stderr = typeof e.stderr === "string" ? e.stderr.trim() : "";
+    if (/cannot open display|failed to open display|no display|could not connect/i.test(stderr)) {
+      return {
+        kind: "unavailable",
+        message: `${candidate.command}: ${stderr || "display unavailable"}`
+      };
+    }
+    return { kind: "cancelled" };
+  }
+}
+
+function execFilePromise(
+  file: string,
+  args: string[]
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      file,
+      args,
+      {
+        encoding: "utf8",
+        maxBuffer: 64 * 1024,
+        timeout: 10 * 60 * 1000,
+        windowsHide: false
+      },
+      (err, stdout, stderr) => {
+        if (err) {
+          Object.assign(err, { stdout, stderr });
+          reject(err);
+          return;
+        }
+        resolve({ stdout, stderr });
+      }
+    );
+  });
 }
 
 function isJobValidationError(value: unknown): value is JobValidationError {
@@ -408,6 +743,18 @@ function makeRequestHandler(ctx: StudioContext) {
     const pathname = url.pathname;
 
     try {
+      // ---- Chat routes (own their own dispatch + method handling) ----
+      if (pathname.startsWith("/api/studio/chat/")) {
+        const handled = await handleChatRoute(
+          {
+            getService: (workspaceId) => getChatService(ctx, workspaceId),
+            findRunService: (runId) => findChatServiceByRun(ctx, runId)
+          },
+          { readBody, sendJson },
+          { req, res, pathname, method }
+        );
+        if (handled) return;
+      }
       // ---- Routes that allow POST ----
       const jobCancelMatch = /^\/api\/studio\/jobs\/([^/]+)\/cancel$/.exec(pathname);
       if (pathname === "/api/studio/jobs" && method === "POST") {
@@ -472,6 +819,32 @@ function makeRequestHandler(ctx: StudioContext) {
         sendJson(res, 200, result);
         return;
       }
+      if (pathname === "/api/studio/pick-directory" && method === "POST") {
+        try {
+          const picked = await ctx.directoryPicker();
+          sendJson(res, 200, {
+            schema_version: "studio-pick-directory.v1",
+            path: picked.path,
+            cancelled: picked.cancelled,
+            ...(picked.message ? { message: picked.message } : {})
+          });
+        } catch (err) {
+          sendJson(res, 500, {
+            error: "directory_picker_failed",
+            message: (err as Error).message
+          });
+        }
+        return;
+      }
+      if (pathname === "/api/studio/browse-directory" && method === "GET") {
+        const result = await browseDirectory(url.searchParams.get("path"));
+        if ("status" in result) {
+          sendJson(res, result.status, result.payload);
+          return;
+        }
+        sendJson(res, 200, result);
+        return;
+      }
       if (pathname === "/api/studio/init" && method === "POST") {
         const body = await readBody(req);
         const parsed = asInitInput(body);
@@ -479,8 +852,34 @@ function makeRequestHandler(ctx: StudioContext) {
           sendJson(res, parsed.error.status, parsed.error.payload);
           return;
         }
+        const targetCwd = parsed.targetPath ?? ctx.workspace;
+        if (parsed.targetPath) {
+          try {
+            await mkdir(parsed.targetPath, { recursive: true });
+          } catch (err) {
+            sendJson(res, 400, {
+              error: "invalid_path",
+              message: `could not create directory ${parsed.targetPath}: ${(err as Error).message}`
+            });
+            return;
+          }
+          let pathStat;
+          try {
+            pathStat = await stat(parsed.targetPath);
+          } catch (err) {
+            sendJson(res, 400, {
+              error: "invalid_path",
+              message: `cannot stat ${parsed.targetPath}: ${(err as Error).message}`
+            });
+            return;
+          }
+          if (!pathStat.isDirectory()) {
+            sendJson(res, 400, { error: "invalid_path", message: `${parsed.targetPath} is not a directory` });
+            return;
+          }
+        }
         const scaffoldOptions: ScaffoldOptions = {
-          cwd: ctx.workspace,
+          cwd: targetCwd,
           force: false,
           mode: "minimal",
           blank: true,
@@ -489,11 +888,28 @@ function makeRequestHandler(ctx: StudioContext) {
         };
         try {
           const result = await scaffold(scaffoldOptions);
+          // Persist every scaffolded project to the user-level registry
+          // so the workspace rail can show it on future Studio launches
+          // from any directory.
+          try {
+            const registeredPath = parsed.targetPath ?? targetCwd;
+            const fallbackLabel = path.basename(registeredPath) || parsed.programName;
+            await registerProject(
+              {
+                label: parsed.label ?? fallbackLabel,
+                path: registeredPath
+              },
+              ctx.registryPaths
+            );
+          } catch (err) {
+            result.warnings.push(`could not save project to registry: ${(err as Error).message}`);
+          }
           await refreshWorkspaces(ctx);
           sendJson(res, 201, {
             schema_version: "studio-init.v1",
             program_name: result.programName,
             protocol: parsed.protocol,
+            target_path: parsed.targetPath,
             created: result.created,
             warnings: result.warnings,
             workspaces: ctx.workspaces
@@ -511,6 +927,59 @@ function makeRequestHandler(ctx: StudioContext) {
           sendJson(res, 500, { error: "scaffold_failed", message: (err as Error).message });
           return;
         }
+      }
+      if (pathname === "/api/studio/registry" && method === "POST") {
+        const body = await readBody(req);
+        if (!body || typeof body !== "object") {
+          sendJson(res, 400, { error: "invalid_body", message: "expected JSON object" });
+          return;
+        }
+        const o = body as Record<string, unknown>;
+        const rawPath = typeof o.path === "string" ? o.path.trim() : "";
+        if (rawPath.length === 0) {
+          sendJson(res, 400, { error: "missing_path", message: "path is required" });
+          return;
+        }
+        const expanded = expandHome(rawPath);
+        if (!path.isAbsolute(expanded)) {
+          sendJson(res, 400, { error: "invalid_path", message: "path must be absolute" });
+          return;
+        }
+        const absolute = path.resolve(expanded);
+        const label = typeof o.label === "string" && o.label.trim().length > 0
+          ? o.label.trim()
+          : path.basename(absolute);
+        try {
+          const project = await registerProject({ label, path: absolute }, ctx.registryPaths);
+          await refreshWorkspaces(ctx);
+          sendJson(res, 201, {
+            schema_version: "studio-registry-entry.v1",
+            project,
+            workspaces: ctx.workspaces
+          });
+        } catch (err) {
+          sendJson(res, 500, { error: "registry_failed", message: (err as Error).message });
+        }
+        return;
+      }
+      const registryDeleteMatch = /^\/api\/studio\/registry\/([^/]+)$/.exec(pathname);
+      if (registryDeleteMatch && method === "DELETE") {
+        const id = registryDeleteMatch[1] as string;
+        try {
+          const removed = await removeProject(id, ctx.registryPaths);
+          if (!removed) {
+            sendJson(res, 404, { error: "not_found", message: `no registered project with id ${id}` });
+            return;
+          }
+          await refreshWorkspaces(ctx);
+          sendJson(res, 200, {
+            schema_version: "studio-registry-removed.v1",
+            workspaces: ctx.workspaces
+          });
+        } catch (err) {
+          sendJson(res, 500, { error: "registry_failed", message: (err as Error).message });
+        }
+        return;
       }
 
       // ---- Everything else is GET/HEAD only ----
@@ -547,8 +1016,21 @@ function makeRequestHandler(ctx: StudioContext) {
         });
         return;
       }
+      if (pathname === "/api/studio/registry") {
+        try {
+          const projects = await listProjects(ctx.registryPaths);
+          sendJson(res, 200, {
+            schema_version: "studio-registry.v1",
+            projects
+          });
+        } catch (err) {
+          sendJson(res, 500, { error: "registry_failed", message: (err as Error).message });
+        }
+        return;
+      }
       if (pathname === "/api/studio/agents") {
         const agents = await probeAgents();
+        ctx.agentProbeCache = agents;
         sendJson(res, 200, { schema_version: "studio-agents.v1", agents });
         return;
       }
@@ -557,7 +1039,12 @@ function makeRequestHandler(ctx: StudioContext) {
         return;
       }
       if (pathname === "/api/studio/detect-program") {
-        const detection = detectProgramForStudio(ctx.workspace);
+        const selection = selectWorkspace(ctx, url.searchParams);
+        if ("error" in selection) {
+          sendJson(res, selection.error.status, selection.error.payload);
+          return;
+        }
+        const detection = detectProgramForStudio(selection.path);
         sendJson(res, 200, { schema_version: "studio-detect-program.v1", ...detection });
         return;
       }
@@ -750,8 +1237,10 @@ export async function startStudioServer(
 
   const workspaces = await discoverStudioWorkspaces({
     cwd: workspace,
-    caseStudiesRoot
+    caseStudiesRoot,
+    registryPaths: options.registryPaths
   });
+  await rememberDiscoveredWorkspaces(workspaces, options.registryPaths);
   const jobQueue = options.jobQueue ?? new StudioJobQueue();
   jobQueue.setWorkspaces(workspaces);
   for (const ws of workspaces) {
@@ -762,13 +1251,27 @@ export async function startStudioServer(
     }
   }
 
+  // Probe agents once at startup so the chat service can resolve binaryPath
+  // without re-spawning version probes on every POST /runs. The cache is
+  // refreshed whenever the UI hits GET /api/studio/agents.
+  let initialProbe: AgentProbeResult[] = [];
+  try {
+    initialProbe = await probeAgents();
+  } catch {
+    initialProbe = [];
+  }
+
   const ctx: StudioContext = {
     workspace,
     caseStudiesRoot,
     workspaces,
     workspacesById: new Map(workspaces.map((w) => [w.id, w])),
     startedAt: new Date().toISOString(),
-    jobs: jobQueue
+    jobs: jobQueue,
+    chatServices: new Map<string, ChatService>(),
+    agentProbeCache: initialProbe,
+    directoryPicker: options.directoryPicker ?? pickDirectoryWithNativeDialog,
+    registryPaths: options.registryPaths
   };
 
   const handle = makeRequestHandler(ctx);
@@ -834,6 +1337,43 @@ export async function startStudioServer(
     `riptide studio: could not bind any port in [${startPort}, ${startPort + maxAttempts}) on ${host}` +
       (lastErr ? ` (last error: ${lastErr.code ?? lastErr.message})` : "")
   );
+}
+
+function getChatService(
+  ctx: StudioContext,
+  workspaceId?: string | null
+): ChatService | ChatRouteServiceError {
+  const workspace =
+    workspaceId && workspaceId.length > 0
+      ? ctx.workspacesById.get(workspaceId)
+      : ctx.workspaces[0];
+  if (!workspace) {
+    return {
+      status: workspaceId ? 404 : 400,
+      payload: {
+        error: workspaceId ? "workspace_not_found" : "no_workspace",
+        message: workspaceId
+          ? `workspace ${JSON.stringify(workspaceId)} is not registered`
+          : "no workspace is currently registered",
+        details: { workspaces: ctx.workspaces.map((w) => w.id) }
+      }
+    };
+  }
+  const existing = ctx.chatServices.get(workspace.id);
+  if (existing) return existing;
+  const service = new ChatService({
+    store: new ChatStore({ workspacePath: workspace.path }),
+    resolveAgent: (id: AgentId) => ctx.agentProbeCache.find((a) => a.id === id) ?? null
+  });
+  ctx.chatServices.set(workspace.id, service);
+  return service;
+}
+
+function findChatServiceByRun(ctx: StudioContext, runId: string): ChatService | null {
+  for (const service of ctx.chatServices.values()) {
+    if (service.getRun(runId)) return service;
+  }
+  return null;
 }
 
 function normalizeLoopbackHost(raw: string): string {

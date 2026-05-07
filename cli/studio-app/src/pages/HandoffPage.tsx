@@ -1,160 +1,436 @@
-import type { CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { marked } from "marked";
 
-import { Icon } from "../ui/Icon";
-import { Kicker, PageLabel, Pill } from "../ui/primitives";
+import {
+  chatApi,
+  type AgentProbe,
+  type ChatAgentId,
+  type ChatJsonlLine,
+  type ChatThreadSummary
+} from "../api";
 
-const THREADS = [
-  { id: "t1", title: "Add a whale persona for the lending sweep", time: "2m ago", active: true },
-  { id: "t2", title: "Tighten oracle-divergence invariant bounds", time: "1h ago" },
-  { id: "t3", title: "Define a flash-loan attacker scenario", time: "yesterday" },
-  { id: "t4", title: "Wire adapter for v2 lending program", time: "3d ago" },
-  { id: "t5", title: "Add LP imbalance campaign", time: "5d ago" }
-];
+marked.setOptions({ gfm: true, breaks: true });
 
-type Message =
-  | { kind: "user"; text: string }
-  | { kind: "assistant"; text: string; showDiff?: boolean }
-  | { kind: "thinking"; text: string }
-  | { kind: "tool"; icon: string; summary: string };
-
-const MESSAGES: Message[] = [
-  { kind: "user", text: "Add a whale persona that holds 40% of pool liquidity and unwinds over 600 ticks. Reference it from the lending-liquidation-sweep scenario." },
-  { kind: "assistant", text: "I'll outline the persona, write the YAML to `.riptide/personas/`, then update the scenario reference. One moment." },
-  { kind: "thinking", text: "Considering reference scenario shape, persona schema, and probabilistic unwind cadence. Will use a linear schedule unless told otherwise." },
-  { kind: "tool", icon: "·", summary: "Read .riptide/personas/whale.yaml" },
-  { kind: "tool", icon: "+", summary: "Wrote .riptide/personas/whale-deep.yaml (+47 lines)" },
-  { kind: "assistant", text: "Drafted `whale-deep` with a linear unwind from `tick=0..600`, sized to `0.40` of `pool.tvl` at scenario start. Schema validates.\n\nUpdating the scenario next." },
-  { kind: "tool", icon: "~", summary: "Edited .riptide/scenarios/lending-liquidation-sweep.yaml (+2, −0)" },
-  { kind: "tool", icon: ">", summary: "Ran `riptide validate`" },
-  { kind: "assistant", text: "`riptide validate` is green. The scenario now references `whale-deep` alongside the existing retail and arbitrageur personas.\n\nWant me to dispatch a single-shot run to confirm the unwind shape, or hold here for review?" },
-  { kind: "user", text: "Hold for review. Show me the diff for the scenario edit." },
-  { kind: "assistant", text: "Here's the unified diff. The change attaches `whale-deep` to the persona list and bumps the seed to keep the existing run hashes stable.", showDiff: true }
-];
-
-const DIFF_LINES: { num: string; add?: boolean; rem?: boolean; t: string }[] = [
-  { num: "32", t: "  personas:" },
-  { num: "33", t: "    - retail-trader" },
-  { num: "34", t: "    - arb-bot" },
-  { num: "35", rem: true, t: "    seed: 0x9f3a" },
-  { num: "35", add: true, t: "    - whale-deep" },
-  { num: "36", add: true, t: "  seed: 0x9f3a...c1b8" }
-];
-
-const WS_FILES = [
-  { path: ".riptide/personas/whale-deep.yaml", kind: "add", loc: "+47" },
-  { path: ".riptide/scenarios/lending-sweep.yaml", kind: "edit", loc: "+2 −0" },
-  { path: ".riptide/.cache/validate.log", kind: "touch", loc: "·" }
-];
-
-const ASSIST_BUBBLE: CSSProperties = {
-  width: 24,
-  height: 24,
-  borderRadius: 6,
-  background: "var(--rt-teal-ink)",
-  border: "1px solid rgba(20,184,182,0.35)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flex: "none"
-};
-
-function ChatMessage({ m }: { m: Message }) {
-  if (m.kind === "user") {
-    return (
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 18 }}>
-        <div
-          style={{
-            background: "var(--rt-slate-2)",
-            border: "1px solid var(--rt-slate-line)",
-            borderRadius: 12,
-            padding: "10px 14px",
-            maxWidth: 540,
-            font: "400 14px/1.55 Inter, sans-serif",
-            color: "var(--rt-off-white)"
-          }}
-        >
-          {m.text}
-        </div>
-      </div>
-    );
+function renderMarkdown(text: string): string {
+  if (!text) return "";
+  try {
+    const out = marked.parse(text, { async: false });
+    return typeof out === "string" ? out : "";
+  } catch {
+    // Fall back to escaped plain text so we never break the page on malformed
+    // markdown — the agent occasionally streams partial fences mid-token.
+    return escapeHtml(text);
   }
-  if (m.kind === "assistant") {
-    return (
-      <div style={{ display: "flex", gap: 12, marginBottom: 18 }}>
-        <div style={ASSIST_BUBBLE}>
-          <Icon name="sparkles" size={13} color="var(--rt-teal)" />
-        </div>
-        <div style={{ flex: 1, font: "400 14px/1.6 Inter, sans-serif", color: "var(--rt-fg-1)", whiteSpace: "pre-wrap" }}>
-          {m.text}
-          {m.showDiff && (
-            <div className="diff" style={{ marginTop: 12 }}>
-              {DIFF_LINES.map((l, i) => (
-                <div key={i} className={`diff__line${l.add ? " diff__line--add" : ""}${l.rem ? " diff__line--rem" : ""}`}>
-                  <span className="diff__num">{l.num}</span>
-                  <span>
-                    {l.add ? "+" : l.rem ? "-" : " "} {l.t}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-  if (m.kind === "thinking") {
-    return (
-      <div style={{ marginBottom: 18, marginLeft: 36 }}>
-        <button
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            background: "transparent",
-            border: "none",
-            color: "var(--rt-fog-dim)",
-            font: "400 12px Inter",
-            cursor: "pointer"
-          }}
-        >
-          <Icon name="chevron" size={12} />
-          thinking ({Math.ceil(m.text.length / 30)}s)
-        </button>
-      </div>
-    );
-  }
-  // tool
-  return (
-    <div style={{ marginBottom: 8, marginLeft: 36 }}>
-      <button
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          background: "var(--rt-ink)",
-          border: "1px solid var(--rt-slate-line)",
-          borderRadius: 6,
-          padding: "6px 10px",
-          color: "var(--rt-fg-2)",
-          font: '400 12.5px "IBM Plex Mono"',
-          cursor: "pointer",
-          width: "100%",
-          textAlign: "left"
-        }}
-      >
-        <Icon name="chevron" size={12} color="var(--rt-fog-dim)" />
-        <span style={{ flex: "none" }}>{m.icon}</span>
-        <span style={{ flex: 1, color: "var(--rt-fg-1)" }}>{m.summary}</span>
-        <Pill kind="pass">DONE</Pill>
-      </button>
-    </div>
-  );
 }
 
-export function HandoffPage() {
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+import { labelForModel, modelOptionsFor, type AgentPreference } from "../agentMeta";
+import { Icon } from "../ui/Icon";
+import { EmptyState, Kicker, PageLabel } from "../ui/primitives";
+
+const PRESETS: { label: string; prompt: string }[] = [
+  {
+    label: "Configure my project",
+    prompt: "Use the riptide-config skill to configure this repo for Riptide end to end. Detect the target program, repair or create the adapter, harness, starter scenarios, personas, and invariants, run the smallest smoke needed to prove the scaffold works, then add or validate a broad campaign plan with many agents, multiple personas, and multiple seeds. Do not stop at a 2-agent toy scenario unless the repo cannot support more; report campaign readiness with exact validation commands."
+  },
+  {
+    label: "Add a campaign",
+    prompt: "Add a broad Riptide campaign for this workspace. Inspect the existing adapter, scenarios, personas, and invariants; create or update the campaign TOML with a large multi-seed, multi-persona, high-agent stress matrix instead of a 2-agent smoke; validate the campaign plan and run a meaningful representative slice only when full execution would be too slow; then report changed files plus exact run and review commands."
+  },
+  {
+    label: "Analyze a report",
+    prompt: "Analyze the latest Riptide report in this workspace without editing files. Identify the scenario, failing seeds, invariant fires, root-cause evidence, and the next concrete adapter, harness, scenario, or protocol changes to make."
+  },
+  {
+    label: "Tighten an invariant",
+    prompt: "Tighten an existing invariant for this workspace. Inspect the adapter observations and recent report evidence, propose the smallest stronger invariant, apply it if safe, then run lint and a targeted smoke to prove it still evaluates."
+  }
+];
+
+const SUPPORTED_AGENTS = new Set<string>(["claude-code", "codex"]);
+
+interface HandoffPageProps {
+  pref: AgentPreference | null;
+  setPref: (next: AgentPreference) => void;
+  agents: AgentProbe[];
+  workspaceId: string;
+  workspacePath: string;
+}
+
+interface RunState {
+  runId: string;
+  status: "streaming" | "aborting";
+  source: EventSource;
+  startedAt: number;
+}
+
+interface ToolEvent {
+  name: string;
+  summary: string;
+  ts: number;
+}
+
+export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath }: HandoffPageProps) {
+  const [draft, setDraft] = useState("");
+  const [modelOpen, setModelOpen] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [threads, setThreads] = useState<ChatThreadSummary[]>([]);
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatJsonlLine[]>([]);
+  const [streamingText, setStreamingText] = useState("");
+  const [streamingTools, setStreamingTools] = useState<ToolEvent[]>([]);
+  const [runState, setRunState] = useState<RunState | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [transientNotice, setTransientNotice] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const activeAgent = agents.find((a) => a.id === pref?.agentId) ?? null;
+  const agentLabel = activeAgent?.label ?? "agent";
+  const currentModel = pref?.model ?? "default";
+  const modelChoices = pref ? modelOptionsFor(pref.agentId) : ["default"];
+  const supported = !!pref && SUPPORTED_AGENTS.has(pref.agentId);
+  const deleteConfirmThread = deleteConfirmId
+    ? threads.find((t) => t.id === deleteConfirmId) ?? null
+    : null;
+
+  const modelWrapRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
+
+  const refreshThreads = useCallback(async () => {
+    try {
+      const r = await chatApi.listThreads(workspaceId);
+      setThreads(r.threads);
+    } catch {
+      // Surface in-place; nothing to render if the server isn't ready yet.
+    }
+  }, [workspaceId]);
+
+  // Initial thread list fetch + whenever the workspace identity changes.
+  useEffect(() => {
+    refreshThreads();
+  }, [refreshThreads, workspacePath]);
+
+  useEffect(() => {
+    if (runState?.source) runState.source.close();
+    setThreadId(null);
+    setMessages([]);
+    setStreamingText("");
+    setStreamingTools([]);
+    setRunState(null);
+    setTransientNotice(null);
+    setDeleteConfirmId(null);
+    setDeleteError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId]);
+
+  // Scroll-to-bottom on new content.
+  useEffect(() => {
+    const el = transcriptRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages, streamingText]);
+
+  // Close model dropdown on outside click / Escape.
+  useEffect(() => {
+    if (!modelOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (!modelWrapRef.current) return;
+      if (!modelWrapRef.current.contains(e.target as Node)) setModelOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setModelOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [modelOpen]);
+
+  useEffect(() => {
+    if (!deleteConfirmId || deletingThreadId) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setDeleteConfirmId(null);
+      setDeleteError(null);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [deleteConfirmId, deletingThreadId]);
+
+  // Tear down any open EventSource on unmount.
+  useEffect(() => {
+    return () => {
+      if (runState?.source) runState.source.close();
+    };
+    // We intentionally only run on unmount; runState changes are handled inline.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Tick elapsed time during an active run so the user has a heartbeat.
+  useEffect(() => {
+    if (!runState) {
+      setElapsedMs(0);
+      return;
+    }
+    const start = runState.startedAt;
+    const id = setInterval(() => setElapsedMs(Date.now() - start), 1000);
+    return () => clearInterval(id);
+  }, [runState]);
+
+  function onFilesChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const list = e.target.files;
+    if (!list || list.length === 0) return;
+    setAttachments((prev) => [...prev, ...Array.from(list)]);
+    e.target.value = "";
+  }
+
+  function removeAttachment(idx: number) {
+    setAttachments((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function loadThread(id: string) {
+    try {
+      const r = await chatApi.getThread(id, workspaceId);
+      setThreadId(r.thread.id);
+      setMessages(r.messages);
+      setStreamingText("");
+      setTransientNotice(null);
+    } catch {
+      // Thread vanished or server hiccup — drop back to fresh.
+      setThreadId(null);
+      setMessages([]);
+    }
+  }
+
+  function newConversation() {
+    if (runState) return;
+    setThreadId(null);
+    setMessages([]);
+    setStreamingText("");
+    setTransientNotice(null);
+    textareaRef.current?.focus();
+  }
+
+  function requestDeleteThread(id: string) {
+    setDeleteConfirmId(id);
+    setDeleteError(null);
+    setModelOpen(false);
+  }
+
+  function closeDeleteThreadDialog() {
+    if (deletingThreadId) return;
+    setDeleteConfirmId(null);
+    setDeleteError(null);
+  }
+
+  async function confirmDeleteThread() {
+    const id = deleteConfirmId;
+    if (!id || deletingThreadId) return;
+    setDeletingThreadId(id);
+    setDeleteError(null);
+    try {
+      await chatApi.deleteThread(id, workspaceId);
+      if (threadId === id) {
+        if (runState) {
+          runState.source.close();
+          setRunState(null);
+          setElapsedMs(0);
+        }
+        setThreadId(null);
+        setMessages([]);
+        setStreamingText("");
+        setStreamingTools([]);
+        setTransientNotice(null);
+      }
+      await refreshThreads();
+      setDeleteConfirmId(null);
+    } catch (err) {
+      setDeleteError(`Could not delete this thread: ${(err as Error).message}`);
+    } finally {
+      setDeletingThreadId(null);
+    }
+  }
+
+  function attachStream(runId: string, streamUrl: string, activeThreadId: string): EventSource {
+    const source = new EventSource(streamUrl);
+    let acc = "";
+    source.addEventListener("meta", () => {
+      // The server has accepted the run and is about to spawn — flip the
+      // bubble from "starting…" to "thinking…" so the user sees movement
+      // even while the agent is silent during init.
+      setStreamingText("");
+    });
+    source.addEventListener("delta", (ev) => {
+      try {
+        const data = JSON.parse((ev as MessageEvent).data) as { text?: string };
+        if (typeof data.text === "string") {
+          acc += data.text;
+          setStreamingText(acc);
+        }
+      } catch {
+        // ignore malformed event
+      }
+    });
+    source.addEventListener("tool", (ev) => {
+      try {
+        const data = JSON.parse((ev as MessageEvent).data) as { name?: string; summary?: string };
+        setStreamingTools((prev) => [
+          ...prev,
+          { name: data.name ?? "tool", summary: data.summary ?? "", ts: Date.now() }
+        ]);
+      } catch {
+        // ignore malformed event
+      }
+    });
+    source.addEventListener("done", (ev) => {
+      try {
+        const data = JSON.parse((ev as MessageEvent).data) as { restarted?: boolean };
+        if (data.restarted) {
+          setTransientNotice("Conversation restarted — previous session expired.");
+        }
+      } catch {
+        // ignore
+      }
+      source.close();
+      setStreamingText("");
+      setStreamingTools([]);
+      setRunState(null);
+      // Refetch canonical history so we see the persisted assistant line.
+      if (activeThreadId) loadThread(activeThreadId);
+      refreshThreads();
+    });
+    source.addEventListener("error", (ev) => {
+      try {
+        const data = JSON.parse((ev as MessageEvent).data ?? "{}") as {
+          family?: string;
+          message?: string;
+          loginUrl?: string;
+        };
+        if (data.family === "login_required" && data.loginUrl) {
+          setTransientNotice(
+            `Agent is not logged in. Authenticate at ${data.loginUrl}, then send your message again.`
+          );
+        } else if (data.family === "rate_limited") {
+          setTransientNotice("Agent is rate limited. Try again in a minute.");
+        } else if (data.family === "aborted") {
+          setTransientNotice("Run cancelled.");
+        } else if (data.message) {
+          setTransientNotice(`Agent error: ${data.message}`);
+        }
+      } catch {
+        setTransientNotice("Stream closed unexpectedly.");
+      }
+      source.close();
+      setStreamingText("");
+      setStreamingTools([]);
+      setRunState(null);
+      if (activeThreadId) loadThread(activeThreadId);
+      refreshThreads();
+    });
+    void runId;
+    return source;
+  }
+
+  async function submit() {
+    if (!supported || runState) return;
+    const prompt = draft.trim();
+    if (!prompt || !pref) return;
+    if (attachments.length > 0) {
+      // Visual UI is preserved but uploads aren't wired in v1.
+      console.warn("[studio chat] attachments are not uploaded in v1; dropping", attachments);
+    }
+    setTransientNotice(null);
+
+    let activeThreadId = threadId;
+    try {
+      if (!activeThreadId) {
+        const created = await chatApi.createThread({
+          agentId: pref.agentId as ChatAgentId,
+          model: pref.model,
+          workspaceId
+        });
+        activeThreadId = created.thread.id;
+        setThreadId(activeThreadId);
+        setThreads((prev) => [created.thread, ...prev.filter((t) => t.id !== created.thread.id)]);
+      }
+    } catch (err) {
+      setTransientNotice(`Could not start a thread: ${(err as Error).message}`);
+      return;
+    }
+
+    const optimistic: ChatJsonlLine = {
+      kind: "user",
+      ts: new Date().toISOString(),
+      runId: "pending",
+      text: prompt
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    setDraft("");
+    setStreamingText("");
+    setStreamingTools([]);
+
+    let runId = "";
+    let streamUrl = "";
+    try {
+      const out = await chatApi.postRun(activeThreadId, { prompt, workspaceId });
+      runId = out.runId;
+      streamUrl = out.streamUrl;
+    } catch (err) {
+      setTransientNotice(`Could not start the run: ${(err as Error).message}`);
+      return;
+    }
+    const source = attachStream(runId, streamUrl, activeThreadId);
+    setRunState({ runId, status: "streaming", source, startedAt: Date.now() });
+  }
+
+  async function abort() {
+    if (!runState) return;
+    setRunState((r) => (r ? { ...r, status: "aborting" } : r));
+    try {
+      await chatApi.abortRun(runState.runId);
+    } catch {
+      // ignore — the SSE error event will land regardless.
+    }
+  }
+
+  function handleTextareaKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== "Enter") return;
+    // Skip if the IME is composing (Japanese/Chinese/etc), otherwise we'd
+    // submit mid-character.
+    if (e.nativeEvent.isComposing) return;
+    if (e.shiftKey) {
+      // Shift+Enter inserts a newline — let the textarea handle it.
+      return;
+    }
+    e.preventDefault();
+    submit();
+  }
+
+  const renderedMessages = useMemo(() => {
+    const out: JSX.Element[] = [];
+    for (let i = 0; i < messages.length; i++) {
+      const m = messages[i];
+      out.push(<MessageBubble key={`${m.runId}-${i}`} msg={m} />);
+    }
+    return out;
+  }, [messages]);
+
   return (
     <div>
-      <PageLabel>CONFIG HANDOFF</PageLabel>
+      <PageLabel>AGENT CHAT</PageLabel>
       <div
         style={{
           display: "grid",
@@ -170,126 +446,325 @@ export function HandoffPage() {
         {/* Thread list */}
         <div style={{ borderRight: "1px solid var(--rt-slate-line)", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: 14, borderBottom: "1px solid var(--rt-slate-line)" }}>
-            <button className="btn btn--ghost btn--sm" style={{ width: "100%", justifyContent: "center" }}>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              style={{ width: "100%", justifyContent: "center" }}
+              onClick={newConversation}
+              disabled={runState !== null}
+            >
               <Icon name="plus" size={13} /> New conversation
             </button>
           </div>
           <div style={{ flex: 1, overflowY: "auto" }}>
-            {THREADS.map((t) => (
-              <button
-                key={t.id}
+            {threads.length === 0 ? (
+              <div
                 style={{
-                  width: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-start",
-                  padding: "11px 14px",
-                  background: t.active ? "var(--rt-slate-2)" : "transparent",
-                  border: "none",
-                  borderBottom: "1px solid var(--rt-slate-line)",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  gap: 4
+                  padding: 18,
+                  font: "400 12px/1.5 Inter",
+                  color: "var(--rt-fog-dim)",
+                  textAlign: "center"
                 }}
               >
-                <span
-                  style={{
-                    font: "500 13px/1.35 Inter",
-                    color: "var(--rt-off-white)",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden"
-                  }}
-                >
-                  {t.title}
-                </span>
-                <span style={{ font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}>{t.time}</span>
-              </button>
-            ))}
+                No conversations yet.
+              </div>
+            ) : (
+              <ul style={{ listStyle: "none", margin: 0, padding: 6 }}>
+                {threads.map((t) => {
+                  const active = t.id === threadId;
+                  return (
+                    <li key={t.id}>
+                      <button
+                        type="button"
+                        onClick={() => loadThread(t.id)}
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "8px 10px",
+                          marginBottom: 2,
+                          borderRadius: 6,
+                          border: "none",
+                          background: active ? "var(--rt-slate-3)" : "transparent",
+                          color: active ? "var(--rt-off-white)" : "var(--rt-fog)",
+                          font: "400 12.5px Inter",
+                          cursor: "pointer"
+                        }}
+                      >
+                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.title}
+                        </div>
+                        <div
+                          style={{
+                            font: "400 11px Inter",
+                            color: "var(--rt-fog-dim)",
+                            marginTop: 2,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: 8
+                          }}
+                        >
+                          <span>
+                            {t.agentId} · {labelForModel(t.model)}
+                          </span>
+                          <span>{t.messageCount} msg</span>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
 
         {/* Chat center */}
-        <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, height: "100%" }}>
           <div
+            ref={transcriptRef}
             style={{
-              padding: "14px 24px",
-              borderBottom: "1px solid var(--rt-slate-line)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between"
+              flex: "1 1 0",
+              minHeight: 0,
+              overflowY: "auto",
+              padding: 24
             }}
           >
-            <div>
-              <div style={{ font: "500 13px Inter", color: "var(--rt-off-white)" }}>Add a whale persona for the lending sweep</div>
-              <div style={{ font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)", marginTop: 3 }}>
-                claude-code · 2 minutes · 8 tool calls
-              </div>
-            </div>
-            <Pill kind="pass" dot>RUNNING</Pill>
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
-            {MESSAGES.map((m, i) => (
-              <ChatMessage key={i} m={m} />
-            ))}
-            <div style={{ display: "flex", gap: 12, marginBottom: 18 }}>
-              <div style={ASSIST_BUBBLE}>
-                <Icon name="sparkles" size={13} color="var(--rt-teal)" />
-              </div>
-              <div style={{ flex: 1, font: "400 14px/1.6 Inter", color: "var(--rt-fg-1)" }}>
-                Reviewing&nbsp;
-                <span
-                  style={{
-                    display: "inline-block",
-                    width: 6,
-                    height: 14,
-                    background: "var(--rt-teal)",
-                    verticalAlign: "-2px",
-                    animation: "pulse 1s ease-in-out infinite"
-                  }}
+            {messages.length === 0 && !streamingText && !runState ? (
+              <div
+                style={{
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                <EmptyState
+                  iconImage="assets/logo-icon.png"
+                  title="Hand off to your coding agent"
+                  body="Describe a change in plain English — a new persona, an invariant tweak, an adapter wire-up — and Studio briefs your coding agent to apply it in the repo."
                 />
               </div>
-            </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {renderedMessages}
+                {runState && (
+                  <RunActivity
+                    runState={runState}
+                    streamingText={streamingText}
+                    tools={streamingTools}
+                    elapsedMs={elapsedMs}
+                  />
+                )}
+                {transientNotice && (
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      background: "var(--rt-slate-2)",
+                      border: "1px solid var(--rt-slate-line)",
+                      color: "var(--rt-fog)",
+                      font: "400 12px Inter"
+                    }}
+                  >
+                    {transientNotice}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <div style={{ padding: 14, borderTop: "1px solid var(--rt-slate-line)" }}>
+          <div style={{ padding: "14px 18px 18px", borderTop: "1px solid var(--rt-slate-line)" }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              {PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => setDraft(p.prompt)}
+                  className="handoff-preset"
+                  disabled={runState !== null}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
             <div
               style={{
-                background: "var(--rt-ink)",
+                background: "var(--rt-slate-2)",
                 border: "1px solid var(--rt-slate-line)",
-                borderRadius: 10,
-                padding: 10
+                borderRadius: 14,
+                padding: "14px 16px 12px",
+                transition: "border-color 120ms"
               }}
             >
+              {attachments.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                  {attachments.map((f, i) => (
+                    <span key={`${f.name}-${i}`} className="handoff-attach">
+                      <Icon name="paperclip" size={11} color="var(--rt-fog-dim)" />
+                      <span className="handoff-attach__name">{f.name}</span>
+                      <button
+                        type="button"
+                        className="handoff-attach__rm"
+                        title="Remove"
+                        onClick={() => removeAttachment(i)}
+                      >
+                        <Icon name="x" size={10} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
               <textarea
-                placeholder="Tell the agent what to change. ⌘↵ to send."
-                rows={2}
+                ref={textareaRef}
+                placeholder={
+                  supported
+                    ? "Message your agent — Enter to send, Shift+Enter for newline"
+                    : `${agentLabel} chat is coming in Studio v2 — pick Claude Code or Codex.`
+                }
+                rows={3}
                 className="textarea"
                 style={{
                   background: "transparent",
                   border: "none",
                   resize: "none",
-                  padding: 4,
-                  color: "var(--rt-off-white)"
+                  padding: 0,
+                  width: "100%",
+                  color: "var(--rt-off-white)",
+                  font: "400 14px/1.5 Inter",
+                  outline: "none",
+                  minHeight: 66,
+                  maxHeight: 150,
+                  overflowY: "auto"
                 }}
-                defaultValue=""
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={handleTextareaKeyDown}
+                disabled={!supported || runState !== null}
               />
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                <button className="side__util-btn" title="Attach file">
-                  <Icon name="paperclip" size={15} />
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                style={{ display: "none" }}
+                onChange={onFilesChosen}
+              />
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
+                <button
+                  type="button"
+                  title="Attach file"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    width: 28, height: 28, borderRadius: 999,
+                    background: "transparent", border: "none",
+                    color: "var(--rt-fog-dim)", cursor: "pointer"
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--rt-off-white)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--rt-fog-dim)"; }}
+                >
+                  <Icon name="paperclip" size={16} />
                 </button>
-                <span style={{ font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}>
-                  claude-code · default model
-                </span>
                 <div style={{ flex: 1 }} />
-                <button className="btn btn--ghost btn--sm">
-                  <Icon name="stop" size={12} />
-                  Stop
-                </button>
-                <button className="btn btn--primary btn--sm">
-                  <Icon name="send" size={13} />
-                  Send
-                </button>
+                <div ref={modelWrapRef} style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    title="Change model"
+                    onClick={() => setModelOpen((v) => !v)}
+                    aria-haspopup="listbox"
+                    aria-expanded={modelOpen}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      background: modelOpen ? "var(--rt-slate-3)" : "transparent",
+                      border: "1px solid",
+                      borderColor: modelOpen ? "var(--rt-slate-strong)" : "transparent",
+                      padding: "4px 8px",
+                      color: "var(--rt-fog)", cursor: "pointer",
+                      font: "400 12.5px Inter", borderRadius: 6
+                    }}
+                  >
+                    <span style={{ color: "var(--rt-off-white)" }}>{agentLabel}</span>
+                    <span style={{ color: "var(--rt-fog-dim)" }}>{labelForModel(currentModel)}</span>
+                    <Icon name="chevronDown" size={11} color="var(--rt-fog-dim)" />
+                  </button>
+                  {modelOpen && pref && (
+                    <ul role="listbox" aria-label="Model" className="handoff-model-menu">
+                      {agents.map((a) => (
+                        <li key={`agent-${a.id}`}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={a.id === pref.agentId}
+                            className={`handoff-model-opt${a.id === pref.agentId ? " is-active" : ""}`}
+                            disabled={!SUPPORTED_AGENTS.has(a.id)}
+                            title={SUPPORTED_AGENTS.has(a.id) ? undefined : "Available in Studio v2"}
+                            style={SUPPORTED_AGENTS.has(a.id) ? undefined : { opacity: 0.5, cursor: "not-allowed" }}
+                            onClick={() => {
+                              if (!SUPPORTED_AGENTS.has(a.id)) return;
+                              setPref({ agentId: a.id, model: "default" });
+                              setModelOpen(false);
+                            }}
+                          >
+                            <span className="handoff-model-opt__name">{a.label}</span>
+                            {a.id === pref.agentId && <Icon name="check" size={12} color="var(--rt-teal)" />}
+                          </button>
+                        </li>
+                      ))}
+                      {modelChoices.length > 0 && (
+                        <li
+                          style={{
+                            borderTop: "1px solid var(--rt-slate-line)",
+                            margin: "4px 0",
+                            padding: "4px 8px 0",
+                            color: "var(--rt-fog-dim)",
+                            font: "500 11px Inter",
+                            textTransform: "uppercase",
+                            letterSpacing: 0.5
+                          }}
+                        >
+                          Model
+                        </li>
+                      )}
+                      {modelChoices.map((m) => {
+                        const active = m === currentModel;
+                        return (
+                          <li key={m}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={active}
+                              className={`handoff-model-opt${active ? " is-active" : ""}`}
+                              onClick={() => {
+                                setPref({ agentId: pref.agentId, model: m });
+                                setModelOpen(false);
+                              }}
+                            >
+                              <span className="handoff-model-opt__name">{labelForModel(m)}</span>
+                              {active && <Icon name="check" size={12} color="var(--rt-teal)" />}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+                {runState ? (
+                  <button
+                    type="button"
+                    className="btn btn--sm"
+                    onClick={abort}
+                    disabled={runState.status === "aborting"}
+                  >
+                    {runState.status === "aborting" ? "Stopping…" : "Stop"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--primary"
+                    onClick={submit}
+                    disabled={!supported || draft.trim().length === 0}
+                  >
+                    Send
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -299,58 +774,360 @@ export function HandoffPage() {
         <div style={{ borderLeft: "1px solid var(--rt-slate-line)", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--rt-slate-line)" }}>
             <Kicker>WORKSPACE CHANGES</Kicker>
-            <div style={{ font: "500 13px Inter", color: "var(--rt-off-white)", marginTop: 6 }}>3 files</div>
+            <div style={{ font: "500 13px Inter", color: "var(--rt-fog-dim)", marginTop: 6 }}>0 files</div>
           </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
-            {WS_FILES.map((f, i) => (
-              <div key={i} style={{ padding: "10px 16px", borderBottom: "1px solid var(--rt-slate-line)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  <span
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 3,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      font: '500 10px "IBM Plex Mono"',
-                      background:
-                        f.kind === "add"
-                          ? "rgba(34,197,94,0.12)"
-                          : f.kind === "edit"
-                          ? "rgba(20,184,182,0.12)"
-                          : "var(--rt-slate-2)",
-                      color:
-                        f.kind === "add"
-                          ? "var(--rt-pass)"
-                          : f.kind === "edit"
-                          ? "var(--rt-teal)"
-                          : "var(--rt-fog-dim)"
-                    }}
-                  >
-                    {f.kind === "add" ? "A" : f.kind === "edit" ? "M" : "·"}
-                  </span>
-                  <span style={{ font: '400 12px "IBM Plex Mono"', color: "var(--rt-fog-dim)", marginLeft: "auto" }}>
-                    {f.loc}
-                  </span>
-                </div>
-                <div style={{ font: '400 12px/1.4 "IBM Plex Mono"', color: "var(--rt-off-white)", wordBreak: "break-all" }}>
-                  {f.path}
-                </div>
-                <button className="btn btn--quiet btn--sm" style={{ marginTop: 6, padding: "2px 0" }}>
-                  <Icon name="eye" size={12} />
-                  Review diff
-                </button>
-              </div>
-            ))}
-          </div>
-          <div style={{ padding: 14, borderTop: "1px solid var(--rt-slate-line)" }}>
-            <button className="btn btn--ghost btn--sm" style={{ width: "100%", justifyContent: "center" }}>
-              <Icon name="check" size={13} /> Mark reviewed
-            </button>
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 18,
+              font: "400 12px/1.5 Inter",
+              color: "var(--rt-fog-dim)",
+              textAlign: "center"
+            }}
+          >
+            Files written by the agent will show up here for review.
           </div>
         </div>
       </div>
+
+      {threadId && (
+        <DeleteThreadInline id={threadId} onRequestDelete={requestDeleteThread} />
+      )}
+
+      {deleteConfirmId && (
+        <DeleteThreadConfirmDialog
+          thread={deleteConfirmThread}
+          busy={deletingThreadId === deleteConfirmId}
+          error={deleteError}
+          onCancel={closeDeleteThreadDialog}
+          onConfirm={confirmDeleteThread}
+        />
+      )}
+    </div>
+  );
+}
+
+function DeleteThreadInline({
+  id,
+  onRequestDelete
+}: {
+  id: string;
+  onRequestDelete: (id: string) => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        right: 18,
+        bottom: 14,
+        display: "flex",
+        gap: 8,
+        zIndex: 10
+      }}
+    >
+      <button
+        type="button"
+        className="btn btn--ghost btn--sm"
+        onClick={() => onRequestDelete(id)}
+        title="Delete this conversation"
+      >
+        <Icon name="x" size={12} /> Delete thread
+      </button>
+    </div>
+  );
+}
+
+function DeleteThreadConfirmDialog({
+  thread,
+  busy,
+  error,
+  onCancel,
+  onConfirm
+}: {
+  thread: ChatThreadSummary | null;
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const title = thread?.title ?? "this conversation";
+  return (
+    <div className="scrim" onMouseDown={(e) => {
+      if (e.target === e.currentTarget) onCancel();
+    }}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-thread-title"
+        style={{ maxWidth: 460 }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--rt-slate-line)" }}>
+          <Kicker style={{ marginBottom: 6, color: "var(--rt-fail)" }}>DELETE THREAD</Kicker>
+          <div id="delete-thread-title" style={{ font: "600 16px Inter", color: "var(--rt-off-white)" }}>
+            Delete this thread?
+          </div>
+        </div>
+        <div style={{ padding: 20 }}>
+          <div style={{ font: "500 13px/1.5 Inter", color: "var(--rt-off-white)", marginBottom: 8 }}>
+            {title}
+          </div>
+          <div style={{ font: "400 12.5px/1.55 Inter", color: "var(--rt-fog)" }}>
+            This removes the conversation transcript from Studio and stops any active run on the thread. This cannot be undone.
+          </div>
+          {error && (
+            <div
+              style={{
+                marginTop: 14,
+                padding: "9px 11px",
+                borderRadius: 6,
+                background: "rgba(239,68,68,0.08)",
+                border: "1px solid rgba(239,68,68,0.28)",
+                color: "var(--rt-fail)",
+                font: '400 12px/1.45 "IBM Plex Mono"'
+              }}
+            >
+              {error}
+            </div>
+          )}
+        </div>
+        <div
+          style={{
+            padding: "14px 20px",
+            borderTop: "1px solid var(--rt-slate-line)",
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8
+          }}
+        >
+          <button type="button" className="btn btn--ghost btn--sm" onClick={onCancel} disabled={busy}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn--sm"
+            onClick={onConfirm}
+            disabled={busy}
+            style={{
+              background: "var(--rt-fail)",
+              borderColor: "rgba(239,68,68,0.65)",
+              color: "#1F0505"
+            }}
+          >
+            <Icon name="x" size={12} />
+            {busy ? "Deleting..." : "Delete thread"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RunActivity({
+  runState,
+  streamingText,
+  tools,
+  elapsedMs
+}: {
+  runState: RunState;
+  streamingText: string;
+  tools: ToolEvent[];
+  elapsedMs: number;
+}) {
+  const elapsedLabel = formatElapsed(elapsedMs);
+  const status =
+    runState.status === "aborting"
+      ? "Stopping…"
+      : streamingText.length > 0
+        ? "Streaming"
+        : tools.length > 0
+          ? `Working — last action: ${tools[tools.length - 1].name}`
+          : "Thinking";
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          font: "500 11px Inter",
+          color: "var(--rt-fog-dim)",
+          marginBottom: 6,
+          textTransform: "uppercase",
+          letterSpacing: 0.5
+        }}
+      >
+        <ActivityDot />
+        <span style={{ color: "var(--rt-off-white)" }}>Assistant</span>
+        <span>· {status}</span>
+        <span style={{ marginLeft: "auto", color: "var(--rt-fog-dim)" }}>{elapsedLabel}</span>
+      </div>
+      {tools.length > 0 && (
+        <ul
+          style={{
+            listStyle: "none",
+            margin: "0 0 10px 0",
+            padding: "8px 12px",
+            background: "var(--rt-slate-2)",
+            border: "1px solid var(--rt-slate-line)",
+            borderRadius: 8,
+            font: "400 12px/1.5 Inter",
+            color: "var(--rt-fog)"
+          }}
+        >
+          {tools.slice(-6).map((t, i) => (
+            <li key={`${t.ts}-${i}`} style={{ display: "flex", gap: 8 }}>
+              <span style={{ color: "var(--rt-teal)", minWidth: 60 }}>{t.name}</span>
+              <span
+                style={{
+                  color: "var(--rt-fog-dim)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis"
+                }}
+              >
+                {t.summary}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {streamingText && (
+        <div
+          className="chat-md"
+          style={{
+            maxWidth: "100%",
+            color: "var(--rt-off-white)",
+            font: "400 13px/1.6 Inter",
+            overflowWrap: "anywhere",
+            wordBreak: "break-word"
+          }}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(streamingText) + cursorHtml() }}
+        />
+      )}
+      {!streamingText && tools.length === 0 && (
+        <div style={{ font: "400 12px/1.5 Inter", color: "var(--rt-fog-dim)" }}>
+          Agent is working — long configuration runs can take a few minutes before the first reply.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function cursorHtml(): string {
+  return '<span class="chat-md__cursor" aria-hidden="true"></span>';
+}
+
+function ActivityDot() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: "inline-block",
+        width: 8,
+        height: 8,
+        borderRadius: "50%",
+        background: "var(--rt-teal)",
+        animation: "rt-pulse 1.2s ease-in-out infinite",
+        boxShadow: "0 0 0 0 rgba(64,200,180,0.5)"
+      }}
+    />
+  );
+}
+
+function formatElapsed(ms: number): string {
+  if (ms < 1000) return "0s";
+  const total = Math.floor(ms / 1000);
+  if (total < 60) return `${total}s`;
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
+}
+
+function MessageBubble({ msg }: { msg: ChatJsonlLine }) {
+  if (msg.kind === "user") {
+    return (
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <div
+          style={{
+            maxWidth: "78%",
+            background: "var(--rt-slate-3)",
+            color: "var(--rt-off-white)",
+            border: "1px solid var(--rt-slate-line)",
+            borderRadius: 12,
+            padding: "10px 14px",
+            font: "400 13px/1.5 Inter",
+            whiteSpace: "pre-wrap",
+            overflowWrap: "anywhere",
+            wordBreak: "break-word"
+          }}
+        >
+          {msg.text}
+        </div>
+      </div>
+    );
+  }
+  if (msg.kind === "assistant") {
+    return (
+      <div>
+        <div
+          style={{
+            font: "500 11px Inter",
+            color: "var(--rt-fog-dim)",
+            marginBottom: 4,
+            textTransform: "uppercase",
+            letterSpacing: 0.5
+          }}
+        >
+          Assistant
+        </div>
+        <div
+          className="chat-md"
+          style={{
+            maxWidth: "100%",
+            color: "var(--rt-off-white)",
+            font: "400 13px/1.6 Inter",
+            overflowWrap: "anywhere",
+            wordBreak: "break-word"
+          }}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
+        />
+        {msg.usage && (
+          <div style={{ font: "400 11px Inter", color: "var(--rt-fog-dim)", marginTop: 4 }}>
+            {msg.usage.inputTokens} in / {msg.usage.outputTokens} out
+            {typeof msg.costUsd === "number" ? ` · $${msg.costUsd.toFixed(4)}` : ""}
+            {msg.restarted ? " · restarted" : ""}
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (msg.kind === "system") {
+    return (
+      <div
+        style={{
+          font: "400 11px/1.5 Inter",
+          color: "var(--rt-fog-dim)",
+          padding: "4px 0",
+          fontStyle: "italic"
+        }}
+      >
+        {msg.detail}
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{
+        font: "400 12px/1.5 Inter",
+        color: "var(--rt-coral, #ff9b8a)"
+      }}
+    >
+      {msg.family}: {msg.message}
     </div>
   );
 }

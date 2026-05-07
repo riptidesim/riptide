@@ -1,7 +1,19 @@
 // PATH probe for coding-agent CLIs the Studio first-run wizard offers.
+//
+// Detection has to survive Studio being launched from a context with a
+// stripped PATH — e.g. a desktop launcher or systemd user unit that never
+// sourced the user's shell rc, so version managers like mise/asdf/nvm
+// haven't installed their shim directories. We try three layers in order:
+//
+//   1. The in-process PATH (cheap, exact).
+//   2. A small allow-list of common install locations (mise/asdf shims,
+//      ~/.local/bin, ~/.cargo/bin, /opt/homebrew/bin, /usr/local/bin).
+//   3. The user's login shell via `$SHELL -lic 'command -v <bin>'`, which
+//      fully sources the user's interactive PATH.
 
 import { spawn } from "node:child_process";
 import { accessSync, constants } from "node:fs";
+import { homedir } from "node:os";
 import path from "node:path";
 
 export interface AgentDescriptor {
@@ -25,18 +37,24 @@ export const AGENT_DESCRIPTORS: AgentDescriptor[] = [
   { id: "opencode", label: "OpenCode", binary: "opencode", recommended: false }
 ];
 
-const PROBE_TIMEOUT_MS = 1500;
+const PROBE_TIMEOUT_MS = 4000;
 
 export async function probeAgents(): Promise<AgentProbeResult[]> {
   return Promise.all(AGENT_DESCRIPTORS.map(probeOne));
 }
 
 async function probeOne(desc: AgentDescriptor): Promise<AgentProbeResult> {
-  const resolvedPath = resolveOnPath(desc.binary);
+  const resolvedPath =
+    resolveOnPath(desc.binary) ??
+    resolveInCommonDirs(desc.binary) ??
+    (await resolveViaLoginShell(desc.binary));
   if (!resolvedPath) {
     return { ...desc, detected: false, version: null, path: null };
   }
-  const versionRes = await runCapture(desc.binary, ["--version"]);
+  // Version-probe the resolved absolute path — it doesn't depend on PATH being
+  // set up in the spawned env, which matters when we found the binary via
+  // step 2 or 3 above.
+  const versionRes = await runCapture(resolvedPath, ["--version"]);
   const version = versionRes.ok ? parseVersion(versionRes.stdout) ?? null : null;
   return { ...desc, detected: versionRes.ok, version, path: resolvedPath };
 }
@@ -47,12 +65,52 @@ function resolveOnPath(binary: string): string | null {
   for (const dir of PATH.split(sep)) {
     if (!dir) continue;
     const candidate = path.join(dir, binary);
-    try {
-      accessSync(candidate, constants.X_OK);
-      return candidate;
-    } catch {}
+    if (isExecutable(candidate)) return candidate;
   }
   return null;
+}
+
+function resolveInCommonDirs(binary: string): string | null {
+  if (process.platform === "win32") return null;
+  const home = homedir();
+  const candidates = [
+    `${home}/.local/share/mise/shims`,
+    `${home}/.asdf/shims`,
+    `${home}/.local/bin`,
+    `${home}/.cargo/bin`,
+    `${home}/.bun/bin`,
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/bin"
+  ];
+  for (const dir of candidates) {
+    const c = path.join(dir, binary);
+    if (isExecutable(c)) return c;
+  }
+  return null;
+}
+
+async function resolveViaLoginShell(binary: string): Promise<string | null> {
+  if (process.platform === "win32") return null;
+  const shell = process.env.SHELL || "/bin/bash";
+  const res = await runCapture(shell, ["-lic", `command -v ${shellQuote(binary)}`]);
+  if (!res.ok) return null;
+  const out = res.stdout.trim().split("\n").pop()?.trim() ?? "";
+  if (!out || !path.isAbsolute(out)) return null;
+  return isExecutable(out) ? out : null;
+}
+
+function isExecutable(p: string): boolean {
+  try {
+    accessSync(p, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function shellQuote(s: string): string {
+  return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
 interface CaptureResult {

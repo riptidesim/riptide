@@ -511,6 +511,7 @@ test("scaffold: result records warnings for explicit blank scaffolds", async () 
   assert.deepEqual(
     result.created.sort(),
     [
+      ".claude/skills/riptide-config",
       ".gitignore",
       ".riptide/GETTING-STARTED.md",
       ".riptide/adapters/manual-program.toml"

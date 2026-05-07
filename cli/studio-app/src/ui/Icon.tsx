@@ -7,7 +7,7 @@ export type IconName =
   | "external" | "copy" | "send" | "paperclip" | "stop" | "folder"
   | "terminal" | "edit" | "eye" | "refresh" | "database" | "download"
   | "sparkles" | "cpu" | "code" | "flame" | "target" | "coin" | "tx"
-  | "activity" | "flag" | "dot" | "wallet" | "branch" | "link" | "gem" | "cursorArrow" | "terminalSquare";
+  | "activity" | "flag" | "dot" | "wallet" | "branch" | "link" | "gem" | "cursorArrow" | "terminalSquare" | "waveform";
 
 interface IconProps {
   name: IconName;
@@ -65,7 +65,8 @@ const PATHS: Record<IconName, ReactElement> = {
   link: <><path d="M10 14a4 4 0 0 1 0-5l3-3a4 4 0 1 1 6 6l-1.5 1.5"/><path d="M14 10a4 4 0 0 1 0 5l-3 3a4 4 0 1 1-6-6L6.5 10.5"/></>,
   gem: <><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M11 3 8 9 12 21"/><path d="M13 3 16 9 12 21"/><path d="M2 9h20"/></>,
   cursorArrow: <><path d="M3 3l7.5 18 2.5-7.5 7.5-2.5z"/></>,
-  terminalSquare: <><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="7 9 10 12 7 15"/><line x1="13" y1="15" x2="17" y2="15"/></>
+  terminalSquare: <><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="7 9 10 12 7 15"/><line x1="13" y1="15" x2="17" y2="15"/></>,
+  waveform: <><line x1="5" y1="9" x2="5" y2="15"/><line x1="9" y1="6" x2="9" y2="18"/><line x1="13" y1="9" x2="13" y2="15"/><line x1="17" y1="11" x2="17" y2="13"/><line x1="21" y1="9" x2="21" y2="15"/></>
 };
 
 export function Icon({ name, size = 16, color = "currentColor", strokeWidth = 1.5, style }: IconProps) {

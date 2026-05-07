@@ -18,6 +18,7 @@ INSTALL_DIR="${RIPTIDE_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/riptide
 BASE_URL="${RIPTIDE_RELEASE_BASE_URL:-}"
 DRY_RUN=0
 FORCE=0
+INSTALL_AGENT_SKILLS="${RIPTIDE_INSTALL_AGENT_SKILLS:-1}"
 START_TS="$(date +%s 2>/dev/null || echo 0)"
 
 # ---------- cosmetic helpers ----------
@@ -84,6 +85,7 @@ Options:
                           $HOME/.local/share/riptide.
   --dry-run               Print what would happen without downloading.
   --force                 Overwrite an existing unmanaged launcher.
+  --no-agent-skills       Do not install bundled Codex/Claude agent skills.
   -h, --help              Show this help.
 
 Environment:
@@ -92,6 +94,10 @@ Environment:
   RIPTIDE_INSTALL_DIR
   RIPTIDE_RELEASE_BASE_URL  Override the GitHub Release download base.
   RIPTIDE_GITHUB_REPO       Defaults to riptidesim/riptide.
+  RIPTIDE_INSTALL_AGENT_SKILLS
+                            Set to 0/false/no to skip agent skill install.
+  CODEX_HOME                Defaults to $HOME/.codex.
+  CLAUDE_HOME               Defaults to $HOME/.claude.
   NO_COLOR                  Disable ANSI styling.
   RIPTIDE_NO_BANNER         Disable banner + ANSI styling.
 EOF
@@ -120,6 +126,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --force)
       FORCE=1
+      shift
+      ;;
+    --no-agent-skills)
+      INSTALL_AGENT_SKILLS=0
       shift
       ;;
     -h|--help)
@@ -253,6 +263,100 @@ restore_previous_install() {
   fi
 }
 
+agent_skills_enabled() {
+  case "$INSTALL_AGENT_SKILLS" in
+    0|false|FALSE|False|no|NO|No|off|OFF|Off)
+      return 1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
+install_skill_for_agent() {
+  agent_label="$1"
+  skills_dir="$2"
+  skill_src="$3"
+  skill_name="$4"
+  target="$skills_dir/$skill_name"
+  marker=".riptide-managed-skill"
+
+  if ! mkdir -p "$skills_dir" 2>/dev/null; then
+    warn "could not create $skills_dir; skipping $agent_label skill $skill_name"
+    return 0
+  fi
+
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    if [ -L "$target" ]; then
+      link_dest="$(readlink "$target" 2>/dev/null || true)"
+      if [ "$link_dest" = "$skill_src" ]; then
+        ok "$agent_label skill already installed: $skill_name"
+        return 0
+      fi
+      warn "$agent_label skill symlink points elsewhere; leaving it unchanged: $target"
+      return 0
+    elif [ -f "$target/$marker" ]; then
+      if ! rm -rf "$target" 2>/dev/null; then
+        warn "could not replace managed $agent_label skill at $target"
+        return 0
+      fi
+    else
+      warn "$agent_label skill exists and is not Riptide-managed; leaving it unchanged: $target"
+      return 0
+    fi
+  fi
+
+  if ln -s "$skill_src" "$target" 2>/dev/null; then
+    ok "installed $agent_label skill: $skill_name"
+    info "$target -> $skill_src"
+    return 0
+  fi
+
+  rm -rf "$target" 2>/dev/null || true
+  if cp -R "$skill_src" "$target" 2>/dev/null; then
+    {
+      printf '%s\n' 'installed by riptide release installer'
+      printf 'source: %s\n' "$skill_src"
+    } > "$target/$marker" 2>/dev/null || true
+    ok "installed $agent_label skill: $skill_name"
+    info "$target"
+  else
+    rm -rf "$target" 2>/dev/null || true
+    warn "could not install $agent_label skill $skill_name into $skills_dir"
+  fi
+}
+
+install_agent_skills() {
+  current_root="$1"
+
+  if ! agent_skills_enabled; then
+    info "agent skill install disabled"
+    return 0
+  fi
+
+  source_root="$current_root/skills"
+  if [ ! -d "$source_root" ]; then
+    warn "release bundle has no skills directory; skipping agent skill install"
+    return 0
+  fi
+
+  found=0
+  for skill_src in "$source_root"/*; do
+    [ -d "$skill_src" ] || continue
+    [ -f "$skill_src/SKILL.md" ] || continue
+    found=1
+    skill_src_abs="$(cd "$skill_src" && pwd)"
+    skill_name="$(basename "$skill_src")"
+    install_skill_for_agent "Codex" "${CODEX_HOME:-$HOME/.codex}/skills" "$skill_src_abs" "$skill_name"
+    install_skill_for_agent "Claude" "${CLAUDE_HOME:-$HOME/.claude}/skills" "$skill_src_abs" "$skill_name"
+  done
+
+  if [ "$found" -eq 0 ]; then
+    warn "release bundle has no installable skills; expected directories with SKILL.md under $source_root"
+  fi
+}
+
 target="$(detect_target)"
 asset="riptide-${target}.tar.gz"
 
@@ -275,6 +379,11 @@ printf '  %sversion%s      %s\n' "$C_DIM" "$C_RESET" "$VERSION"
 printf '  %sarchive%s      %s\n' "$C_DIM" "$C_RESET" "$archive_url"
 printf '  %sinstall dir%s  %s\n' "$C_DIM" "$C_RESET" "$INSTALL_DIR/current"
 printf '  %slauncher%s     %s\n' "$C_DIM" "$C_RESET" "$BIN_DIR/riptide"
+if agent_skills_enabled; then
+  printf '  %sagent skills%s  enabled\n' "$C_DIM" "$C_RESET"
+else
+  printf '  %sagent skills%s  disabled\n' "$C_DIM" "$C_RESET"
+fi
 rule
 
 if [ "$DRY_RUN" -eq 1 ]; then
@@ -362,6 +471,10 @@ fi
 rm -rf "$previous"
 ok "installed: $installed_version"
 info "staged bundle: $staged_version"
+
+step "installing agent skills"
+current_abs="$(cd "$current" && pwd)"
+install_agent_skills "$current_abs"
 
 case ":$PATH:" in
   *":$BIN_DIR:"*)

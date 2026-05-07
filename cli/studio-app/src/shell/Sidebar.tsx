@@ -1,14 +1,26 @@
+import type { AgentProbe, StudioWorkspace } from "../api";
+import type { AgentPreference } from "../agentMeta";
 import { Icon } from "../ui/Icon";
-import { AdapterChip } from "./AdapterChip";
-import { NAV, type PageId, type Workspace } from "./types";
+import { AgentChip } from "./AgentChip";
+import { NAV, type PageId } from "./types";
+
+const MAX_WORKSPACE_LABEL_WORDS = 12;
 
 interface SidebarProps {
   page: PageId;
   setPage: (id: PageId) => void;
-  ws: Workspace;
+  ws: StudioWorkspace;
+  agents: AgentProbe[];
+  pref: AgentPreference | null;
+  setPref: (next: AgentPreference) => void;
+  onOpenSearch: () => void;
 }
 
-export function Sidebar({ page, setPage, ws }: SidebarProps) {
+export function Sidebar({ page, setPage, ws, agents, pref, setPref, onOpenSearch }: SidebarProps) {
+  const isMac = typeof navigator !== "undefined" && navigator.platform.toLowerCase().includes("mac");
+  const shortcut = isMac ? "⌘K" : "Ctrl K";
+  const workspaceLabel = shortenWorkspaceLabel(ws.label);
+
   return (
     <aside className="side">
       <div
@@ -16,13 +28,17 @@ export function Sidebar({ page, setPage, ws }: SidebarProps) {
         style={{ flexDirection: "column", alignItems: "stretch", gap: 8, padding: "14px 14px 12px" }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="side__title">{ws.name}</span>
+          <span className="side__title" title={ws.label}>{workspaceLabel}</span>
           <div style={{ flex: 1 }} />
-          <button className="side__icon-btn" title="Search">
+          <button
+            className="side__icon-btn"
+            title={`Search · ${shortcut}`}
+            onClick={onOpenSearch}
+          >
             <Icon name="search" size={14} />
           </button>
         </div>
-        <AdapterChip onConfigure={() => setPage("settings")} />
+        <AgentChip agents={agents} pref={pref} setPref={setPref} onConfigure={() => setPage("settings")} />
       </div>
 
       <nav className="side__nav">
@@ -56,13 +72,18 @@ export function Sidebar({ page, setPage, ws }: SidebarProps) {
       </nav>
 
       <div className="side__utility">
-        <div className="side__doc">
+        <a
+          className="side__doc"
+          href="https://www.riptidesim.com/docs/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           <Icon name="book2" size={15} />
           <span style={{ flex: 1 }}>Documentation</span>
           <Icon name="external" size={12} color="var(--rt-fog-dim)" />
-        </div>
+        </a>
         <div className="side__util-row">
-          <span className="side__version">v0.31</span>
+          <span className="side__version">v0.7.0</span>
           <button className="side__util-btn" title="Settings" onClick={() => setPage("settings")}>
             <Icon name="settings" size={14} />
           </button>
@@ -73,4 +94,10 @@ export function Sidebar({ page, setPage, ws }: SidebarProps) {
       </div>
     </aside>
   );
+}
+
+function shortenWorkspaceLabel(label: string): string {
+  const words = label.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= MAX_WORKSPACE_LABEL_WORDS) return label;
+  return `${words.slice(0, MAX_WORKSPACE_LABEL_WORDS).join(" ")}...`;
 }

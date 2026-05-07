@@ -46,7 +46,7 @@ export function createStudioCommand(): Command {
     )
     .option(
       "--case-studies-root <path>",
-      "Optional parent directory whose subfolders become case-study workspaces. Each subfolder must contain a .riptide/.",
+      "Optional parent directory whose subfolders become case-study workspaces. Missing .riptide/ folders can be bootstrapped from Studio.",
       undefined
     )
     .option(

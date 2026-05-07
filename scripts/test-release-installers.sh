@@ -59,6 +59,90 @@ run_unsupported_posix_case() {
   grep -F "Supported: Linux x86_64, macOS x86_64, macOS arm64" <<<"$output" >/dev/null
 }
 
+write_checksum_file() {
+  local archive="$1"
+  local checksum="$2"
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    (cd "$(dirname "$archive")" && sha256sum "$(basename "$archive")" > "$checksum")
+    return
+  fi
+
+  if command -v shasum >/dev/null 2>&1; then
+    (cd "$(dirname "$archive")" && shasum -a 256 "$(basename "$archive")" > "$checksum")
+    return
+  fi
+
+  printf 'sha256sum or shasum is required for installer archive tests\n' >&2
+  exit 1
+}
+
+run_posix_agent_skill_install_case() {
+  local target="x86_64-unknown-linux-gnu"
+  local release_dir="$TMP/release-agent-skills"
+  local bundle_parent="$TMP/fake-release-bundle"
+  local bundle="$bundle_parent/riptide-test"
+  local archive="$release_dir/riptide-$target.tar.gz"
+  local output
+  local disabled_output
+
+  mkdir -p \
+    "$release_dir" \
+    "$bundle/bin" \
+    "$bundle/skills/riptide-config" \
+    "$bundle/skills/riptide-narrative"
+
+  cat > "$bundle/bin/riptide" <<'EOF'
+#!/usr/bin/env sh
+printf '%s\n' 'riptide 0.0.0-test'
+EOF
+  chmod +x "$bundle/bin/riptide"
+
+  printf '%s\n' '# riptide-config' > "$bundle/skills/riptide-config/SKILL.md"
+  printf '%s\n' '# riptide-narrative' > "$bundle/skills/riptide-narrative/SKILL.md"
+
+  tar -czf "$archive" -C "$bundle_parent" "$(basename "$bundle")"
+  write_checksum_file "$archive" "$archive.sha256"
+
+  output="$(
+    PATH="$FAKE_BIN:$PATH" \
+    HOME="$TMP/home" \
+    CODEX_HOME="$TMP/codex-home" \
+    CLAUDE_HOME="$TMP/claude-home" \
+    RIPTIDE_TEST_UNAME_S="Linux" \
+    RIPTIDE_TEST_UNAME_M="x86_64" \
+    RIPTIDE_RELEASE_BASE_URL="file://$release_dir" \
+    sh "$ROOT/scripts/install-release.sh" \
+      --bin-dir "$TMP/skill-bin" \
+      --install-dir "$TMP/skill-install"
+  )"
+
+  grep -F "installing agent skills" <<<"$output" >/dev/null
+  grep -F "installed Codex skill: riptide-config" <<<"$output" >/dev/null
+  grep -F "installed Claude skill: riptide-narrative" <<<"$output" >/dev/null
+  test -L "$TMP/codex-home/skills/riptide-config"
+  test -L "$TMP/claude-home/skills/riptide-config"
+  test "$(readlink "$TMP/codex-home/skills/riptide-config")" = "$TMP/skill-install/current/skills/riptide-config"
+
+  disabled_output="$(
+    PATH="$FAKE_BIN:$PATH" \
+    HOME="$TMP/home" \
+    CODEX_HOME="$TMP/codex-disabled" \
+    CLAUDE_HOME="$TMP/claude-disabled" \
+    RIPTIDE_TEST_UNAME_S="Linux" \
+    RIPTIDE_TEST_UNAME_M="x86_64" \
+    RIPTIDE_RELEASE_BASE_URL="file://$release_dir" \
+    RIPTIDE_INSTALL_AGENT_SKILLS=0 \
+    sh "$ROOT/scripts/install-release.sh" \
+      --bin-dir "$TMP/skill-bin-disabled" \
+      --install-dir "$TMP/skill-install-disabled"
+  )"
+
+  grep -F "agent skill install disabled" <<<"$disabled_output" >/dev/null
+  test ! -e "$TMP/codex-disabled/skills/riptide-config"
+  test ! -e "$TMP/claude-disabled/skills/riptide-config"
+}
+
 run_windows_static_checks() {
   local ps1="$ROOT/scripts/install-release.ps1"
 
@@ -67,6 +151,10 @@ run_windows_static_checks() {
   grep -F 'Get-FileHash' "$ps1" >/dev/null
   grep -F 'Expand-Archive' "$ps1" >/dev/null
   grep -F 'riptide.cmd' "$ps1" >/dev/null
+  grep -F 'NoAgentSkills' "$ps1" >/dev/null
+  grep -F 'CODEX_HOME' "$ps1" >/dev/null
+  grep -F 'CLAUDE_HOME' "$ps1" >/dev/null
+  grep -F '.riptide-managed-skill' "$ps1" >/dev/null
 }
 
 run_windows_powershell_parse_check() {
@@ -170,6 +258,7 @@ run_posix_case Linux x86_64 x86_64-unknown-linux-gnu
 run_posix_case Darwin x86_64 x86_64-apple-darwin
 run_posix_case Darwin arm64 aarch64-apple-darwin
 run_unsupported_posix_case
+run_posix_agent_skill_install_case
 run_windows_static_checks
 run_windows_powershell_parse_check
 run_packager_contract_checks
