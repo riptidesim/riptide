@@ -63,6 +63,9 @@ pub enum LendingInstructionData {
     Borrow { amount: u64 },
     Repay { amount: u64 },
     Liquidate { repay_amount: u64 },
+    // Mirror of the program-side variant (programs/lending_pool/src/state.rs).
+    // Discriminator 8; existing 0..=7 stay byte-stable.
+    Donate { amount: u64 },
 }
 
 #[derive(Debug, Clone)]
@@ -191,6 +194,21 @@ impl LendingProgramClient {
                 AccountMeta::new(position, false),
             ],
             LendingInstructionData::Repay { amount },
+        )
+    }
+
+    /// Build a Donate instruction. The on-chain program removes
+    /// `amount` from the donor's collateral without rechecking the
+    /// health factor — used by the Euler-shape proof pack to drive an
+    /// underwater donor into a liquidator-driven bad-debt cascade.
+    pub fn donate(&self, owner: Pubkey, pool: Pubkey, position: Pubkey, amount: u64) -> Instruction {
+        self.ix(
+            vec![
+                AccountMeta::new_readonly(owner, true),
+                AccountMeta::new(pool, false),
+                AccountMeta::new(position, false),
+            ],
+            LendingInstructionData::Donate { amount },
         )
     }
 
