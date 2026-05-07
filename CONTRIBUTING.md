@@ -1,86 +1,32 @@
 # Contributing to Riptide
 
-Thanks for contributing to Riptide! This guide covers everything you need: setting up your dev environment, understanding the architecture, deciding what to build, and getting your PR merged.
+Riptide is a deterministic multi-agent simulator for Solana programs. Keep
+contributions small, reproducible, and easy to review.
 
-Riptide is a protocol-agnostic economic simulator for Solana programs. Every shipping bundle — lending, perps, AMM, liquid staking, and stablecoin today; whatever ships next — layers the same **six-layer stack** on top of the program under test:
+For product usage, start with the [README](README.md). For deeper design
+context, use the [docs index](docs/README.md).
 
-1. **Adapter** — one TOML declaring the program, its actions, observations, and invariants.
-2. **Personas** — TOML files describing agent behavior with a trigger DSL.
-3. **Scenarios** — engine shocks (oracle trajectories, scheduled actions) mounted from declarative presets.
-4. **Parameters** — run-config knobs that sweep over the dimensions that matter.
-5. **Failure-mode taxonomy** — named categories (`whale_concentration`, `margin_cascade_from_oracle_shock`, `price_manipulation_via_swap`, `impermanent_loss_spike`, …) the config skill matches against adapter shape.
-6. **Invariants** — machine-checkable properties declared inline in the adapter. The engine exits non-zero when any invariant fires.
+## Start Here
 
-The growth rhythm is: one new protocol class per bundle, shipped as all six layers rather than as a new trait in the engine. Adding a new protocol class should mean writing TOML and extending a skill prompt — **not** reshaping the engine. That rhythm is load-bearing; preserve it.
+1. Open an issue or discussion for large changes, new protocol classes, or
+   anything that may change deterministic output.
+2. Keep one logical change per PR. Do not mix adapter work, engine changes,
+   Studio work, and docs rewrites unless they are part of the same feature.
+3. Preserve user-facing claim boundaries. Riptide produces simulation evidence,
+   not audit signoff.
+4. Do not include private planning labels, sprint IDs, or task IDs in public
+   docs.
 
----
+## Setup
 
-## Contribution Priorities
+Required for repository development:
 
-We value contributions in this order:
+- Git
+- Rust and Cargo
+- Node.js 20+
+- Solana SBF tooling for changes that build on-chain programs
 
-1. **Determinism regressions** — any change that flips a byte-stable hash without a conscious retune is top priority to fix. Riptide's whole adversarial-review posture rests on determinism. See [Determinism & Regression Gates](#determinism--regression-gates).
-2. **Bug fixes** — crashes, incorrect behavior, data loss. Always near-top priority.
-3. **New adapters** — new Solana programs wired into the six-layer stack. This is the primary growth path.
-4. **New personas** — new adversarial archetypes that compose against existing adapters.
-5. **New failure-mode taxonomy categories** — new named categories the `riptide-config` skill can classify and propose against.
-6. **Skill improvements** — sharpening `riptide-config` or `riptide-narrative` so they produce better artifacts in cold-read evaluation.
-7. **Documentation** — fixes, clarifications, new examples.
-8. **Engine changes** — rare and carefully scoped. See [Touching Engine Code](#touching-engine-code).
-
----
-
-## What am I adding? — Decision tree
-
-This is the most common question for new contributors. Most contributions are *not* engine changes.
-
-### Make it an **Adapter** when
-
-- You want Riptide to run against a specific Solana program (yours, a fork, a public one).
-- The existing adapter patterns (`lending.toml`, `perpetuals.toml`, `amm.toml`, `liquid-staking.toml`, `stablecoin.toml`, `resource-grinder.toml`) come close — you copy one, swap the IDL + accounts + actions + observations + invariants.
-- See [Adding an Adapter](#adding-an-adapter).
-
-### Make it a **Persona** when
-
-- You want a new adversarial archetype that fires actions against *existing* adapters.
-- The behavior can be expressed in the trigger DSL (single comparison + constant per rule today — e.g., `observation.utilization > 0.9 → withdraw_all`).
-- Examples: `whale-depositor`, `leveraged-long`, `sandwich-attacker`, `arbitrageur`, `rug-puller`.
-- See [Adding a Persona](#adding-a-persona).
-
-### Make it a **Taxonomy Category** when
-
-- You want the `riptide-config` skill to classify a new failure mode and propose experiments targeting it.
-- It's named after *what fails* (`price_manipulation_via_swap`), not *how it fails* (`sandwich`).
-- Needs an adapter-shape hook (what action/observation/invariant keys trigger it) and an IDL hook (what instruction names trigger it), so it fires on its protocol class and stays quiet on the others.
-- See [Adding a Taxonomy Category](#adding-a-taxonomy-category).
-
-### Modify a **Skill** when
-
-- You want to sharpen `riptide-config` (adapter generation, pre-tick-0 Rust setup, classification, scenarios, campaign readiness), or `riptide-narrative` (post-run report).
-- Skills are session-native instructions plus optional prompts/references/helper scripts. They live in `skills/riptide-*/` with a `SKILL.md` and any supporting `prompts/` or `references/` files.
-- See [Modifying a Skill](#modifying-a-skill).
-
-### Touch **engine code** only when
-
-- A new capability genuinely cannot be declared in TOML or expressed as a skill prompt (rare — historically, replay mode was the last such unlock).
-- You've checked with a maintainer first. Engine changes ship with determinism regression risk attached.
-- See [Touching Engine Code](#touching-engine-code).
-
----
-
-## Development Setup
-
-### Prerequisites
-
-| Requirement | Notes |
-|-------------|-------|
-| **Git** | — |
-| **Linux** | Primary supported OS (macOS is untested; Windows is out of scope) |
-| **Rust** | Stable channel (see [`TOOLCHAIN.md`](TOOLCHAIN.md) for exact pins) |
-| **Node.js 20+** | For the CLI wrapper; see [`TOOLCHAIN.md`](TOOLCHAIN.md) for the pinned development version |
-| **`cargo-build-sbf`** | For compiling on-chain programs — install via the [Anza tooling installer](https://docs.anza.xyz/cli/install) |
-
-### Clone and install
+Install from a checkout:
 
 ```bash
 git clone https://github.com/riptidesim/riptide
@@ -88,328 +34,109 @@ cd riptide
 ./install.sh
 ```
 
-The installer detects missing toolchains and prints actionable hints rather than auto-installing. See [`docs/install.md`](docs/install.md) for the full flow and from-source alternatives.
+The pinned toolchain versions live in [TOOLCHAIN.md](TOOLCHAIN.md). The full
+install, Docker, release, and upgrade paths live in [docs/install.md](docs/install.md).
 
-### Verify
+## Project Shape
+
+Riptide has two main runtime pieces:
+
+- `engine/` - Rust simulation engine and LiteSVM runtime.
+- `cli/` - TypeScript CLI, Studio server, job orchestration, validation, and
+  dashboard assets.
+
+The simulator is configured through files:
+
+- adapters map programs, accounts, actions, observations, and invariants;
+- personas describe agent behavior;
+- scenarios and campaigns describe experiments;
+- evidence packs and reports capture what ran.
+
+Most new protocol work should add or improve those declared layers. Engine
+changes are rare and should be justified by a capability that cannot be
+expressed in TOML, scenarios, campaigns, or skills.
+
+## Common Changes
+
+| Change | Start with | Verify with |
+| --- | --- | --- |
+| Docs | `README.md`, `docs/`, or `CONTRIBUTING.md` | `git diff --check` and link review |
+| Studio or CLI | `cli/src/`, `cli/studio-app/` | `npm --prefix cli test` |
+| Engine | `engine/src/`, `engine/tests/` | `cargo test -p riptide-engine` |
+| Adapter or scenario | `fixtures/adapters/`, `fixtures/scenarios/` | a focused `riptide run` plus relevant CLI tests |
+| Campaigns | `docs/campaigns.md`, `cli/src/campaign/` | campaign validation, plan, and run tests |
+| Skills | `skills/riptide-*/` | cold-read before/after output on the same repo |
+
+If you change Studio source under `cli/studio-app/`, rebuild the bundled assets
+before claiming the served app changed.
+
+## Determinism
+
+Determinism is the main project discipline. If a change alters byte-stable
+simulation output, treat that as a blocker until you can explain why the new
+bytes are correct.
+
+For engine or simulation changes, run focused tests first, then the broader
+engine suite:
 
 ```bash
-# Canonical smoke: the shipping whale-shock-grid family
-riptide run lending/whale-shock-grid
-
-# Regression gate (engine suites)
 cargo test -p riptide-engine
-
-# Regression gate (CLI suite)
-(cd cli && npm test)
 ```
 
-If all three are green, your environment is good.
-
-### Testing against your own Anchor program
-
-Contributors developing adapters against their own Anchor repos (rather than working on Riptide itself) should use the drop-in path — run `riptide init` inside your Anchor repo, then invoke `/riptide-config` to turn the thin `.riptide/` bootstrap into a validated adapter, harness, scenarios, and campaign readiness. The generated `.riptide/GETTING-STARTED.md` keeps manual commands under a manual / advanced path for contributors who want low-level control. See [`docs/install.md`](docs/install.md#next-steps-after-install) for the full walkthrough. The monorepo path above stays as the authoritative workflow for contributors working on Riptide itself (engine, CLI, or the shipping bundles).
-
----
-
-## Project Structure
-
-```
-riptide/
-├── engine/                       # Rust simulation engine
-│   ├── src/
-│   │   ├── primitive/            # Primitive traits — LendingPrimitive, AmmPrimitive, GenericPrimitive harness
-│   │   ├── adapter/              # Adapter TOML serde loader (the Rust-side schema truth)
-│   │   ├── scenario/             # Scenario engine, oracle trajectories, preset_spec
-│   │   ├── replay/               # Historical replay module
-│   │   ├── invariant/            # Invariant evaluation + CI exit codes
-│   │   └── main.rs               # Engine binary entry
-│   └── tests/                    # Integration tests (litesvm_parity, e2e_determinism, roundtrips)
-│
-├── cli/                          # TypeScript CLI wrapper
-│   ├── src/
-│   │   ├── commands/             # run, replay, adapt, serve entry points
-│   │   ├── schemas/              # Zod mirrors of the serde schemas (adapter, run-config, persona)
-│   │   ├── compiler/             # Persona compilation pipeline
-│   │   ├── serve/                # Dashboard HTTP server + asset pipeline
-│   │   └── adapt/                # Adapter-only smoke-test harness used by CLI preflights
-│   ├── assets/dashboard.html     # Inlined single-page dashboard template
-│   └── package.json
-│
-├── programs/                     # Standalone SBF crates (built out of the root workspace)
-│   ├── lending_pool/             # Forked Solend SPL-Token-Lending pool
-│   ├── perpetuals/               # Minimal perps-lite program
-│   ├── amm/                 # Constant-product x*y=k pool
-│   ├── liquid-staking/      # Minimal pooled-stake / withdrawal-queue LST surface
-│   ├── stablecoin/          # Minimal collateral / stable-supply / redemption-queue surface + apply_hedge_loss stress mutation
-│   ├── resource_grinder/         # Non-DeFi toy program proving the generic path
-│   └── admin_mock_oracle/        # Shared-oracle helper for perps + liquid staking + stablecoin
-│
-├── fixtures/
-│   ├── adapters/                 # Adapter TOMLs (lending, perpetuals, amm, liquid-staking, stablecoin, resource-grinder)
-│   ├── personas/                 # Monorepo fixture persona TOMLs (user repos keep personas inline in adapter [personas.*])
-│   ├── scenarios/                # Monorepo fixture run-config/policies/manifest bundles
-│   ├── replays/                  # Failure-shape replay fixtures (lending-whale-bad-debt, liquid-staking-*, stablecoin-uxd-style-collateral-cascade)
-│   ├── idls/                     # Anchor IDL JSONs for each shipped program
-│   └── oracle_state_golden.bin   # Byte-layout SSOT for oracle state
-│
-├── skills/                       # Claude Code skills (self-contained, session-native)
-│   ├── riptide-config/           # Merged adapter + harness + scenarios + campaign readiness
-│   └── riptide-narrative/        # Post-run narrative report
-│
-├── demo/                         # Canonical demo (safe-vs-risky lending side-by-side)
-├── scripts/                      # Helper scripts (agent-scaling-benchmark, amm-scratch, etc.)
-├── docs/                         # User-facing documentation
-└── TOOLCHAIN.md                  # Exact toolchain pins — engine, programs, CI, Docker all anchor here
-```
-
----
-
-## Core Architecture
-
-See [`docs/architecture.md`](docs/architecture.md) for the full explanation. Short version:
-
-- **Two processes:** Rust engine + TypeScript CLI. The CLI pre-validates TOML with Zod, compiles personas, then shells out to the release-build engine binary. The engine loads the adapter, boots LiteSVM, deploys the pinned `.so`, ticks the scenario, writes `simulation-result.json`.
-- **Schemas mirror:** the Zod schema (CLI) and the serde schema (engine) describe the same TOML shapes. When they drift, serde is the canonical truth and the Zod side is the bug to fix.
-- **LiteSVM is the default runtime.** `solana-test-validator` lives as a diagnostic parity path gated on `RIPTIDE_RUN_VALIDATOR_TESTS=1`.
-- **Determinism is enforced by test.** `engine/tests/e2e_determinism.rs` runs every fixture twice and asserts byte-identical JSON output. See [Determinism & Regression Gates](#determinism--regression-gates).
-
----
-
-## Code Style
-
-**Rust:**
-- Standard `rustfmt` and `clippy` hygiene.
-- Avoid `unwrap()` in library code; prefer `?` with context, or `expect("load-bearing reason")` when a failure is structural.
-- Error handling: the engine is a batch process, so fail fast with a clear error surface. Don't silently degrade.
-
-**TypeScript:**
-- Strict mode. The CLI ships `tsconfig.json` with strict flags on — keep them on.
-- Error handling at boundaries: CLI validation produces friendly messages for end users; engine invocations surface engine exit codes verbatim.
-
-**Both:**
-- **Comments are for the non-obvious.** Don't narrate what the code does; the identifier already did. Explain *why* a non-obvious choice is made, a hidden invariant, a workaround for a specific bug.
-- **No dead code.** Feature flags, fallback paths for hypothetical futures, commented-out blocks — delete them.
-- **Cross-platform posture:** Linux is the supported path. Don't add macOS- or Windows-specific branches speculatively; flag platform concerns in the PR description if they come up.
-
----
-
-## Adding an Adapter
-
-An adapter wires a specific Solana program into the engine.
-
-1. **Compile your program to `.so`** and get its Anchor IDL (or a hand-written IDL JSON).
-2. **Generate or hand-write the adapter TOML:**
-   - *Skill path:* run `riptide init`, then invoke `/riptide-config`. The skill reads the program, classifies it against the primitive library (lending / perps / AMM / generic), repairs the adapter, adds a harness when account setup is needed, writes starter scenarios and a Campaign TOML, and runs bounded validation. No API keys or endpoint config.
-   - *Hand-written path:* copy the closest shipping adapter from `fixtures/adapters/` (`lending.toml`, `perpetuals.toml`, `amm.toml`, `liquid-staking.toml`, `stablecoin.toml`, or `resource-grinder.toml`) and edit `program_so`, `[[accounts]]`, `[[actions]]`, `[[observations]]`, and `[[invariants]]`.
-3. **Wire an oracle if the program needs one.** A generic adapter can declare a single `[[oracles]]` block bound to a `kind = "shared"` account. The harness bootstraps that account at tick 0 with admin-mock bytes and mutates it on every scenario/replay oracle update. The bound account can optionally declare `owner = { program_so = "<path>.so" }` (owner resolved from the companion `target/deploy/<name>-keypair.json`) for sibling-owned oracles such as `admin_mock_oracle`, or `owner = { pubkey = "<base58>" }` for a literal external owner. Omit `owner` and the simulated program owns the account. See [`docs/architecture.md#oracle-binding-for-generic-adapters`](docs/architecture.md#oracle-binding-for-generic-adapters) and the end-to-end proof at `engine/tests/perpetuals_sibling_oracle_proof.rs`. Two or more `[[oracles]]` entries on a generic adapter is currently a loader error — multi-oracle generic semantics remain a follow-up.
-4. **Smoke-test it:** for monorepo fixtures, `riptide adapt --adapter fixtures/adapters/<your-adapter>.toml` confirms the adapter-only path boots and observes a state delta. For user repos that need setup, prefer `riptide run --adapter .riptide/adapters/<program>.toml --harness .riptide/harness --seeds 1 --seed-root 1337`.
-5. **Add harness setup if zeroed accounts are not enough.** Let `/riptide-config` own this in the merged flow, or run `riptide harness generate --adapter <adapter>` and edit `.riptide/harness/src/main.rs` for SPL mints/vaults, PDAs, sibling programs, and concrete account bytes.
-6. **Commit** the adapter under `fixtures/adapters/` and the IDL under `fixtures/idls/`.
-
-The adapter is the contract between your program and the six-layer stack. Keep it declarative — anything that can't be expressed in TOML is a signal that the engine needs a new capability, which is a separate (and rarer) PR.
-
----
-
-## Adding a Persona
-
-For monorepo fixture work, personas are pure TOML — one file per persona in `fixtures/personas/`. Configured user repos do not create `.riptide/personas/`; edit the inline `[personas.*]` tables in `.riptide/adapters/<program>.toml` instead.
-
-1. **Copy the closest existing persona:** `whale.toml` for lending, `leveraged-long.toml` for perps, `arbitrageur.toml` for AMM.
-2. **Edit the trigger DSL and action block.** Single comparison op + constant per rule today (e.g., `observation.utilization > 0.9 → withdraw_all`). Reference only your adapter's declared actions.
-3. **Smoke-test it** by running a small scratch simulation (see `scripts/amm-scratch.sh` for the pattern). A persona TOML that parses clean and emits at least one action per tick against its adapter is ready to ship.
-4. **Compose it** into a fixture scenario under `fixtures/scenarios/<adapter>/<experiment>/`, or let `riptide-config` reference it in fixture mode.
-
-Personas stay composable by staying small. If a persona needs branching control flow, it's probably two personas.
-
----
-
-## Adding a Taxonomy Category
-
-Taxonomy lives in the `riptide-config` flow.
-
-1. **Add the discrimination rule** in `classify.md`. Each rule needs:
-   - an **adapter-shape hook** — what `[actions]` / `[observations]` / `[[invariants]]` keys trigger it
-   - an **IDL hook** — what instruction names trigger it
-   So the classifier fires on the intended adapter class and stays quiet on the others.
-2. **Add a proposal template** in `propose.md`. Minimum a 1D sweep; ideally a 2D grid with full-cell materialization (see `whale-shock-grid`, `depositor-shock-grid`, `trade-size-volume-grid` for the pattern — every grid cell is a complete bootable sub-scenario).
-3. **Extend the Zod enum** in `cli/src/scenarios/validate.ts` with your new `failure_mode` value so fixture-mode `riptide scenarios --validate` accepts configs that reference it. User-repo proposals validate through `riptide run <slug> --adapter <adapter> --harness .riptide/harness --seeds 1 --seed-root 1337`.
-4. **Run the cold-chain validation flow** (setup → cold test → scoring) against your adapter and record the verdict under `docs/case-studies/` as the shipping bundles did.
-
-Taxonomy is where Riptide's discrimination power lives. A good category fires precisely on its class and explains itself to the next reader — resist generic categories.
-
----
-
-## Modifying a Skill
-
-Skills are self-contained Claude Code session artifacts under `skills/riptide-*/`:
-
-```
-skills/riptide-<name>/
-├── SKILL.md            # Entry instructions + metadata frontmatter
-└── prompts/
-    ├── <prompt-1>.md   # Referenced from SKILL.md
-    └── <prompt-2>.md
-```
-
-When modifying a skill:
-
-1. **Run the existing flow cold** before editing — observe the artifact the skill currently produces. Many "this prompt is broken" instincts are actually about a specific cell in the prompt's decision tree; pin that down first.
-2. **Edit the prompt** in `prompts/<name>.md`. Skills are pure markdown — no Python, no JS — so changes are immediate.
-3. **Re-run cold against the same input.** Compare artifacts. If the new artifact is clearly better on a cold read, ship it. If it's ambiguous, iterate.
-4. **Test across adapters** (lending, perps, AMM, generic) to confirm the change doesn't regress the existing protocol classes while fixing the new one.
-
-Skills are load-bearing for adapter generation, scenario proposal, and narrative reports — cold-read testing is the acceptance bar, not passing tests.
-
----
-
-## Touching Engine Code
-
-Engine changes are rare. If you're about to write one, stop and ask:
-
-- **Can this be expressed in adapter TOML?** (Most "missing feature" instincts turn out to be expressible.)
-- **Can this be expressed as a skill-prompt extension?**
-- **Is this a genuinely new engine capability?** If yes — good, write it, but:
-  - It ships with its own integration test in `engine/tests/`.
-  - It must preserve the `e2e_determinism` regression.
-  - It does not break the three byte-stable hashes shipped today (lending `whale-shock-grid`, perpetuals scratch, AMM-fork scratch — see [Determinism & Regression Gates](#determinism--regression-gates)).
-  - It updates `docs/architecture.md` if the change touches a documented pattern.
-
-Engine changes that break determinism without a conscious retune are the top-priority reverts.
-
----
-
-## Cross-Platform Compatibility
-
-**Linux is the supported path.** The installer, Docker image, and CI all target Linux. macOS is untested; Windows is explicitly out of scope.
-
-When writing code that touches the OS:
-
-- Use `pathlib` / `std::path::Path` idioms; avoid hard-coded separators.
-- Any shell command in `install.sh` must be POSIX-sh-compatible.
-- If you touch the Dockerfile, verify the build from a clean context — the multi-stage split is load-bearing for image size (280 MB today).
-
-If a contribution specifically adds macOS support, that's welcome, but it comes with the responsibility of running the regression gates on macOS before merge.
-
----
-
-## Determinism & Regression Gates
-
-**This is the single most important discipline in the project.** Every shipping fixture is byte-stable. The engine asserts determinism on every `cargo test` run via the `e2e_determinism` integration test. Any change that flips a hash without a conscious retune is a regression.
-
-Before opening a PR, make sure the regression floor is green:
+For CLI or Studio changes:
 
 ```bash
-# Engine-side determinism + parity + roundtrip gates
-cargo test -p riptide-engine --test litesvm_parity
-cargo test -p riptide-engine --test e2e_determinism
-cargo test -p riptide-engine --test perpetuals_roundtrip
-cargo test -p riptide-engine --test amm_roundtrip
-cargo test -p riptide-engine --test liquid_staking_roundtrip
-cargo test -p riptide-engine --test stablecoin_roundtrip
-cargo test -p riptide-engine --test replay_framework
-cargo test -p riptide-engine --test replay_lending_whale_bad_debt
-cargo test -p riptide-engine --test replay_liquid_staking_depeg_redemption_run
-cargo test -p riptide-engine --test replay_liquid_staking_slash_with_open_queue
-cargo test -p riptide-engine --test replay_stablecoin_uxd_style_collateral_cascade
-
-# CLI suite
-(cd cli && npm test)
-
-# Optional harnessed user-repo smoke (requires riptide-engine + programs/amm SBF artifacts)
-bash scripts/ci/harnessed-user-flow-smoke.sh
+npm --prefix cli test
 ```
 
-**Byte-stable fixtures that must not drift:**
+When a hash or committed fixture output intentionally changes, include the
+reason in the PR description and point reviewers to the affected fixture.
 
-| Fixture | sha256 |
-|---------|--------|
-| Lending `whale-shock-grid` | `60f72adee15451af60f559cdfb9609813b54c34565f7c76fe7e5cf8495a42470` |
-| Perps-fork scratch | `1518bcfdeb6cdb7d538be86584195b4b348b73beed610003d4a35939994f1878` |
-| AMM-fork scratch | `5de060cdcacfbacaa598a387a9f249e7633fedac449f137d62c0ede9cf10624f` |
-| Liquid-staking depeg + redemption-run replay (canonical `result_sha256`) | see `fixtures/replays/liquid-staking-depeg-redemption-run/expected-summary.json` |
-| Liquid-staking slash-with-open-queue replay (canonical `result_sha256`) | see `fixtures/replays/liquid-staking-slash-with-open-queue/expected-summary.json` |
-| Stablecoin UXD-style collateral-cascade replay (canonical `result_sha256`) | `2f61c0a7cfd592b0e625060ddc076cccb62093a1f0d5b5779fc8f548f7c2f2bf` (pinned in `fixtures/replays/stablecoin-uxd-style-collateral-cascade/expected-summary.json`) |
+## Pull Requests
 
-If your PR flips any of these, include the conscious-retune justification in the PR description — why the new bytes are correct, what changed in the adapter / scenario / engine that causes the shift, and why the old hash is no longer load-bearing.
+Before opening a PR:
 
-The AMM/perps scratch scripts build a runtime adapter copy that strips only additive `[semantics]` metadata before appending the persona library. That keeps the original Sprint 5/6 raw scratch bytes stable while the shipped adapters still carry `amm.v1` and `perps-margin.v1` semantics covered by the dedicated semantics tests.
+1. Check `git status` and keep unrelated dirty files out of the change.
+2. Run the smallest useful verification command, then any broader gate required
+   by the touched area.
+3. Include the command output summary in the PR description.
+4. Mention any skipped tests and why they were skipped.
+5. Keep public docs free of overclaiming and internal planning labels.
 
----
+Use Conventional Commits:
 
-## Pull Request Process
-
-### Branch naming
-
-```
-fix/description        # Bug fixes
-feat/description       # New features
-adapter/<protocol>     # New adapters
-persona/<name>         # New personas
-taxonomy/<category>    # New taxonomy categories
-skill/<name>           # Skill prompt changes
-docs/description       # Documentation
+```text
+docs(readme): simplify studio-first landing page
+fix(cli): preserve workspace-relative job paths
+feat(adapter): add stablecoin scenario family
+test(engine): cover replay hash stability
 ```
 
-### Before submitting
+Useful scopes include `engine`, `cli`, `studio`, `adapter`, `scenario`,
+`campaign`, `skill`, `docs`, `install`, and `ci`.
 
-1. **Run the regression gates** (see [Determinism & Regression Gates](#determinism--regression-gates)).
-2. **Test manually:** run the shipping demo (`riptide run lending/whale-shock-grid`) and confirm the hash is unchanged.
-3. **Keep PRs focused.** One logical change per PR. Don't mix an adapter addition with a skill rewrite.
-4. **Scrub for internal planning labels.** Nothing user-facing should carry private planning references or task IDs.
+## Where To Read More
 
-### PR description
-
-Include:
-- **What** changed and **why**.
-- **Which of the six layers** your change touches (adapter / persona / scenario / parameter / taxonomy / invariant / engine).
-- **Regression-gate output** (paste the test counts + the three byte-stable hashes).
-- **Manual-test steps** — how a reviewer reproduces the outcome.
-
-### Commit messages
-
-We use [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-<type>(<scope>): <description>
-```
-
-| Type | Use for |
-|------|---------|
-| `fix` | Bug fixes |
-| `feat` | New features (including new adapters, personas, taxonomy categories) |
-| `docs` | Documentation |
-| `test` | Tests |
-| `refactor` | Code restructuring (no behavior change) |
-| `chore` | Build, CI, dependency updates |
-
-Scopes: `engine`, `cli`, `adapter`, `persona`, `taxonomy`, `skill`, `docs`, `install`, `dockerfile`, etc.
-
-Examples:
-```
-feat(adapter): add stablecoin adapter + 4-persona library
-fix(engine): preserve determinism when liquidation cascade reorders events
-docs(architecture): clarify LiteSVM-vs-validator parity path
-feat(skill): extend riptide-config taxonomy with impermanent_loss_spike
-```
-
----
+| Topic | Link |
+| --- | --- |
+| Studio workflow and trust boundary | [docs/studio.md](docs/studio.md) |
+| Architecture and runtime model | [docs/architecture.md](docs/architecture.md) |
+| Campaign Runner | [docs/campaigns.md](docs/campaigns.md) |
+| Evidence packs | [docs/pack.md](docs/pack.md) |
+| CI handoff | [docs/ci-handoff.md](docs/ci-handoff.md) |
+| Adapter lineage | [docs/adapter-lineage.md](docs/adapter-lineage.md) |
+| Case-study corpus | [docs/case-study-corpus.md](docs/case-study-corpus.md) |
 
 ## Reporting Issues
 
-- Use [GitHub Issues](https://github.com/riptidesim/riptide/issues).
-- Include: OS, Rust + Node versions, exact command that failed, full error output.
-- Include a minimal reproduction — adapter TOML + run-config that triggers the issue.
-- For determinism regressions: include the expected hash and the actual hash from your machine.
+Open an issue at [github.com/riptidesim/riptide](https://github.com/riptidesim/riptide).
+Include the OS, relevant tool versions, exact command, full error output, and a
+minimal reproduction when possible.
 
----
-
-## Community
-
-- **Issues / Discussions:** [github.com/riptidesim/riptide](https://github.com/riptidesim/riptide) — questions, proposals, showcases.
-- **Case studies:** Non-trivial adapter + taxonomy contributions are candidates for the `docs/case-studies/` shelf. If you've run a cold-chain validation on your new bundle, we want to see it.
-
----
+For determinism regressions, include the expected hash, the actual hash, and the
+fixture or scenario that produced it.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under both the [MIT License](LICENSE) and the [Apache License 2.0](LICENSE) at the recipient's option.
+By contributing, you agree that your contributions will be licensed under the
+repository's dual MIT or Apache-2.0 license, as described in [LICENSE](LICENSE).
