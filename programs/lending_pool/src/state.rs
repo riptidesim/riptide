@@ -68,6 +68,12 @@ pub enum LendingInstructionData {
     Borrow { amount: u64 },
     Repay { amount: u64 },
     Liquidate { repay_amount: u64 },
+    // Mirrors Euler's `donateToReserves`: removes the donor's collateral
+    // without rechecking the health factor, leaving the donor underwater
+    // while the debt remains on the books. Used by the Euler-shape replay
+    // pack to drive the donate-and-liquidate sequence; existing replays
+    // never reference this discriminator.
+    Donate { amount: u64 },
 }
 
 impl LendingPoolState {

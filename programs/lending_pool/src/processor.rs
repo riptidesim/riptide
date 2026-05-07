@@ -261,6 +261,44 @@ impl Processor {
                 Self::write_state(pool, &pool_state)?;
                 Self::write_state(position, &position_state)
             }
+            LendingInstructionData::Donate { amount } => {
+                let owner = next_account_info(accounts_iter)?;
+                let pool = next_account_info(accounts_iter)?;
+                let position = next_account_info(accounts_iter)?;
+                Self::require_signer(owner)?;
+                Self::assert_program_account(pool, program_id, POOL_STATE_LEN)?;
+                Self::assert_program_account(position, program_id, POSITION_STATE_LEN)?;
+
+                let mut pool_state: LendingPoolState = Self::read_initialized_pool(pool)?;
+                let mut position_state: PositionState = Self::read_state(position)?;
+
+                if position_state.owner_pubkey() != *owner.key {
+                    return Err(LendingError::Unauthorized.into());
+                }
+                if position_state.liquidated {
+                    return Err(LendingError::PositionLiquidated.into());
+                }
+                if amount > position_state.collateral {
+                    return Err(LendingError::InsufficientCollateral.into());
+                }
+
+                // Mirrors Euler's donateToReserves accounting flaw:
+                // collateral leaves the donor's position without an LTV
+                // recheck, so the donor can leave themselves arbitrarily
+                // underwater. The pool's deposit total decreases (the
+                // donation is treated as a burn into reserves).
+                position_state.collateral = position_state
+                    .collateral
+                    .checked_sub(amount)
+                    .ok_or(LendingError::MathOverflow)?;
+                pool_state.total_deposits = pool_state
+                    .total_deposits
+                    .checked_sub(amount)
+                    .ok_or(LendingError::MathOverflow)?;
+
+                Self::write_state(pool, &pool_state)?;
+                Self::write_state(position, &position_state)
+            }
             LendingInstructionData::Liquidate { repay_amount } => {
                 let liquidator = next_account_info(accounts_iter)?;
                 let pool = next_account_info(accounts_iter)?;
