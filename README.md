@@ -16,10 +16,10 @@
 Riptide runs your compiled Solana program in LiteSVM, drives it with declared
 agent behavior, and shows where your protocol starts losing economic headroom.
 Studio is the default product path: a localhost visual control plane for
-workspaces, setup handoff, simulation graphs, dashboard drilldown, allowlisted
-run jobs, reports, and evidence packs.
+workspaces, setup handoff, simulation graphs, allowlisted run jobs, reports,
+and evidence packs. The CLI remains available for terminal and CI workflows.
 
-[Open Studio](#open-studio) - [What Studio Runs](#what-studio-runs) - [Docs](#docs)
+[Open Studio](#open-studio) - [What Studio Offers](#what-studio-offers) - [Run From CLI](#run-from-cli) - [Docs](#docs)
 
 ![Riptide dashboard showing a lending stress-test run](docs/assets/dashboard-hero.png)
 
@@ -48,30 +48,62 @@ Then open Studio from the Solana program repo you want to test:
 riptide studio --workspace .
 ```
 
-Studio opens in your browser and stays bound to localhost. From there:
+Studio opens in your browser and stays bound to localhost. From there you can
+select a workspace, prepare setup handoff, queue jobs, and inspect the artifacts
+Riptide writes back to `.riptide/`.
 
-1. Select or add the workspace for your program.
-2. Use the config handoff when the repo needs `.riptide/` setup.
-3. Queue an allowlisted run, replay, campaign, review, or readiness job.
-4. Inspect the simulation diagram, dashboard drilldown, reports, and evidence
-   packs without leaving Studio.
+## What Studio Offers
 
-## What Studio Runs
+Studio is the fastest way to operate Riptide locally:
 
-Studio launches the same local Riptide engine through explicit job types. It is
-not a generic shell and it does not publish, push, deploy, or silently run an
-agent.
+- **Workspace overview** for the active repo, recent runs, reports, queued jobs,
+  and next actions.
+- **Config handoff** for repos that still need `.riptide/` setup. Studio
+  creates a structured handoff prompt; it does not silently edit files or run an
+  agent.
+- **Launch jobs** for allowlisted Riptide actions such as run, replay,
+  campaign, review, and readiness. Studio previews the exact job before it
+  starts.
+- **Evidence library** for runs, campaigns, packs, retained cases, guided-sim
+  artifacts, readiness reports, scenarios, and adapters.
+- **Simulation diagram** showing how adapter, semantics, personas, scenarios,
+  campaigns, invariants, engine runs, reports, and packs connect.
+- **Dashboard drilldown** for opening the run/replay dashboard against a scoped
+  artifact.
 
-Riptide needs these project artifacts on disk:
+Studio is not a generic shell, does not push or publish, and stays on the local
+machine. See [Studio](docs/studio.md) for flags, job kinds, persistence, and
+the trust boundary.
+
+## Run From CLI
+
+Use the CLI when you want a terminal workflow, CI integration, or a scriptable
+path. After Riptide is installed and your repo has `.riptide/` configuration,
+the short path is:
+
+```bash
+riptide run --serve
+riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+riptide review <campaign-root>
+```
+
+For first-time repo setup, use [Install: First Run In Your Repo](docs/install.md#first-run-in-your-repo).
+For the deeper command surface, read [Architecture](docs/architecture.md),
+[Campaign Runner](docs/campaigns.md), and [Evidence packs](docs/pack.md).
+
+## What Riptide Needs
+
+Studio and the CLI launch the same local Riptide engine. Riptide needs these
+project artifacts on disk:
 
 - A compiled Solana program and IDL.
 - An adapter that maps accounts, actions, observations, and invariants.
 - Personas and scenarios that describe the experiment.
 - An optional setup harness when accounts need custom bytes before tick 0.
 
-Those files stay reviewable in your repo. Studio reads them, previews the job it
-will run, records job output under `.riptide/studio/jobs/`, and links the
-resulting reports and packs.
+Those files stay reviewable in your repo. Riptide reads them, runs declared
+experiments, and writes reports, dashboards, and reviewer-ready packs back to
+disk.
 
 ## Docs
 
@@ -79,8 +111,8 @@ Detailed command-line workflows live in the docs, not in this README.
 
 | Read | Use it for |
 | --- | --- |
-| [Studio](docs/studio.md) | Studio flags, workspace behavior, job launcher, config handoff, and trust boundary. |
-| [Install](docs/install.md) | Hosted installer, repository build, Docker, upgrades, and the direct CLI path after install. |
+| [Studio](docs/studio.md) | Studio capabilities, flags, workspace behavior, job launcher, config handoff, and trust boundary. |
+| [Install](docs/install.md) | Hosted installer, repository build, Docker, upgrades, and first run in your repo. |
 | [Architecture](docs/architecture.md) | The adapter/persona/scenario stack, LiteSVM runtime, determinism, and dashboard artifacts. |
 | [Campaign Runner](docs/campaigns.md) | Deterministic campaign sweeps, retained cases, and review handoff. |
 | [Evidence packs](docs/pack.md) | Pack shape, canonical hashes, rerun scripts, and reviewer workflow. |
