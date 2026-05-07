@@ -202,6 +202,15 @@ pub enum LiquidStakingInstructionData {
     /// lands in the staked-but-unliquid portion. This is the hook
     /// that drives depeg / exchange-rate-drop scenarios.
     ApplySlash { slash_bps: u64 },
+    /// Admin-only stress mutation modeling the unbacked-LST geometry
+    /// of the June 2024 KelpDAO / rsETH bridge-trust failure: mints
+    /// `amount` of LST into circulation WITHOUT depositing
+    /// underlying assets and WITHOUT recomputing `exchange_rate_bps`.
+    /// `lst_supply` grows; `total_assets` and `exchange_rate_bps`
+    /// stay put. The pool's `lst_supply * exchange_rate_bps` claim
+    /// then exceeds `total_assets * 10000`, which is exactly the
+    /// `full_backing` invariant the proof pack asserts on.
+    AdminMintLst { amount: u64 },
 }
 
 /// Compute the LST amount minted for `assets` at the current exchange

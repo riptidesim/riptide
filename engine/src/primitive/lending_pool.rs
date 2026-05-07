@@ -93,6 +93,12 @@ const EXPECTED_INSTRUCTIONS: &[(&str, &str)] = &[
     ("liquidate", "liquidate"),
 ];
 
+/// Optional `[instructions]` keys the lending primitive recognizes. An
+/// adapter MAY declare any of these alongside the required five; if
+/// declared, the `action` field must match. Adapters that omit them
+/// (every shipping adapter today) keep their byte-stable behavior.
+const OPTIONAL_INSTRUCTIONS: &[(&str, &str)] = &[("donate", "donate")];
+
 /// Solend-fork's expected `[state_mapping]` wiring. Each tuple is
 /// (`<account>.<field>` dotted path, required logical observation
 /// name). The primitive rejects any adapter whose shape diverges.
@@ -123,6 +129,18 @@ fn validate_adapter_for_lending(adapter: &Adapter) -> Result<()> {
                 expected_action,
                 mapping.action
             ));
+        }
+    }
+    for (ix_name, expected_action) in OPTIONAL_INSTRUCTIONS {
+        if let Some(mapping) = adapter.instructions.get(*ix_name) {
+            if mapping.action != *expected_action {
+                return Err(anyhow!(
+                    "lending primitive: adapter [instructions].{}.action must be `{}`, got `{}`",
+                    ix_name,
+                    expected_action,
+                    mapping.action
+                ));
+            }
         }
     }
     for (path, expected_obs) in EXPECTED_STATE_MAPPING {
@@ -704,6 +722,14 @@ impl LendingPrimitive for LiteSvmHarness {
             repay_amount,
         );
         self.send_harness(&liquidator, ix, None)
+    }
+
+    fn donate(&mut self, agent_idx: usize, amount: u64) -> Result<(), PrimitiveError> {
+        let donor = self.agents[agent_idx].insecure_clone();
+        let ix = self
+            .client
+            .donate(donor.pubkey(), self.pool, self.positions[agent_idx], amount);
+        self.send_harness(&donor, ix, None)
     }
 
     fn pool_state(&self) -> Result<PoolState, PrimitiveError> {

@@ -416,6 +416,18 @@ pub trait LendingPrimitive: Primitive {
         repay_amount: u64,
     ) -> Result<(), PrimitiveError>;
 
+    /// Reduce `agent_idx`'s collateral by `amount` without re-checking the
+    /// health factor — the on-chain program models Euler's
+    /// `donateToReserves` accounting flaw. Optional: backends that don't
+    /// implement it return `ProgramRejected` from the default impl, and
+    /// adapters that don't declare `donate` in `[instructions]` never reach
+    /// this path. The Euler-shape proof pack is the only caller today.
+    fn donate(&mut self, _agent_idx: usize, _amount: u64) -> Result<(), PrimitiveError> {
+        Err(PrimitiveError::ProgramRejected(
+            "donate action not supported by this lending backend".into(),
+        ))
+    }
+
     // --- Observations ---
 
     /// Read the pool-wide state (total deposits, borrows, bad debt).
@@ -481,6 +493,7 @@ pub fn dispatch_lending_action<H: LendingPrimitive + ?Sized>(
             })?;
             harness.liquidate(agent_idx, target_idx, amount)
         }
+        "donate" => harness.donate(agent_idx, amount),
         other => Err(PrimitiveError::ProgramRejected(format!(
             "unknown lending action `{other}`"
         ))),

@@ -1132,7 +1132,20 @@ impl ScheduledAction {
 // ---------------------------------------------------------------------------
 
 /// Canonical set of lending action labels the engine dispatches on.
-pub const LENDING_ACTIONS: &[&str] = &["deposit", "borrow", "repay", "withdraw", "liquidate"];
+///
+/// `donate` is an OPTIONAL action: only the Euler-shape replay adapter
+/// declares it today (`fixtures/replays/euler-donate-and-liquidate/`).
+/// The lending primitive's `validate_adapter_for_lending` allows it as
+/// an optional 6th instruction; the loader admits it here so the
+/// adapter parses without forcing every lending adapter to declare it.
+pub const LENDING_ACTIONS: &[&str] = &[
+    "deposit",
+    "borrow",
+    "repay",
+    "withdraw",
+    "liquidate",
+    "donate",
+];
 
 /// Canonical set of logical observation names the lending tick loop
 /// consumes from `state_mapping` values.

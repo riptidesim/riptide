@@ -1,0 +1,5 @@
+{
+  "instructions": [
+    { "name": "deposit", "agent": "pump-trader", "args": { "amount": 100 } }
+  ]
+}

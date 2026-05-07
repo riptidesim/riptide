@@ -3662,7 +3662,11 @@ kind = "admin-mock"
             load_adapter(&fixture).unwrap_or_else(|e| panic!("fixture adapter should load: {e}"));
         assert_eq!(adapter.protocol, Some(Protocol::Lending));
         assert!(matches!(adapter.runtime(), Protocol::Lending));
-        for action in LENDING_ACTIONS {
+        // The required-5 actions every shipped lending adapter declares.
+        // `donate` is also in `LENDING_ACTIONS` but is optional — only
+        // the Euler-shape replay adapter declares it; the shipping
+        // adapter intentionally omits it to preserve byte-stability.
+        for action in &["deposit", "borrow", "repay", "withdraw", "liquidate"] {
             let has_action = adapter
                 .instructions
                 .values()

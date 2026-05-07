@@ -59,6 +59,17 @@
       "args": [
         { "name": "slash_bps", "type": "u64" }
       ]
+    },
+    {
+      "name": "admin_mint_lst",
+      "discriminator": [5],
+      "accounts": [
+        { "name": "admin", "signer": true, "writable": false },
+        { "name": "pool", "signer": false, "writable": true }
+      ],
+      "args": [
+        { "name": "amount", "type": "u64" }
+      ]
     }
   ],
   "accounts": [

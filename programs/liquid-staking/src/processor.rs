@@ -294,6 +294,40 @@ impl Processor {
                 Self::write_state(stake_account, &acct)
             }
 
+            LiquidStakingInstructionData::AdminMintLst { amount } => {
+                let admin = next_account_info(accounts_iter)?;
+                let pool = next_account_info(accounts_iter)?;
+                Self::require_signer(admin)?;
+                Self::assert_program_account(pool, program_id, POOL_STATE_LEN)?;
+
+                if amount == 0 {
+                    return Ok(());
+                }
+
+                let mut pool_state: PoolState = Self::read_initialized_pool(pool)?;
+
+                if pool_state.admin == [0u8; 32] {
+                    return Err(LiquidStakingError::Unauthorized.into());
+                }
+                if pool_state.admin_pubkey() != *admin.key {
+                    return Err(LiquidStakingError::Unauthorized.into());
+                }
+
+                // Mint LST into circulation without depositing underlying
+                // and without recomputing the exchange rate. Mirrors
+                // KelpDAO's bridge-trust failure: an unauthorized mint
+                // path produced rsETH that no real ETH was ever staked
+                // for. After this returns, lst_supply * exchange_rate_bps
+                // exceeds total_assets * 10000 — exactly the `full_backing`
+                // invariant the proof pack asserts on.
+                pool_state.lst_supply = pool_state
+                    .lst_supply
+                    .checked_add(amount)
+                    .ok_or(LiquidStakingError::MathOverflow)?;
+
+                Self::write_state(pool, &pool_state)
+            }
+
             LiquidStakingInstructionData::ApplySlash { slash_bps } => {
                 let admin = next_account_info(accounts_iter)?;
                 let pool = next_account_info(accounts_iter)?;
