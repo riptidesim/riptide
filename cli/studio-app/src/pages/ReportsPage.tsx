@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { marked } from "marked";
 
 import { api } from "../api";
 import type { StudioArtifactEntry, StudioArtifactKind, StudioReportPayload } from "../studioTypes";
 import { Icon } from "../ui/Icon";
+import { JsonTree } from "../ui/JsonTree";
 import { EmptyState, Kicker, PageLabel, Pill, type PillKind } from "../ui/primitives";
+import { ReportRenderer } from "../ui/ReportRenderer";
 import { readStudioArtifact, writeStudioLocation } from "../shell/location";
 import type { PageId } from "../shell/types";
 
@@ -27,8 +28,6 @@ const KIND_ORDER: StudioArtifactKind[] = [
   "adapter",
   "campaign-input"
 ];
-
-marked.setOptions({ gfm: true, breaks: true });
 
 export function ReportsPage({ workspaceId, onNavigate }: ReportsPageProps) {
   const [artifacts, setArtifacts] = useState<StudioArtifactEntry[]>([]);
@@ -213,27 +212,15 @@ export function ReportsPage({ workspaceId, onNavigate }: ReportsPageProps) {
                   </div>
                 </div>
                 <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px" }}>
-                  <ArtifactMeta artifact={selected} />
                   {reportError && (
-                    <div className="card" style={{ padding: 18, marginTop: 16 }}>
+                    <div className="card" style={{ padding: 18 }}>
                       <Kicker style={{ marginBottom: 8 }}>REPORT BODY</Kicker>
                       <div style={{ color: "var(--rt-fog-dim)", font: "400 13px Inter" }}>{reportError}</div>
                     </div>
                   )}
-                  {report && (
-                    <div className="card" style={{ padding: 18, marginTop: 16 }}>
-                      <Kicker style={{ marginBottom: 8 }}>{report.content_type.toUpperCase()} · {report.relative_path}</Kicker>
-                      {report.content_type === "json" ? (
-                        <pre className="code" style={{ whiteSpace: "pre-wrap" }}>{formatJson(report.body)}</pre>
-                      ) : (
-                        <div
-                          className="markdown"
-                          style={{ color: "var(--rt-fg-2)", font: "400 14px/1.6 Inter" }}
-                          dangerouslySetInnerHTML={{ __html: renderMarkdown(report.body) }}
-                        />
-                      )}
-                    </div>
-                  )}
+                  {report && report.content_type === "markdown" && <ReportRenderer body={report.body} />}
+                  {report && report.content_type === "json" && <JsonTree body={report.body} />}
+                  <ArtifactMeta artifact={selected} />
                 </div>
               </>
             )}
@@ -253,30 +240,60 @@ function ReportsEmpty({ title, body, ctaLabel, onCta }: { title: string; body: s
 }
 
 function ArtifactMeta({ artifact }: { artifact: StudioArtifactEntry }) {
+  const [open, setOpen] = useState(false);
   const meta = Object.entries(artifact.meta ?? {});
+  const hasWarnings = artifact.warnings.length > 0;
   return (
-    <div className="card" style={{ padding: 18 }}>
-      <Kicker style={{ marginBottom: 8 }}>ARTIFACT METADATA</Kicker>
-      <table className="ptable">
-        <tbody>
-          <tr><td>id</td><td>{artifact.id}</td></tr>
-          <tr><td>kind</td><td>{artifact.kind}</td></tr>
-          <tr><td>path</td><td>{artifact.relative_path}</td></tr>
-          {artifact.canonical_hash && <tr><td>canonical hash</td><td>{artifact.canonical_hash}</td></tr>}
-          {artifact.invariant_fire_count != null && <tr><td>invariant fires</td><td>{artifact.invariant_fire_count}</td></tr>}
-          {meta.map(([key, value]) => (
-            <tr key={key}><td>{key}</td><td>{String(value ?? "null")}</td></tr>
-          ))}
-        </tbody>
-      </table>
-      {artifact.warnings.length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <Kicker style={{ marginBottom: 8 }}>WARNINGS</Kicker>
-          {artifact.warnings.map((warning, idx) => (
-            <div key={idx} style={{ color: "var(--rt-fog-dim)", font: "400 12px/1.5 Inter", marginBottom: 6 }}>
-              {warning.message} Next: {warning.next_action}
+    <div className="card" style={{ padding: 0, marginTop: 18 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "12px 16px",
+          background: "transparent",
+          border: 0,
+          color: "inherit",
+          cursor: "pointer",
+          textAlign: "left"
+        }}
+      >
+        <Icon name={open ? "chevronDown" : "chevron"} size={11} color="var(--rt-fog-dim)" />
+        <Kicker>ARTIFACT DETAILS</Kicker>
+        {hasWarnings && (
+          <span style={{ marginLeft: "auto" }}>
+            <Pill kind="warn">{artifact.warnings.length} warning{artifact.warnings.length === 1 ? "" : "s"}</Pill>
+          </span>
+        )}
+      </button>
+      {open && (
+        <div style={{ padding: "0 16px 16px" }}>
+          <table className="ptable">
+            <tbody>
+              <tr><td>id</td><td>{artifact.id}</td></tr>
+              <tr><td>kind</td><td>{artifact.kind}</td></tr>
+              <tr><td>path</td><td>{artifact.relative_path}</td></tr>
+              {artifact.canonical_hash && <tr><td>canonical hash</td><td>{artifact.canonical_hash}</td></tr>}
+              {artifact.invariant_fire_count != null && <tr><td>invariant fires</td><td>{artifact.invariant_fire_count}</td></tr>}
+              {meta.map(([key, value]) => (
+                <tr key={key}><td>{key}</td><td>{String(value ?? "null")}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          {hasWarnings && (
+            <div style={{ marginTop: 14 }}>
+              <Kicker style={{ marginBottom: 8 }}>WARNINGS</Kicker>
+              {artifact.warnings.map((warning, idx) => (
+                <div key={idx} style={{ color: "var(--rt-fog-dim)", font: "400 12px/1.5 Inter", marginBottom: 6 }}>
+                  {warning.message} Next: {warning.next_action}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
@@ -308,21 +325,4 @@ function formatTime(value: string | null | undefined): string {
   if (!value) return "unknown";
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
-}
-
-function renderMarkdown(body: string): string {
-  try {
-    const html = marked.parse(body, { async: false });
-    return typeof html === "string" ? html : "";
-  } catch {
-    return body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
-}
-
-function formatJson(body: string): string {
-  try {
-    return JSON.stringify(JSON.parse(body), null, 2);
-  } catch {
-    return body;
-  }
 }
