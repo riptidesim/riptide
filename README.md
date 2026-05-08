@@ -21,11 +21,9 @@ and evidence packs. The CLI remains available for terminal and CI workflows.
 
 [Open Studio](#open-studio) - [What Studio Offers](#what-studio-offers) - [Run From CLI](#run-from-cli) - [Docs](#docs)
 
-<p align="center">
-  <video src="docs/assets/studio-demo.mp4" poster="docs/assets/studio-demo-poster.png" autoplay loop muted playsinline controls width="100%">
-    <img src="docs/assets/studio-demo-poster.png" alt="Riptide Studio touring the AMM workspace dashboard, campaigns, library, and reports" width="100%">
-  </video>
-</p>
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/7f3475d2-5459-4abc-983a-72d6af0f5f05" width="720" controls></video>
+</div>
 
 > [!IMPORTANT]
 > Riptide produces simulation evidence, not audit signoff. A failing cell is a
