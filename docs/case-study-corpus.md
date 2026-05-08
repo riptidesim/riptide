@@ -21,16 +21,16 @@ commands captured for the current release candidate.
 - You can use the blocked rows as an implementation queue because each row has
   a concrete missing input or adapter completion step.
 - You can point to the bundled incident shape-replay fixtures for Mango, Euler,
-  KelpDAO, and Loopscale as separate simulation evidence from this external
-  case-study corpus.
+  KelpDAO, Loopscale, and Drift as separate simulation evidence from this
+  external case-study corpus.
 
 ## What this does not prove
 
 - This does not replace an independent audit, formal verification, or a
   protocol team's own production risk process.
 - This does not show bytecode-level historical incident reproduction. Mango,
-  Euler, KelpDAO, and Loopscale ship as economic-shape replay fixtures with
-  explicit boundaries, not literal mainnet or EVM reconstructions.
+  Euler, KelpDAO, Loopscale, and Drift ship as economic-shape replay fixtures
+  with explicit boundaries, not literal mainnet or EVM reconstructions.
 - This does not make every local case-study repo executable. Eight rows still
   need adapter, IDL, account mapping, harness, or trustworthy run-artifact work.
 - This does not prove the fresh-clone path unless the fresh-clone section below
@@ -42,7 +42,7 @@ commands captured for the current release candidate.
 | --- | --- | --- |
 | Internal fixture catalog | Shipping fixtures and scenario families live in the main repo. See [Scenario family catalog](scenario-catalog.md). | These fixtures prove Riptide's bundled examples and regression hashes, not the external case-study corpus. |
 | External case-study corpus | Ten local `.riptide/` repos were inventoried. Two rows have executed demo evidence. Eight rows are blocked with concrete next actions. | This is local prerelease validation for testers and filming. It is not a statement that every external protocol is wired end to end. |
-| Historical incident shape replays | Four bundled replay fixtures ship for Mango, Euler, KelpDAO, and Loopscale. | These are machine-checkable economic-shape replays with named invariant firings and pinned hashes. They are not bytecode-level reconstructions or protocol audit claims. |
+| Historical incident shape replays | Five bundled replay fixtures ship for Mango, Euler, KelpDAO, Loopscale, and Drift. | These are machine-checkable economic-shape replays with named invariant firings and pinned hashes. They are not bytecode-level reconstructions or protocol audit claims. |
 
 ## Gate contract
 
@@ -66,7 +66,7 @@ commands captured for the current release candidate.
 | `mango-v4` | Perps / margin | blocked; external adapter candidate | Static readiness exited 0. Adapter lint exited 2. | The adapter still depends on a missing `target/idl/mango_v4.json`. The bundled Mango incident fixture is a separate shape replay and does not make this external repo executable. | Restore/build the IDL or write explicit adapter fields, then regenerate trustworthy run evidence. |
 | `marinade-liquid-stake-fork` | Liquid staking | blocked | Static readiness exited 0. Adapter lint and direct baseline exited 2. | The adapter still depends on a missing `target/idl/marinade_forking_smart_contract.json`. | Build or restore the IDL, or replace IDL-backed inference with explicit adapter fields, then rerun lint and baseline. |
 | `perpetuals` | Perpetuals | blocked | Static readiness exited 0. Adapter lint and direct baseline exited 2. | The adapter still depends on a missing `target/idl/perpetuals.json`. | Restore/build the IDL or write explicit adapter fields, then rerun lint and baseline. |
-| `protocol-v2` | Perps / Drift | blocked | Static readiness exited 0. Adapter lint exited 2. | The adapter still depends on a missing `target/idl/drift.json`; protocol-specific mocks are not supplied. | Treat this as later external-protocol ladder work after local IDL, artifacts, and mocks are available. |
+| `protocol-v2` | Perps / Drift | blocked | Static readiness exited 0. Adapter lint exited 2. | The adapter still depends on a missing `target/idl/drift.json`; protocol-specific mocks are not supplied. The bundled Drift incident fixture is a separate shape replay and does not make this external repo executable. | Treat this as later external-protocol ladder work after local IDL, artifacts, and mocks are available. |
 | `solana-program-library` | Selected SPL target | blocked | Static readiness exited 0. Adapter lint exited 2. | The broad repo is not a concrete proof-pack row as-is, and the adapter expects `target/idl/solana_program_library.json`. | Pick one SPL program target and provide local IDL/artifacts or explicit adapter fields before end-to-end work. |
 | `stablecoin-protocol` | Stablecoin | blocked | Static readiness exited 0. Adapter lint and direct baseline exited 2. | The adapter is still an incomplete stub; `[accounts]` has no account binding. | Finish account, instruction, state, action, observation, and persona mapping, then rerun lint and baseline. |
 | `whirlpools` | CLMM / AMM | blocked | Static readiness exited 0. Adapter lint exited 2. | The adapter is still an incomplete stub; `[accounts]` has no account binding. | Finish adapter mapping before attempting CLMM execution; keep this as later external-protocol ladder work. |
@@ -173,8 +173,9 @@ Accepted caveats:
 
 1. Keep public beta wording for the external corpus limited to local simulation
    evidence and guided artifact review for the two demo-ready rows.
-2. For incident claims, use the bundled Mango, Euler, KelpDAO, and Loopscale
-   shape-replay fixtures and preserve the explicit no-bytecode-replay boundary.
+2. For incident claims, use the bundled Mango, Euler, KelpDAO, Loopscale, and
+   Drift shape-replay fixtures and preserve the explicit no-bytecode-replay
+   boundary.
 3. Complete adapter account mappings or restore IDLs for blocked external rows,
    then rerun adapter lint and the baseline path for each row.
 4. Decide whether `riptide adapt` should become harness-aware or remain

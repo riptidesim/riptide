@@ -45,6 +45,12 @@ byte-stability. Replays that do not need custom
 configuration can point the replay-config JSON directly at a
 shipped adapter and skip the sibling `adapter.toml`.
 
+Current named incident-shape fixtures include Mango oracle-pump,
+Euler donate-and-liquidate, KelpDAO unbacked-LST, Loopscale
+collateral-mispricing, and Drift fake-collateral vault-drain. These
+are machine-checkable economic-shape replays with explicit boundaries,
+not byte-level historical reconstructions or audit signoff.
+
 ## `trajectory.json`
 
 Required. Declares the replay metadata plus the per-tick instruction stream.
