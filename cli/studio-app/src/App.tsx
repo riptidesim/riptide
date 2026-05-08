@@ -7,6 +7,7 @@ import { Sidebar, type SidebarCounts } from "./shell/Sidebar";
 import { FirstRunWizard } from "./shell/FirstRunWizard";
 import { AddProjectWizard } from "./shell/AddProjectWizard";
 import { CommandPalette } from "./shell/CommandPalette";
+import { HelpOverlay } from "./shell/HelpOverlay";
 import { readStudioPage, readStudioWorkspace, writeStudioLocation } from "./shell/location";
 import { type PageId } from "./shell/types";
 import type { StudioArtifactKind } from "./studioTypes";
@@ -43,8 +44,10 @@ export function App() {
   const [agents, setAgents] = useState<AgentProbe[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [counts, setCounts] = useState<SidebarCounts>({});
+  const [pendingArtifact, setPendingArtifact] = useState<{ id: string; nonce: number } | null>(null);
 
   useEffect(() => {
     api.workspaces().then((r) => setWorkspaces(r.workspaces)).catch((e) => setLoadError((e as Error).message));
@@ -87,13 +90,17 @@ export function App() {
         setPaletteOpen((v) => !v);
         return;
       }
-      if (e.key === "/" && !paletteOpen) {
-        const t = e.target as HTMLElement | null;
-        const tag = t?.tagName ?? "";
-        if (!/^(INPUT|TEXTAREA|SELECT)$/.test(tag) && !t?.isContentEditable) {
-          e.preventDefault();
-          setPaletteOpen(true);
-        }
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName ?? "";
+      const inEditable = /^(INPUT|TEXTAREA|SELECT)$/.test(tag) || !!t?.isContentEditable;
+      if (e.key === "/" && !paletteOpen && !inEditable) {
+        e.preventDefault();
+        setPaletteOpen(true);
+        return;
+      }
+      if (e.key === "?" && !paletteOpen && !inEditable) {
+        e.preventDefault();
+        setHelpOpen((v) => !v);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -129,6 +136,7 @@ export function App() {
         if (cancelled) return;
         const artifacts = artifactsRes.artifacts;
         const workspaceJobs = jobsRes.jobs.filter((job) => job.workspace_id === active.id);
+        const activeJobs = workspaceJobs.filter((job) => job.status === "queued" || job.status === "running");
         const libraryNodes = graphRes.nodes.filter(
           (node) => node.kind === "persona" || node.kind === "scenario" || node.kind === "invariant"
         );
@@ -137,7 +145,7 @@ export function App() {
             (artifact) => artifact.kind === "campaign-input" || artifact.kind === "campaign-root"
           ).length,
           library: libraryNodes.length,
-          jobs: workspaceJobs.length,
+          jobs: activeJobs.length,
           reports: artifacts.filter((artifact) => REPORT_KINDS.has(artifact.kind)).length
         });
       })
@@ -160,6 +168,12 @@ export function App() {
     setActiveWs(idx);
     writeStudioLocation(page, next.id, "push");
   }, [page, workspaces]);
+
+  const openArtifact = useCallback((artifactId: string) => {
+    setPage("reports");
+    writeStudioLocation("reports", active?.id ?? readStudioWorkspace(), "push", { artifactId });
+    setPendingArtifact({ id: artifactId, nonce: Date.now() });
+  }, [active?.id]);
 
   if (loadError) return <FullPageMessage title="Studio API unreachable" body={loadError} />;
   if (workspaces === null) return <FullPageMessage title="Loading workspace…" body="Talking to the Studio server." />;
@@ -202,7 +216,7 @@ export function App() {
     case "campaigns": body = <CampaignsPage workspaceId={active.id} onNavigate={navigateToPage} />; break;
     case "library":   body = <LibraryPage workspaceId={active.id} onNavigate={navigateToPage} />; break;
     case "jobs":      body = <JobsPage workspaceId={active.id} onNavigate={navigateToPage} />; break;
-    case "reports":   body = <ReportsPage workspaceId={active.id} onNavigate={navigateToPage} />; break;
+    case "reports":   body = <ReportsPage workspaceId={active.id} onNavigate={navigateToPage} pendingArtifact={pendingArtifact} />; break;
     case "tutorial":  body = <TutorialPage workspaceId={active.id} workspacePath={active.path} onNavigate={navigateToPage} />; break;
     case "settings":  body = <SettingsPage agents={agents} onReprobe={refreshAgents} workspace={active} pref={pref} setPref={setPref} />; break;
   }
@@ -234,7 +248,9 @@ export function App() {
         activeWs={activeWs}
         onNavigate={navigateToPage}
         onSwitchWorkspace={switchWorkspace}
+        onOpenArtifact={openArtifact}
       />
+      <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
       {addOpen && (
         <AddProjectWizard
           onClose={() => setAddOpen(false)}

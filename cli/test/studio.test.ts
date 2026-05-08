@@ -699,6 +699,26 @@ test("studio report route returns the markdown body for a run artifact", async (
   });
 });
 
+test("studio report route returns TOML bodies as TOML", async () => {
+  const root = await tmpRoot("server-report-toml");
+  await seedWorkspace(root);
+
+  await withServer({ workspace: root }, async (handle) => {
+    const payload = (await getJson(
+      `${handle.url}/api/studio/report?artifact=${encodeURIComponent("adapter:lending.toml")}`
+    )) as {
+      schema_version: string;
+      content_type: string;
+      label: string;
+      body: string;
+    };
+    assert.equal(payload.schema_version, "studio-report.v1");
+    assert.equal(payload.content_type, "toml");
+    assert.equal(payload.label, "lending.toml");
+    assert.match(payload.body, /\[semantics\]/);
+  });
+});
+
 test("studio dashboard mount returns collection compatible with the existing dashboard", async () => {
   const root = await tmpRoot("server-dashboard-mount");
   await seedWorkspace(root);

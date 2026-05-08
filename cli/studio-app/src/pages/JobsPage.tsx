@@ -19,6 +19,7 @@ export function JobsPage({ workspaceId, onNavigate }: JobsPageProps) {
   const [tab, setTab] = useState<StatusTab>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   async function refresh(cancelled?: () => boolean) {
     try {
@@ -65,9 +66,31 @@ export function JobsPage({ workspaceId, onNavigate }: JobsPageProps) {
     setJobs((current) => current.map((row) => row.id === job.id ? res.job : row));
   }
 
+  async function manualRefresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   return (
     <div>
-      <PageLabel>JOB QUEUE</PageLabel>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+        <PageLabel>JOB QUEUE</PageLabel>
+        <button
+          className="side__icon-btn"
+          onClick={manualRefresh}
+          title="Refresh jobs"
+          disabled={refreshing || loading}
+          aria-label="Refresh jobs"
+          style={{ marginBottom: 24 }}
+        >
+          <Icon name="refresh" size={13} />
+        </button>
+      </div>
       {loading && <JobsEmpty title="Loading jobs" body="Fetching persisted and in-memory jobs from the Studio queue." />}
       {error && <JobsEmpty title="Studio API error" body={error} />}
       {!loading && !error && jobs.length === 0 && (

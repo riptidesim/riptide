@@ -4,6 +4,7 @@ import { api } from "../api";
 import type { StudioSourcePayload } from "../studioTypes";
 import { Icon } from "./Icon";
 import { Kicker } from "./primitives";
+import { SyntaxBlock } from "./SyntaxBlock";
 
 interface SourceBlockProps {
   workspaceId: string;
@@ -76,26 +77,19 @@ export function SourceBlock({ workspaceId, sourcePath, title = "SOURCE" }: Sourc
         </div>
       )}
       {payload && (
-        <pre
-          style={{
-            margin: 0,
-            padding: 14,
-            background: "#0A1620",
-            border: "1px solid var(--rt-slate-line)",
-            borderRadius: 6,
-            font: '400 12.5px/1.55 "IBM Plex Mono", monospace',
-            color: "var(--rt-fg-2)",
-            overflow: "auto",
-            maxHeight: 440,
-            whiteSpace: "pre",
-            tabSize: 2
-          }}
-        >
-          {payload.content}
-        </pre>
+        <SyntaxBlock
+          content={payload.content}
+          language={languageForPath(payload.path)}
+          maxHeight={440}
+          ariaLabel={`${payload.path} source`}
+        />
       )}
     </div>
   );
+}
+
+function languageForPath(path: string): "plain" | "toml" {
+  return path.endsWith(".toml") ? "toml" : "plain";
 }
 
 function formatBytes(bytes: number): string {

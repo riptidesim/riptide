@@ -4,8 +4,6 @@ import { Icon } from "../ui/Icon";
 import { AgentChip } from "./AgentChip";
 import { NAV, type PageId } from "./types";
 
-const MAX_WORKSPACE_LABEL_WORDS = 12;
-
 export type SidebarCounts = Partial<Record<PageId, number>>;
 
 interface SidebarProps {
@@ -22,7 +20,6 @@ interface SidebarProps {
 export function Sidebar({ page, setPage, ws, agents, pref, setPref, onOpenSearch, counts }: SidebarProps) {
   const isMac = typeof navigator !== "undefined" && navigator.platform.toLowerCase().includes("mac");
   const shortcut = isMac ? "⌘K" : "Ctrl K";
-  const workspaceLabel = shortenWorkspaceLabel(ws.label);
 
   return (
     <aside className="side">
@@ -31,7 +28,7 @@ export function Sidebar({ page, setPage, ws, agents, pref, setPref, onOpenSearch
         style={{ flexDirection: "column", alignItems: "stretch", gap: 8, padding: "14px 14px 12px" }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="side__title" title={ws.label}>{workspaceLabel}</span>
+          <span className="side__title" title={ws.label}>{ws.label}</span>
           <div style={{ flex: 1 }} />
           <button
             className="side__icon-btn"
@@ -65,7 +62,7 @@ export function Sidebar({ page, setPage, ws, agents, pref, setPref, onOpenSearch
                 <Icon name={n.icon} size={15} />
               </span>
               <span className="side__item-label">{n.label}</span>
-              {badge != null && (
+              {badge != null && badge > 0 && (
                 <span className={`side__item-badge${n.badgeAccent ? " side__item-badge--accent" : ""}`}>
                   {badge}
                 </span>
@@ -98,10 +95,4 @@ export function Sidebar({ page, setPage, ws, agents, pref, setPref, onOpenSearch
       </div>
     </aside>
   );
-}
-
-function shortenWorkspaceLabel(label: string): string {
-  const words = label.trim().split(/\s+/).filter(Boolean);
-  if (words.length <= MAX_WORKSPACE_LABEL_WORDS) return label;
-  return `${words.slice(0, MAX_WORKSPACE_LABEL_WORDS).join(" ")}...`;
 }

@@ -161,7 +161,7 @@ export interface StudioJobPlanResponse {
   plan: JobPlanPreview;
 }
 
-export type StudioReportContentType = "markdown" | "json";
+export type StudioReportContentType = "markdown" | "json" | "toml";
 
 export interface StudioReportPayload {
   schema_version: "studio-report.v1";

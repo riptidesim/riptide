@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { api } from "../api";
 import type { Job, StudioArtifactEntry } from "../studioTypes";
@@ -17,6 +17,25 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchAll = useCallback(
+    async (cancelled?: () => boolean) => {
+      try {
+        const [artifactRes, jobRes] = await Promise.all([
+          api.artifacts(workspaceId),
+          api.jobs.list(workspaceId)
+        ]);
+        if (cancelled?.()) return;
+        setArtifacts(artifactRes.artifacts);
+        setJobs(jobRes.jobs.filter((job) => job.workspace_id === workspaceId));
+        setError(null);
+      } catch (err) {
+        if (!cancelled?.()) setError((err as Error).message);
+      }
+    },
+    [workspaceId]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -24,22 +43,34 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
     setError(null);
     setArtifacts([]);
     setJobs([]);
-    Promise.all([api.artifacts(workspaceId), api.jobs.list(workspaceId)])
-      .then(([artifactRes, jobRes]) => {
-        if (cancelled) return;
-        setArtifacts(artifactRes.artifacts);
-        setJobs(jobRes.jobs.filter((job) => job.workspace_id === workspaceId));
-      })
-      .catch((err) => {
-        if (!cancelled) setError((err as Error).message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    fetchAll(() => cancelled).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
     return () => {
       cancelled = true;
     };
-  }, [workspaceId]);
+  }, [fetchAll]);
+
+  const hasActiveJobs = jobs.some((job) => job.status === "queued" || job.status === "running");
+  useEffect(() => {
+    if (!hasActiveJobs) return;
+    let cancelled = false;
+    const id = window.setInterval(() => void fetchAll(() => cancelled), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [fetchAll, hasActiveJobs]);
+
+  async function refresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await fetchAll();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const runningJobs = jobs.filter((job) => job.status === "queued" || job.status === "running");
   const campaignRoots = artifacts.filter((artifact) => artifact.kind === "campaign-root");
@@ -94,7 +125,19 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
 
   return (
     <div>
-      <PageLabel>DASHBOARD</PageLabel>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+        <PageLabel>DASHBOARD</PageLabel>
+        <button
+          className="side__icon-btn"
+          onClick={refresh}
+          title="Refresh workspace"
+          disabled={refreshing || loading}
+          aria-label="Refresh workspace"
+          style={{ marginBottom: 24 }}
+        >
+          <Icon name="refresh" size={13} />
+        </button>
+      </div>
       {loading && <InlineCard icon="refresh" title="Loading workspace" body="Fetching artifacts and jobs from the Studio API." />}
       {error && <InlineCard icon="plug" title="Studio API error" body={error} />}
       {!loading && !error && artifacts.length === 0 && jobs.length === 0 && (
@@ -198,20 +241,23 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
               <DashedGrid label="No active job" action="Queue a run from Reports" />
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-                {runningJobs.slice(0, 4).map((job) => (
+                {runningJobs.slice(0, 4).map((job) => {
+                  const argv = job.argv.join(" ");
+                  return (
                   <div key={job.id} className="simcard">
                     <div className="simcard__top">
                       <span className={`dot dot--${job.status === "running" ? "running" : "queued"}`} />
-                      <span className="simcard__name">{job.argv.join(" ")}</span>
+                      <span className="simcard__name" title={argv}>{argv}</span>
                     </div>
-                    <div className="simcard__time">{job.id}</div>
+                    <div className="simcard__time" title={job.id}>{job.id}</div>
                     <div className="simcard__divider" />
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                       <Pill kind={pillForJob(job.status)} dot={job.status === "running"}>{job.status.toUpperCase()}</Pill>
                       <span style={{ font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}>{formatTime(job.updated_at)}</span>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>

@@ -9,7 +9,7 @@ import path from "node:path";
 
 import { indexWorkspaceArtifacts } from "./artifacts.js";
 
-export type StudioReportContentType = "markdown" | "json";
+export type StudioReportContentType = "markdown" | "json" | "toml";
 
 export interface StudioReportPayload {
   schema_version: "studio-report.v1";
@@ -83,7 +83,7 @@ async function resolveTargetFile(
   if (stat.isFile()) {
     return {
       absolutePath: absPath,
-      contentType: absPath.endsWith(".json") ? "json" : "markdown",
+      contentType: contentTypeForPath(absPath),
       label: path.basename(absPath)
     };
   }
@@ -96,12 +96,18 @@ async function resolveTargetFile(
     if (candStat?.isFile()) {
       return {
         absolutePath: file,
-        contentType: file.endsWith(".json") ? "json" : "markdown",
+        contentType: contentTypeForPath(file),
         label: candidate
       };
     }
   }
   return null;
+}
+
+function contentTypeForPath(file: string): StudioReportContentType {
+  if (file.endsWith(".json")) return "json";
+  if (file.endsWith(".toml")) return "toml";
+  return "markdown";
 }
 
 function candidateFilesForKind(kind: string): readonly string[] {

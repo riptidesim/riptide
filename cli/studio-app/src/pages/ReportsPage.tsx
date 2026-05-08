@@ -6,12 +6,14 @@ import { Icon } from "../ui/Icon";
 import { JsonTree } from "../ui/JsonTree";
 import { EmptyState, Kicker, PageLabel, Pill, type PillKind } from "../ui/primitives";
 import { ReportRenderer } from "../ui/ReportRenderer";
+import { SyntaxBlock } from "../ui/SyntaxBlock";
 import { readStudioArtifact, writeStudioLocation } from "../shell/location";
 import type { PageId } from "../shell/types";
 
 interface ReportsPageProps {
   workspaceId: string;
   onNavigate?: (id: PageId) => void;
+  pendingArtifact?: { id: string; nonce: number } | null;
 }
 
 const KIND_ORDER: StudioArtifactKind[] = [
@@ -29,7 +31,7 @@ const KIND_ORDER: StudioArtifactKind[] = [
   "campaign-input"
 ];
 
-export function ReportsPage({ workspaceId, onNavigate }: ReportsPageProps) {
+export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: ReportsPageProps) {
   const [artifacts, setArtifacts] = useState<StudioArtifactEntry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [report, setReport] = useState<StudioReportPayload | null>(null);
@@ -37,7 +39,9 @@ export function ReportsPage({ workspaceId, onNavigate }: ReportsPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [collapsedKinds, setCollapsedKinds] = useState<Set<StudioArtifactKind>>(() => new Set());
+  const [query, setQuery] = useState("");
 
   function toggleKind(kind: StudioArtifactKind) {
     setCollapsedKinds((prev) => {
@@ -77,6 +81,14 @@ export function ReportsPage({ workspaceId, onNavigate }: ReportsPageProps) {
   }, [workspaceId]);
 
   useEffect(() => {
+    if (!pendingArtifact) return;
+    setSelectedId((current) => {
+      if (current === pendingArtifact.id) return current;
+      return artifacts.some((artifact) => artifact.id === pendingArtifact.id) ? pendingArtifact.id : current;
+    });
+  }, [pendingArtifact, artifacts]);
+
+  useEffect(() => {
     if (!selectedId) {
       setReport(null);
       setReportError(null);
@@ -98,8 +110,28 @@ export function ReportsPage({ workspaceId, onNavigate }: ReportsPageProps) {
     };
   }, [selectedId, workspaceId]);
 
-  const grouped = useMemo(() => groupArtifacts(artifacts), [artifacts]);
+  const filteredArtifacts = useMemo(() => filterArtifacts(artifacts, query), [artifacts, query]);
+  const grouped = useMemo(() => groupArtifacts(filteredArtifacts), [filteredArtifacts]);
   const selected = artifacts.find((artifact) => artifact.id === selectedId) ?? artifacts[0] ?? null;
+
+  async function refreshArtifacts() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const res = await api.artifacts(workspaceId);
+      setArtifacts(res.artifacts);
+      setSelectedId((current) =>
+        current && res.artifacts.some((artifact) => artifact.id === current)
+          ? current
+          : res.artifacts[0]?.id ?? null
+      );
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   async function runSelected() {
     if (!selected) return;
@@ -134,10 +166,37 @@ export function ReportsPage({ workspaceId, onNavigate }: ReportsPageProps) {
       {!loading && !error && artifacts.length > 0 && (
         <div className="lview" style={{ gridTemplateColumns: "340px 1fr" }}>
           <div className="lview__list">
-            <div className="lview__list-head">
-              <Kicker>ARTIFACTS · {artifacts.length}</Kicker>
+            <div className="lview__list-head" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <Kicker>
+                  ARTIFACTS · {query ? `${filteredArtifacts.length} / ${artifacts.length}` : artifacts.length}
+                </Kicker>
+                <button
+                  className="side__icon-btn"
+                  onClick={refreshArtifacts}
+                  title="Refresh artifacts"
+                  disabled={refreshing}
+                  aria-label="Refresh artifacts"
+                >
+                  <Icon name="refresh" size={13} />
+                </button>
+              </div>
+              <input
+                type="search"
+                className="lview__filter"
+                placeholder="Filter artifacts…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                spellCheck={false}
+                autoComplete="off"
+              />
             </div>
             <div className="lview__list-body" style={{ padding: "4px 0" }}>
+              {grouped.length === 0 && (
+                <div style={{ padding: "16px 14px", color: "var(--rt-fog-dim)", font: '400 12px Inter' }}>
+                  No artifacts match “{query}”.
+                </div>
+              )}
               {grouped.map((group) => {
                 const collapsed = collapsedKinds.has(group.kind);
                 return (
@@ -220,6 +279,9 @@ export function ReportsPage({ workspaceId, onNavigate }: ReportsPageProps) {
                   )}
                   {report && report.content_type === "markdown" && <ReportRenderer body={report.body} />}
                   {report && report.content_type === "json" && <JsonTree body={report.body} />}
+                  {report && report.content_type === "toml" && (
+                    <SyntaxBlock content={report.body} language="toml" ariaLabel={`${report.relative_path} TOML`} />
+                  )}
                   <ArtifactMeta artifact={selected} />
                 </div>
               </>
@@ -305,6 +367,15 @@ function groupArtifacts(artifacts: StudioArtifactEntry[]): Array<{ kind: StudioA
     kind,
     items: artifacts.filter((artifact) => artifact.kind === kind)
   })).filter((group) => group.items.length > 0);
+}
+
+function filterArtifacts(artifacts: StudioArtifactEntry[], query: string): StudioArtifactEntry[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return artifacts;
+  return artifacts.filter((artifact) => {
+    const haystack = `${artifact.label} ${artifact.kind} ${artifact.relative_path} ${artifact.verdict ?? ""} ${artifact.status ?? ""}`.toLowerCase();
+    return haystack.includes(q);
+  });
 }
 
 function kindLabel(kind: StudioArtifactKind): string {
