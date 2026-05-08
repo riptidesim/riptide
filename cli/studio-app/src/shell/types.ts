@@ -30,16 +30,16 @@ export type NavEntry = NavGroup | NavItem;
 
 export const NAV: NavEntry[] = [
   { kind: "item", id: "overview", label: "Overview", icon: "home" },
-  { kind: "item", id: "handoff", label: "Agent chat", icon: "handoff" },
-  { kind: "item", id: "adapter", label: "Adapter", icon: "cpu" },
+  { kind: "item", id: "handoff", label: "Agent chat", icon: "chat" },
+  { kind: "item", id: "adapter", label: "Adapter", icon: "plug" },
   { kind: "group", id: "work", label: "WORK" },
-  { kind: "item", id: "campaigns", label: "Campaigns", icon: "flame" },
-  { kind: "item", id: "library", label: "Library", icon: "book" },
+  { kind: "item", id: "campaigns", label: "Campaigns", icon: "rocket" },
+  { kind: "item", id: "library", label: "Library", icon: "library" },
   { kind: "group", id: "evidence", label: "EVIDENCE" },
-  { kind: "item", id: "jobs", label: "Job queue", icon: "queue" },
-  { kind: "item", id: "reports", label: "Reports", icon: "file" },
+  { kind: "item", id: "jobs", label: "Job queue", icon: "listTodo" },
+  { kind: "item", id: "reports", label: "Reports", icon: "fileText" },
   { kind: "group", id: "help", label: "HELP" },
-  { kind: "item", id: "tutorial", label: "Tutorial", icon: "book" }
+  { kind: "item", id: "tutorial", label: "Tutorial", icon: "compass" }
 ];
 
 export function workspaceInitials(label: string): string {

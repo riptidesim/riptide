@@ -185,7 +185,7 @@ function DashedGrid({ label, action }: { label: string; action: string }) {
             fontSize: 12
           }}
         >
-          <Icon name="queue" size={16} />
+          <Icon name="listTodo" size={16} />
           <span>{label}</span>
           {idx === 0 && <span style={{ font: '400 11px "IBM Plex Mono"' }}>{action}</span>}
         </div>

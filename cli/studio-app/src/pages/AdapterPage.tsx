@@ -63,7 +63,7 @@ export function AdapterPage({ workspaceId, onNavigate }: AdapterPageProps) {
       {!loading && !error && !adapter && (
         <div className="card" style={{ padding: 0 }}>
           <EmptyState
-            icon="cpu"
+            icon="plug"
             title="Adapter not configured"
             body="No graph node with kind adapter was returned for this workspace. Add an adapter under .riptide/adapters and refresh Studio."
             ctaLabel="Configure with agent"
@@ -113,7 +113,7 @@ export function AdapterPage({ workspaceId, onNavigate }: AdapterPageProps) {
 function AdapterShell({ title, body }: { title: string; body: string }) {
   return (
     <div className="card" style={{ padding: 0 }}>
-      <EmptyState icon="cpu" title={title} body={body} />
+      <EmptyState icon="plug" title={title} body={body} />
     </div>
   );
 }

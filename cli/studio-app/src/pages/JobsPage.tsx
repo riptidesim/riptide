@@ -170,7 +170,7 @@ export function JobsPage({ workspaceId, onNavigate }: JobsPageProps) {
 function JobsEmpty({ title, body, ctaLabel, onCta }: { title: string; body: string; ctaLabel?: string; onCta?: () => void }) {
   return (
     <div className="card" style={{ padding: 0 }}>
-      <EmptyState icon="queue" title={title} body={body} ctaLabel={ctaLabel} onCta={onCta} />
+      <EmptyState icon="listTodo" title={title} body={body} ctaLabel={ctaLabel} onCta={onCta} />
     </div>
   );
 }

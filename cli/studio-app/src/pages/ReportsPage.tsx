@@ -218,7 +218,7 @@ export function ReportsPage({ workspaceId, onNavigate }: ReportsPageProps) {
 function ReportsEmpty({ title, body, ctaLabel, onCta }: { title: string; body: string; ctaLabel?: string; onCta?: () => void }) {
   return (
     <div className="card" style={{ padding: 0 }}>
-      <EmptyState icon="file" title={title} body={body} ctaLabel={ctaLabel} onCta={onCta} />
+      <EmptyState icon="fileText" title={title} body={body} ctaLabel={ctaLabel} onCta={onCta} />
     </div>
   );
 }

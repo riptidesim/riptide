@@ -7,7 +7,8 @@ export type IconName =
   | "external" | "copy" | "send" | "paperclip" | "stop" | "folder"
   | "terminal" | "edit" | "eye" | "refresh" | "database" | "download"
   | "sparkles" | "cpu" | "code" | "flame" | "target" | "coin" | "tx"
-  | "activity" | "flag" | "dot" | "wallet" | "branch" | "link" | "gem" | "cursorArrow" | "terminalSquare" | "waveform";
+  | "activity" | "flag" | "dot" | "wallet" | "branch" | "link" | "gem" | "cursorArrow" | "terminalSquare" | "waveform"
+  | "chat" | "rocket" | "library" | "listTodo" | "fileText" | "compass";
 
 interface IconProps {
   name: IconName;
@@ -66,7 +67,13 @@ const PATHS: Record<IconName, ReactElement> = {
   gem: <><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M11 3 8 9 12 21"/><path d="M13 3 16 9 12 21"/><path d="M2 9h20"/></>,
   cursorArrow: <><path d="M3 3l7.5 18 2.5-7.5 7.5-2.5z"/></>,
   terminalSquare: <><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="7 9 10 12 7 15"/><line x1="13" y1="15" x2="17" y2="15"/></>,
-  waveform: <><line x1="5" y1="9" x2="5" y2="15"/><line x1="9" y1="6" x2="9" y2="18"/><line x1="13" y1="9" x2="13" y2="15"/><line x1="17" y1="11" x2="17" y2="13"/><line x1="21" y1="9" x2="21" y2="15"/></>
+  waveform: <><line x1="5" y1="9" x2="5" y2="15"/><line x1="9" y1="6" x2="9" y2="18"/><line x1="13" y1="9" x2="13" y2="15"/><line x1="17" y1="11" x2="17" y2="13"/><line x1="21" y1="9" x2="21" y2="15"/></>,
+  chat: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/></>,
+  rocket: <><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></>,
+  library: <><path d="M4 4v16"/><path d="M8 4v16"/><path d="M12 4v16"/><path d="m16 6 4 14"/></>,
+  listTodo: <><rect x="3" y="5" width="6" height="6" rx="1"/><path d="m3 17 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></>,
+  fileText: <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></>,
+  compass: <><circle cx="12" cy="12" r="9"/><polygon points="16 8 13.5 13.5 8 16 10.5 10.5 16 8"/></>
 };
 
 export function Icon({ name, size = 16, color = "currentColor", strokeWidth = 1.5, style }: IconProps) {

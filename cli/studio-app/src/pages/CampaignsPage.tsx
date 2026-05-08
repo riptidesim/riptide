@@ -124,7 +124,7 @@ export function CampaignsPage({ workspaceId, onNavigate }: CampaignsPageProps) {
                   onClick={() => setSelected(artifact.id)}
                 >
                   <div className="lview__row-top">
-                    <Icon name="flame" size={13} color="var(--rt-fog-dim)" />
+                    <Icon name="rocket" size={13} color="var(--rt-fog-dim)" />
                     <span className="lview__row-name">{artifact.label}</span>
                     <Pill kind={artifact.kind === "campaign-input" ? "info" : pillForVerdict(artifact.verdict)}>
                       {artifact.kind === "campaign-input" ? "INPUT" : artifact.verdict ?? "ROOT"}
@@ -224,7 +224,7 @@ export function CampaignsPage({ workspaceId, onNavigate }: CampaignsPageProps) {
 function CampaignEmpty({ title, body, ctaLabel, onCta }: { title: string; body: string; ctaLabel?: string; onCta?: () => void }) {
   return (
     <div className="card" style={{ padding: 0 }}>
-      <EmptyState icon="flame" title={title} body={body} ctaLabel={ctaLabel} onCta={onCta} />
+      <EmptyState icon="rocket" title={title} body={body} ctaLabel={ctaLabel} onCta={onCta} />
     </div>
   );
 }
