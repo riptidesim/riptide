@@ -614,6 +614,7 @@ function minimalGenericAdapter(overrides: Partial<Adapter> = {}): Adapter {
       keeper: {
         label: "Keeper",
         action_rate_multiplier: 1,
+        amount: 1,
         action_weights: { refresh: 1 },
         triggers: [],
         persona_args: {},

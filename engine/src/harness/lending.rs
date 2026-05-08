@@ -201,7 +201,13 @@ impl LendingProgramClient {
     /// `amount` from the donor's collateral without rechecking the
     /// health factor — used by the Euler-shape proof pack to drive an
     /// underwater donor into a liquidator-driven bad-debt cascade.
-    pub fn donate(&self, owner: Pubkey, pool: Pubkey, position: Pubkey, amount: u64) -> Instruction {
+    pub fn donate(
+        &self,
+        owner: Pubkey,
+        pool: Pubkey,
+        position: Pubkey,
+        amount: u64,
+    ) -> Instruction {
         self.ix(
             vec![
                 AccountMeta::new_readonly(owner, true),

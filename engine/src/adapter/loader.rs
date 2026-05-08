@@ -2127,6 +2127,13 @@ fn validate_generic(adapter: &Adapter, path: &str) -> Result<(), AdapterError> {
                 reason: "action_rate_multiplier must be a finite non-negative float".into(),
             });
         }
+        if !persona.amount.is_finite() || persona.amount <= 0.0 {
+            return Err(AdapterError::Validation {
+                path: path.to_string(),
+                key: format!("[personas].{persona_name}.amount"),
+                reason: "amount must be a finite positive float".into(),
+            });
+        }
 
         for action_name in persona.action_weights.keys() {
             if !adapter.actions.contains_key(action_name) {
@@ -2769,9 +2776,7 @@ fn validate_trigger_condition(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapter::schema::{
-        InstructionMapping, ObservationType, Protocol, SemanticClassRef, LENDING_ACTIONS,
-    };
+    use crate::adapter::schema::{InstructionMapping, ObservationType, Protocol, SemanticClassRef};
 
     fn sample_lending_toml() -> &'static str {
         r#"
@@ -3073,6 +3078,7 @@ protocol = "lending"
             ("perps-margin.v1", SemanticClassRef::PerpsMarginV1),
             ("lst.v1", SemanticClassRef::LstV1),
             ("stablecoin.v1", SemanticClassRef::StablecoinV1),
+            ("token.v1", SemanticClassRef::TokenV1),
         ];
 
         for (class, class_ref) in cases {

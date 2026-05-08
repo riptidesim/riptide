@@ -147,6 +147,7 @@ test("AdapterSchema accepts a generic adapter shape", () => {
     personas: {
       grinder: {
         action_rate_multiplier: 1.5,
+        amount: 250,
         action_weights: { mine: 1, craft: 0.2 },
         triggers: [{ if: "player.wood < 10", then: "mine", weight_boost: 2 }],
       },
@@ -158,6 +159,7 @@ test("AdapterSchema accepts a generic adapter shape", () => {
   assert.equal(adapter.program_so, raw.program_so);
   assert.equal(adapter.idl_path, raw.idl_path);
   assert.equal(adapter.accounts.player.kind, "agent");
+  assert.equal(adapter.personas.grinder.amount, 250);
 });
 
 test("validateAdapter expands IDL-backed space, bindings, actions, and auto observations", async () => {

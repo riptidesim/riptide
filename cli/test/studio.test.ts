@@ -4,7 +4,11 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { startStudioServer, type StudioServerHandle } from "../src/studio/server.js";
+import {
+  parseGjsPortalDirectoryPickerOutput,
+  startStudioServer,
+  type StudioServerHandle
+} from "../src/studio/server.js";
 import {
   discoverStudioWorkspaces,
   type StudioWorkspace
@@ -589,6 +593,26 @@ test("studio directory picker route returns an allowlisted selected path", async
       assert.equal(body.cancelled, false);
     }
   );
+});
+
+test("studio xdg portal picker parser extracts selected folder path", () => {
+  assert.deepEqual(parseGjsPortalDirectoryPickerOutput("OK\t/home/you/code/my program\n"), {
+    kind: "success",
+    path: "/home/you/code/my program"
+  });
+});
+
+test("studio xdg portal picker parser reports cancellation", () => {
+  assert.deepEqual(parseGjsPortalDirectoryPickerOutput("CANCEL\n"), {
+    kind: "cancelled"
+  });
+});
+
+test("studio xdg portal picker parser reports helper failures", () => {
+  assert.deepEqual(parseGjsPortalDirectoryPickerOutput("UNAVAILABLE\tportal returned no URI\n"), {
+    kind: "unavailable",
+    message: "portal returned no URI"
+  });
 });
 
 test("studio browse-directory route lists child directories without native dialogs", async () => {

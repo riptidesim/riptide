@@ -422,14 +422,23 @@ fn default_action_rate_multiplier() -> f64 {
     1.0
 }
 
+fn default_persona_amount() -> f64 {
+    1.0
+}
+
 /// Generic persona definition block.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PersonaDefinition {
     #[serde(default)]
     pub label: Option<String>,
     /// Multiplies all non-noop action scores. Higher => acts more often.
     #[serde(default = "default_action_rate_multiplier")]
     pub action_rate_multiplier: f64,
+    /// Fixed runtime amount supplied to amount-bound instruction args.
+    /// Defaults to the legacy value of 1 so existing adapters keep the
+    /// same action sizing unless they opt into larger campaign pressure.
+    #[serde(default = "default_persona_amount")]
+    pub amount: f64,
     /// Per-action weights referenced by the agent runtime when the
     /// generic primitive is active.
     #[serde(default)]
@@ -454,6 +463,19 @@ pub struct PersonaDefinition {
     /// rules as literal-bound args).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub persona_args: BTreeMap<String, ArgLiteral>,
+}
+
+impl Default for PersonaDefinition {
+    fn default() -> Self {
+        Self {
+            label: None,
+            action_rate_multiplier: default_action_rate_multiplier(),
+            amount: default_persona_amount(),
+            action_weights: BTreeMap::new(),
+            triggers: Vec::new(),
+            persona_args: BTreeMap::new(),
+        }
+    }
 }
 
 /// Parsed adapter TOML.
@@ -597,6 +619,7 @@ pub const SUPPORTED_SEMANTIC_CLASSES: &[&str] = &[
     "perps-margin.v1",
     "lst.v1",
     "stablecoin.v1",
+    "token.v1",
 ];
 
 pub const LENDING_V1_REQUIRED_ROLES: &[&str] =
@@ -680,6 +703,11 @@ pub const STABLECOIN_V1_REQUIRED_DERIVED: &[&str] = &[
     "hedge_gap_value",
 ];
 
+pub const TOKEN_V1_REQUIRED_ROLES: &[&str] = &["source_account", "destination_account", "mint"];
+
+pub const TOKEN_V1_REQUIRED_DERIVED: &[&str] =
+    &["source_balance", "destination_balance", "mint_supply"];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SemanticClassRef {
     LendingV1,
@@ -687,6 +715,7 @@ pub enum SemanticClassRef {
     PerpsMarginV1,
     LstV1,
     StablecoinV1,
+    TokenV1,
 }
 
 impl SemanticClassRef {
@@ -697,6 +726,7 @@ impl SemanticClassRef {
             Self::PerpsMarginV1 => "perps-margin.v1",
             Self::LstV1 => "lst.v1",
             Self::StablecoinV1 => "stablecoin.v1",
+            Self::TokenV1 => "token.v1",
         }
     }
 }
@@ -739,6 +769,12 @@ pub const SEMANTIC_CLASS_REQUIREMENTS: &[SemanticClassRequirements] = &[
         class_ref: SemanticClassRef::StablecoinV1,
         required_roles: STABLECOIN_V1_REQUIRED_ROLES,
         required_derived: STABLECOIN_V1_REQUIRED_DERIVED,
+    },
+    SemanticClassRequirements {
+        class: "token.v1",
+        class_ref: SemanticClassRef::TokenV1,
+        required_roles: TOKEN_V1_REQUIRED_ROLES,
+        required_derived: TOKEN_V1_REQUIRED_DERIVED,
     },
 ];
 

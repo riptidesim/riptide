@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { api } from "../api";
 import type { Job, StudioArtifactEntry } from "../studioTypes";
+import { Donut, HorizontalBars, LineChart } from "../ui/charts";
 import { Icon } from "../ui/Icon";
 import { EmptyState, Kicker, PageLabel, Pill, type PillKind } from "../ui/primitives";
 import type { PageId } from "../shell/types";
@@ -48,6 +49,42 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
     ["run-collection", "last-run", "run", "campaign-root", "pack", "guided-sim", "readiness-report", "markdown-summary"].includes(artifact.kind)
   );
   const verdictMix = useMemo(() => summarizeVerdicts(artifacts), [artifacts]);
+  const coverageBars = useMemo(() => summarizeCoverage(artifacts), [artifacts]);
+  const invariantBars = useMemo(() => topInvariantPressure(artifacts), [artifacts]);
+  const activitySeries = useMemo(() => activityByDay(artifacts, 14), [artifacts]);
+  const activityLabels = useMemo(() => activityLabelsFor(14), []);
+  const activityTotal = activitySeries.reduce((sum, n) => sum + n, 0);
+
+  const analyticsCards: Array<{ key: string; title: string; meta?: string; body: ReactNode }> = [];
+  if (verdictMix.count > 0) {
+    analyticsCards.push({
+      key: "verdict",
+      title: "VERDICT BREAKDOWN",
+      body: (
+        <Donut
+          pass={verdictMix.buckets.pass}
+          fail={verdictMix.buckets.fail}
+          inconclusive={verdictMix.buckets.inconclusive}
+          legend={<VerdictLegend buckets={verdictMix.buckets} />}
+        />
+      )
+    });
+  }
+  if (activityTotal > 0) {
+    analyticsCards.push({
+      key: "activity",
+      title: "ACTIVITY · 14 DAYS",
+      meta: `${activityTotal} updates`,
+      body: <div style={{ width: "100%" }}><LineChart data={activitySeries} labels={activityLabels} h={88} /></div>
+    });
+  }
+  if (coverageBars) {
+    analyticsCards.push({
+      key: "coverage",
+      title: "COVERAGE",
+      body: <div style={{ width: "100%" }}><HorizontalBars data={coverageBars} labelWidth={88} /></div>
+    });
+  }
 
   return (
     <div>
@@ -73,6 +110,36 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
             <MetricCard label="JOBS" value={String(runningJobs.length)} sub="queued or running now" />
             <VerdictMetricCard summary={verdictMix} />
           </div>
+
+          {analyticsCards.length > 0 && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${analyticsCards.length}, minmax(0, 1fr))`,
+                gap: 12,
+                marginBottom: 18
+              }}
+            >
+              {analyticsCards.map((card) => (
+                <div key={card.key} className="card" style={{ padding: 16, display: "flex", flexDirection: "column" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+                    <Kicker>{card.title}</Kicker>
+                    {card.meta && <span style={{ font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}>{card.meta}</span>}
+                  </div>
+                  <div style={{ flex: 1, display: "flex", alignItems: "center" }}>{card.body}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {invariantBars.length > 0 && (
+            <section style={{ marginBottom: 18 }}>
+              <div className="card" style={{ padding: 16 }}>
+                <Kicker style={{ marginBottom: 12 }}>INVARIANT PRESSURE · TOP RUNS</Kicker>
+                <HorizontalBars data={invariantBars} />
+              </div>
+            </section>
+          )}
 
           <section style={{ marginBottom: 18 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
@@ -158,6 +225,25 @@ function VerdictMetricCard({ summary }: { summary: VerdictSummary }) {
   );
 }
 
+function VerdictLegend({ buckets }: { buckets: VerdictBuckets }) {
+  const rows: Array<{ label: string; value: number; color: string }> = [
+    { label: "Pass", value: buckets.pass, color: "#22C55E" },
+    { label: "Fail", value: buckets.fail, color: "#EF4444" },
+    { label: "Inconclusive", value: buckets.inconclusive, color: "#7A8A99" }
+  ];
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      {rows.map((row) => (
+        <div key={row.label} style={{ display: "flex", alignItems: "center", gap: 8, font: '400 12px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}>
+          <span style={{ width: 10, height: 10, borderRadius: 2, background: row.color, display: "inline-block" }} />
+          <span style={{ color: "var(--rt-off-white)", minWidth: 28, textAlign: "right" }}>{row.value}</span>
+          <span>{row.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function InlineCard({ icon, title, body }: { icon: "refresh" | "plug"; title: string; body: string }) {
   return (
     <div className="card" style={{ padding: 0 }}>
@@ -212,11 +298,18 @@ function PipelineRow({ label, count, sub, onClick, last }: { label: string; coun
   );
 }
 
+interface VerdictBuckets {
+  pass: number;
+  fail: number;
+  inconclusive: number;
+}
+
 interface VerdictSummary {
   count: number;
   label: string;
   detail: string;
   kind: PillKind;
+  buckets: VerdictBuckets;
 }
 
 function summarizeVerdicts(artifacts: StudioArtifactEntry[]): VerdictSummary {
@@ -231,8 +324,21 @@ function summarizeVerdicts(artifacts: StudioArtifactEntry[]): VerdictSummary {
     counts.set(verdict, (counts.get(verdict) ?? 0) + 1);
   }
   const sorted = [...counts.entries()];
-  if (sorted.length === 0) return { count: 0, label: "No verdicts", detail: "No verdict metadata yet", kind: "neutral" };
+  if (sorted.length === 0) {
+    return { count: 0, label: "No verdicts", detail: "No verdict metadata yet", kind: "neutral", buckets: { pass: 0, fail: 0, inconclusive: 0 } };
+  }
   return verdictSummaryFromCounts(sorted, "run artifacts");
+}
+
+function bucketize(counts: Array<[string, number]>): VerdictBuckets {
+  const buckets: VerdictBuckets = { pass: 0, fail: 0, inconclusive: 0 };
+  for (const [key, value] of counts) {
+    const kind = pillForVerdict(key);
+    if (kind === "pass") buckets.pass += value;
+    else if (kind === "fail") buckets.fail += value;
+    else buckets.inconclusive += value;
+  }
+  return buckets;
 }
 
 function verdictSummaryFromCounts(counts: Array<[string, number]>, source: string): VerdictSummary {
@@ -244,11 +350,84 @@ function verdictSummaryFromCounts(counts: Array<[string, number]>, source: strin
     count: total,
     label: humanizeVerdict(dominant),
     kind: pillForVerdict(dominant),
+    buckets: bucketize(counts),
     detail:
       sorted.length === 1
         ? `${dominantCount} ${scenarioLabel} in ${source}`
         : `${total} ${scenarioLabel} · ${sorted.map(([key, value]) => `${value} ${humanizeVerdict(key).toLowerCase()}`).join(" · ")}`
   };
+}
+
+function summarizeCoverage(artifacts: StudioArtifactEntry[]): { label: string; value: number; color: string }[] | null {
+  const runCollection = artifacts.find((artifact) => artifact.id === "run-collection");
+  let totals = runCollection?.totals_by_coverage;
+  if (!totals || Object.keys(totals).length === 0) {
+    const merged = new Map<string, number>();
+    for (const artifact of artifacts) {
+      for (const [key, value] of Object.entries(artifact.totals_by_coverage ?? {})) {
+        merged.set(key, (merged.get(key) ?? 0) + value);
+      }
+    }
+    if (merged.size === 0) return null;
+    totals = Object.fromEntries(merged);
+  }
+  const entries = Object.entries(totals).filter(([, value]) => value > 0);
+  if (entries.length === 0) return null;
+  return entries
+    .sort((a, b) => b[1] - a[1])
+    .map(([key, value]) => ({ label: humanizeCoverage(key), value, color: colorForCoverage(key) }));
+}
+
+function colorForCoverage(key: string): string {
+  const k = key.toLowerCase();
+  if (k === "exercised" || k.includes("high") || k.includes("full") || k.includes("complete")) return "#22C55E";
+  if (k === "partial" || k.includes("partial") || k.includes("med")) return "#F59E0B";
+  if (k === "unexercised" || k.includes("low") || k.includes("none") || k.includes("empty") || k.includes("missing")) return "#EF4444";
+  return "#7A8A99";
+}
+
+function humanizeCoverage(key: string): string {
+  return key.replace(/[-_]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function topInvariantPressure(artifacts: StudioArtifactEntry[]): { label: string; value: number; color: string }[] {
+  return artifacts
+    .filter((artifact) => artifact.kind === "run" && (artifact.invariant_fire_count ?? 0) > 0)
+    .sort((a, b) => (b.invariant_fire_count ?? 0) - (a.invariant_fire_count ?? 0))
+    .slice(0, 5)
+    .map((artifact) => ({
+      label: artifact.label,
+      value: artifact.invariant_fire_count ?? 0,
+      color: "#14B8B6"
+    }));
+}
+
+function activityLabelsFor(days: number): string[] {
+  const labels: string[] = [];
+  const now = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 1000 * 60 * 60 * 24);
+    if (i === 0) labels.push("Today");
+    else if (i === 1) labels.push("Yesterday");
+    else labels.push(d.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
+  }
+  return labels;
+}
+
+function activityByDay(artifacts: StudioArtifactEntry[], days: number): number[] {
+  const now = Date.now();
+  const dayMs = 1000 * 60 * 60 * 24;
+  const buckets = new Array(days).fill(0);
+  for (const artifact of artifacts) {
+    if (!artifact.updated_at) continue;
+    const t = Date.parse(artifact.updated_at);
+    if (Number.isNaN(t)) continue;
+    const diff = Math.floor((now - t) / dayMs);
+    if (diff >= 0 && diff < days) {
+      buckets[days - 1 - diff]++;
+    }
+  }
+  return buckets;
 }
 
 function compactCounts(counts: Record<string, number> | undefined): Array<[string, number]> {

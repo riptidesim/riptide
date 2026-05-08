@@ -101,6 +101,46 @@ test("campaign materialization expansion: sampled coordinates change effective g
   assert.deepEqual([...observedScenarios].sort(), ["bank-run", "price-shock"]);
 });
 
+test("campaign materialization reuses run-config persona count maps for whale share", async () => {
+  const root = await materializationFixtureRoot({
+    personas: {
+      maker: 4,
+      taker: 4,
+      liquidator: 2
+    }
+  });
+  const spec = parseCampaignToml(
+    materializationCampaignToml(),
+    path.join(root, "campaign.toml")
+  );
+
+  const plan = await buildCampaignExpansion(spec, { cwd: root, maxRuns: 8 });
+  const declaredPersonas = new Set(["maker", "taker", "liquidator"]);
+
+  for (const run of plan.runs) {
+    const config = JSON.parse(run.runConfigJson) as {
+      agents: number;
+      campaign: { sampled_parameters: Record<string, unknown> };
+      personas: string[];
+    };
+    const params = config.campaign.sampled_parameters;
+    const whaleShareBps = Number(params.whale_share_bps);
+    const expectedConcentratedAgents = Math.max(
+      1,
+      Math.min(10, Math.round((10 * whaleShareBps) / 10_000))
+    );
+
+    assert.equal(config.agents, config.personas.length);
+    assert.ok(config.personas.every((persona) => declaredPersonas.has(persona)));
+    assert.deepEqual(
+      config.personas.slice(0, expectedConcentratedAgents),
+      Array.from({ length: expectedConcentratedAgents }, () => "maker")
+    );
+    assert.ok(config.personas.includes("taker"));
+    assert.ok(config.personas.includes("liquidator"));
+  }
+});
+
 test("campaign expansion determinism: range seed policies stay inside the declared range", async () => {
   const root = await campaignFixtureRoot();
   const spec = parseCampaignToml(
@@ -209,7 +249,7 @@ async function campaignFixtureRoot(): Promise<string> {
   return root;
 }
 
-async function materializationFixtureRoot(): Promise<string> {
+async function materializationFixtureRoot(options: { personas?: unknown } = {}): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "riptide-campaign-materialization-"));
   await mkdir(path.join(root, "fixtures", "adapters"), { recursive: true });
   await mkdir(path.join(root, "fixtures", "personas"), { recursive: true });
@@ -230,7 +270,7 @@ async function materializationFixtureRoot(): Promise<string> {
         agents: 10,
         ticks: 20,
         scenario: "price-shock",
-        personas: Array.from({ length: 10 }, () => "steady-lp"),
+        personas: options.personas ?? Array.from({ length: 10 }, () => "steady-lp"),
         validator_url: "unused",
         output_path: "template-output"
       },

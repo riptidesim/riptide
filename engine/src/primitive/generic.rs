@@ -239,7 +239,7 @@ where
             triggers,
             position_sizing: PositionSizing {
                 strategy: PositionSizingStrategy::Fixed,
-                params: BTreeMap::from([("amount".into(), 1.0)]),
+                params: BTreeMap::from([("amount".into(), persona.amount)]),
             },
             max_exposure: 1.0,
             // carry persona-supplied named args into the
@@ -886,7 +886,7 @@ fn parse_trigger_value(raw: &str) -> TriggerValue {
 /// Encode the runtime-computed `amount` (always a `u64` at the
 /// decision layer) into the byte slot an IDL arg of type `ty`
 /// occupies. Mirrors the single-arg code path plus the
-/// scalar additions (`u32`, `u8`). Range overflow
+/// scalar additions (`u32`, `u16`, `u8`). Range overflow
 /// surfaces as an adapter error — a u64 amount wider than the
 /// declared target type is always a misconfiguration.
 fn encode_runtime_amount(
@@ -919,6 +919,36 @@ fn encode_runtime_amount(
             out.extend_from_slice(&(amount as u32).to_le_bytes());
             Ok(())
         }
+        GenericTypeRef::Primitive(name) if name == "i32" => {
+            if amount > i32::MAX as u64 {
+                bail!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `i32` \
+                     but runtime amount {amount} exceeds i32::MAX"
+                );
+            }
+            out.extend_from_slice(&(amount as i32).to_le_bytes());
+            Ok(())
+        }
+        GenericTypeRef::Primitive(name) if name == "u16" => {
+            if amount > u64::from(u16::MAX) {
+                bail!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `u16` \
+                     but runtime amount {amount} exceeds u16::MAX"
+                );
+            }
+            out.extend_from_slice(&(amount as u16).to_le_bytes());
+            Ok(())
+        }
+        GenericTypeRef::Primitive(name) if name == "i16" => {
+            if amount > i16::MAX as u64 {
+                bail!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `i16` \
+                     but runtime amount {amount} exceeds i16::MAX"
+                );
+            }
+            out.extend_from_slice(&(amount as i16).to_le_bytes());
+            Ok(())
+        }
         GenericTypeRef::Primitive(name) if name == "u8" => {
             if amount > u64::from(u8::MAX) {
                 bail!(
@@ -931,7 +961,7 @@ fn encode_runtime_amount(
         }
         other => bail!(
             "instruction `{instruction_name}` arg `{arg_name}`: runtime-bound args only \
-             support `u64`/`i64`/`u32`/`u8` (got `{other:?}`). For `bool`/`pubkey` args, \
+             support `u64`/`i64`/`u32`/`i32`/`u16`/`i16`/`u8` (got `{other:?}`). For `bool`/`pubkey` args, \
              declare a literal under `[instructions].{instruction_name}.args.{arg_name}`."
         ),
     }
@@ -994,6 +1024,39 @@ fn encode_literal_arg(
             out.extend_from_slice(&(value as u32).to_le_bytes());
             Ok(())
         }
+        GenericTypeRef::Primitive(name) if name == "i32" => {
+            let value = literal_as_i64(literal, instruction_name, arg_name, "i32")?;
+            let narrowed = i32::try_from(value).map_err(|_| {
+                anyhow!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `i32` \
+                     but literal value {value} does not fit i32"
+                )
+            })?;
+            out.extend_from_slice(&narrowed.to_le_bytes());
+            Ok(())
+        }
+        GenericTypeRef::Primitive(name) if name == "u16" => {
+            let value = literal_as_u64(literal, instruction_name, arg_name, "u16")?;
+            if value > u64::from(u16::MAX) {
+                bail!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `u16` \
+                     but literal value {value} exceeds u16::MAX"
+                );
+            }
+            out.extend_from_slice(&(value as u16).to_le_bytes());
+            Ok(())
+        }
+        GenericTypeRef::Primitive(name) if name == "i16" => {
+            let value = literal_as_i64(literal, instruction_name, arg_name, "i16")?;
+            let narrowed = i16::try_from(value).map_err(|_| {
+                anyhow!(
+                    "instruction `{instruction_name}` arg `{arg_name}` declared as `i16` \
+                     but literal value {value} does not fit i16"
+                )
+            })?;
+            out.extend_from_slice(&narrowed.to_le_bytes());
+            Ok(())
+        }
         GenericTypeRef::Primitive(name) if name == "u8" => {
             let value = literal_as_u64(literal, instruction_name, arg_name, "u8")?;
             if value > u64::from(u8::MAX) {
@@ -1042,7 +1105,7 @@ fn encode_literal_arg(
         other => bail!(
             "instruction `{instruction_name}` arg `{arg_name}`: unsupported IDL arg type \
              `{other:?}` for literal binding. Supported: \
-             u128/i128/u64/i64/u32/u8/bool/pubkey — Option, Vec, and user-defined structs \
+             u128/i128/u64/i64/u32/i32/u16/i16/u8/bool/pubkey — Option, Vec, and user-defined structs \
              are out of scope."
         ),
     }
@@ -1303,8 +1366,22 @@ impl GenericValue {
                 })?;
                 Ok(ObservationValue::Int(narrowed))
             }
+            (GenericValue::Int(value), ObservationType::UInt) => {
+                let narrowed = u64::try_from(*value).map_err(|_| {
+                    anyhow!("generic signed observation value `{value}` is negative")
+                })?;
+                Ok(ObservationValue::UInt(narrowed))
+            }
             (GenericValue::UInt(value), ObservationType::UInt) => {
                 Ok(ObservationValue::UInt(*value))
+            }
+            (GenericValue::I128(value), ObservationType::UInt) => {
+                let narrowed = u64::try_from(*value).map_err(|_| {
+                    anyhow!(
+                        "generic i128 observation value `{value}` is negative or does not fit u64"
+                    )
+                })?;
+                Ok(ObservationValue::UInt(narrowed))
             }
             (GenericValue::U128(value), ObservationType::UInt) => {
                 let narrowed = u64::try_from(*value).map_err(|_| {
@@ -1479,6 +1556,7 @@ pub struct GenericHarness {
     adapter: Adapter,
     idl: GenericIdl,
     agent_accounts: BTreeMap<String, Vec<Pubkey>>,
+    agent_account_signers: BTreeMap<String, Vec<Option<Keypair>>>,
     shared_accounts: BTreeMap<String, Pubkey>,
     /// Runtime binding of the one declared oracle (if any) to the
     /// shared account it targets. Present only when the adapter's
@@ -1536,14 +1614,15 @@ impl GenericHarness {
         }
 
         let agent_pubkeys: Vec<Pubkey> = agents.iter().map(|agent| agent.pubkey()).collect();
-        let (agent_accounts, shared_accounts, oracle_binding) = bootstrap_generic_accounts(
-            &mut svm,
-            &config.adapter,
-            config.agent_count,
-            &program_id,
-            &admin.pubkey(),
-            &agent_pubkeys,
-        )?;
+        let (agent_accounts, agent_account_signers, shared_accounts, oracle_binding) =
+            bootstrap_generic_accounts(
+                &mut svm,
+                &config.adapter,
+                config.agent_count,
+                &program_id,
+                &admin.pubkey(),
+                &agent_pubkeys,
+            )?;
 
         Ok(Self {
             svm,
@@ -1553,6 +1632,7 @@ impl GenericHarness {
             adapter: config.adapter,
             idl,
             agent_accounts,
+            agent_account_signers,
             shared_accounts,
             oracle_binding,
             current_slot: 0,
@@ -1658,6 +1738,7 @@ impl GenericHarness {
             );
         }
         self.agent_accounts.insert(name.to_string(), pubkeys);
+        self.agent_account_signers.remove(name);
         Ok(())
     }
 
@@ -1699,6 +1780,7 @@ impl GenericHarness {
                     }
                 } else {
                     self.agent_accounts.insert(name.to_string(), pubkeys);
+                    self.agent_account_signers.remove(name);
                 }
             }
             AccountKind::Shared => {
@@ -1757,7 +1839,14 @@ impl GenericHarness {
         agent_idx: usize,
         account: &GenericInstructionAccount,
     ) -> Result<AccountMeta> {
-        let pubkey = if let Some(pubkeys) = self.agent_accounts.get(&account.name) {
+        let pubkey = if account.signer && is_admin_authority_signer_name(&account.name) {
+            self.admin.pubkey()
+        } else if account.signer && is_agent_authority_signer_name(&account.name) {
+            self.agents
+                .get(agent_idx)
+                .ok_or_else(|| anyhow!("generic agent signer index {agent_idx} out of range"))?
+                .pubkey()
+        } else if let Some(pubkeys) = self.agent_accounts.get(&account.name) {
             *pubkeys.get(agent_idx).ok_or_else(|| {
                 anyhow!(
                     "generic agent account `{}` missing index {}",
@@ -1777,13 +1866,6 @@ impl GenericHarness {
             })?
         } else if let Ok(pubkey) = well_known_pubkey(&account.name) {
             pubkey
-        } else if account.signer && is_admin_authority_signer_name(&account.name) {
-            self.admin.pubkey()
-        } else if account.signer && is_agent_authority_signer_name(&account.name) {
-            self.agents
-                .get(agent_idx)
-                .ok_or_else(|| anyhow!("generic agent signer index {agent_idx} out of range"))?
-                .pubkey()
         } else {
             let mut known: Vec<String> = self
                 .agent_accounts
@@ -1855,17 +1937,71 @@ impl GenericHarness {
         }
     }
 
+    fn keypair_for_pubkey(&self, pubkey: &Pubkey) -> Option<Keypair> {
+        if self.admin.pubkey() == *pubkey {
+            return Some(self.admin.insecure_clone());
+        }
+        if let Some(agent) = self.agents.iter().find(|agent| agent.pubkey() == *pubkey) {
+            return Some(agent.insecure_clone());
+        }
+        self.agent_account_signers
+            .values()
+            .flat_map(|signers| signers.iter())
+            .filter_map(|signer| signer.as_ref())
+            .find(|signer| signer.pubkey() == *pubkey)
+            .map(Keypair::insecure_clone)
+    }
+
+    fn signers_for_instruction(
+        &self,
+        agent_idx: usize,
+        instruction: &GenericInstruction,
+        accounts: &[AccountMeta],
+    ) -> Result<Vec<Keypair>> {
+        let mut signers = vec![self.payer_for_instruction(agent_idx, instruction)?];
+        for (idl_account, account_meta) in instruction.accounts.iter().zip(accounts.iter()) {
+            if !account_meta.is_signer {
+                continue;
+            }
+            if signers
+                .iter()
+                .any(|signer| signer.pubkey() == account_meta.pubkey)
+            {
+                continue;
+            }
+            let Some(signer) = self.keypair_for_pubkey(&account_meta.pubkey) else {
+                bail!(
+                    "generic instruction `{}` requires signer account `{}` ({}) but that \
+                     pubkey is not backed by an engine-owned keypair. Use a recognized \
+                     agent/admin signer name, bind the account to an agent/admin signer in \
+                     a harness, or model the account as a generated non-PDA agent signer.",
+                    instruction.name,
+                    idl_account.name,
+                    account_meta.pubkey
+                );
+            };
+            signers.push(signer);
+        }
+        Ok(signers)
+    }
+
     fn send_instruction(
         &mut self,
-        payer: &Keypair,
+        signers: &[Keypair],
         instruction: Instruction,
     ) -> Result<(), crate::primitive::PrimitiveError> {
         self.svm.expire_blockhash();
         let blockhash = self.svm.latest_blockhash();
+        let Some(payer) = signers.first() else {
+            return Err(crate::primitive::PrimitiveError::Infra(
+                "generic instruction dispatch had no payer signer".into(),
+            ));
+        };
+        let signer_refs: Vec<&Keypair> = signers.iter().collect();
         let tx = Transaction::new_signed_with_payer(
             &[instruction],
             Some(&payer.pubkey()),
-            &[payer],
+            &signer_refs,
             blockhash,
         );
         match self.svm.send_transaction(tx) {
@@ -2059,11 +2195,11 @@ impl crate::primitive::Primitive for GenericHarness {
             .map(|account| self.resolve_account_meta(&instruction.name, agent_idx, account))
             .collect::<Result<Vec<_>>>()
             .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
-        let payer = self
-            .payer_for_instruction(agent_idx, instruction)
+        let signers = self
+            .signers_for_instruction(agent_idx, instruction, &accounts)
             .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
         self.send_instruction(
-            &payer,
+            &signers,
             Instruction {
                 program_id: self.program_id,
                 accounts,
@@ -2110,11 +2246,11 @@ impl crate::primitive::Primitive for GenericHarness {
             .map(|account| self.resolve_account_meta(&instruction.name, 0, account))
             .collect::<Result<Vec<_>>>()
             .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
-        let payer = self
-            .payer_for_instruction(0, instruction)
+        let signers = self
+            .signers_for_instruction(0, instruction, &accounts)
             .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
         self.send_instruction(
-            &payer,
+            &signers,
             Instruction {
                 program_id: self.program_id,
                 accounts,
@@ -2145,11 +2281,11 @@ impl crate::primitive::Primitive for GenericHarness {
             .map(|account| self.resolve_account_meta(&instruction.name, agent_idx, account))
             .collect::<Result<Vec<_>>>()
             .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
-        let payer = self
-            .payer_for_instruction(agent_idx, instruction)
+        let signers = self
+            .signers_for_instruction(agent_idx, instruction, &accounts)
             .map_err(|error| crate::primitive::PrimitiveError::Infra(error.to_string()))?;
         self.send_instruction(
-            &payer,
+            &signers,
             Instruction {
                 program_id: self.program_id,
                 accounts,
@@ -2494,6 +2630,7 @@ pub(crate) fn bootstrap_generic_accounts(
     agent_signers: &[Pubkey],
 ) -> Result<(
     BTreeMap<String, Vec<Pubkey>>,
+    BTreeMap<String, Vec<Option<Keypair>>>,
     BTreeMap<String, Pubkey>,
     Option<RuntimeOracleBinding>,
 )> {
@@ -2533,7 +2670,7 @@ pub(crate) fn bootstrap_generic_accounts(
         None => None,
     };
 
-    let (agent_accounts, shared_accounts) =
+    let (agent_accounts, agent_account_signers, shared_accounts) =
         resolve_generic_account_pubkeys(adapter, agent_count, program_id, admin, agent_signers)?;
 
     for (account_name, definition) in &adapter.accounts {
@@ -2649,7 +2786,12 @@ pub(crate) fn bootstrap_generic_accounts(
         kind: binding.kind,
         confidence: binding.confidence,
     });
-    Ok((agent_accounts, shared_accounts, runtime_binding))
+    Ok((
+        agent_accounts,
+        agent_account_signers,
+        shared_accounts,
+        runtime_binding,
+    ))
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
@@ -2659,7 +2801,11 @@ fn resolve_generic_account_pubkeys(
     program_id: &Pubkey,
     admin: &Pubkey,
     agent_signers: &[Pubkey],
-) -> Result<(BTreeMap<String, Vec<Pubkey>>, BTreeMap<String, Pubkey>)> {
+) -> Result<(
+    BTreeMap<String, Vec<Pubkey>>,
+    BTreeMap<String, Vec<Option<Keypair>>>,
+    BTreeMap<String, Pubkey>,
+)> {
     if agent_signers.len() != agent_count {
         bail!(
             "generic account resolution expected {agent_count} agent signer pubkeys, got {}",
@@ -2667,6 +2813,7 @@ fn resolve_generic_account_pubkeys(
         );
     }
     let mut agent_accounts: BTreeMap<String, Vec<Pubkey>> = BTreeMap::new();
+    let mut agent_account_signers: BTreeMap<String, Vec<Option<Keypair>>> = BTreeMap::new();
     let mut shared_accounts: BTreeMap<String, Pubkey> = BTreeMap::new();
     let mut pending: std::collections::BTreeSet<String> =
         adapter.accounts.keys().cloned().collect();
@@ -2696,7 +2843,7 @@ fn resolve_generic_account_pubkeys(
                     shared_accounts.insert(account_name.clone(), pubkey);
                 }
                 AccountKind::Agent => {
-                    let Some(pubkeys) = resolve_agent_account_pubkeys(
+                    let Some((pubkeys, signers)) = resolve_agent_account_pubkeys(
                         &account_name,
                         definition,
                         agent_count,
@@ -2710,6 +2857,7 @@ fn resolve_generic_account_pubkeys(
                         continue;
                     };
                     agent_accounts.insert(account_name.clone(), pubkeys);
+                    agent_account_signers.insert(account_name.clone(), signers);
                 }
             }
             pending.remove(&account_name);
@@ -2726,7 +2874,7 @@ fn resolve_generic_account_pubkeys(
         }
     }
 
-    Ok((agent_accounts, shared_accounts))
+    Ok((agent_accounts, agent_account_signers, shared_accounts))
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
@@ -2769,7 +2917,7 @@ fn resolve_agent_account_pubkeys(
     agent_signers: &[Pubkey],
     agent_accounts: &BTreeMap<String, Vec<Pubkey>>,
     shared_accounts: &BTreeMap<String, Pubkey>,
-) -> Result<Option<Vec<Pubkey>>> {
+) -> Result<Option<(Vec<Pubkey>, Vec<Option<Keypair>>)>> {
     if definition.address.is_some() {
         bail!(
             "agent account `{account_name}` declares a literal `address`; literal addresses \
@@ -2777,9 +2925,14 @@ fn resolve_agent_account_pubkeys(
         );
     }
     let Some(pda) = definition.pda.as_ref() else {
-        return Ok(Some(
-            (0..agent_count).map(|_| Pubkey::new_unique()).collect(),
-        ));
+        let mut pubkeys = Vec::with_capacity(agent_count);
+        let mut signers = Vec::with_capacity(agent_count);
+        for _ in 0..agent_count {
+            let signer = Keypair::new();
+            pubkeys.push(signer.pubkey());
+            signers.push(Some(signer));
+        }
+        return Ok(Some((pubkeys, signers)));
     };
     let mut pubkeys = Vec::with_capacity(agent_count);
     for agent_idx in 0..agent_count {
@@ -2798,7 +2951,8 @@ fn resolve_agent_account_pubkeys(
         };
         pubkeys.push(pubkey);
     }
-    Ok(Some(pubkeys))
+    let signers = (0..agent_count).map(|_| None).collect();
+    Ok(Some((pubkeys, signers)))
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
@@ -3233,9 +3387,10 @@ fn spl_token_account_data(mint: Pubkey, authority: Pubkey, amount: u64) -> Vec<u
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
-fn is_agent_authority_signer_name(value: &str) -> bool {
+pub(crate) fn is_agent_authority_signer_name(value: &str) -> bool {
+    let normalized = normalize_idl_name(value);
     matches!(
-        normalize_idl_name(value).as_str(),
+        normalized.as_str(),
         "authority"
             | "agent"
             | "agentauthority"
@@ -3244,11 +3399,11 @@ fn is_agent_authority_signer_name(value: &str) -> bool {
             | "trader"
             | "user"
             | "userauthority"
-    )
+    ) || normalized.ends_with("owner")
 }
 
 #[cfg(any(feature = "litesvm-backend", test))]
-fn is_admin_authority_signer_name(value: &str) -> bool {
+pub(crate) fn is_admin_authority_signer_name(value: &str) -> bool {
     matches!(
         normalize_idl_name(value).as_str(),
         "admin" | "adminauthority" | "managerauthority" | "payer"
@@ -3538,6 +3693,24 @@ triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
         assert_eq!(resolved, idl_id);
     }
 
+    #[test]
+    fn generic_persona_amount_controls_policy_sizing() {
+        let mut adapter = sample_generic_adapter();
+        let persona = adapter
+            .personas
+            .get_mut("grinder")
+            .expect("sample persona exists");
+        assert_eq!(persona.amount, 1.0);
+        persona.amount = 2_500_000.0;
+
+        let policies = build_generic_policies(&adapter, |_| {}).expect("policies build");
+
+        assert_eq!(
+            policies[0].position_sizing.params.get("amount").copied(),
+            Some(2_500_000.0)
+        );
+    }
+
     fn anchor_binding_adapter() -> Adapter {
         parse_adapter_str(
             r#"
@@ -3606,6 +3779,62 @@ triggers = []
         let bytes = builder.build_action_data_single_arg("mine", 7).unwrap();
         assert_eq!(&bytes[..8], &[109, 105, 110, 101, 0, 0, 0, 0]);
         assert_eq!(u64::from_le_bytes(bytes[8..16].try_into().unwrap()), 7);
+    }
+
+    #[test]
+    fn scalar_integer_args_encode_u16_i16_and_i32() {
+        let mut runtime = Vec::new();
+        encode_runtime_amount(
+            &mut runtime,
+            &GenericTypeRef::Primitive("u16".into()),
+            513,
+            "ix",
+            "marketIndex",
+        )
+        .unwrap();
+        assert_eq!(runtime, 513_u16.to_le_bytes());
+
+        let mut literal_u16 = Vec::new();
+        encode_literal_arg(
+            &mut literal_u16,
+            &GenericTypeRef::Primitive("u16".into()),
+            &ArgLiteral::Int(42),
+            "ix",
+            "marketIndex",
+        )
+        .unwrap();
+        assert_eq!(literal_u16, 42_u16.to_le_bytes());
+
+        let mut literal_i16 = Vec::new();
+        encode_literal_arg(
+            &mut literal_i16,
+            &GenericTypeRef::Primitive("i16".into()),
+            &ArgLiteral::Int(-7),
+            "ix",
+            "signedIndex",
+        )
+        .unwrap();
+        assert_eq!(literal_i16, (-7_i16).to_le_bytes());
+
+        let mut literal_i32 = Vec::new();
+        encode_literal_arg(
+            &mut literal_i32,
+            &GenericTypeRef::Primitive("i32".into()),
+            &ArgLiteral::Int(-700),
+            "ix",
+            "signedValue",
+        )
+        .unwrap();
+        assert_eq!(literal_i32, (-700_i32).to_le_bytes());
+
+        assert!(encode_literal_arg(
+            &mut Vec::new(),
+            &GenericTypeRef::Primitive("u16".into()),
+            &ArgLiteral::Int(i64::from(u16::MAX) + 1),
+            "ix",
+            "marketIndex",
+        )
+        .is_err());
     }
 
     #[test]
@@ -4186,6 +4415,28 @@ offset = 4
     }
 
     #[test]
+    fn nonnegative_signed_values_can_satisfy_unsigned_observations() {
+        assert_eq!(
+            GenericValue::Int(42)
+                .to_observation(ObservationType::UInt)
+                .unwrap(),
+            ObservationValue::UInt(42)
+        );
+        assert_eq!(
+            GenericValue::I128(42)
+                .to_observation(ObservationType::UInt)
+                .unwrap(),
+            ObservationValue::UInt(42)
+        );
+        assert!(GenericValue::Int(-1)
+            .to_observation(ObservationType::UInt)
+            .is_err());
+        assert!(GenericValue::I128(-1)
+            .to_observation(ObservationType::UInt)
+            .is_err());
+    }
+
+    #[test]
     fn generic_persona_trigger_boosts_matching_action_score() {
         let adapter = sample_generic_adapter();
         let policies = build_generic_policies(&adapter, |_| {}).unwrap();
@@ -4244,14 +4495,15 @@ offset = 4
         let admin = Keypair::new();
         let agents = vec![Keypair::new(), Keypair::new()];
         let agent_pubkeys: Vec<Pubkey> = agents.iter().map(|agent| agent.pubkey()).collect();
-        let (agent_accounts, shared_accounts) = resolve_generic_account_pubkeys(
-            &adapter,
-            agents.len(),
-            &program_id,
-            &admin.pubkey(),
-            &agent_pubkeys,
-        )
-        .unwrap();
+        let (agent_accounts, agent_account_signers, shared_accounts) =
+            resolve_generic_account_pubkeys(
+                &adapter,
+                agents.len(),
+                &program_id,
+                &admin.pubkey(),
+                &agent_pubkeys,
+            )
+            .unwrap();
 
         let expected_market = Pubkey::find_program_address(&[b"market"], &program_id).0;
         let expected_reserve =
@@ -4262,6 +4514,9 @@ offset = 4
             agent_accounts["obligation"][0],
             agent_accounts["obligation"][1]
         );
+        assert!(agent_account_signers["obligation"]
+            .iter()
+            .all(Option::is_none));
 
         let instruction = GenericInstruction {
             name: "anchor_style".into(),
@@ -4319,6 +4574,7 @@ offset = 4
                 types: Vec::new(),
             },
             agent_accounts,
+            agent_account_signers,
             shared_accounts,
             oracle_binding: None,
             current_slot: 0,
@@ -4409,6 +4665,21 @@ offset = 4
         assert!(user_meta.is_signer);
         assert!(user_meta.is_writable);
 
+        let suffix_owner_meta = harness
+            .resolve_account_meta(
+                "settle_funds",
+                1,
+                &GenericInstructionAccount {
+                    name: "settlerOwner".into(),
+                    signer: true,
+                    writable: false,
+                    address: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(suffix_owner_meta.pubkey, harness.agents[1].pubkey());
+        assert!(suffix_owner_meta.is_signer);
+
         let manager_authority_meta = harness
             .resolve_account_meta(
                 "set_validator_score",
@@ -4460,20 +4731,102 @@ offset = 4
     }
 
     #[test]
+    fn generic_dispatch_signs_generated_agent_account_signers() {
+        let mut adapter = anchor_binding_adapter();
+        adapter.accounts.insert(
+            "ephemeralSigner".into(),
+            AccountDefinition {
+                kind: AccountKind::Agent,
+                space: 8,
+                address: None,
+                pda: None,
+                owner: None,
+                decoder: None,
+            },
+        );
+        let program_id = Pubkey::new_unique();
+        let admin = Keypair::new();
+        let agents = vec![Keypair::new()];
+        let agent_pubkeys: Vec<Pubkey> = agents.iter().map(|agent| agent.pubkey()).collect();
+        let (agent_accounts, agent_account_signers, shared_accounts) =
+            resolve_generic_account_pubkeys(
+                &adapter,
+                agents.len(),
+                &program_id,
+                &admin.pubkey(),
+                &agent_pubkeys,
+            )
+            .unwrap();
+        let generated_signer = agent_account_signers["ephemeralSigner"][0]
+            .as_ref()
+            .unwrap()
+            .pubkey();
+        assert_eq!(agent_accounts["ephemeralSigner"][0], generated_signer);
+
+        let instruction = GenericInstruction {
+            name: "ephemeral_action".into(),
+            discriminator: Vec::new(),
+            accounts: vec![GenericInstructionAccount {
+                name: "ephemeralSigner".into(),
+                signer: true,
+                writable: true,
+                address: None,
+            }],
+            args: Vec::new(),
+        };
+        let harness = GenericHarness {
+            svm: LiteSVM::new().with_builtins().with_sysvars(),
+            program_id,
+            admin,
+            agents,
+            adapter,
+            idl: GenericIdl {
+                address: None,
+                instructions: vec![instruction.clone()],
+                accounts: Vec::new(),
+                types: Vec::new(),
+            },
+            agent_accounts,
+            agent_account_signers,
+            shared_accounts,
+            oracle_binding: None,
+            current_slot: 0,
+        };
+        let metas = instruction
+            .accounts
+            .iter()
+            .map(|account| harness.resolve_account_meta("ephemeral_action", 0, account))
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+        let signers = harness
+            .signers_for_instruction(0, &instruction, &metas)
+            .unwrap();
+
+        assert_eq!(metas[0].pubkey, generated_signer);
+        assert!(signers
+            .iter()
+            .any(|signer| signer.pubkey() == harness.agents[0].pubkey()));
+        assert!(signers
+            .iter()
+            .any(|signer| signer.pubkey() == generated_signer));
+    }
+
+    #[test]
     fn imported_accounts_cannot_override_or_create_dispatch_bindings() {
         let adapter = anchor_binding_adapter();
         let program_id = Pubkey::new_unique();
         let admin = Keypair::new();
         let agents = vec![Keypair::new(), Keypair::new()];
         let agent_pubkeys: Vec<Pubkey> = agents.iter().map(|agent| agent.pubkey()).collect();
-        let (agent_accounts, shared_accounts) = resolve_generic_account_pubkeys(
-            &adapter,
-            agents.len(),
-            &program_id,
-            &admin.pubkey(),
-            &agent_pubkeys,
-        )
-        .unwrap();
+        let (agent_accounts, agent_account_signers, shared_accounts) =
+            resolve_generic_account_pubkeys(
+                &adapter,
+                agents.len(),
+                &program_id,
+                &admin.pubkey(),
+                &agent_pubkeys,
+            )
+            .unwrap();
         let expected_market = shared_accounts["market"];
         let expected_obligations = agent_accounts["obligation"].clone();
         let system_program = shared_accounts["system_program"];
@@ -4490,6 +4843,7 @@ offset = 4
                 types: Vec::new(),
             },
             agent_accounts,
+            agent_account_signers,
             shared_accounts,
             oracle_binding: None,
             current_slot: 0,
@@ -4563,6 +4917,7 @@ offset = 4
                 types: Vec::new(),
             },
             agent_accounts: BTreeMap::new(),
+            agent_account_signers: BTreeMap::new(),
             shared_accounts: BTreeMap::new(),
             oracle_binding: None,
             current_slot: 0,
@@ -4619,14 +4974,15 @@ offset = 4
         let admin = Keypair::new();
         let agents = vec![Keypair::new()];
         let agent_pubkeys: Vec<Pubkey> = agents.iter().map(|agent| agent.pubkey()).collect();
-        let (agent_accounts, shared_accounts) = resolve_generic_account_pubkeys(
-            &adapter,
-            agents.len(),
-            &program_id,
-            &admin.pubkey(),
-            &agent_pubkeys,
-        )
-        .unwrap();
+        let (agent_accounts, agent_account_signers, shared_accounts) =
+            resolve_generic_account_pubkeys(
+                &adapter,
+                agents.len(),
+                &program_id,
+                &admin.pubkey(),
+                &agent_pubkeys,
+            )
+            .unwrap();
         let harness = GenericHarness {
             svm: LiteSVM::new().with_builtins().with_sysvars(),
             program_id,
@@ -4640,6 +4996,7 @@ offset = 4
                 types: Vec::new(),
             },
             agent_accounts,
+            agent_account_signers,
             shared_accounts,
             oracle_binding: None,
             current_slot: 0,

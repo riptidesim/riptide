@@ -233,7 +233,10 @@ fn euler_donate_and_liquidate_matches_expected_summary_and_is_deterministic() {
     );
 
     assert_eq!(first.events.len(), expected.event_count);
-    assert_eq!(first.run_config.scenario, "replay:euler-donate-and-liquidate");
+    assert_eq!(
+        first.run_config.scenario,
+        "replay:euler-donate-and-liquidate"
+    );
     let invariant_rows = first
         .summary
         .get("invariants_fired")

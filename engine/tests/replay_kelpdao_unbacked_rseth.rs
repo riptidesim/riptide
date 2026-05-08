@@ -150,7 +150,9 @@ fn first_expression_firing_tick(result: &SimulationResult, invariant_name: &str)
         .and_then(|v| v.as_array())?;
     rows.iter().find_map(|row| {
         if row.get("name").and_then(|v| v.as_str()) == Some(invariant_name) {
-            row.get("first_tick").and_then(|v| v.as_u64()).map(|tick| tick as u32)
+            row.get("first_tick")
+                .and_then(|v| v.as_u64())
+                .map(|tick| tick as u32)
         } else {
             None
         }
@@ -195,12 +197,7 @@ fn dump_expected_summary() {
     let summary_subset: BTreeMap<String, Value> = result
         .summary
         .iter()
-        .filter(|(k, _)| {
-            !matches!(
-                k.as_str(),
-                "expression_invariants" | "invariants_fired"
-            )
-        })
+        .filter(|(k, _)| !matches!(k.as_str(), "expression_invariants" | "invariants_fired"))
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
 
@@ -273,7 +270,10 @@ fn kelpdao_unbacked_rseth_matches_expected_summary_and_is_deterministic() {
         .expect("replay-scoped adapter declares semantic invariants, so expression_invariants must be present");
 
     for row in expression_rows {
-        let name = row["name"].as_str().expect("invariant row name").to_string();
+        let name = row["name"]
+            .as_str()
+            .expect("invariant row name")
+            .to_string();
         let firings = row["firings"].as_u64().expect("invariant row firings") as usize;
         let expected_firings = expected
             .expression_invariant_firings

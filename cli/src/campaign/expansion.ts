@@ -366,11 +366,17 @@ function materializeSampledRunConfigFields(
 
   const whaleShareBps = nonnegativeInteger(sampledParameters.whale_share_bps);
   if (whaleShareBps !== undefined) {
-    const basePersonas = readStringArrayFromJson(config.personas);
+    const basePersonaSelection = readPersonaSelectionFromJson(config.personas);
+    const basePersonas = basePersonaSelection.ids;
     const baseAgents =
       readPositiveIntegerFromJson(config.agents) ??
       (basePersonas.length > 0 ? basePersonas.length : 1);
-    const personas = materializeWhaleShare(basePersonas, baseAgents, whaleShareBps);
+    const personas = materializeWhaleShare(
+      basePersonas,
+      baseAgents,
+      whaleShareBps,
+      basePersonaSelection.fromCountMap
+    );
     config.personas = personas;
     config.agents = personas.length;
   }
@@ -381,18 +387,28 @@ function materializeSampledRunConfigFields(
 function materializeWhaleShare(
   basePersonas: string[],
   baseAgents: number,
-  whaleShareBps: number
+  whaleShareBps: number,
+  preferExistingPersonaIds = false
 ): string[] {
   const agents = Math.max(1, baseAgents);
   const boundedBps = Math.max(0, Math.min(10_000, whaleShareBps));
   const whaleCount = Math.max(1, Math.min(agents, Math.round((agents * boundedBps) / 10_000)));
-  const nonWhalePersona =
-    basePersonas.find((persona) => persona !== "whale") ??
-    "steady-lp";
+  const whalePersona =
+    basePersonas.find((persona) => persona === "whale") ??
+    (preferExistingPersonaIds ? basePersonas[0] : undefined) ??
+    "whale";
+  const nonWhalePersonas = basePersonas.filter((persona) => persona !== whalePersona);
+  const fallbackNonWhalePersona = whalePersona === "steady-lp" ? "whale" : "steady-lp";
   return [
-    ...Array.from({ length: whaleCount }, () => "whale"),
-    ...Array.from({ length: agents - whaleCount }, () => nonWhalePersona)
+    ...Array.from({ length: whaleCount }, () => whalePersona),
+    ...fillPersonaSlots(nonWhalePersonas, agents - whaleCount, fallbackNonWhalePersona)
   ];
+}
+
+function fillPersonaSlots(personas: string[], count: number, fallback: string): string[] {
+  if (count <= 0) return [];
+  const pool = personas.length > 0 ? personas : [fallback];
+  return Array.from({ length: count }, (_, index) => pool[index % pool.length]!);
 }
 
 function nonnegativeInteger(value: JsonScalar | undefined): number | undefined {
@@ -654,6 +670,27 @@ function readPositiveIntegerFromJson(value: unknown): number | undefined {
 function readStringArrayFromJson(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
+}
+
+function readPersonaSelectionFromJson(value: unknown): {
+  ids: string[];
+  fromCountMap: boolean;
+} {
+  if (Array.isArray(value)) {
+    return { ids: readStringArrayFromJson(value), fromCountMap: false };
+  }
+  if (value === null || typeof value !== "object") {
+    return { ids: [], fromCountMap: false };
+  }
+  const ids: string[] = [];
+  for (const [persona, count] of Object.entries(value)) {
+    if (typeof persona !== "string" || persona.length === 0) continue;
+    if (!Number.isSafeInteger(count) || count <= 0) continue;
+    for (let index = 0; index < count; index += 1) {
+      ids.push(persona);
+    }
+  }
+  return { ids, fromCountMap: true };
 }
 
 function normalizePath(value: string): string {

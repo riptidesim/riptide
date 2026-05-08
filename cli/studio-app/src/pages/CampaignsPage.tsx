@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api";
 import type { JobPlanPreview, StudioArtifactEntry } from "../studioTypes";
+import { StackedBars } from "../ui/charts";
 import { Icon } from "../ui/Icon";
 import { EmptyState, Kicker, PageLabel, Pill, type PillKind } from "../ui/primitives";
 import type { PageId } from "../shell/types";
@@ -170,6 +171,8 @@ export function CampaignsPage({ workspaceId, onNavigate }: CampaignsPageProps) {
                     <Axis label="Hash" value={active.canonical_hash ?? "none"} />
                   </div>
 
+                  <RunHistoryChart roots={roots} />
+
                   <Kicker style={{ marginBottom: 8 }}>SELECTED PREVIEW ROWS</Kicker>
                   <table className="cm-grid" style={{ marginBottom: 18 }}>
                     <thead>
@@ -217,6 +220,40 @@ export function CampaignsPage({ workspaceId, onNavigate }: CampaignsPageProps) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function RunHistoryChart({ roots }: { roots: StudioArtifactEntry[] }) {
+  const sorted = [...roots]
+    .filter((root) => root.totals_by_verdict)
+    .sort((a, b) => {
+      const ta = a.updated_at ? Date.parse(a.updated_at) : 0;
+      const tb = b.updated_at ? Date.parse(b.updated_at) : 0;
+      return ta - tb;
+    });
+  if (sorted.length < 2) return null;
+
+  const data = sorted.map((root) => {
+    let pass = 0;
+    let fail = 0;
+    for (const [key, value] of Object.entries(root.totals_by_verdict ?? {})) {
+      const k = pillForVerdict(key);
+      if (k === "pass") pass += value;
+      else if (k === "fail") fail += value;
+    }
+    return { pass, fail };
+  });
+  if (data.every((d) => d.pass === 0 && d.fail === 0)) return null;
+
+  return (
+    <div className="card" style={{ padding: 16, marginBottom: 18 }}>
+      <Kicker style={{ marginBottom: 8 }}>RUN HISTORY · {sorted.length} ROOTS</Kicker>
+      <StackedBars data={data} labels={sorted.map((root) => root.label)} />
+      <div style={{ display: "flex", gap: 16, marginTop: 8, font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}>
+        <span><span style={{ display: "inline-block", width: 8, height: 8, background: "#22C55E", marginRight: 6 }} />pass</span>
+        <span><span style={{ display: "inline-block", width: 8, height: 8, background: "#EF4444", marginRight: 6 }} />fail</span>
+      </div>
     </div>
   );
 }

@@ -61,6 +61,7 @@ const FULL_ADAPTER: Adapter = {
   personas: {
     "steady-lp": {
       action_rate_multiplier: 1,
+      amount: 1,
       action_weights: { deposit: 0.7, withdraw: 0.3 },
       triggers: [],
       persona_args: {},
@@ -68,6 +69,7 @@ const FULL_ADAPTER: Adapter = {
     "panic-whale": {
       label: "Panic whale",
       action_rate_multiplier: 2.5,
+      amount: 1,
       action_weights: { withdraw: 1 },
       triggers: [
         { if: "utilization > 90", then: "withdraw", weight_boost: 3 },

@@ -91,9 +91,9 @@ use crate::{
     },
     primitive::{
         generic::{
-            bootstrap_generic_accounts, generic_airdrop, load_generic_idl,
-            load_generic_program_bytes, observe_account_state, GenericIdl,
-            GenericInstructionBuilder, RuntimeOracleBinding,
+            bootstrap_generic_accounts, generic_airdrop, is_admin_authority_signer_name,
+            is_agent_authority_signer_name, load_generic_idl, load_generic_program_bytes,
+            observe_account_state, GenericIdl, GenericInstructionBuilder, RuntimeOracleBinding,
         },
         lending_pool::{airdrop as lending_airdrop, send_tx as lending_send_tx},
         PrimitiveError,
@@ -452,6 +452,7 @@ pub struct GenericComponent {
     agents: Vec<Keypair>,
     idl: GenericIdl,
     agent_accounts: BTreeMap<String, Vec<Pubkey>>,
+    agent_account_signers: BTreeMap<String, Vec<Option<Keypair>>>,
     shared_accounts: BTreeMap<String, Pubkey>,
     oracle_binding: Option<RuntimeOracleBinding>,
 }
@@ -863,14 +864,15 @@ fn bootstrap_generic_component(
     }
 
     let agent_pubkeys: Vec<Pubkey> = agents.iter().map(|agent| agent.pubkey()).collect();
-    let (agent_accounts, shared_accounts, oracle_binding) = bootstrap_generic_accounts(
-        svm,
-        adapter,
-        agent_count,
-        &program_id,
-        &admin.pubkey(),
-        &agent_pubkeys,
-    )?;
+    let (agent_accounts, agent_account_signers, shared_accounts, oracle_binding) =
+        bootstrap_generic_accounts(
+            svm,
+            adapter,
+            agent_count,
+            &program_id,
+            &admin.pubkey(),
+            &agent_pubkeys,
+        )?;
 
     Ok(GenericComponent {
         program_id,
@@ -878,6 +880,7 @@ fn bootstrap_generic_component(
         agents,
         idl,
         agent_accounts,
+        agent_account_signers,
         shared_accounts,
         oracle_binding,
     })
@@ -970,30 +973,20 @@ fn execute_generic_replay(
         .iter()
         .map(|account| resolve_generic_account_meta(state, agent_idx, account))
         .collect::<Result<Vec<_>, PrimitiveError>>()?;
-    let payer = if instruction
-        .accounts
-        .iter()
-        .any(|a| a.signer && a.name.eq_ignore_ascii_case("admin"))
-    {
-        state.admin.insecure_clone()
-    } else {
-        state
-            .agents
-            .get(agent_idx)
-            .ok_or_else(|| {
-                PrimitiveError::Infra(format!(
-                    "generic component agent signer idx {agent_idx} out of range"
-                ))
-            })?
-            .insecure_clone()
-    };
+    let signers =
+        generic_component_signers_for_instruction(state, agent_idx, instruction, &accounts_iter)?;
     let ix = Instruction {
         program_id: state.program_id,
         accounts: accounts_iter,
         data,
     };
     let blockhash = svm.latest_blockhash();
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], blockhash);
+    let payer = signers
+        .first()
+        .ok_or_else(|| PrimitiveError::Infra("generic component dispatch had no payer".into()))?;
+    let signer_refs: Vec<&Keypair> = signers.iter().collect();
+    let tx =
+        Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &signer_refs, blockhash);
     match svm.send_transaction(tx) {
         Ok(_) => Ok(()),
         Err(err) => match err.err {
@@ -1005,12 +998,100 @@ fn execute_generic_replay(
     }
 }
 
+fn generic_component_payer_for_instruction(
+    state: &GenericComponent,
+    agent_idx: usize,
+    instruction: &crate::primitive::generic::GenericInstruction,
+) -> Result<Keypair, PrimitiveError> {
+    if instruction
+        .accounts
+        .iter()
+        .any(|a| a.signer && is_admin_authority_signer_name(&a.name))
+    {
+        Ok(state.admin.insecure_clone())
+    } else {
+        Ok(state
+            .agents
+            .get(agent_idx)
+            .ok_or_else(|| {
+                PrimitiveError::Infra(format!(
+                    "generic component agent signer idx {agent_idx} out of range"
+                ))
+            })?
+            .insecure_clone())
+    }
+}
+
+fn generic_component_keypair_for_pubkey(
+    state: &GenericComponent,
+    pubkey: &Pubkey,
+) -> Option<Keypair> {
+    if state.admin.pubkey() == *pubkey {
+        return Some(state.admin.insecure_clone());
+    }
+    if let Some(agent) = state.agents.iter().find(|agent| agent.pubkey() == *pubkey) {
+        return Some(agent.insecure_clone());
+    }
+    state
+        .agent_account_signers
+        .values()
+        .flat_map(|signers| signers.iter())
+        .filter_map(|signer| signer.as_ref())
+        .find(|signer| signer.pubkey() == *pubkey)
+        .map(Keypair::insecure_clone)
+}
+
+fn generic_component_signers_for_instruction(
+    state: &GenericComponent,
+    agent_idx: usize,
+    instruction: &crate::primitive::generic::GenericInstruction,
+    accounts: &[AccountMeta],
+) -> Result<Vec<Keypair>, PrimitiveError> {
+    let mut signers = vec![generic_component_payer_for_instruction(
+        state,
+        agent_idx,
+        instruction,
+    )?];
+    for (idl_account, account_meta) in instruction.accounts.iter().zip(accounts.iter()) {
+        if !account_meta.is_signer {
+            continue;
+        }
+        if signers
+            .iter()
+            .any(|signer| signer.pubkey() == account_meta.pubkey)
+        {
+            continue;
+        }
+        let Some(signer) = generic_component_keypair_for_pubkey(state, &account_meta.pubkey) else {
+            return Err(PrimitiveError::Infra(format!(
+                "generic instruction `{}` requires signer account `{}` ({}) but that pubkey is \
+                 not backed by an engine-owned keypair",
+                instruction.name, idl_account.name, account_meta.pubkey
+            )));
+        };
+        signers.push(signer);
+    }
+    Ok(signers)
+}
+
 fn resolve_generic_account_meta(
     state: &GenericComponent,
     agent_idx: usize,
     account: &crate::primitive::generic::GenericInstructionAccount,
 ) -> Result<AccountMeta, PrimitiveError> {
-    let pubkey = if let Some(pubkeys) = state.agent_accounts.get(&account.name) {
+    let pubkey = if account.signer && is_admin_authority_signer_name(&account.name) {
+        state.admin.pubkey()
+    } else if account.signer && is_agent_authority_signer_name(&account.name) {
+        state
+            .agents
+            .get(agent_idx)
+            .ok_or_else(|| {
+                PrimitiveError::Infra(format!(
+                    "generic component agent signer idx {agent_idx} out of range"
+                ))
+            })?
+            .pubkey()
+    } else if let Some(pubkeys) = state.agent_accounts.get(&account.name) {
         *pubkeys.get(agent_idx).ok_or_else(|| {
             PrimitiveError::Infra(format!(
                 "generic component agent account `{}` missing idx {agent_idx}",
@@ -1020,19 +1101,15 @@ fn resolve_generic_account_meta(
     } else if let Some(p) = state.shared_accounts.get(&account.name) {
         *p
     } else if account.signer {
-        if account.name.eq_ignore_ascii_case("admin") {
-            state.admin.pubkey()
-        } else {
-            state
-                .agents
-                .get(agent_idx)
-                .ok_or_else(|| {
-                    PrimitiveError::Infra(format!(
-                        "generic component agent signer idx {agent_idx} out of range"
-                    ))
-                })?
-                .pubkey()
-        }
+        state
+            .agents
+            .get(agent_idx)
+            .ok_or_else(|| {
+                PrimitiveError::Infra(format!(
+                    "generic component agent signer idx {agent_idx} out of range"
+                ))
+            })?
+            .pubkey()
     } else {
         return Err(PrimitiveError::Infra(format!(
             "generic instruction account `{}` is not declared and not a recognized signer",

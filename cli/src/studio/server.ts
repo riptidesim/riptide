@@ -586,6 +586,14 @@ async function pickDirectoryWithNativeDialog(): Promise<StudioDirectoryPickResul
     };
   }
 
+  const portalResult = await runGjsXdgDesktopPortalDirectoryPicker();
+  if (portalResult.kind === "success") {
+    return { path: path.resolve(portalResult.path), cancelled: false };
+  }
+  if (portalResult.kind === "cancelled") {
+    return { path: null, cancelled: true };
+  }
+
   const home = homedir();
   return runFirstDirectoryPicker([
     {
@@ -615,7 +623,7 @@ async function pickDirectoryWithNativeDialog(): Promise<StudioDirectoryPickResul
         `--filename=${home}${path.sep}`
       ]
     }
-  ]);
+  ], [portalResult.message]);
 }
 
 interface DirectoryPickerCommand {
@@ -624,9 +632,10 @@ interface DirectoryPickerCommand {
 }
 
 async function runFirstDirectoryPicker(
-  candidates: DirectoryPickerCommand[]
+  candidates: DirectoryPickerCommand[],
+  initialErrors: string[] = []
 ): Promise<StudioDirectoryPickResult> {
-  const errors: string[] = [];
+  const errors: string[] = [...initialErrors];
   for (const candidate of candidates) {
     // eslint-disable-next-line no-await-in-loop
     const result = await runDirectoryPickerCommand(candidate);
@@ -645,10 +654,152 @@ async function runFirstDirectoryPicker(
   };
 }
 
+async function runGjsXdgDesktopPortalDirectoryPicker(): Promise<DirectoryPickerRunResult> {
+  if (!process.env.DBUS_SESSION_BUS_ADDRESS) {
+    return { kind: "unavailable", message: "xdg-desktop-portal: no session bus" };
+  }
+
+  try {
+    const result = await execFilePromise("gjs", ["-c", GJS_XDG_PORTAL_DIRECTORY_PICKER]);
+    return parseGjsPortalDirectoryPickerOutput(result.stdout);
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException & { stdout?: string; stderr?: string };
+    if (e.code === "ENOENT") {
+      return { kind: "unavailable", message: "gjs not found" };
+    }
+    const parsed = typeof e.stdout === "string"
+      ? parseGjsPortalDirectoryPickerOutput(e.stdout)
+      : null;
+    if (parsed && parsed.kind !== "unavailable") {
+      return parsed;
+    }
+    const stderr = typeof e.stderr === "string" && e.stderr.trim().length > 0
+      ? `: ${e.stderr.trim()}`
+      : "";
+    return { kind: "unavailable", message: `xdg-desktop-portal failed${stderr || `: ${e.message}`}` };
+  }
+}
+
+export function parseGjsPortalDirectoryPickerOutput(output: string): DirectoryPickerRunResult {
+  const line = output
+    .trim()
+    .split(/\r?\n/)
+    .reverse()
+    .find((entry) => /^(OK|CANCEL|UNAVAILABLE)(\t|$)/.test(entry));
+  if (!line) {
+    return { kind: "unavailable", message: "xdg-desktop-portal helper returned no result" };
+  }
+  if (line === "CANCEL") {
+    return { kind: "cancelled" };
+  }
+  if (line.startsWith("OK\t")) {
+    const picked = line.slice(3);
+    return picked.length > 0
+      ? { kind: "success", path: picked }
+      : { kind: "unavailable", message: "xdg-desktop-portal helper returned an empty path" };
+  }
+  return {
+    kind: "unavailable",
+    message: line.startsWith("UNAVAILABLE\t")
+      ? line.slice("UNAVAILABLE\t".length)
+      : "xdg-desktop-portal helper returned an unknown result"
+  };
+}
+
 type DirectoryPickerRunResult =
   | { kind: "success"; path: string }
   | { kind: "cancelled" }
   | { kind: "unavailable"; message: string };
+
+const GJS_XDG_PORTAL_DIRECTORY_PICKER = `
+const { Gio, GLib } = imports.gi;
+
+const DEST = "org.freedesktop.portal.Desktop";
+const OBJECT = "/org/freedesktop/portal/desktop";
+let loop = null;
+
+function finish(kind, value = "") {
+  print(value ? kind + "\\t" + value : kind);
+  if (loop) loop.quit();
+}
+
+try {
+  const bus = Gio.bus_get_sync(Gio.BusType.SESSION, null);
+  const token = "riptide_" + GLib.uuid_string_random().replace(/-/g, "_");
+  let handle = null;
+  let done = false;
+
+  loop = GLib.MainLoop.new(null, false);
+  const subscription = bus.signal_subscribe(
+    DEST,
+    "org.freedesktop.portal.Request",
+    "Response",
+    null,
+    null,
+    Gio.DBusSignalFlags.NONE,
+    (_connection, _sender, objectPath, _iface, _signal, params) => {
+      if (handle && objectPath !== handle) return;
+      done = true;
+      bus.signal_unsubscribe(subscription);
+
+      const unpacked = params.deepUnpack();
+      const response = Number(unpacked[0]);
+      const results = unpacked[1] || {};
+      if (response === 1) {
+        finish("CANCEL");
+        return;
+      }
+      if (response !== 0) {
+        finish("CANCEL");
+        return;
+      }
+
+      let uris = results.uris;
+      if (uris instanceof GLib.Variant) uris = uris.deepUnpack();
+      if (!uris || uris.length === 0) {
+        finish("UNAVAILABLE", "portal returned no URI");
+        return;
+      }
+
+      const uri = String(uris[0]);
+      try {
+        const [filename] = GLib.filename_from_uri(uri);
+        finish("OK", filename);
+      } catch (err) {
+        finish("UNAVAILABLE", "unsupported URI " + uri + ": " + err.message);
+      }
+    }
+  );
+
+  const result = bus.call_sync(
+    DEST,
+    OBJECT,
+    "org.freedesktop.portal.FileChooser",
+    "OpenFile",
+    new GLib.Variant("(ssa{sv})", ["", "Select Riptide workspace folder", {
+      "directory": GLib.Variant.new_boolean(true),
+      "modal": GLib.Variant.new_boolean(true),
+      "handle_token": GLib.Variant.new_string(token)
+    }]),
+    new GLib.VariantType("(o)"),
+    Gio.DBusCallFlags.NONE,
+    -1,
+    null
+  );
+  handle = result.deepUnpack()[0];
+
+  GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 600, () => {
+    if (!done) {
+      bus.signal_unsubscribe(subscription);
+      finish("UNAVAILABLE", "portal request timed out");
+    }
+    return GLib.SOURCE_REMOVE;
+  });
+  loop.run();
+} catch (err) {
+  finish("UNAVAILABLE", err.message || String(err));
+}
+`;
 
 async function runDirectoryPickerCommand(
   candidate: DirectoryPickerCommand

@@ -36,6 +36,7 @@ export const SUPPORTED_SEMANTIC_CLASSES = [
   "perps-margin.v1",
   "lst.v1",
   "stablecoin.v1",
+  "token.v1",
 ] as const;
 export type SemanticClass = (typeof SUPPORTED_SEMANTIC_CLASSES)[number];
 export const LENDING_V1_REQUIRED_ROLES = [
@@ -118,6 +119,16 @@ export const STABLECOIN_V1_REQUIRED_DERIVED = [
   "peg_deviation_bps",
   "hedge_gap_value",
 ] as const;
+export const TOKEN_V1_REQUIRED_ROLES = [
+  "source_account",
+  "destination_account",
+  "mint",
+] as const;
+export const TOKEN_V1_REQUIRED_DERIVED = [
+  "source_balance",
+  "destination_balance",
+  "mint_supply",
+] as const;
 export type SemanticClassRequirements = {
   requiredRoles: readonly string[];
   requiredDerived: readonly string[];
@@ -142,6 +153,10 @@ export const SEMANTIC_CLASS_REQUIREMENTS = {
   "stablecoin.v1": {
     requiredRoles: STABLECOIN_V1_REQUIRED_ROLES,
     requiredDerived: STABLECOIN_V1_REQUIRED_DERIVED,
+  },
+  "token.v1": {
+    requiredRoles: TOKEN_V1_REQUIRED_ROLES,
+    requiredDerived: TOKEN_V1_REQUIRED_DERIVED,
   },
 } as const satisfies Record<SemanticClass, SemanticClassRequirements>;
 export function isSupportedSemanticClass(value: string): value is SemanticClass {
@@ -302,6 +317,7 @@ export const PersonaTriggerSchema = z.object({
 export const PersonaDefinitionSchema = z.object({
   label: z.string().min(1).optional(),
   action_rate_multiplier: z.number().finite().nonnegative().default(1),
+  amount: z.number().finite().positive().default(1),
   action_weights: z.record(z.string(), z.number()).default({}),
   triggers: z.array(PersonaTriggerSchema).default([]),
   // per-persona named values the generic encoder
