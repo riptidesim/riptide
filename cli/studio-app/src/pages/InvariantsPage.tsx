@@ -3,17 +3,19 @@ import { useEffect, useState } from "react";
 import type { StudioGraphNode } from "../studioTypes";
 import { Icon } from "../ui/Icon";
 import { EmptyState, Kicker, PageLabel, Pill, type PillKind } from "../ui/primitives";
+import { SourceBlock } from "../ui/SourceBlock";
 import type { PageId } from "../shell/types";
 
 interface InvariantsPageProps {
   nodes: StudioGraphNode[];
+  workspaceId?: string;
   loading?: boolean;
   error?: string | null;
   embedded?: boolean;
   onNavigate?: (id: PageId) => void;
 }
 
-export function InvariantsPage({ nodes, loading, error, embedded, onNavigate }: InvariantsPageProps) {
+export function InvariantsPage({ nodes, workspaceId, loading, error, embedded, onNavigate }: InvariantsPageProps) {
   const [sel, setSel] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,6 +78,7 @@ export function InvariantsPage({ nodes, loading, error, embedded, onNavigate }: 
             )}
             <Kicker style={{ marginBottom: 8 }}>PREDICATE METADATA</Kicker>
             <MetaTable meta={detail.meta} />
+            {workspaceId && <SourceBlock workspaceId={workspaceId} sourcePath={detail.source_path} />}
           </div>
         )}
       </div>

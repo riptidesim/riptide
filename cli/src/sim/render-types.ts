@@ -4,7 +4,6 @@ import type {
   GenericEnumVariant,
   GenericIdl,
   GenericInstruction,
-  GenericInstructionAccount,
   GenericTypeDefinition,
   GenericTypeRef
 } from "./idl.js";

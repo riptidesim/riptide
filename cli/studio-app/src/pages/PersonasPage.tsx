@@ -3,17 +3,19 @@ import { useEffect, useState } from "react";
 import type { StudioGraphNode } from "../studioTypes";
 import { Icon } from "../ui/Icon";
 import { EmptyState, Kicker, PageLabel, Pill } from "../ui/primitives";
+import { SourceBlock } from "../ui/SourceBlock";
 import type { PageId } from "../shell/types";
 
 interface PersonasPageProps {
   nodes: StudioGraphNode[];
+  workspaceId?: string;
   loading?: boolean;
   error?: string | null;
   embedded?: boolean;
   onNavigate?: (id: PageId) => void;
 }
 
-export function PersonasPage({ nodes, loading, error, embedded, onNavigate }: PersonasPageProps) {
+export function PersonasPage({ nodes, workspaceId, loading, error, embedded, onNavigate }: PersonasPageProps) {
   const [sel, setSel] = useState<string | null>(null);
 
   useEffect(() => {
@@ -64,13 +66,13 @@ export function PersonasPage({ nodes, loading, error, embedded, onNavigate }: Pe
             ))}
           </div>
         </div>
-        <GraphNodeDetail node={detail} />
+        <GraphNodeDetail node={detail} workspaceId={workspaceId} />
       </div>
     </div>
   );
 }
 
-function GraphNodeDetail({ node }: { node: StudioGraphNode | null }) {
+function GraphNodeDetail({ node, workspaceId }: { node: StudioGraphNode | null; workspaceId?: string }) {
   if (!node) return null;
   return (
     <div className="lview__detail">
@@ -85,6 +87,7 @@ function GraphNodeDetail({ node }: { node: StudioGraphNode | null }) {
       )}
       <Kicker style={{ marginBottom: 8 }}>METADATA</Kicker>
       <MetaTable meta={node.meta} />
+      {workspaceId && <SourceBlock workspaceId={workspaceId} sourcePath={node.source_path} />}
     </div>
   );
 }

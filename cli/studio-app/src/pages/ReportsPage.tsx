@@ -38,6 +38,16 @@ export function ReportsPage({ workspaceId, onNavigate }: ReportsPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
+  const [collapsedKinds, setCollapsedKinds] = useState<Set<StudioArtifactKind>>(() => new Set());
+
+  function toggleKind(kind: StudioArtifactKind) {
+    setCollapsedKinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -129,35 +139,54 @@ export function ReportsPage({ workspaceId, onNavigate }: ReportsPageProps) {
               <Kicker>ARTIFACTS · {artifacts.length}</Kicker>
             </div>
             <div className="lview__list-body" style={{ padding: "4px 0" }}>
-              {grouped.map((group) => (
-                <div key={group.kind} style={{ marginBottom: 8 }}>
-                  <div style={{ padding: "10px 14px 4px", display: "flex", alignItems: "center", gap: 6 }}>
-                    <Icon name="chevronDown" size={11} color="var(--rt-fog-dim)" />
-                    <span style={{ font: '500 10px "IBM Plex Mono"', letterSpacing: ".16em", textTransform: "uppercase", color: "var(--rt-fog-dim)" }}>
-                      {kindLabel(group.kind)} · {group.items.length}
-                    </span>
-                  </div>
-                  {group.items.map((artifact) => (
+              {grouped.map((group) => {
+                const collapsed = collapsedKinds.has(group.kind);
+                return (
+                  <div key={group.kind} style={{ marginBottom: 8 }}>
                     <button
-                      key={artifact.id}
-                      className={`lview__row${selected?.id === artifact.id ? " lview__row--active" : ""}`}
-                      style={{ padding: "8px 14px 8px 28px", gap: 4, borderBottom: "none" }}
-                      onClick={() => setSelectedId(artifact.id)}
+                      type="button"
+                      onClick={() => toggleKind(group.kind)}
+                      aria-expanded={!collapsed}
+                      style={{
+                        width: "100%",
+                        padding: "10px 14px 4px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        color: "inherit"
+                      }}
                     >
-                      <div className="lview__row-top">
-                        <Icon name="file" size={12} color="var(--rt-fog-dim)" />
-                        <span className="lview__row-name" style={{ fontFamily: "IBM Plex Mono", fontSize: 12 }}>
-                          {artifact.label}
-                        </span>
-                        {(artifact.verdict || artifact.status) && <Pill kind={pillForArtifact(artifact)}>{artifact.verdict ?? artifact.status}</Pill>}
-                      </div>
-                      <div className="lview__row-meta" style={{ paddingLeft: 18 }}>
-                        <span>{formatTime(artifact.updated_at)}</span>
-                      </div>
+                      <Icon name={collapsed ? "chevron" : "chevronDown"} size={11} color="var(--rt-fog-dim)" />
+                      <span style={{ font: '500 10px "IBM Plex Mono"', letterSpacing: ".16em", textTransform: "uppercase", color: "var(--rt-fog-dim)" }}>
+                        {kindLabel(group.kind)} · {group.items.length}
+                      </span>
                     </button>
-                  ))}
-                </div>
-              ))}
+                    {!collapsed && group.items.map((artifact) => (
+                      <button
+                        key={artifact.id}
+                        className={`lview__row${selected?.id === artifact.id ? " lview__row--active" : ""}`}
+                        style={{ padding: "8px 14px 8px 28px", gap: 4, borderBottom: "none" }}
+                        onClick={() => setSelectedId(artifact.id)}
+                      >
+                        <div className="lview__row-top">
+                          <Icon name="file" size={12} color="var(--rt-fog-dim)" />
+                          <span className="lview__row-name" style={{ fontFamily: "IBM Plex Mono", fontSize: 12 }}>
+                            {artifact.label}
+                          </span>
+                          {(artifact.verdict || artifact.status) && <Pill kind={pillForArtifact(artifact)}>{artifact.verdict ?? artifact.status}</Pill>}
+                        </div>
+                        <div className="lview__row-meta" style={{ paddingLeft: 18 }}>
+                          <span>{formatTime(artifact.updated_at)}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           </div>
           <div className="lview__detail" style={{ padding: 0, display: "flex", flexDirection: "column" }}>

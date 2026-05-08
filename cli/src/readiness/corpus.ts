@@ -1,7 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
-import type { ReadinessArtifact, ReadinessInspection } from "./inspector.js";
+import type { ReadinessInspection } from "./inspector.js";
 import type { ReadinessReason, ReadinessReport } from "./model.js";
 
 export const READINESS_CORPUS_SCHEMA_VERSION = "case-study-readiness.v1" as const;

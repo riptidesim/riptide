@@ -756,11 +756,10 @@ test("studio dashboard mount rejects sources that escape the workspace", async (
   });
 });
 
-test("studio server serves the React app or legacy shell from /", async () => {
-  // The CLI prefers the React + Vite production bundle when present
-  // (cli/assets/studio/index.html). Otherwise it falls back to the
-  // legacy single-file Phase 2 shell at cli/assets/studio.html. Both
-  // surfaces are titled "Riptide Studio" and reference the API path.
+test("studio server serves the React app from /", async () => {
+  // The CLI serves the React + Vite production bundle from
+  // cli/assets/studio/index.html. Source edits under cli/studio-app/
+  // must be rebuilt before they affect the served Studio UI.
   const root = await tmpRoot("server-html");
   await mkdir(path.join(root, ".riptide"), { recursive: true });
 

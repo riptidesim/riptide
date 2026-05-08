@@ -107,11 +107,6 @@ generator = "hand-authored"
 `;
 }
 
-// Back-compat alias for tests that accept the old string constant.
-// The default path uses the monorepo-layout convention: adapter lives
-// at `<cwd>/fixtures/adapters/...`, IDL at `<cwd>/fixtures/idls/...`.
-const CLEAN_ADAPTER = cleanAdapterToml("../idls/simple.json");
-
 async function setupRepo(opts: {
   /** Adapter file shape: monorepo fixtures vs user-repo .riptide/. */
   layout: "monorepo" | "user-repo" | "both" | "empty";

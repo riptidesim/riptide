@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { runOrchestrator, type Spawner, type SpawnResult } from "../src/orchestrator/index.js";
+import { runOrchestrator, type Spawner } from "../src/orchestrator/index.js";
 import type { RunConfig } from "../src/compiler/schema.js";
 
 async function resolveFixturePath(name: string): Promise<string> {

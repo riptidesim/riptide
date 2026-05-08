@@ -565,11 +565,6 @@ function ensureSafeRelative(rel: string, label: string): void {
   }
 }
 
-function workspaceSlug(workspace: StudioWorkspace): string {
-  if (workspace.id !== "current") return workspace.id;
-  return path.basename(workspace.path);
-}
-
 function sanitizeForPath(name: string): string {
   return name.replace(/[^A-Za-z0-9._/-]/g, "-");
 }

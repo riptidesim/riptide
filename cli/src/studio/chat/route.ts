@@ -37,7 +37,6 @@ export interface ChatRouteRequest {
 const PROMPT_BYTE_CAP = 64 * 1024;
 
 const THREAD_ROOT = "/api/studio/chat/threads";
-const RUN_ROOT = "/api/studio/chat/runs";
 
 export async function handleChatRoute(
   ctx: ChatRouteContext,

@@ -329,41 +329,6 @@ deposit = { action = "deposit", amount = "amount" }
 [personas]
 `;
 
-const GENERIC_ORACLE_TOML = (oracleBlock: string, oracleAccountExtra = "") => `protocol = "generic"
-program_so = "./simple.so"
-idl_path = "fixtures/idls/simple.json"
-
-[accounts.player]
-kind = "agent"
-space = 64
-
-[accounts.oracle]
-kind = "shared"
-space = 134
-${oracleAccountExtra}
-
-[instructions]
-deposit = { action = "deposit", amount = "amount" }
-
-[state_mapping]
-"player.balance" = "player.balance"
-
-[actions.deposit]
-label = "Deposit"
-takes = ["amount"]
-
-[observations]
-"player.balance" = "uint"
-
-[personas.grinder]
-label = "Grinder"
-action_rate_multiplier = 1.0
-action_weights = { deposit = 1.0 }
-triggers = []
-
-${oracleBlock}
-`;
-
 const ERROR_REGISTRY_TOML = `protocol = "lending"
 
 [instructions]

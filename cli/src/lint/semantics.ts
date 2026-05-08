@@ -19,7 +19,7 @@ export function lintSemantics(adapter: Adapter): LintFinding[] {
   if (semantics === undefined) return [];
 
   const findings: LintFinding[] = [];
-  lintSemanticClass(adapter, semantics, findings);
+  lintSemanticClass(semantics, findings);
   lintRequiredSemanticSurface(semantics, findings);
   lintDerivedExpressions(semantics, findings);
   lintInvariantExpressions(semantics, findings);
@@ -38,7 +38,6 @@ export function lintSemantics(adapter: Adapter): LintFinding[] {
 }
 
 function lintSemanticClass(
-  adapter: Adapter,
   semantics: Semantics,
   findings: LintFinding[]
 ): void {

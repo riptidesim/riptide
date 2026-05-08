@@ -3,17 +3,19 @@ import { useEffect, useState } from "react";
 import type { StudioGraphNode } from "../studioTypes";
 import { Icon } from "../ui/Icon";
 import { EmptyState, Kicker, PageLabel } from "../ui/primitives";
+import { SourceBlock } from "../ui/SourceBlock";
 import type { PageId } from "../shell/types";
 
 interface ScenariosPageProps {
   nodes: StudioGraphNode[];
+  workspaceId?: string;
   loading?: boolean;
   error?: string | null;
   embedded?: boolean;
   onNavigate?: (id: PageId) => void;
 }
 
-export function ScenariosPage({ nodes, loading, error, embedded, onNavigate }: ScenariosPageProps) {
+export function ScenariosPage({ nodes, workspaceId, loading, error, embedded, onNavigate }: ScenariosPageProps) {
   const [sel, setSel] = useState<string | null>(null);
 
   useEffect(() => {
@@ -74,6 +76,7 @@ export function ScenariosPage({ nodes, loading, error, embedded, onNavigate }: S
               </div>
             )}
             <MetaTable meta={detail.meta} />
+            {workspaceId && <SourceBlock workspaceId={workspaceId} sourcePath={detail.source_path} />}
           </div>
         )}
       </div>

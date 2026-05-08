@@ -1,5 +1,5 @@
-// Build the React + Vite Studio frontend bundle so it can ship inside
-// the CLI package alongside `cli/assets/studio.html`.
+// Build the React + Vite Studio frontend bundle that ships inside the
+// CLI package under `cli/assets/studio/`.
 //
 // This script is intentionally permissive:
 // - if `cli/studio-app/node_modules` is missing, it asks the user to
@@ -7,8 +7,7 @@
 //   silently from inside the CLI build (we never want a normal CLI
 //   build to silently shell out to the network).
 // - if the studio-app workspace is missing entirely, it logs a hint
-//   and exits 0 so people building only the CLI still get a working
-//   build with the legacy `studio.html` fallback in place.
+//   and exits 0 so package builds can still use the checked-in bundle.
 
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -28,7 +27,7 @@ if (!existsSync(path.join(appRoot, "node_modules"))) {
   console.log(
     `[build-studio-app] studio-app dependencies not installed.` +
       `\n  Run: cd ${appRoot} && npm install` +
-      `\n  Skipping the React build for now; the CLI server will fall back to cli/assets/studio.html.`
+      `\n  Skipping the React build for now; the checked-in cli/assets/studio/ bundle remains in use.`
   );
   process.exit(0);
 }

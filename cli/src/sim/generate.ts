@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { loadAdapter, type AdapterLoadError } from "../adapter/resolve.js";

@@ -11,14 +11,12 @@ import {
   type ReadinessReport,
   type ReadinessSliceRef,
   type ReadinessSemanticHygieneFinding,
-  type SupportEvidenceKey,
   type SupportEvidenceSnapshot,
   type SupportLevelId,
 } from "./model.js";
 import {
   inspectReadinessWorkspace,
   type ReadinessAdapterInspection,
-  type ReadinessArtifact,
   type ReadinessInspection,
   type ReadinessRunCollectionInspection,
   type ReadinessRunScenarioInspection,
@@ -857,10 +855,6 @@ function relativeToRoot(inspection: ReadinessInspection, filePath: string): stri
 
 function uniqueSorted(values: string[]): string[] {
   return [...new Set(values)].sort(compareStrings);
-}
-
-function isString(value: unknown): value is string {
-  return typeof value === "string";
 }
 
 function compareStrings(left: string, right: string): number {

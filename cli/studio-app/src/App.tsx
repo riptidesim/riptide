@@ -3,12 +3,13 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type AgentProbe, type StudioWorkspace } from "./api";
 import { useAgentPreference } from "./useAgentPreference";
 import { WorkspaceRail } from "./shell/Rail";
-import { Sidebar } from "./shell/Sidebar";
+import { Sidebar, type SidebarCounts } from "./shell/Sidebar";
 import { FirstRunWizard } from "./shell/FirstRunWizard";
 import { AddProjectWizard } from "./shell/AddProjectWizard";
 import { CommandPalette } from "./shell/CommandPalette";
 import { readStudioPage, readStudioWorkspace, writeStudioLocation } from "./shell/location";
 import { type PageId } from "./shell/types";
+import type { StudioArtifactKind } from "./studioTypes";
 
 import { OverviewPage } from "./pages/OverviewPage";
 import { HandoffPage } from "./pages/HandoffPage";
@@ -20,6 +21,21 @@ import { ReportsPage } from "./pages/ReportsPage";
 import { TutorialPage } from "./pages/TutorialPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
+const REPORT_KINDS = new Set<StudioArtifactKind>([
+  "run-collection",
+  "last-run",
+  "run",
+  "campaign-root",
+  "retained-case",
+  "pack",
+  "readiness-report",
+  "markdown-summary",
+  "guided-sim",
+  "scenario",
+  "adapter",
+  "campaign-input"
+]);
+
 export function App() {
   const [page, setPage] = useState<PageId>(() => readStudioPage());
   const [activeWs, setActiveWs] = useState(0);
@@ -28,6 +44,7 @@ export function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [counts, setCounts] = useState<SidebarCounts>({});
 
   useEffect(() => {
     api.workspaces().then((r) => setWorkspaces(r.workspaces)).catch((e) => setLoadError((e as Error).message));
@@ -96,6 +113,41 @@ export function App() {
   const primary = workspaces?.[0] ?? null;
   const active = primary ? (workspaces?.[activeWs] ?? primary) : null;
   const { pref, setPref } = useAgentPreference(active?.path ?? "", agents);
+
+  useEffect(() => {
+    if (!active?.id) {
+      setCounts({});
+      return;
+    }
+    let cancelled = false;
+    Promise.all([
+      api.artifacts(active.id),
+      api.jobs.list(active.id),
+      api.graph({ workspaceId: active.id })
+    ])
+      .then(([artifactsRes, jobsRes, graphRes]) => {
+        if (cancelled) return;
+        const artifacts = artifactsRes.artifacts;
+        const workspaceJobs = jobsRes.jobs.filter((job) => job.workspace_id === active.id);
+        const libraryNodes = graphRes.nodes.filter(
+          (node) => node.kind === "persona" || node.kind === "scenario" || node.kind === "invariant"
+        );
+        setCounts({
+          campaigns: artifacts.filter(
+            (artifact) => artifact.kind === "campaign-input" || artifact.kind === "campaign-root"
+          ).length,
+          library: libraryNodes.length,
+          jobs: workspaceJobs.length,
+          reports: artifacts.filter((artifact) => REPORT_KINDS.has(artifact.kind)).length
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setCounts({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active?.id, page]);
 
   const navigateToPage = useCallback((nextPage: PageId) => {
     setPage(nextPage);
@@ -171,6 +223,7 @@ export function App() {
         pref={pref}
         setPref={setPref}
         onOpenSearch={() => setPaletteOpen(true)}
+        counts={counts}
       />
       <main className="main">{body}</main>
       <CommandPalette

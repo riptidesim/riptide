@@ -4,23 +4,19 @@
 //! through. The trait is split in two:
 //!
 //! - [`Primitive`] — domain-neutral base trait every backend
-//! implements. Owns `agent_count`, `advance_tick`,
-//! `push_oracle_price`, `execute_action`, `observation_values`.
+//!   implements. Owns `agent_count`, `advance_tick`,
+//!   `push_oracle_price`, `execute_action`, `observation_values`.
 //! - [`LendingPrimitive`] — super-trait adding the five lending
-//! actions and two lending observations.
+//!   actions and two lending observations.
 //!
 //! The lending tick loop (`run_simulation`) binds on
 //! `LendingPrimitive`. The generic tick loop (`run_generic_simulation`)
 //! binds on `Primitive` and has no lending vocabulary at all.
 
-pub mod amm;
 pub mod generic;
 pub mod lending;
 #[cfg(any(feature = "litesvm-backend", test))]
 pub mod lending_pool;
-
-#[allow(unused_imports)]
-pub use amm::{AmmPrimitive, AmmReserves};
 
 pub use generic::{
     build_generic_policies, generic_runtime_actions, parse_generic_idl_str, GenericIdl,

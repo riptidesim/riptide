@@ -458,8 +458,6 @@ pub struct GenericComponent {
 }
 
 pub struct LendingComponent {
-    #[allow(dead_code)]
-    program_id: Pubkey,
     client: LendingProgramClient,
     admin: Keypair,
     agents: Vec<Keypair>,
@@ -1341,14 +1339,9 @@ fn bootstrap_lending_component(
         positions.push(pos_kp.pubkey());
     }
 
-    let last_oracle_price = if starting_exponent < 0 {
-        starting_price
-    } else {
-        starting_price
-    };
+    let last_oracle_price = starting_price;
 
     Ok(LendingComponent {
-        program_id,
         client,
         admin,
         agents,

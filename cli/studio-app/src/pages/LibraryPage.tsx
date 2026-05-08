@@ -58,9 +58,9 @@ export function LibraryPage({ workspaceId, onNavigate }: LibraryPageProps) {
           { id: "invariants", label: "Invariants", count: loading ? undefined : invariants.length }
         ]}
       />
-      {tab === "personas" && <PersonasPage nodes={personas} loading={loading} error={error} onNavigate={onNavigate} embedded />}
-      {tab === "scenarios" && <ScenariosPage nodes={scenarios} loading={loading} error={error} onNavigate={onNavigate} embedded />}
-      {tab === "invariants" && <InvariantsPage nodes={invariants} loading={loading} error={error} onNavigate={onNavigate} embedded />}
+      {tab === "personas" && <PersonasPage nodes={personas} workspaceId={workspaceId} loading={loading} error={error} onNavigate={onNavigate} embedded />}
+      {tab === "scenarios" && <ScenariosPage nodes={scenarios} workspaceId={workspaceId} loading={loading} error={error} onNavigate={onNavigate} embedded />}
+      {tab === "invariants" && <InvariantsPage nodes={invariants} workspaceId={workspaceId} loading={loading} error={error} onNavigate={onNavigate} embedded />}
     </div>
   );
 }

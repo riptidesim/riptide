@@ -54,6 +54,12 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
   const activitySeries = useMemo(() => activityByDay(artifacts, 14), [artifacts]);
   const activityLabels = useMemo(() => activityLabelsFor(14), []);
   const activityTotal = activitySeries.reduce((sum, n) => sum + n, 0);
+  const jobStatusBars = useMemo(() => summarizeJobStatus(jobs), [jobs]);
+  const jobStatusTotal = jobStatusBars.reduce((sum, row) => sum + row.value, 0);
+  const activeJobsList = useMemo(
+    () => jobs.filter((job) => job.status === "queued" || job.status === "running").slice(0, 3),
+    [jobs]
+  );
 
   const analyticsCards: Array<{ key: string; title: string; meta?: string; body: ReactNode }> = [];
   if (verdictMix.count > 0) {
@@ -132,13 +138,52 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
             </div>
           )}
 
-          {invariantBars.length > 0 && (
-            <section style={{ marginBottom: 18 }}>
-              <div className="card" style={{ padding: 16 }}>
-                <Kicker style={{ marginBottom: 12 }}>INVARIANT PRESSURE · TOP RUNS</Kicker>
-                <HorizontalBars data={invariantBars} />
-              </div>
-            </section>
+          {(jobStatusTotal > 0 || invariantBars.length > 0) && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${(jobStatusTotal > 0 ? 1 : 0) + (invariantBars.length > 0 ? 1 : 0)}, minmax(0, 1fr))`,
+                gap: 12,
+                marginBottom: 18
+              }}
+            >
+              {jobStatusTotal > 0 && (
+                <div className="card" style={{ padding: 16, display: "flex", flexDirection: "column" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+                    <Kicker>JOB QUEUE</Kicker>
+                    <span style={{ font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}>{jobStatusTotal} total</span>
+                  </div>
+                  <HorizontalBars data={jobStatusBars} labelWidth={88} />
+                  {activeJobsList.length > 0 && (
+                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--rt-slate-line)" }}>
+                      <div style={{ font: '500 10px "IBM Plex Mono"', letterSpacing: "0.08em", color: "var(--rt-fog-dim)", marginBottom: 8 }}>
+                        IN FLIGHT NOW
+                      </div>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        {activeJobsList.map((job) => (
+                          <div
+                            key={job.id}
+                            style={{ display: "flex", alignItems: "center", gap: 8, font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}
+                          >
+                            <span className={`dot dot--${job.status === "running" ? "running" : "queued"}`} />
+                            <span style={{ color: "var(--rt-off-white)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {job.kind}
+                            </span>
+                            <Pill kind={pillForJob(job.status)} dot={job.status === "running"}>{job.status.toUpperCase()}</Pill>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {invariantBars.length > 0 && (
+                <div className="card" style={{ padding: 16 }}>
+                  <Kicker style={{ marginBottom: 12 }}>INVARIANT PRESSURE · TOP RUNS</Kicker>
+                  <HorizontalBars data={invariantBars} />
+                </div>
+              )}
+            </div>
           )}
 
           <section style={{ marginBottom: 18 }}>
@@ -400,6 +445,23 @@ function topInvariantPressure(artifacts: StudioArtifactEntry[]): { label: string
       value: artifact.invariant_fire_count ?? 0,
       color: "#14B8B6"
     }));
+}
+
+function summarizeJobStatus(jobs: Job[]): { label: string; value: number; color: string }[] {
+  const order: Array<{ status: Job["status"]; label: string; color: string }> = [
+    { status: "running", label: "Running", color: "#14B8B6" },
+    { status: "queued", label: "Queued", color: "#F59E0B" },
+    { status: "succeeded", label: "Succeeded", color: "#22C55E" },
+    { status: "failed", label: "Failed", color: "#EF4444" },
+    { status: "cancelled", label: "Cancelled", color: "#7A8A99" }
+  ];
+  return order
+    .map(({ status, label, color }) => ({
+      label,
+      value: jobs.filter((job) => job.status === status).length,
+      color
+    }))
+    .filter((row) => row.value > 0);
 }
 
 function activityLabelsFor(days: number): string[] {

@@ -1,8 +1,7 @@
 // Studio HTTP server.
 //
 // Localhost-only, file-backed dev server for the Riptide Studio app.
-// Serves the React + Vite production bundle when present, falls back
-// to the legacy `studio.html` migration shell otherwise.
+// Serves the React + Vite production bundle.
 //
 // Trust boundary:
 // - Bind defaults to `127.0.0.1`.
@@ -135,7 +134,7 @@ function studioBundleRoots(): string[] {
   ];
 }
 
-function legacyAssetCandidates(filename: string): string[] {
+function packagedAssetCandidates(filename: string): string[] {
   const here = path.dirname(fileURLToPath(import.meta.url));
   return [
     path.resolve(here, "..", "..", "..", "assets", filename),
@@ -156,8 +155,8 @@ async function findStudioBundleRoot(): Promise<string | null> {
   return null;
 }
 
-async function readFirstExistingLegacyAsset(filename: string): Promise<string> {
-  const candidates = legacyAssetCandidates(filename);
+async function readFirstExistingPackagedAsset(filename: string): Promise<string> {
+  const candidates = packagedAssetCandidates(filename);
   let lastErr: unknown = null;
   for (const candidate of candidates) {
     try {
@@ -194,8 +193,12 @@ async function serveStudioRoot(res: ServerResponse): Promise<void> {
       return;
     }
   }
-  const html = await readFirstExistingLegacyAsset("studio.html");
-  sendText(res, 200, html, "text/html");
+  sendText(
+    res,
+    500,
+    "Riptide Studio bundle is missing. Run `npm --prefix cli run build` to regenerate cli/assets/studio/.",
+    "text/plain"
+  );
 }
 
 async function serveStudioAssetIfPresent(
@@ -1145,7 +1148,7 @@ function makeRequestHandler(ctx: StudioContext) {
         return;
       }
       if (pathname === "/dashboard" || pathname === "/dashboard/") {
-        const html = await readFirstExistingLegacyAsset("dashboard.html");
+        const html = await readFirstExistingPackagedAsset("dashboard.html");
         sendText(res, 200, html, "text/html");
         return;
       }
@@ -1260,6 +1263,68 @@ function makeRequestHandler(ctx: StudioContext) {
           return;
         }
         sendJson(res, 200, payload);
+        return;
+      }
+      if (pathname === "/api/studio/source") {
+        const selection = selectWorkspace(ctx, url.searchParams);
+        if ("error" in selection) {
+          sendJson(res, selection.error.status, selection.error.payload);
+          return;
+        }
+        const requested = url.searchParams.get("path");
+        if (!requested) {
+          sendJson(res, 400, {
+            error: "missing_path",
+            message: "the `path` query parameter is required"
+          });
+          return;
+        }
+        const workspaceRoot = path.resolve(selection.path);
+        const resolved = path.resolve(workspaceRoot, requested);
+        if (resolved !== workspaceRoot && !resolved.startsWith(workspaceRoot + path.sep)) {
+          sendJson(res, 403, {
+            error: "path_outside_workspace",
+            message: "requested path is outside the workspace"
+          });
+          return;
+        }
+        try {
+          const stats = await stat(resolved);
+          if (!stats.isFile()) {
+            sendJson(res, 415, {
+              error: "not_a_file",
+              message: "requested path is not a regular file"
+            });
+            return;
+          }
+          const MAX_BYTES = 256 * 1024;
+          if (stats.size > MAX_BYTES) {
+            sendJson(res, 413, {
+              error: "file_too_large",
+              message: `file exceeds ${MAX_BYTES} byte limit`,
+              bytes: stats.size
+            });
+            return;
+          }
+          const content = await readFile(resolved, "utf8");
+          sendJson(res, 200, {
+            schema_version: "studio-source.v1",
+            workspace_id: selection.id,
+            path: path.relative(workspaceRoot, resolved) || path.basename(resolved),
+            absolute_path: resolved,
+            bytes: stats.size,
+            content
+          });
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+            sendJson(res, 404, {
+              error: "file_not_found",
+              message: `no file at ${requested}`
+            });
+            return;
+          }
+          throw err;
+        }
         return;
       }
       if (pathname === "/api/collection") {

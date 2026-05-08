@@ -17,6 +17,15 @@ export interface StudioWarning {
   next_action: string;
 }
 
+export interface StudioSourcePayload {
+  schema_version: "studio-source.v1";
+  workspace_id: string;
+  path: string;
+  absolute_path: string;
+  bytes: number;
+  content: string;
+}
+
 export interface StudioArtifactEntry {
   id: string;
   kind: StudioArtifactKind;

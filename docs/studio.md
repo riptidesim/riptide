@@ -127,9 +127,8 @@ as `cancelled` with a warning row.
 cli/studio-app/        React + Vite TypeScript workspace
 cli/studio-app/src/    App.tsx, components/, views/, api.ts, styles.css
 cli/assets/studio/     Production bundle (index.html + assets/)
-cli/assets/studio.html Legacy single-file Phase 2 shell (fallback only)
 ```
 
-The CLI server tries the React bundle first and falls back to the
-legacy HTML if no bundle is present. New Studio views must land in
-`cli/studio-app/`; the legacy file is a migration source only.
+The CLI server serves the React bundle from `cli/assets/studio/`.
+New Studio views must land in `cli/studio-app/`, then be rebuilt into
+the shipped bundle before they affect the served UI.

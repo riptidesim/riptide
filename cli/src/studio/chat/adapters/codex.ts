@@ -58,7 +58,7 @@ function buildArgvInternal(input: { model: string | null; resumeSessionId: strin
   return args;
 }
 
-function isAllowedToken(arg: string, idx: number, args: string[]): boolean {
+function isAllowedToken(arg: string, idx: number): boolean {
   // Positional verbs that the adapter itself emitted.
   if (arg === "exec") return idx === 0;
   if (arg === "resume") return true;
@@ -87,7 +87,7 @@ export const codexAdapter: AgentAdapter = {
       resumeSessionId: input.resumeSessionId
     });
     for (let i = 0; i < args.length; i++) {
-      if (!isAllowedToken(args[i], i, args)) {
+      if (!isAllowedToken(args[i], i)) {
         return errorResult({
           family: "internal",
           message: `codex adapter produced disallowed token: ${args[i]}`

@@ -9,7 +9,8 @@ import type {
   StudioJobPlanResponse,
   StudioJobResponse,
   StudioJobsResponse,
-  StudioReportPayload
+  StudioReportPayload,
+  StudioSourcePayload
 } from "./studioTypes";
 
 export type Protocol = "amm" | "lending" | "perpetuals" | "liquid-staking" | "stablecoin" | "custom";
@@ -214,6 +215,11 @@ export const api = {
     request<StudioGraphPayload>(graphPath(q)),
   report: (q: { workspaceId?: string; artifactId: string }) =>
     request<StudioReportPayload>(reportPath(q)),
+  source: (q: { workspaceId?: string; path: string }) => {
+    const params = new URLSearchParams({ path: q.path });
+    if (q.workspaceId) params.set("workspace", q.workspaceId);
+    return request<StudioSourcePayload>(`/api/studio/source?${params.toString()}`);
+  },
   jobs: {
     list: (workspaceId?: string) => request<StudioJobsResponse>(withWorkspace("/api/studio/jobs", workspaceId)),
     get: (id: string) => request<StudioJobResponse>(`/api/studio/jobs/${encodeURIComponent(id)}`),

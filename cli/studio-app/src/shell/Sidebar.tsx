@@ -6,6 +6,8 @@ import { NAV, type PageId } from "./types";
 
 const MAX_WORKSPACE_LABEL_WORDS = 12;
 
+export type SidebarCounts = Partial<Record<PageId, number>>;
+
 interface SidebarProps {
   page: PageId;
   setPage: (id: PageId) => void;
@@ -14,9 +16,10 @@ interface SidebarProps {
   pref: AgentPreference | null;
   setPref: (next: AgentPreference) => void;
   onOpenSearch: () => void;
+  counts?: SidebarCounts;
 }
 
-export function Sidebar({ page, setPage, ws, agents, pref, setPref, onOpenSearch }: SidebarProps) {
+export function Sidebar({ page, setPage, ws, agents, pref, setPref, onOpenSearch, counts }: SidebarProps) {
   const isMac = typeof navigator !== "undefined" && navigator.platform.toLowerCase().includes("mac");
   const shortcut = isMac ? "⌘K" : "Ctrl K";
   const workspaceLabel = shortenWorkspaceLabel(ws.label);
@@ -51,6 +54,7 @@ export function Sidebar({ page, setPage, ws, agents, pref, setPref, onOpenSearch
             );
           }
           const active = page === n.id;
+          const badge = n.badge ?? counts?.[n.id];
           return (
             <button
               key={n.id}
@@ -61,9 +65,9 @@ export function Sidebar({ page, setPage, ws, agents, pref, setPref, onOpenSearch
                 <Icon name={n.icon} size={15} />
               </span>
               <span className="side__item-label">{n.label}</span>
-              {n.badge != null && (
+              {badge != null && (
                 <span className={`side__item-badge${n.badgeAccent ? " side__item-badge--accent" : ""}`}>
-                  {n.badge}
+                  {badge}
                 </span>
               )}
             </button>

@@ -483,7 +483,7 @@ function buildSteps(metrics: TutorialMetrics): TutorialStep[] {
       target: hasAdapter ? "adapter" : "handoff",
       actionKind: "navigate",
       actionLabel: hasAdapter ? "Open Adapter" : "Configure with agent",
-      icon: hasAdapter ? "cpu" : "sparkles",
+      icon: hasAdapter ? "plug" : "sparkles",
       pill: hasAdapter ? `${metrics.adapterCount}` : "TODO",
       pillKind: hasAdapter ? "pass" : "queued"
     },
@@ -532,7 +532,7 @@ function buildSteps(metrics: TutorialMetrics): TutorialStep[] {
       target: metrics.activeJobCount > 0 ? "jobs" : canQueueRun ? "jobs" : "handoff",
       actionKind: metrics.activeJobCount > 0 ? "navigate" : canQueueRun ? "queue-run" : "navigate",
       actionLabel: metrics.activeJobCount > 0 ? "Open queue" : canQueueRun ? "Queue run" : "Prepare with agent",
-      icon: metrics.activeJobCount > 0 ? "queue" : canQueueRun ? "play" : "sparkles",
+      icon: metrics.activeJobCount > 0 ? "listTodo" : canQueueRun ? "play" : "sparkles",
       pill: hasRun ? `${metrics.runCount}` : metrics.activeJobCount > 0 ? "RUNNING" : "TODO",
       pillKind: hasRun ? "pass" : metrics.activeJobCount > 0 ? "running" : "queued"
     },
@@ -547,7 +547,7 @@ function buildSteps(metrics: TutorialMetrics): TutorialStep[] {
       target: metrics.reportCount > 0 ? "reports" : hasRun || metrics.activeJobCount > 0 ? "jobs" : "handoff",
       actionKind: metrics.reportCount > 0 ? "preview-report" : "navigate",
       actionLabel: metrics.reportCount > 0 ? "Preview latest" : hasRun || metrics.activeJobCount > 0 ? "Open queue" : "Create evidence",
-      icon: metrics.reportCount > 0 ? "file" : hasRun || metrics.activeJobCount > 0 ? "queue" : "sparkles",
+      icon: metrics.reportCount > 0 ? "fileText" : hasRun || metrics.activeJobCount > 0 ? "listTodo" : "sparkles",
       pill: metrics.reportCount > 0 ? `${metrics.reportCount}` : "TODO",
       pillKind: metrics.reportCount > 0 ? "pass" : "queued"
     },

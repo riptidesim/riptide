@@ -18,7 +18,6 @@ import path from "node:path";
 import TOML from "toml";
 
 import {
-  AdapterSchema,
   LENDING_ACTIONS,
   LENDING_OBSERVATIONS,
   SEMANTIC_CLASS_REQUIREMENTS,
