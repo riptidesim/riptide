@@ -3,7 +3,9 @@
 /programs/*/target/
 /cli/node_modules/
 /cli/studio-app/node_modules/
+/demo/node_modules/
 /cli/dist/
+/demo/dist/
 /cli/test-ledger/
 /test-ledger/
 /.agents/

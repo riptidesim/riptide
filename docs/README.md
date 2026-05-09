@@ -15,6 +15,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 | [Vision](vision.md) | Understand the lab-not-oracle stance, what Riptide claims, and what it explicitly does not claim. |
 | [Solend-fork case study](case-studies/lending.md) | See the whale-share × price-shock grid that anchors the main product story. |
 | [Studio](studio.md) | Open the localhost visual control plane: workspaces, evidence library, simulation diagram, dashboard drilldown, allowlisted job launcher, and `riptide-config` handoff. |
+| [Static demo](static-demo.md) | Build and deploy the mocked `riptide.run` root demo while preserving installer routes. |
 
 ## Reviewer And CI
 

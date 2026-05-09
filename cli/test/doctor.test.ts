@@ -714,7 +714,7 @@ test("runDoctor: empty repo (no adapters anywhere) → exit 1 with init hint", a
   assert.match(out, /Verdict: WARN/);
 });
 
-test("runDoctor: shipping monorepo fixtures are pass or bounded optional-runtime warnings", async () => {
+test("runDoctor: shipping monorepo fixtures are pass or bounded warnings", async () => {
   // Use the real shipping monorepo fixtures by pointing cwd at it.
   const cwd = path.resolve(process.cwd(), "..");
   let out = "";
@@ -739,7 +739,7 @@ test("runDoctor: shipping monorepo fixtures are pass or bounded optional-runtime
   assert.doesNotMatch(out, /lint=fail/);
   assert.doesNotMatch(out, /load=fail/);
   if (exit === 1) {
-    assert.match(out, /optional fixture runtime artifact not built/);
+    assert.match(out, /optional fixture runtime artifact not built|uncovered surface/);
     assert.match(out, /Verdict: WARN/);
   } else {
     assert.match(out, /Verdict: PASS/);

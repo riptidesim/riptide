@@ -25,7 +25,7 @@ The release bundle does not require Rust, Node.js, npm, Solana CLI, or `cargo-bu
 Useful options:
 
 ```bash
-curl -fsSL https://riptide.run/install | sh -s -- --version 0.7.0
+curl -fsSL https://riptide.run/install | sh -s -- --version 0.8.0
 curl -fsSL https://riptide.run/install | sh -s -- --bin-dir "$HOME/bin"
 curl -fsSL https://riptide.run/install | sh -s -- --dry-run
 curl -fsSL https://riptide.run/install | sh -s -- --no-agent-skills

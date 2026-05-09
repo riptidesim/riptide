@@ -1,0 +1,75 @@
+.tour-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.tour-blocker {
+  position: fixed;
+  background: rgba(3, 7, 12, 0.72);
+  pointer-events: auto;
+}
+
+.tour-focus {
+  position: fixed;
+  border: 2px solid var(--rt-teal);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(34, 240, 230, 0.35), 0 0 36px rgba(34, 240, 230, 0.28);
+  pointer-events: none;
+}
+
+.tour-card {
+  position: fixed;
+  pointer-events: auto;
+  border: 1px solid var(--rt-slate-strong);
+  background: var(--rt-slate-panel);
+  border-radius: 10px;
+  padding: 18px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+}
+
+.tour-kicker {
+  margin-bottom: 8px;
+  color: var(--rt-teal);
+  font: 600 10px var(--rt-font-mono);
+  letter-spacing: 0.16em;
+}
+
+.tour-card h2,
+.tour-run-card h2 {
+  margin: 0;
+  color: var(--rt-off-white);
+  font: 600 18px/1.22 var(--rt-font-sans);
+  letter-spacing: 0;
+}
+
+.tour-card p,
+.tour-run-card p {
+  margin: 9px 0 0;
+  color: var(--rt-fog);
+  font: 400 13px/1.55 var(--rt-font-sans);
+}
+
+.tour-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 15px;
+}
+
+.tour-interaction-lock {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  cursor: progress;
+  pointer-events: auto;
+}
+
+@media (max-width: 720px) {
+  .tour-card {
+    left: 14px !important;
+    right: 14px;
+    width: auto !important;
+  }
+}

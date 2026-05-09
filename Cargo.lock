@@ -3326,7 +3326,7 @@ dependencies = [
 
 [[package]]
 name = "riptide-engine"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -3353,7 +3353,7 @@ dependencies = [
 
 [[package]]
 name = "riptide-sim"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -3380,7 +3380,7 @@ dependencies = [
 
 [[package]]
 name = "riptide-sim-macros"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "proc-macro2",
  "quote",

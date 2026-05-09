@@ -174,6 +174,21 @@ export const SEMANTIC_LABELS: Record<string, SemanticLabel> = {
     label: "Hedge gap value",
     tooltip: "Program-local hedge loss proxy from the shipped fixture.",
     unit: "USD"
+  },
+  "token.v1.source_balance": {
+    label: "Source balance",
+    tooltip: "Token balance of the source account before or after transfer-like flows.",
+    unit: "tokens"
+  },
+  "token.v1.destination_balance": {
+    label: "Destination balance",
+    tooltip: "Token balance of the destination account before or after transfer-like flows.",
+    unit: "tokens"
+  },
+  "token.v1.mint_supply": {
+    label: "Mint supply",
+    tooltip: "Total token supply reported for the mint.",
+    unit: "tokens"
   }
 };
 

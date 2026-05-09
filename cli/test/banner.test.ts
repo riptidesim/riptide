@@ -47,12 +47,12 @@ test("banner suppresses when RIPTIDE_NO_BANNER is truthy", () => {
 
 test("rendered banner is compact and reads version from package.json", () => {
   const version = cliPackageVersion();
-  assert.equal(version, "0.7.0");
+  assert.equal(version, "0.8.0");
   const rendered = renderBanner(version, false);
   assert.equal(rendered.split("\n").length, 5);
   assert.equal(rendered.endsWith("\n\n"), true);
   assert.match(rendered, /RIPTIDE/);
-  assert.match(rendered, /Riptide v0\.7\.0/);
+  assert.match(rendered, /Riptide v0\.8\.0/);
   assert.match(rendered, /Deterministic Solana simulation evidence\./);
 });
 
