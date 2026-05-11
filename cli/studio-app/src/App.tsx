@@ -37,6 +37,35 @@ const REPORT_KINDS = new Set<StudioArtifactKind>([
   "campaign-input"
 ]);
 
+function isManagedWorkspace(workspace: StudioWorkspace): boolean {
+  return workspace.has_riptide && Boolean(
+    workspace.registry_id ||
+    workspace.source === "registered" ||
+    workspace.source === "case-study"
+  );
+}
+
+function workspaceNeedsFirstRun(active: StudioWorkspace | null, workspaces: StudioWorkspace[] | null): boolean {
+  if (!active || isManagedWorkspace(active)) return false;
+  return !(workspaces ?? []).some(isManagedWorkspace);
+}
+
+function selectWorkspaceAfterRemoval(workspaces: StudioWorkspace[], removedIndex: number): number {
+  if (workspaces.length === 0) return -1;
+  const preferred = removedIndex > 0
+    ? Math.min(removedIndex - 1, workspaces.length - 1)
+    : 0;
+  if (workspaces[preferred] && isManagedWorkspace(workspaces[preferred])) return preferred;
+
+  for (let distance = 1; distance < workspaces.length; distance += 1) {
+    const above = preferred - distance;
+    if (above >= 0 && workspaces[above] && isManagedWorkspace(workspaces[above])) return above;
+    const below = preferred + distance;
+    if (below < workspaces.length && workspaces[below] && isManagedWorkspace(workspaces[below])) return below;
+  }
+  return preferred;
+}
+
 export function App() {
   const [page, setPage] = useState<PageId>(() => readStudioPage());
   const [activeWs, setActiveWs] = useState(0);
@@ -119,7 +148,7 @@ export function App() {
   // until we have a real workspace.
   const primary = workspaces?.[0] ?? null;
   const active = primary ? (workspaces?.[activeWs] ?? primary) : null;
-  const needsFirstRun = Boolean(active && (!active.has_riptide || !active.registry_id));
+  const needsFirstRun = workspaceNeedsFirstRun(active, workspaces);
   const { pref, setPref } = useAgentPreference(active?.path ?? "", agents);
 
   useEffect(() => {
@@ -176,17 +205,19 @@ export function App() {
       throw new Error("This workspace is not remembered in Studio's registry.");
     }
     const activeId = workspaces?.[activeWs]?.id ?? null;
+    const removedIdx = workspaces?.findIndex((w) => w.id === target.id) ?? activeWs;
     const res = await api.removeProject(registryId);
     const next = res.workspaces;
     setWorkspaces(next);
     const sameIdx = activeId ? next.findIndex((w) => w.id === activeId) : -1;
-    if (sameIdx >= 0) {
+    const removedActiveWorkspace = activeId === target.id;
+    if (!removedActiveWorkspace && sameIdx >= 0) {
       setActiveWs(sameIdx);
       writeStudioLocation(page, next[sameIdx]?.id ?? null, "replace");
     } else {
-      const fallbackIdx = 0;
-      setActiveWs(fallbackIdx);
-      writeStudioLocation(page, next[fallbackIdx]?.id ?? null, "replace");
+      const fallbackIdx = selectWorkspaceAfterRemoval(next, removedIdx);
+      setActiveWs(Math.max(fallbackIdx, 0));
+      writeStudioLocation(page, fallbackIdx >= 0 ? next[fallbackIdx]?.id ?? null : null, "replace");
     }
   }, [activeWs, page, workspaces]);
 
