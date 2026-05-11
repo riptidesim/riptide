@@ -75,10 +75,10 @@ Riptide release installer
 
 Usage:
   curl -fsSL https://riptide.run/install | sh
-  curl -fsSL https://riptide.run/install | sh -s -- --version 0.8.0
+  curl -fsSL https://riptide.run/install | sh -s -- --version 0.9.0
 
 Options:
-  --version <version>     Install a specific release. Accepts 0.8.0 or v0.8.0.
+  --version <version>     Install a specific release. Accepts 0.9.0 or v0.9.0.
                           Defaults to latest.
   --bin-dir <dir>         Directory for the riptide launcher.
                           Defaults to $HOME/.local/bin.

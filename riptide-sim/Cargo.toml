@@ -1,6 +1,6 @@
 [package]
 name = "riptide-sim"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 description = "Guided Rust simulation API for Riptide project-owned protocol flows."
 license = "MIT OR Apache-2.0"

@@ -84,7 +84,7 @@ export function Sidebar({ page, setPage, ws, agents, pref, setPref, onOpenSearch
           <Icon name="external" size={12} color="var(--rt-fog-dim)" />
         </a>
         <div className="side__util-row">
-          <span className="side__version">v0.8.0</span>
+          <span className="side__version">v0.9.0</span>
           <button className="side__util-btn" title="Settings" onClick={() => setPage("settings")}>
             <Icon name="settings" size={14} />
           </button>

@@ -411,7 +411,7 @@ export function SettingsPage({ agents, onReprobe, workspace, pref, setPref, onRe
             <div>
               <div style={{ font: "600 18px Inter", color: "var(--rt-off-white)" }}>Riptide Studio</div>
               <div style={{ font: '400 12px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}>
-                v0.8.0 · engine riptide-sim 0.8.0
+                v0.9.0 · engine riptide-sim 0.9.0
               </div>
             </div>
           </div>
