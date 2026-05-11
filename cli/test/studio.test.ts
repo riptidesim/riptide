@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { execFile as execFileCb } from "node:child_process";
+import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import {
   parseGjsPortalDirectoryPickerOutput,
@@ -13,6 +15,7 @@ import {
   discoverStudioWorkspaces,
   type StudioWorkspace
 } from "../src/studio/workspaces.js";
+import { registerProject } from "../src/studio/registry.js";
 import {
   indexWorkspaceArtifacts,
   type StudioArtifactIndex
@@ -25,7 +28,15 @@ import {
   type JobValidationError
 } from "../src/studio/jobs.js";
 import { generateConfigIntent } from "../src/studio/config-intent.js";
+import { ChatStore } from "../src/studio/chat/store.js";
+import {
+  createThreadChangesState,
+  diffWorkspaceSnapshots,
+  readWorkspaceStatusSnapshot
+} from "../src/studio/workspace-changes.js";
 import type { SimulationResult } from "../src/compiler/schema.js";
+
+const execFile = promisify(execFileCb);
 
 async function tmpRoot(label: string): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), `riptide-studio-${label}-`));
@@ -313,6 +324,37 @@ async function seedWorkspace(root: string): Promise<void> {
   );
 }
 
+async function writeLegacyJob(
+  file: string,
+  input: { id: string; cwd: string; workspaceId?: string }
+): Promise<void> {
+  await writeFile(
+    file,
+    JSON.stringify(
+      {
+        id: input.id,
+        kind: "readiness",
+        status: "succeeded",
+        created_at: "2026-05-09T00:00:00.000Z",
+        updated_at: "2026-05-09T00:00:01.000Z",
+        workspace_id: input.workspaceId ?? "current",
+        cwd: input.cwd,
+        argv: ["riptide", "readiness", ".", "--json", "--out", ".riptide/readiness"],
+        output_path: ".riptide/readiness",
+        expected_artifact: ".riptide/readiness/readiness.json",
+        exit_code: 0,
+        stdout_tail: "",
+        stderr_tail: "",
+        artifact_paths: [],
+        warnings: []
+      },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
+}
+
 test("studio workspace discovery returns the current workspace first", async () => {
   const root = await tmpRoot("workspaces-only-current");
   await mkdir(path.join(root, ".riptide"), { recursive: true });
@@ -332,6 +374,24 @@ test("studio workspace discovery flags missing .riptide with a next action", asy
   assert.equal(workspaces[0]!.has_riptide, false);
   assert.equal(workspaces[0]!.warnings.length, 1);
   assert.match(workspaces[0]!.warnings[0]!.next_action, /riptide init/);
+});
+
+test("studio workspace discovery hides the uninitialized launch folder when a saved workspace exists", async () => {
+  const root = await tmpRoot("workspaces-launch-shell");
+  const external = await tmpRoot("workspaces-saved-external");
+  const registryHome = await tmpRoot("workspaces-saved-registry");
+  await mkdir(path.join(external, ".riptide"), { recursive: true });
+  await registerProject({ label: "AMM", path: external }, { home: registryHome });
+
+  const workspaces = await discoverStudioWorkspaces({
+    cwd: root,
+    registryPaths: { home: registryHome }
+  });
+
+  assert.equal(workspaces.length, 1);
+  assert.equal(workspaces[0]!.path, external);
+  assert.equal(workspaces[0]!.source, "registered");
+  assert.equal(workspaces[0]!.has_riptide, true);
 });
 
 test("studio workspace discovery surfaces case-study subfolders deterministically", async () => {
@@ -469,6 +529,35 @@ test("studio indexer reports warnings for malformed run-collection.json", async 
   assert.match(collection!.warnings[0]!.next_action, /riptide run/);
 });
 
+test("studio case-study artifacts do not inherit sibling repo readiness reports", async () => {
+  const repoRoot = await tmpRoot("report-owner-repo");
+  const caseRoot = path.join(repoRoot, "case-studies");
+  const lending = path.join(caseRoot, "lending");
+  const amm = path.join(caseRoot, "amm");
+  await mkdir(path.join(repoRoot, ".riptide"), { recursive: true });
+  await mkdir(path.join(lending, ".riptide"), { recursive: true });
+  await mkdir(path.join(amm, ".riptide"), { recursive: true });
+  await mkdir(path.join(repoRoot, "riptide", "reports", "case-study-readiness", "amm"), {
+    recursive: true
+  });
+  await writeFile(
+    path.join(repoRoot, "riptide", "reports", "case-study-readiness", "amm", "summary.md"),
+    "# amm readiness\n",
+    "utf8"
+  );
+
+  const index = await indexWorkspaceArtifacts({
+    workspaceId: "lending",
+    workspacePath: lending
+  });
+
+  assert.equal(index.has_riptide, true);
+  assert.deepEqual(
+    index.artifacts.filter((artifact) => artifact.kind === "readiness-report"),
+    []
+  );
+});
+
 test("studio server health route returns metadata about the workspace", async () => {
   const root = await tmpRoot("server-health");
   await mkdir(path.join(root, ".riptide"), { recursive: true });
@@ -526,10 +615,113 @@ test("studio server workspaces and artifacts endpoints expose discovered state",
   );
 });
 
-test("studio remembers discovered riptide workspaces in the user registry", async () => {
-  const home = await tmpRoot("server-remember-current");
-  const studies = await tmpRoot("server-remember-studies");
-  const registryPaths = { home: await tmpRoot("server-remember-registry") };
+test("studio changes route returns git workspace changes", async () => {
+  const root = await tmpRoot("server-changes");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  await execFile("git", ["init"], { cwd: root });
+  await writeFile(path.join(root, "tracked.txt"), "before\n", "utf8");
+  await writeFile(path.join(root, ".gitignore"), ".riptide/runs/\n", "utf8");
+  await execFile("git", ["add", "tracked.txt", ".gitignore"], { cwd: root });
+  await execFile(
+    "git",
+    ["-c", "user.email=studio@example.invalid", "-c", "user.name=Studio Test", "commit", "-m", "init"],
+    { cwd: root }
+  );
+  await writeFile(path.join(root, "tracked.txt"), "after\n", "utf8");
+  await writeFile(path.join(root, "new.txt"), "new\n", "utf8");
+
+  await withServer({ workspace: root }, async (handle) => {
+    const changes = (await getJson(`${handle.url}/api/studio/changes`)) as {
+      schema_version: string;
+      is_git_workspace: boolean;
+      changes: Array<{ path: string; status: string; index_status: string; worktree_status: string }>;
+      warnings: string[];
+    };
+    assert.equal(changes.schema_version, "studio-changes.v1");
+    assert.equal(changes.is_git_workspace, true);
+    assert.deepEqual(changes.warnings, []);
+    const byPath = new Map(changes.changes.map((change) => [change.path, change]));
+    assert.equal(byPath.get("tracked.txt")?.status, "modified");
+    assert.equal(byPath.get("tracked.txt")?.index_status, " ");
+    assert.equal(byPath.get("tracked.txt")?.worktree_status, "M");
+    assert.equal(byPath.get("new.txt")?.status, "untracked");
+  });
+});
+
+test("studio thread changes ignore preexisting workspace dirt and studio backups", async () => {
+  const root = await tmpRoot("server-thread-changes");
+  await mkdir(path.join(root, ".riptide"), { recursive: true });
+  await execFile("git", ["init"], { cwd: root });
+  await writeFile(path.join(root, "tracked.txt"), "before\n", "utf8");
+  await writeFile(path.join(root, ".gitignore"), ".riptide/runs/\n", "utf8");
+  await execFile("git", ["add", "tracked.txt", ".gitignore"], { cwd: root });
+  await execFile(
+    "git",
+    ["-c", "user.email=studio@example.invalid", "-c", "user.name=Studio Test", "commit", "-m", "init"],
+    { cwd: root }
+  );
+  await mkdir(path.join(root, ".riptide.bak.20260509", "studio", "jobs"), { recursive: true });
+  await writeFile(path.join(root, ".riptide.bak.20260509", "studio", "jobs", "old.json"), "old\n", "utf8");
+  await writeFile(path.join(root, "unrelated-before.txt"), "old\n", "utf8");
+
+  await withServer({ workspace: root }, async (handle) => {
+    const created = await fetch(`${handle.url}/api/studio/chat/threads`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ agentId: "claude-code", model: "default", workspaceId: "current" })
+    });
+    assert.equal(created.status, 201);
+    const createdBody = (await created.json()) as { thread: { id: string } };
+    const threadId = createdBody.thread.id;
+
+    const empty = (await getJson(`${handle.url}/api/studio/changes?workspace=current&thread=${threadId}`)) as {
+      changes: unknown[];
+      scope: string;
+      thread_id: string | null;
+    };
+    assert.equal(empty.scope, "chat_thread");
+    assert.equal(empty.thread_id, threadId);
+    assert.deepEqual(empty.changes, []);
+
+    const baseline = await readWorkspaceStatusSnapshot(root);
+    await writeFile(path.join(root, "tracked.txt"), "after\n", "utf8");
+    await writeFile(path.join(root, "created-by-chat.txt"), "new\n", "utf8");
+    await mkdir(path.join(root, ".riptide", "runs", "liquidity-baseline"), { recursive: true });
+    await writeFile(
+      path.join(root, ".riptide", "runs", "liquidity-baseline", "simulation-result.json"),
+      "{}\n",
+      "utf8"
+    );
+    const current = await readWorkspaceStatusSnapshot(root);
+    const store = new ChatStore({ workspacePath: root });
+    await store.writeThreadWorkspaceChanges(
+      threadId,
+      createThreadChangesState({
+        threadId,
+        baseline,
+        current,
+        changes: diffWorkspaceSnapshots(baseline, current)
+      })
+    );
+
+    const scoped = (await getJson(`${handle.url}/api/studio/changes?workspace=current&thread=${threadId}`)) as {
+      changes: Array<{ path: string; status: string }>;
+    };
+    const paths = scoped.changes.map((change) => change.path).sort();
+    assert.deepEqual(paths, [
+      ".riptide/runs/liquidity-baseline/simulation-result.json",
+      "created-by-chat.txt",
+      "tracked.txt"
+    ]);
+    assert.ok(!paths.some((p) => p.startsWith(".riptide.bak")));
+    assert.ok(!paths.includes("unrelated-before.txt"));
+  });
+});
+
+test("studio does not auto-save discovered riptide workspaces in the user registry", async () => {
+  const home = await tmpRoot("server-no-auto-remember-current");
+  const studies = await tmpRoot("server-no-auto-remember-studies");
+  const registryPaths = { home: await tmpRoot("server-no-auto-remember-registry") };
   await mkdir(path.join(home, ".riptide"), { recursive: true });
   await mkdir(path.join(studies, "amm", ".riptide"), { recursive: true });
   await mkdir(path.join(studies, "draft"), { recursive: true });
@@ -542,14 +734,238 @@ test("studio remembers discovered riptide workspaces in the user registry", asyn
         projects: Array<{ label: string; path: string; last_opened_at: string | null }>;
       };
       assert.equal(registry.schema_version, "studio-registry.v1");
-      assert.deepEqual(
-        registry.projects.map((project) => project.path).sort(),
-        [home, path.join(studies, "amm")].sort()
-      );
-      assert.ok(registry.projects.every((project) => typeof project.last_opened_at === "string"));
-      assert.ok(!registry.projects.some((project) => project.path === path.join(studies, "draft")));
+      assert.deepEqual(registry.projects, []);
+
+      const workspaces = (await getJson(`${handle.url}/api/studio/workspaces`)) as {
+        workspaces: Array<{ path: string; has_riptide: boolean; registry_id: string | null }>;
+      };
+      assert.ok(workspaces.workspaces.some((workspace) => workspace.path === home && workspace.has_riptide));
+      assert.ok(workspaces.workspaces.some((workspace) => workspace.path === path.join(studies, "amm") && workspace.has_riptide));
+      assert.ok(workspaces.workspaces.every((workspace) => workspace.registry_id === null));
     }
   );
+});
+
+test("studio init opens an existing .riptide workspace without overwriting it", async () => {
+  const home = await tmpRoot("server-init-existing-home");
+  const external = await tmpRoot("server-init-existing-external");
+  await mkdir(path.join(home, ".riptide"), { recursive: true });
+  await mkdir(path.join(external, ".riptide", "adapters"), { recursive: true });
+  const existingAdapter = path.join(external, ".riptide", "adapters", "amm.toml");
+  await writeFile(existingAdapter, "# existing adapter\n", "utf8");
+
+  await withServer({ workspace: home }, async (handle) => {
+    const initResponse = await fetch(`${handle.url}/api/studio/init`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        program_name: "amm",
+        protocol: "amm",
+        path: external,
+        label: "AMM Workspace"
+      })
+    });
+    assert.equal(initResponse.status, 200);
+    const opened = (await initResponse.json()) as {
+      created: string[];
+      warnings: string[];
+      workspaces: Array<{ id: string; label: string; path: string; has_riptide: boolean; registry_id: string | null }>;
+    };
+    assert.deepEqual(opened.created, []);
+    assert.match(opened.warnings.join("\n"), /existing \.riptide directory found/);
+    assert.equal((await stat(existingAdapter)).isFile(), true);
+
+    const target = opened.workspaces.find((workspace) => workspace.path === external);
+    assert.equal(target?.label, "AMM Workspace");
+    assert.equal(target?.has_riptide, true);
+    assert.match(target?.registry_id ?? "", /^prj_/);
+
+    const registry = (await getJson(`${handle.url}/api/studio/registry`)) as {
+      projects: Array<{ label: string; path: string }>;
+    };
+    assert.ok(registry.projects.some((project) => project.path === external && project.label === "AMM Workspace"));
+  });
+});
+
+test("studio init from an uninitialized launch folder returns the chosen workspace only", async () => {
+  const launchRoot = await tmpRoot("server-init-launch-shell");
+  const projectRoot = await tmpRoot("server-init-chosen-project");
+
+  await withServer({ workspace: launchRoot }, async (handle) => {
+    const initResponse = await fetch(`${handle.url}/api/studio/init`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        program_name: "amm",
+        protocol: "amm",
+        path: projectRoot,
+        label: "AMM"
+      })
+    });
+    assert.equal(initResponse.status, 201);
+    const body = (await initResponse.json()) as {
+      workspaces: Array<{ id: string; label: string; path: string; has_riptide: boolean; registry_id: string | null }>;
+    };
+    assert.equal((await stat(path.join(projectRoot, ".riptide"))).isDirectory(), true);
+    assert.ok(body.workspaces.some((workspace) => workspace.path === projectRoot && workspace.has_riptide));
+    assert.ok(!body.workspaces.some((workspace) => workspace.path === launchRoot));
+  });
+});
+
+test("studio registry delete forgets registered workspace without deleting files", async () => {
+  const home = await tmpRoot("server-registry-delete-current");
+  const external = await tmpRoot("server-registry-delete-external");
+  await mkdir(path.join(home, ".riptide"), { recursive: true });
+  await mkdir(path.join(external, ".riptide", "studio", "threads"), { recursive: true });
+  await writeFile(path.join(external, ".riptide", "campaign.toml"), "[campaign]\n", "utf8");
+  await writeFile(path.join(external, ".riptide", "studio", "threads", "sessions.json"), "{}", "utf8");
+  await writeFile(path.join(external, "program.rs"), "// source file\n", "utf8");
+
+  await withServer({ workspace: home }, async (handle) => {
+    const createResponse = await fetch(`${handle.url}/api/studio/registry`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: external, label: "External Workspace" })
+    });
+    assert.equal(createResponse.status, 201);
+    const created = (await createResponse.json()) as {
+      workspaces: Array<{ id: string; path: string; source: string }>;
+    };
+    const target = created.workspaces.find((workspace) => workspace.path === external);
+    assert.equal(target?.source, "registered");
+
+    const deleteResponse = await fetch(
+      `${handle.url}/api/studio/registry/${encodeURIComponent(target!.id)}`,
+      { method: "DELETE" }
+    );
+    assert.equal(deleteResponse.status, 200);
+    const deleted = (await deleteResponse.json()) as {
+      schema_version: string;
+      removed: { path: string; riptide_path: string; has_riptide: boolean; preserved: boolean };
+      workspaces: Array<{ id: string; path: string }>;
+    };
+    assert.equal(deleted.schema_version, "studio-registry-removed.v1");
+    assert.equal(deleted.removed.path, external);
+    assert.equal(deleted.removed.has_riptide, true);
+    assert.equal(deleted.removed.preserved, true);
+    assert.equal(deleted.removed.riptide_path, path.join(external, ".riptide"));
+    assert.ok(!deleted.workspaces.some((workspace) => workspace.id === target!.id));
+    assert.ok(!deleted.workspaces.some((workspace) => workspace.path === external));
+
+    const registry = (await getJson(`${handle.url}/api/studio/registry`)) as {
+      projects: Array<{ path: string }>;
+    };
+    assert.ok(!registry.projects.some((project) => project.path === external));
+    assert.equal((await stat(path.join(external, ".riptide", "campaign.toml"))).isFile(), true);
+    assert.equal((await stat(path.join(external, ".riptide", "studio", "threads", "sessions.json"))).isFile(), true);
+    assert.equal((await stat(path.join(external, "program.rs"))).isFile(), true);
+
+    const missingResponse = await fetch(
+      `${handle.url}/api/studio/registry/${encodeURIComponent(target!.id)}`,
+      { method: "DELETE" }
+    );
+    assert.equal(missingResponse.status, 404);
+  });
+});
+
+test("studio registry delete can forget the launch workspace without re-adding it", async () => {
+  const home = await tmpRoot("server-registry-delete-current-entry");
+  await mkdir(path.join(home, ".riptide", "campaigns"), { recursive: true });
+  await writeFile(path.join(home, ".riptide", "campaigns", "demo.toml"), "[campaign]\n", "utf8");
+  await writeFile(path.join(home, "lib.rs"), "// source file\n", "utf8");
+
+  await withServer({ workspace: home }, async (handle) => {
+    const registerResponse = await fetch(`${handle.url}/api/studio/registry`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: home, label: "Home Workspace" })
+    });
+    assert.equal(registerResponse.status, 201);
+
+    const before = (await getJson(`${handle.url}/api/studio/workspaces`)) as {
+      workspaces: Array<{ id: string; path: string; source: string; registry_id: string | null }>;
+    };
+    const current = before.workspaces.find((workspace) => workspace.id === "current");
+    assert.equal(current?.path, home);
+    assert.equal(current?.source, "current");
+    assert.match(current?.registry_id ?? "", /^prj_/);
+
+    const deleteResponse = await fetch(
+      `${handle.url}/api/studio/registry/${encodeURIComponent(current!.registry_id!)}`,
+      { method: "DELETE" }
+    );
+    assert.equal(deleteResponse.status, 200);
+    const deleted = (await deleteResponse.json()) as {
+      removed: { path: string; riptide_path: string; has_riptide: boolean; preserved: boolean };
+      workspaces: Array<{ id: string; path: string; source: string; registry_id: string | null; has_riptide: boolean }>;
+    };
+    assert.equal(deleted.removed.path, home);
+    assert.equal(deleted.removed.has_riptide, true);
+    assert.equal(deleted.removed.preserved, true);
+    assert.equal(deleted.removed.riptide_path, path.join(home, ".riptide"));
+    const stillCurrent = deleted.workspaces.find((workspace) => workspace.id === "current");
+    assert.equal(stillCurrent?.path, home);
+    assert.equal(stillCurrent?.source, "current");
+    assert.equal(stillCurrent?.registry_id, null);
+    assert.equal(stillCurrent?.has_riptide, true);
+
+    const registry = (await getJson(`${handle.url}/api/studio/registry`)) as {
+      projects: Array<{ path: string }>;
+    };
+    assert.ok(!registry.projects.some((project) => project.path === home));
+    assert.equal((await stat(path.join(home, ".riptide", "campaigns", "demo.toml"))).isFile(), true);
+    assert.equal((await stat(path.join(home, "lib.rs"))).isFile(), true);
+  });
+});
+
+test("studio workspace removal preserves on-disk chat when reopening", async () => {
+  const home = await tmpRoot("server-registry-delete-chat-cache");
+  await mkdir(path.join(home, ".riptide"), { recursive: true });
+
+  await withServer({ workspace: home }, async (handle) => {
+    const registerResponse = await fetch(`${handle.url}/api/studio/registry`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: home, label: "Home Workspace" })
+    });
+    assert.equal(registerResponse.status, 201);
+
+    const createdThread = await fetch(`${handle.url}/api/studio/chat/threads`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ workspace: "current", agentId: "codex", model: "default", title: "Old setup" })
+    });
+    assert.equal(createdThread.status, 201);
+    const beforeThreads = (await getJson(`${handle.url}/api/studio/chat/threads?workspace=current`)) as {
+      threads: unknown[];
+    };
+    assert.equal(beforeThreads.threads.length, 1);
+
+    const beforeWorkspaces = (await getJson(`${handle.url}/api/studio/workspaces`)) as {
+      workspaces: Array<{ id: string; registry_id: string | null }>;
+    };
+    const current = beforeWorkspaces.workspaces.find((workspace) => workspace.id === "current");
+    assert.match(current?.registry_id ?? "", /^prj_/);
+
+    const deleteResponse = await fetch(
+      `${handle.url}/api/studio/registry/${encodeURIComponent(current!.registry_id!)}`,
+      { method: "DELETE" }
+    );
+    assert.equal(deleteResponse.status, 200);
+    assert.equal((await stat(path.join(home, ".riptide"))).isDirectory(), true);
+
+    const initResponse = await fetch(`${handle.url}/api/studio/init`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ program_name: "home", protocol: "custom", path: home, label: "Home Workspace" })
+    });
+    assert.equal(initResponse.status, 200);
+
+    const afterThreads = (await getJson(`${handle.url}/api/studio/chat/threads?workspace=current`)) as {
+      threads: unknown[];
+    };
+    assert.equal(afterThreads.threads.length, 1);
+  });
 });
 
 test("studio jobs route returns the persisted job list (empty by default)", async () => {
@@ -635,6 +1051,43 @@ test("studio browse-directory route lists child directories without native dialo
     assert.equal(body.path, root);
     assert.ok(body.parent);
     assert.deepEqual(body.entries.map((entry) => entry.name), [".riptide", "alpha", "beta"]);
+  });
+});
+
+test("studio detect-program route accepts a folder path before workspace setup", async () => {
+  const launchRoot = await tmpRoot("server-detect-launch");
+  const projectRoot = await tmpRoot("server-detect-project");
+  await mkdir(path.join(projectRoot, "programs", "amm_core"), { recursive: true });
+  await writeFile(
+    path.join(projectRoot, "programs", "amm_core", "Cargo.toml"),
+    `[package]
+name = "amm_core"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+`,
+    "utf8"
+  );
+
+  await withServer({ workspace: launchRoot }, async (handle) => {
+    const response = await fetch(
+      `${handle.url}/api/studio/detect-program?path=${encodeURIComponent(projectRoot)}`
+    );
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      schema_version: string;
+      programName: string | null;
+      source: string | null;
+      candidates: Array<{ programName: string; source: string }>;
+    };
+    assert.equal(body.schema_version, "studio-detect-program.v1");
+    assert.equal(body.programName, "amm-core");
+    assert.equal(body.source, "cargo-workspace");
+    assert.deepEqual(
+      body.candidates.map((candidate) => ({ programName: candidate.programName, source: candidate.source })),
+      [{ programName: "amm-core", source: "cargo-workspace" }]
+    );
   });
 });
 
@@ -1239,6 +1692,37 @@ test("studio jobs hydration surfaces persisted jobs after restart", async () => 
   }
 });
 
+test("studio jobs hydration normalizes legacy current ids to the owning workspace", async () => {
+  const primary = await tmpRoot("jobs-hydrate-primary");
+  const caseRoot = await tmpRoot("jobs-hydrate-cases");
+  const lending = path.join(caseRoot, "lending");
+  const amm = path.join(caseRoot, "amm");
+  await mkdir(path.join(primary, ".riptide"), { recursive: true });
+  await mkdir(path.join(lending, ".riptide", "studio", "jobs"), { recursive: true });
+  await mkdir(path.join(amm, ".riptide", "studio", "jobs"), { recursive: true });
+
+  await writeLegacyJob(path.join(lending, ".riptide", "studio", "jobs", "lending.json"), {
+    id: "legacy-lending",
+    cwd: lending
+  });
+  await writeLegacyJob(path.join(amm, ".riptide", "studio", "jobs", "amm.json"), {
+    id: "legacy-amm",
+    cwd: amm
+  });
+
+  await withServer({ workspace: primary, caseStudiesRoot: caseRoot }, async (handle) => {
+    const list = (await getJson(`${handle.url}/api/studio/jobs`)) as {
+      jobs: Array<{ id: string; workspace_id: string; cwd: string }>;
+    };
+    const byId = new Map(list.jobs.map((job) => [job.id, job]));
+    assert.equal(byId.get("legacy-lending")?.workspace_id, "lending");
+    assert.equal(byId.get("legacy-amm")?.workspace_id, "amm");
+    assert.equal(byId.get("legacy-lending")?.cwd, lending);
+    assert.equal(byId.get("legacy-amm")?.cwd, amm);
+    assert.ok(!list.jobs.some((job) => job.workspace_id === "current" && job.cwd !== primary));
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Sprint 31 / T10 — chat-like config handoff
 // ---------------------------------------------------------------------------
@@ -1263,6 +1747,8 @@ test("config intent generator returns prompt + proposed files for a complete pay
   assert.ok(result.proposed_files.some((f: { path: string }) => f.path.includes("whale-shock")));
   assert.ok(result.validation_commands.includes("riptide doctor"));
   assert.ok(result.handoff_prompt.includes("riptide-config"));
+  assert.ok(result.handoff_prompt.includes("skill is unavailable"));
+  assert.ok(result.handoff_prompt.includes("~/.codex/skills/riptide-config/SKILL.md"));
   assert.ok(result.handoff_prompt.includes("/abs/path/to/lending"));
   assert.ok(!/already (?:edited|applied|wrote)/.test(result.handoff_prompt));
 });

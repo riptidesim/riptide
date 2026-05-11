@@ -119,10 +119,11 @@ export function App() {
   // until we have a real workspace.
   const primary = workspaces?.[0] ?? null;
   const active = primary ? (workspaces?.[activeWs] ?? primary) : null;
+  const needsFirstRun = Boolean(active && (!active.has_riptide || !active.registry_id));
   const { pref, setPref } = useAgentPreference(active?.path ?? "", agents);
 
   useEffect(() => {
-    if (!active?.id) {
+    if (!active?.id || needsFirstRun) {
       setCounts({});
       return;
     }
@@ -155,7 +156,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [active?.id, page]);
+  }, [active?.id, page, needsFirstRun]);
 
   const navigateToPage = useCallback((nextPage: PageId) => {
     setPage(nextPage);
@@ -169,6 +170,26 @@ export function App() {
     writeStudioLocation(page, next.id, "push");
   }, [page, workspaces]);
 
+  const removeWorkspace = useCallback(async (target: StudioWorkspace) => {
+    const registryId = target.registry_id ?? (target.source === "registered" ? target.id : null);
+    if (!registryId) {
+      throw new Error("This workspace is not remembered in Studio's registry.");
+    }
+    const activeId = workspaces?.[activeWs]?.id ?? null;
+    const res = await api.removeProject(registryId);
+    const next = res.workspaces;
+    setWorkspaces(next);
+    const sameIdx = activeId ? next.findIndex((w) => w.id === activeId) : -1;
+    if (sameIdx >= 0) {
+      setActiveWs(sameIdx);
+      writeStudioLocation(page, next[sameIdx]?.id ?? null, "replace");
+    } else {
+      const fallbackIdx = 0;
+      setActiveWs(fallbackIdx);
+      writeStudioLocation(page, next[fallbackIdx]?.id ?? null, "replace");
+    }
+  }, [activeWs, page, workspaces]);
+
   const openArtifact = useCallback((artifactId: string) => {
     setPage("reports");
     writeStudioLocation("reports", active?.id ?? readStudioWorkspace(), "push", { artifactId });
@@ -179,13 +200,15 @@ export function App() {
   if (workspaces === null) return <FullPageMessage title="Loading workspace…" body="Talking to the Studio server." />;
   if (!primary || !active) return <FullPageMessage title="No workspace registered" body="Restart `riptide studio` from a project directory." />;
 
-  if (!active.has_riptide) {
+  if (needsFirstRun) {
     return (
       <FirstRunWizard
         workspace={active}
-        onDone={(next) => {
+        onDone={(next, activeWorkspaceId) => {
           setWorkspaces(next);
-          const idx = next.findIndex((w) => w.id === active.id);
+          const idx = activeWorkspaceId
+            ? next.findIndex((w) => w.id === activeWorkspaceId)
+            : next.findIndex((w) => w.id === active.id);
           if (idx >= 0) {
             setActiveWs(idx);
             writeStudioLocation(page, next[idx]?.id ?? null, "replace");
@@ -218,7 +241,7 @@ export function App() {
     case "jobs":      body = <JobsPage workspaceId={active.id} onNavigate={navigateToPage} />; break;
     case "reports":   body = <ReportsPage workspaceId={active.id} onNavigate={navigateToPage} pendingArtifact={pendingArtifact} />; break;
     case "tutorial":  body = <TutorialPage workspaceId={active.id} workspacePath={active.path} onNavigate={navigateToPage} />; break;
-    case "settings":  body = <SettingsPage agents={agents} onReprobe={refreshAgents} workspace={active} pref={pref} setPref={setPref} />; break;
+    case "settings":  body = <SettingsPage agents={agents} onReprobe={refreshAgents} workspace={active} pref={pref} setPref={setPref} onRemoveWorkspace={removeWorkspace} />; break;
   }
 
   return (

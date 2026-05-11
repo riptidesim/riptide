@@ -145,7 +145,7 @@ export function AddProjectWizard({ onClose, onCreated }: AddProjectWizardProps) 
           <div style={{ flex: 1 }}>
             <Kicker>NEW PROJECT</Kicker>
             <div style={{ font: "600 16px Inter", color: "var(--rt-off-white)", marginTop: 4 }}>
-              Bootstrap a Riptide workspace
+              Add a Riptide workspace
             </div>
           </div>
           <button
@@ -161,9 +161,10 @@ export function AddProjectWizard({ onClose, onCreated }: AddProjectWizardProps) 
 
         <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
           <div style={{ font: "400 14px/1.55 Inter", color: "var(--rt-fg-2)", marginBottom: 18, maxWidth: 580 }}>
-            Pick a folder for the new workspace. Riptide writes a thin{" "}
+            Pick a folder to create or open. If the folder already has{" "}
+            <span style={{ color: "var(--rt-teal)", fontFamily: "IBM Plex Mono" }}>.riptide/</span>, Studio saves it to your sidebar without changing those files. Otherwise Riptide writes a thin{" "}
             <span style={{ color: "var(--rt-teal)", fontFamily: "IBM Plex Mono" }}>.riptide/</span>{" "}
-            scaffold inside that directory and saves a reference so it shows up in your sidebar next time.
+            scaffold inside that directory.
           </div>
 
           <div style={{ marginBottom: 22 }}>
@@ -265,7 +266,7 @@ export function AddProjectWizard({ onClose, onCreated }: AddProjectWizardProps) 
               marginTop: 18, padding: 14,
               border: "1px solid rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.06)"
             }}>
-              <Kicker style={{ marginBottom: 6, color: "var(--rt-fail)" }}>BOOTSTRAP FAILED</Kicker>
+              <Kicker style={{ marginBottom: 6, color: "var(--rt-fail)" }}>ADD PROJECT FAILED</Kicker>
               <div style={{ font: '400 12.5px "IBM Plex Mono"', color: "var(--rt-fail)" }}>{submitError}</div>
             </div>
           )}
@@ -273,14 +274,14 @@ export function AddProjectWizard({ onClose, onCreated }: AddProjectWizardProps) 
 
         <div style={{ padding: "14px 24px", borderTop: "1px solid var(--rt-slate-line)", display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ flex: 1, font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-faint)" }}>
-            {submitting && "Bootstrapping…"}
+            {submitting && "Adding…"}
           </div>
           {!submitting && (
             <button className="btn btn--ghost btn--sm" onClick={close}>Cancel</button>
           )}
           <button className="btn btn--primary btn--sm" onClick={submit} disabled={!canSubmit}>
             {submitting ? <Icon name="refresh" size={13} /> : <Icon name="play" size={13} />}
-            {submitting ? "Bootstrapping…" : "Create project"}
+            {submitting ? "Adding…" : "Add project"}
           </button>
         </div>
       </div>
@@ -288,7 +289,7 @@ export function AddProjectWizard({ onClose, onCreated }: AddProjectWizardProps) 
   );
 }
 
-function DirectoryBrowser({
+export function DirectoryBrowser({
   path,
   parent,
   entries,
@@ -376,7 +377,7 @@ function DirectoryBrowser({
   );
 }
 
-function FolderHint({ error, path, valid }: { error: string | null; path: string; valid: boolean }) {
+export function FolderHint({ error, path, valid }: { error: string | null; path: string; valid: boolean }) {
   if (error) {
     return <div style={{ font: '400 11px "IBM Plex Mono"', color: "var(--rt-fail)", marginTop: 6 }}>{error}</div>;
   }
@@ -387,7 +388,7 @@ function FolderHint({ error, path, valid }: { error: string | null; path: string
   }
   if (valid) {
     return <div style={{ font: '400 11px "IBM Plex Mono"', color: "var(--rt-teal)", marginTop: 6 }}>
-      ✓ folder will be created if it doesn't exist
+      ✓ folder path is valid
     </div>;
   }
   return null;
@@ -407,7 +408,7 @@ function ProgramNameHint({ valid, derivedFromPath }: { valid: boolean; derivedFr
   return null;
 }
 
-function folderValidationError(value: string): string | null {
+export function folderValidationError(value: string): string | null {
   const trimmed = value.trim();
   if (trimmed.length === 0) return null;
   if (!trimmed.startsWith("/") && !trimmed.startsWith("~")) {
@@ -416,20 +417,20 @@ function folderValidationError(value: string): string | null {
   return null;
 }
 
-function deriveProgramName(folderPath: string): string {
+export function deriveProgramName(folderPath: string): string {
   const base = basename(folderPath.trim());
   if (base.length === 0) return "";
   const slug = base.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
   return slug;
 }
 
-function basename(p: string): string {
+export function basename(p: string): string {
   const trimmed = p.replace(/[/\\]+$/g, "");
   const segs = trimmed.split(/[/\\]/);
   return segs[segs.length - 1] ?? "";
 }
 
-function samePath(a: string, b: string): boolean {
+export function samePath(a: string, b: string): boolean {
   const trim = (v: string) => v.replace(/\/+$/g, "");
   if (trim(a) === trim(b)) return true;
   if (b.startsWith("~/")) {

@@ -4,6 +4,7 @@ import type {
   ConfigIntentRequest,
   ConfigIntentResponse,
   JobLaunchRequest,
+  StudioChangesPayload,
   StudioArtifactIndex,
   StudioGraphPayload,
   StudioJobPlanResponse,
@@ -34,6 +35,7 @@ export interface StudioWorkspace {
   id: string;
   label: string;
   source: "current" | "case-study" | "registered";
+  registry_id?: string | null;
   path: string;
   riptide_path: string;
   has_riptide: boolean;
@@ -130,6 +132,14 @@ function withWorkspace(path: string, workspaceId?: string): string {
   return `${path}?${params.toString()}`;
 }
 
+function changesPath(q: { workspaceId?: string; threadId?: string }): string {
+  const params = new URLSearchParams();
+  if (q.workspaceId) params.set("workspace", q.workspaceId);
+  if (q.threadId) params.set("thread", q.threadId);
+  const qs = params.toString();
+  return qs ? `/api/studio/changes?${qs}` : "/api/studio/changes";
+}
+
 function graphPath(q: {
   workspaceId?: string;
   adapter?: string;
@@ -166,7 +176,13 @@ export const api = {
     request<{ schema_version: "studio-agents.v1"; agents: AgentProbe[] }>("/api/studio/agents"),
   protocols: () =>
     request<{ schema_version: "studio-protocols.v1"; protocols: ProtocolChoice[] }>("/api/studio/protocols"),
-  detectProgram: (workspaceId?: string) => request<ProgramDetection>(withWorkspace("/api/studio/detect-program", workspaceId)),
+  detectProgram: (workspaceId?: string, path?: string) => {
+    const params = new URLSearchParams();
+    if (workspaceId) params.set("workspace", workspaceId);
+    if (path) params.set("path", path);
+    const suffix = params.toString();
+    return request<ProgramDetection>(`/api/studio/detect-program${suffix ? `?${suffix}` : ""}`);
+  },
   init: (body: InitRequest) =>
     request<InitResponse>("/api/studio/init", {
       method: "POST",
@@ -201,16 +217,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body)
     }),
-  removeProject: async (id: string): Promise<{ workspaces: StudioWorkspace[] }> => {
-    const res = await fetch(`/api/studio/registry/${encodeURIComponent(id)}`, { method: "DELETE" });
-    const text = await res.text();
-    if (!res.ok) {
-      throw new ApiError(res.status, text, `HTTP ${res.status}`);
-    }
-    const body = text.length > 0 ? JSON.parse(text) : { workspaces: [] };
-    return body as { workspaces: StudioWorkspace[] };
-  },
+  removeProject: (id: string) =>
+    request<{
+      schema_version: "studio-registry-removed.v1";
+      removed?: { path: string; riptide_path: string; has_riptide: boolean; preserved: boolean };
+      workspaces: StudioWorkspace[];
+    }>(`/api/studio/registry/${encodeURIComponent(id)}`, {
+      method: "DELETE"
+    }),
   artifacts: (workspaceId?: string) => request<StudioArtifactIndex>(withWorkspace("/api/studio/artifacts", workspaceId)),
+  changes: (q: { workspaceId?: string; threadId?: string } = {}) =>
+    request<StudioChangesPayload>(changesPath(q)),
   graph: (q: { workspaceId?: string; adapter?: string; scenario?: string; campaign?: string; run?: string; pack?: string }) =>
     request<StudioGraphPayload>(graphPath(q)),
   report: (q: { workspaceId?: string; artifactId: string }) =>

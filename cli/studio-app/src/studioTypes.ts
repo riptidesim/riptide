@@ -55,6 +55,39 @@ export interface StudioArtifactIndex {
   warnings: StudioWarning[];
 }
 
+export type StudioWorkspaceChangeStatus =
+  | "modified"
+  | "added"
+  | "deleted"
+  | "renamed"
+  | "copied"
+  | "untracked"
+  | "conflicted"
+  | "typechange"
+  | "unknown";
+
+export interface StudioWorkspaceChange {
+  path: string;
+  old_path: string | null;
+  status: StudioWorkspaceChangeStatus;
+  index_status: string;
+  worktree_status: string;
+  staged: boolean;
+  unstaged: boolean;
+}
+
+export interface StudioChangesPayload {
+  schema_version: "studio-changes.v1";
+  workspace_id: string;
+  workspace_path: string;
+  scope: "workspace" | "chat_thread";
+  thread_id: string | null;
+  is_git_workspace: boolean;
+  generated_at: string;
+  changes: StudioWorkspaceChange[];
+  warnings: string[];
+}
+
 export type StudioGraphNodeKind =
   | "workspace"
   | "adapter"

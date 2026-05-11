@@ -26,6 +26,7 @@
 .riptide/runs/
 .riptide/campaigns/
 .riptide/pack/
+.riptide/studio/
 fixtures/replays/*/.riptide/pack/
 
 # Replay engine build artifacts — re-generated on every `riptide replay` run

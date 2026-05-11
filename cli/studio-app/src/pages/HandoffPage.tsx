@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { marked } from "marked";
 
 import {
+  api,
   chatApi,
   type AgentProbe,
   type ChatAgentId,
   type ChatJsonlLine,
   type ChatThreadSummary
 } from "../api";
+import type { StudioWorkspaceChange } from "../studioTypes";
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -38,7 +40,7 @@ import { EmptyState, Kicker, PageLabel } from "../ui/primitives";
 const PRESETS: { label: string; prompt: string }[] = [
   {
     label: "Configure my project",
-    prompt: "Use the riptide-config skill to configure this repo for Riptide end to end. Detect the target program, repair or create the adapter, harness, starter scenarios, personas, and invariants, run the smallest smoke needed to prove the scaffold works, then add or validate a broad campaign plan with many agents, multiple personas, and multiple seeds. Do not stop at a 2-agent toy scenario unless the repo cannot support more; report campaign readiness with exact validation commands."
+    prompt: "Use the riptide-config skill to configure this repo for Riptide end to end. If this session says the skill is unavailable, do not proceed from memory; read and follow the first existing local instructions file at .claude/skills/riptide-config/SKILL.md, .codex/skills/riptide-config/SKILL.md, ~/.codex/skills/riptide-config/SKILL.md, or ~/.claude/skills/riptide-config/SKILL.md. Detect the target program, repair or create the adapter, harness, starter scenarios, personas, and invariants, run the smallest smoke needed to prove the scaffold works, then add or validate a broad campaign plan with many agents, multiple personas, and multiple seeds. Do not stop at a 2-agent toy scenario unless the repo cannot support more; report campaign readiness with exact validation commands."
   },
   {
     label: "Add a campaign",
@@ -66,6 +68,7 @@ interface HandoffPageProps {
 
 interface RunState {
   runId: string;
+  threadId: string;
   status: "streaming" | "aborting";
   source: EventSource;
   startedAt: number;
@@ -92,6 +95,12 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [changes, setChanges] = useState<StudioWorkspaceChange[]>([]);
+  const [changesLoading, setChangesLoading] = useState(true);
+  const [changesRefreshing, setChangesRefreshing] = useState(false);
+  const [changesError, setChangesError] = useState<string | null>(null);
+  const [changesWarnings, setChangesWarnings] = useState<string[]>([]);
+  const [changesGitReady, setChangesGitReady] = useState(true);
 
   const activeAgent = agents.find((a) => a.id === pref?.agentId) ?? null;
   const agentLabel = activeAgent?.label ?? "agent";
@@ -116,10 +125,41 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
     }
   }, [workspaceId]);
 
+  const refreshChanges = useCallback(async (opts: { quiet?: boolean; threadId?: string | null } = {}) => {
+    const targetThreadId = opts.threadId ?? threadId;
+    if (!targetThreadId) {
+      setChanges([]);
+      setChangesWarnings([]);
+      setChangesGitReady(true);
+      setChangesError(null);
+      setChangesLoading(false);
+      setChangesRefreshing(false);
+      return;
+    }
+    if (!opts.quiet) setChangesLoading(true);
+    setChangesRefreshing(true);
+    try {
+      const res = await api.changes({ workspaceId, threadId: targetThreadId });
+      setChanges(res.changes);
+      setChangesWarnings(res.warnings);
+      setChangesGitReady(res.is_git_workspace);
+      setChangesError(null);
+    } catch (err) {
+      setChangesError((err as Error).message);
+    } finally {
+      if (!opts.quiet) setChangesLoading(false);
+      setChangesRefreshing(false);
+    }
+  }, [threadId, workspaceId]);
+
   // Initial thread list fetch + whenever the workspace identity changes.
   useEffect(() => {
     refreshThreads();
   }, [refreshThreads, workspacePath]);
+
+  useEffect(() => {
+    void refreshChanges();
+  }, [refreshChanges, workspacePath, threadId]);
 
   useEffect(() => {
     if (runState?.source) runState.source.close();
@@ -189,6 +229,12 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
     const id = setInterval(() => setElapsedMs(Date.now() - start), 1000);
     return () => clearInterval(id);
   }, [runState]);
+
+  useEffect(() => {
+    if (!runState) return;
+    const id = window.setInterval(() => void refreshChanges({ quiet: true, threadId: runState.threadId }), 2500);
+    return () => window.clearInterval(id);
+  }, [refreshChanges, runState]);
 
   function onFilesChosen(e: React.ChangeEvent<HTMLInputElement>) {
     const list = e.target.files;
@@ -308,6 +354,7 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
       setStreamingText("");
       setStreamingTools([]);
       setRunState(null);
+      void refreshChanges({ quiet: true, threadId: activeThreadId });
       // Refetch canonical history so we see the persisted assistant line.
       if (activeThreadId) loadThread(activeThreadId);
       refreshThreads();
@@ -337,6 +384,7 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
       setStreamingText("");
       setStreamingTools([]);
       setRunState(null);
+      void refreshChanges({ quiet: true, threadId: activeThreadId });
       if (activeThreadId) loadThread(activeThreadId);
       refreshThreads();
     });
@@ -393,7 +441,7 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
       return;
     }
     const source = attachStream(runId, streamUrl, activeThreadId);
-    setRunState({ runId, status: "streaming", source, startedAt: Date.now() });
+    setRunState({ runId, threadId: activeThreadId, status: "streaming", source, startedAt: Date.now() });
   }
 
   async function abort() {
@@ -771,26 +819,16 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
         </div>
 
         {/* Workspace changes */}
-        <div style={{ borderLeft: "1px solid var(--rt-slate-line)", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--rt-slate-line)" }}>
-            <Kicker>WORKSPACE CHANGES</Kicker>
-            <div style={{ font: "500 13px Inter", color: "var(--rt-fog-dim)", marginTop: 6 }}>0 files</div>
-          </div>
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 18,
-              font: "400 12px/1.5 Inter",
-              color: "var(--rt-fog-dim)",
-              textAlign: "center"
-            }}
-          >
-            Files written by the agent will show up here for review.
-          </div>
-        </div>
+        <WorkspaceChangesPanel
+          changes={changes}
+          loading={changesLoading}
+          refreshing={changesRefreshing}
+          error={changesError}
+          warnings={changesWarnings}
+          gitReady={changesGitReady}
+          hasThread={threadId !== null}
+          onRefresh={() => void refreshChanges()}
+        />
       </div>
 
       {threadId && (
@@ -808,6 +846,210 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
       )}
     </div>
   );
+}
+
+function WorkspaceChangesPanel({
+  changes,
+  loading,
+  refreshing,
+  error,
+  warnings,
+  gitReady,
+  hasThread,
+  onRefresh
+}: {
+  changes: StudioWorkspaceChange[];
+  loading: boolean;
+  refreshing: boolean;
+  error: string | null;
+  warnings: string[];
+  gitReady: boolean;
+  hasThread: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <div style={{ borderLeft: "1px solid var(--rt-slate-line)", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, height: "100%" }}>
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--rt-slate-line)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <Kicker>WORKSPACE CHANGES</Kicker>
+            <div style={{ font: "500 13px Inter", color: "var(--rt-fog-dim)", marginTop: 6 }}>
+              {changes.length} {changes.length === 1 ? "file" : "files"}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="side__icon-btn"
+            title="Refresh workspace changes"
+            aria-label="Refresh workspace changes"
+            onClick={onRefresh}
+            disabled={refreshing || !hasThread}
+          >
+            <Icon name="refresh" size={12} />
+          </button>
+        </div>
+      </div>
+      <div style={{ flex: "1 1 0", minHeight: 0, overflowY: "auto", padding: 10 }}>
+        {!hasThread ? (
+          <WorkspaceChangesEmpty icon="chat" body="Start or select a conversation to track its file changes." />
+        ) : loading && changes.length === 0 ? (
+          <WorkspaceChangesEmpty icon="refresh" body="Reading git status..." />
+        ) : error ? (
+          <WorkspaceChangesEmpty icon="plug" body={error} />
+        ) : !gitReady ? (
+          <WorkspaceChangesEmpty icon="branch" body={warnings[0] ?? "Workspace changes need a git repository."} />
+        ) : changes.length === 0 ? (
+          <WorkspaceChangesEmpty icon="check" body="No file changes from this conversation yet." />
+        ) : (
+          <div style={{ display: "grid", gap: 6 }}>
+            {warnings.map((warning) => (
+              <div
+                key={warning}
+                style={{
+                  border: "1px solid rgba(245,158,11,0.35)",
+                  background: "rgba(245,158,11,0.08)",
+                  borderRadius: 6,
+                  padding: "8px 10px",
+                  color: "var(--rt-warn)",
+                  font: '400 11px/1.45 "IBM Plex Mono"'
+                }}
+              >
+                {warning}
+              </div>
+            ))}
+            {changes.map((change) => (
+              <WorkspaceChangeRow key={`${change.index_status}${change.worktree_status}:${change.path}:${change.old_path ?? ""}`} change={change} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceChangesEmpty({ icon, body }: { icon: "branch" | "chat" | "check" | "plug" | "refresh"; body: string }) {
+  return (
+    <div
+      style={{
+        height: "100%",
+        minHeight: 180,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexDirection: "column",
+        gap: 10,
+        padding: 18,
+        font: "400 12px/1.5 Inter",
+        color: "var(--rt-fog-dim)",
+        textAlign: "center"
+      }}
+    >
+      <Icon name={icon} size={16} />
+      <span>{body}</span>
+    </div>
+  );
+}
+
+function WorkspaceChangeRow({ change }: { change: StudioWorkspaceChange }) {
+  const meta = change.old_path ? `${change.old_path} -> ${change.path}` : change.path;
+  return (
+    <div
+      title={meta}
+      style={{
+        border: "1px solid var(--rt-slate-line)",
+        background: "var(--rt-slate-2)",
+        borderRadius: 7,
+        padding: "9px 10px",
+        display: "grid",
+        gap: 6
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        <span
+          style={{
+            width: 28,
+            flex: "0 0 auto",
+            textAlign: "center",
+            borderRadius: 5,
+            padding: "2px 0",
+            background: changeStatusBackground(change.status),
+            color: changeStatusColor(change.status),
+            font: '600 10px "IBM Plex Mono"'
+          }}
+        >
+          {changeStatusLabel(change.status)}
+        </span>
+        <span
+          style={{
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            color: "var(--rt-off-white)",
+            font: '500 12px "IBM Plex Mono"'
+          }}
+        >
+          {change.path}
+        </span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--rt-fog-dim)", font: '400 10.5px "IBM Plex Mono"' }}>
+        <span>{gitStatusCode(change)}</span>
+        {change.staged && <span>staged</span>}
+        {change.unstaged && <span>{change.status === "untracked" ? "new" : "unstaged"}</span>}
+        {change.old_path && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>from {change.old_path}</span>}
+      </div>
+    </div>
+  );
+}
+
+function gitStatusCode(change: StudioWorkspaceChange): string {
+  return `${change.index_status === " " ? "." : change.index_status}${change.worktree_status === " " ? "." : change.worktree_status}`;
+}
+
+function changeStatusLabel(status: StudioWorkspaceChange["status"]): string {
+  switch (status) {
+    case "modified": return "MOD";
+    case "added": return "ADD";
+    case "deleted": return "DEL";
+    case "renamed": return "REN";
+    case "copied": return "CPY";
+    case "untracked": return "NEW";
+    case "conflicted": return "CON";
+    case "typechange": return "TYP";
+    default: return "CHG";
+  }
+}
+
+function changeStatusColor(status: StudioWorkspaceChange["status"]): string {
+  switch (status) {
+    case "added":
+    case "untracked":
+      return "var(--rt-pass)";
+    case "deleted":
+    case "conflicted":
+      return "var(--rt-fail)";
+    case "renamed":
+    case "copied":
+      return "var(--rt-teal)";
+    default:
+      return "var(--rt-warn)";
+  }
+}
+
+function changeStatusBackground(status: StudioWorkspaceChange["status"]): string {
+  switch (status) {
+    case "added":
+    case "untracked":
+      return "rgba(34,197,94,0.12)";
+    case "deleted":
+    case "conflicted":
+      return "rgba(239,68,68,0.12)";
+    case "renamed":
+    case "copied":
+      return "rgba(20,184,182,0.12)";
+    default:
+      return "rgba(245,158,11,0.12)";
+  }
 }
 
 function DeleteThreadInline({

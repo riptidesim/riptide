@@ -11,11 +11,13 @@
 
 set -eu
 
-REPO="${RIPTIDE_GITHUB_REPO:-riptidesim/riptide}"
+DEFAULT_REPO="riptidesim/riptide"
+REPO="${RIPTIDE_GITHUB_REPO:-$DEFAULT_REPO}"
 VERSION="${RIPTIDE_VERSION:-latest}"
 BIN_DIR="${RIPTIDE_BIN_DIR:-$HOME/.local/bin}"
 INSTALL_DIR="${RIPTIDE_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/riptide}"
 BASE_URL="${RIPTIDE_RELEASE_BASE_URL:-}"
+RELEASE_PROXY_BASE="${RIPTIDE_RELEASE_PROXY_BASE:-https://riptide.run/releases}"
 DRY_RUN=0
 FORCE=0
 INSTALL_AGENT_SKILLS="${RIPTIDE_INSTALL_AGENT_SKILLS:-1}"
@@ -92,7 +94,10 @@ Environment:
   RIPTIDE_VERSION
   RIPTIDE_BIN_DIR
   RIPTIDE_INSTALL_DIR
-  RIPTIDE_RELEASE_BASE_URL  Override the GitHub Release download base.
+  RIPTIDE_RELEASE_BASE_URL  Override the release download base.
+  RIPTIDE_RELEASE_PROXY_BASE
+                            Defaults to https://riptide.run/releases for
+                            official Riptide release downloads.
   RIPTIDE_GITHUB_REPO       Defaults to riptidesim/riptide.
   RIPTIDE_INSTALL_AGENT_SKILLS
                             Set to 0/false/no to skip agent skill install.
@@ -183,12 +188,21 @@ download() {
   url="$1"
   dest="$2"
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url" -o "$dest"
+    retry_connrefused=""
+    if curl --help all 2>/dev/null | grep -q -- '--retry-connrefused'; then
+      retry_connrefused="--retry-connrefused"
+    fi
+    if curl -fsSL --retry 3 --retry-delay 2 --retry-max-time 90 $retry_connrefused "$url" -o "$dest"; then
+      return 0
+    fi
   elif command -v wget >/dev/null 2>&1; then
-    wget -qO "$dest" "$url"
+    if wget -q --tries=3 --waitretry=2 -O "$dest" "$url"; then
+      return 0
+    fi
   else
     die "curl or wget is required to download release artifacts"
   fi
+  die "failed to download $url. Retry in a moment, check access to the release host, or set RIPTIDE_RELEASE_BASE_URL to a mirror containing $asset and $asset.sha256"
 }
 
 # Best-effort human-readable file size (KiB / MiB). Pure POSIX arithmetic
@@ -362,6 +376,14 @@ asset="riptide-${target}.tar.gz"
 
 if [ -n "$BASE_URL" ]; then
   base="${BASE_URL%/}"
+elif [ "$REPO" = "$DEFAULT_REPO" ]; then
+  release_base="${RELEASE_PROXY_BASE%/}"
+  if [ "$VERSION" = "latest" ]; then
+    base="${release_base}/latest/download"
+  else
+    tag="$(tag_for_version "$VERSION")"
+    base="${release_base}/download/${tag}"
+  fi
 elif [ "$VERSION" = "latest" ]; then
   base="https://github.com/${REPO}/releases/latest/download"
 else
@@ -510,6 +532,9 @@ rule
 printf '\n  %sNext:%s\n' "$C_BOLD" "$C_RESET"
 if [ -n "$PATH_HINT" ]; then
   printf '    %s%s%s\n' "$C_DIM" "(open a new shell or update PATH first)" "$C_RESET"
+fi
+if agent_skills_enabled; then
+  printf '    %s%s%s\n' "$C_DIM" "(start a new Codex/Claude session before using /riptide-config)" "$C_RESET"
 fi
 printf '    1. %sriptide doctor%s          %s# verify your toolchain%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '    2. %scd <your-program>%s       %s# the Solana program you want to simulate%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"

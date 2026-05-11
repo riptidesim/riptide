@@ -21,6 +21,7 @@ import type {
   SessionsFile,
   ThreadMeta
 } from "./types.js";
+import type { ThreadWorkspaceChangesState } from "../workspace-changes.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -153,7 +154,8 @@ export class ChatStore {
     delete this.sessions.threads[id];
     await Promise.allSettled([
       rm(path.join(this.root, `${id}.meta.json`), { force: true }),
-      rm(path.join(this.root, `${id}.jsonl`), { force: true })
+      rm(path.join(this.root, `${id}.jsonl`), { force: true }),
+      rm(path.join(this.root, `${id}.changes.json`), { force: true })
     ]);
     await this.writeSessionsLocked();
   }
@@ -219,6 +221,35 @@ export class ChatStore {
       updatedAt: new Date().toISOString()
     };
     await this.writeSessionsLocked();
+  }
+
+  async readThreadWorkspaceChanges(id: string): Promise<ThreadWorkspaceChangesState | null> {
+    if (!UUID_RE.test(id)) return null;
+    try {
+      const raw = await readFile(path.join(this.root, `${id}.changes.json`), "utf8");
+      const parsed = JSON.parse(raw) as Partial<ThreadWorkspaceChangesState>;
+      if (
+        parsed &&
+        parsed.schemaVersion === "studio-chat-thread-changes.v1" &&
+        parsed.threadId === id &&
+        Array.isArray(parsed.baseline) &&
+        Array.isArray(parsed.changes)
+      ) {
+        return parsed as ThreadWorkspaceChangesState;
+      }
+    } catch {
+      // Missing/corrupt changes sidecar: treat as no baseline yet.
+    }
+    return null;
+  }
+
+  async writeThreadWorkspaceChanges(id: string, state: ThreadWorkspaceChangesState): Promise<void> {
+    if (!UUID_RE.test(id)) return;
+    await mkdir(this.root, { recursive: true });
+    const tmp = path.join(this.root, `${id}.changes.json.${process.pid}.tmp`);
+    const dest = path.join(this.root, `${id}.changes.json`);
+    await writeFile(tmp, JSON.stringify(state, null, 2), "utf8");
+    await rename(tmp, dest);
   }
 
   private async readMeta(id: string): Promise<ThreadMeta | null> {

@@ -182,13 +182,13 @@ export async function rememberProject(
   return project;
 }
 
-export async function removeProject(id: string, paths: RegistryPaths = {}): Promise<boolean> {
+export async function removeProject(id: string, paths: RegistryPaths = {}): Promise<RegisteredProject | null> {
   const file = await readRegistry(paths);
-  const before = file.projects.length;
+  const removed = file.projects.find((p) => p.id === id) ?? null;
+  if (!removed) return null;
   file.projects = file.projects.filter((p) => p.id !== id);
-  if (file.projects.length === before) return false;
   await writeRegistry(file, paths);
-  return true;
+  return removed;
 }
 
 export async function touchProject(absolutePath: string, paths: RegistryPaths = {}): Promise<void> {

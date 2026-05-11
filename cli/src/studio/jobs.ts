@@ -142,6 +142,24 @@ export class StudioJobQueue {
       .filter((job): job is Job => Boolean(job));
   }
 
+  clearWorkspace(workspaceId: string): void {
+    for (let idx = this.orderedIds.length - 1; idx >= 0; idx -= 1) {
+      const id = this.orderedIds[idx]!;
+      const internal = this.jobs.get(id);
+      if (!internal || internal.job.workspace_id !== workspaceId) continue;
+      internal.cancelRequested = true;
+      if (internal.proc) {
+        try {
+          internal.proc.kill("SIGINT");
+        } catch {
+          // The close/error handlers will settle any process already exiting.
+        }
+      }
+      this.jobs.delete(id);
+      this.orderedIds.splice(idx, 1);
+    }
+  }
+
   get(id: string): Job | null {
     return this.jobs.get(id)?.job ?? null;
   }
@@ -262,11 +280,14 @@ export class StudioJobQueue {
       try {
         const raw = await readFile(file, "utf8");
         const parsed = JSON.parse(raw) as Job;
+        const normalized = normalizeHydratedJob(parsed, workspace);
+        if (!normalized) continue;
         if (this.jobs.has(parsed.id)) continue;
         // Persisted jobs are terminal-or-stale — surface them as cancelled
         // if they were left running across a restart.
         if (parsed.status === "queued" || parsed.status === "running") {
           parsed.status = "cancelled";
+          normalized.changed = true;
           parsed.warnings = [
             ...(parsed.warnings ?? []),
             "studio restart cancelled this job; resubmit if needed"
@@ -275,6 +296,7 @@ export class StudioJobQueue {
         const internal: JobInternal = { job: parsed, proc: null, cancelRequested: false };
         this.jobs.set(parsed.id, internal);
         this.orderedIds.push(parsed.id);
+        if (normalized.changed) await this.persist(internal, workspace);
       } catch {
         // ignore unreadable persistence rows
       }
@@ -339,6 +361,12 @@ export class StudioJobQueue {
     internal.done = new Promise<void>((resolve) => {
       proc.on("close", (code, signal) => {
         internal.proc = null;
+        if (!this.jobs.has(internal.job.id)) {
+          this.active = Math.max(0, this.active - 1);
+          resolve();
+          this.tryDispatch();
+          return;
+        }
         internal.job.exit_code = typeof code === "number" ? code : signal ? -1 : null;
         if (internal.cancelRequested) {
           internal.job.status = "cancelled";
@@ -362,6 +390,12 @@ export class StudioJobQueue {
       });
       proc.on("error", (err) => {
         internal.proc = null;
+        if (!this.jobs.has(internal.job.id)) {
+          this.active = Math.max(0, this.active - 1);
+          resolve();
+          this.tryDispatch();
+          return;
+        }
         internal.job.warnings.push(`spawn failed: ${(err as Error).message ?? String(err)}`);
         internal.job.status = "failed";
         internal.job.exit_code = -1;
@@ -603,4 +637,24 @@ function defaultCliBin(): { node: string; entry: string } {
   ];
   const entry = candidates.find((c) => existsSync(c)) ?? candidates[0] ?? "";
   return { node: process.execPath, entry };
+}
+
+function normalizeHydratedJob(
+  job: Job,
+  workspace: StudioWorkspace
+): { changed: boolean } | null {
+  const workspacePath = path.resolve(workspace.path);
+  const jobCwd = job.cwd ? path.resolve(job.cwd) : workspacePath;
+  if (jobCwd !== workspacePath) return null;
+
+  let changed = false;
+  if (job.cwd !== workspace.path) {
+    job.cwd = workspace.path;
+    changed = true;
+  }
+  if (job.workspace_id !== workspace.id) {
+    job.workspace_id = workspace.id;
+    changed = true;
+  }
+  return { changed };
 }

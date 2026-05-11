@@ -92,9 +92,8 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
     [jobs]
   );
 
-  const analyticsCards: Array<{ key: string; title: string; meta?: string; body: ReactNode }> = [];
-  if (verdictMix.count > 0) {
-    analyticsCards.push({
+  const analyticsCards: Array<{ key: string; title: string; meta?: string; body: ReactNode }> = [
+    {
       key: "verdict",
       title: "VERDICT BREAKDOWN",
       body: (
@@ -105,23 +104,19 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
           legend={<VerdictLegend buckets={verdictMix.buckets} />}
         />
       )
-    });
-  }
-  if (activityTotal > 0) {
-    analyticsCards.push({
+    },
+    {
       key: "activity",
       title: "ACTIVITY · 14 DAYS",
       meta: `${activityTotal} updates`,
       body: <div style={{ width: "100%" }}><LineChart data={activitySeries} labels={activityLabels} h={88} /></div>
-    });
-  }
-  if (coverageBars) {
-    analyticsCards.push({
+    },
+    {
       key: "coverage",
       title: "COVERAGE",
       body: <div style={{ width: "100%" }}><HorizontalBars data={coverageBars} labelWidth={88} /></div>
-    });
-  }
+    }
+  ];
 
   return (
     <div>
@@ -141,17 +136,13 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
       {loading && <InlineCard icon="refresh" title="Loading workspace" body="Fetching artifacts and jobs from the Studio API." />}
       {error && <InlineCard icon="plug" title="Studio API error" body={error} />}
       {!loading && !error && artifacts.length === 0 && jobs.length === 0 && (
-        <div className="card" style={{ padding: 0 }}>
-          <EmptyState
-            icon="plug"
-            title="No workspace artifacts yet"
-            body="Run a scenario or configure a campaign and the Overview will populate from .riptide artifacts."
-            ctaLabel="Open Agent chat"
-            onCta={() => onNavigate("handoff")}
-          />
-        </div>
+        <InlineCard
+          icon="plug"
+          title="No workspace artifacts yet"
+          body="Run a scenario or configure a campaign and these panels will populate from .riptide artifacts."
+        />
       )}
-      {!loading && !error && (artifacts.length > 0 || jobs.length > 0) && (
+      {!loading && !error && (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 18 }}>
             <MetricCard label="RUNS" value={String(runs.length)} sub={`${reports.length} report-capable artifacts`} />
@@ -181,53 +172,49 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
             </div>
           )}
 
-          {(jobStatusTotal > 0 || invariantBars.length > 0) && (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: `repeat(${(jobStatusTotal > 0 ? 1 : 0) + (invariantBars.length > 0 ? 1 : 0)}, minmax(0, 1fr))`,
-                gap: 12,
-                marginBottom: 18
-              }}
-            >
-              {jobStatusTotal > 0 && (
-                <div className="card" style={{ padding: 16, display: "flex", flexDirection: "column" }}>
-                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
-                    <Kicker>JOB QUEUE</Kicker>
-                    <span style={{ font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}>{jobStatusTotal} total</span>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${1 + (invariantBars.length > 0 ? 1 : 0)}, minmax(0, 1fr))`,
+              gap: 12,
+              marginBottom: 18
+            }}
+          >
+            <div className="card" style={{ padding: 16, display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+                <Kicker>JOB QUEUE</Kicker>
+                <span style={{ font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}>{jobStatusTotal} total</span>
+              </div>
+              <HorizontalBars data={jobStatusBars} labelWidth={88} />
+              {activeJobsList.length > 0 && (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--rt-slate-line)" }}>
+                  <div style={{ font: '500 10px "IBM Plex Mono"', letterSpacing: "0.08em", color: "var(--rt-fog-dim)", marginBottom: 8 }}>
+                    IN FLIGHT NOW
                   </div>
-                  <HorizontalBars data={jobStatusBars} labelWidth={88} />
-                  {activeJobsList.length > 0 && (
-                    <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--rt-slate-line)" }}>
-                      <div style={{ font: '500 10px "IBM Plex Mono"', letterSpacing: "0.08em", color: "var(--rt-fog-dim)", marginBottom: 8 }}>
-                        IN FLIGHT NOW
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {activeJobsList.map((job) => (
+                      <div
+                        key={job.id}
+                        style={{ display: "flex", alignItems: "center", gap: 8, font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}
+                      >
+                        <span className={`dot dot--${job.status === "running" ? "running" : "queued"}`} />
+                        <span style={{ color: "var(--rt-off-white)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {job.kind}
+                        </span>
+                        <Pill kind={pillForJob(job.status)} dot={job.status === "running"}>{job.status.toUpperCase()}</Pill>
                       </div>
-                      <div style={{ display: "grid", gap: 6 }}>
-                        {activeJobsList.map((job) => (
-                          <div
-                            key={job.id}
-                            style={{ display: "flex", alignItems: "center", gap: 8, font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}
-                          >
-                            <span className={`dot dot--${job.status === "running" ? "running" : "queued"}`} />
-                            <span style={{ color: "var(--rt-off-white)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {job.kind}
-                            </span>
-                            <Pill kind={pillForJob(job.status)} dot={job.status === "running"}>{job.status.toUpperCase()}</Pill>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              {invariantBars.length > 0 && (
-                <div className="card" style={{ padding: 16 }}>
-                  <Kicker style={{ marginBottom: 12 }}>INVARIANT PRESSURE · TOP RUNS</Kicker>
-                  <HorizontalBars data={invariantBars} />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
-          )}
+            {invariantBars.length > 0 && (
+              <div className="card" style={{ padding: 16 }}>
+                <Kicker style={{ marginBottom: 12 }}>INVARIANT PRESSURE · TOP RUNS</Kicker>
+                <HorizontalBars data={invariantBars} />
+              </div>
+            )}
+          </div>
 
           <section style={{ marginBottom: 18 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
@@ -449,7 +436,10 @@ function verdictSummaryFromCounts(counts: Array<[string, number]>, source: strin
   };
 }
 
-function summarizeCoverage(artifacts: StudioArtifactEntry[]): { label: string; value: number; color: string }[] | null {
+function summarizeCoverage(artifacts: StudioArtifactEntry[]): { label: string; value: number; color: string }[] {
+  const defaults = ["exercised", "partial", "unexercised"];
+  const zeroed = defaults.map((key) => ({ label: humanizeCoverage(key), value: 0, color: colorForCoverage(key) }));
+
   const runCollection = artifacts.find((artifact) => artifact.id === "run-collection");
   let totals = runCollection?.totals_by_coverage;
   if (!totals || Object.keys(totals).length === 0) {
@@ -459,11 +449,11 @@ function summarizeCoverage(artifacts: StudioArtifactEntry[]): { label: string; v
         merged.set(key, (merged.get(key) ?? 0) + value);
       }
     }
-    if (merged.size === 0) return null;
+    if (merged.size === 0) return zeroed;
     totals = Object.fromEntries(merged);
   }
-  const entries = Object.entries(totals).filter(([, value]) => value > 0);
-  if (entries.length === 0) return null;
+  const entries = Object.entries(totals);
+  if (entries.length === 0) return zeroed;
   return entries
     .sort((a, b) => b[1] - a[1])
     .map(([key, value]) => ({ label: humanizeCoverage(key), value, color: colorForCoverage(key) }));
@@ -501,13 +491,11 @@ function summarizeJobStatus(jobs: Job[]): { label: string; value: number; color:
     { status: "failed", label: "Failed", color: "#EF4444" },
     { status: "cancelled", label: "Cancelled", color: "#7A8A99" }
   ];
-  return order
-    .map(({ status, label, color }) => ({
-      label,
-      value: jobs.filter((job) => job.status === status).length,
-      color
-    }))
-    .filter((row) => row.value > 0);
+  return order.map(({ status, label, color }) => ({
+    label,
+    value: jobs.filter((job) => job.status === status).length,
+    color
+  }));
 }
 
 function activityLabelsFor(days: number): string[] {

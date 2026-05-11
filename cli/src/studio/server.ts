@@ -37,6 +37,7 @@ import { ChatStore } from "./chat/store.js";
 import { ChatService } from "./chat/runner.js";
 import { handleChatRoute, type ChatRouteServiceError } from "./chat/route.js";
 import type { AgentId } from "./chat/types.js";
+import { readCurrentWorkspaceChanges } from "./workspace-changes.js";
 import {
   RiptideDirExistsError,
   ProgramDetectionError,
@@ -46,7 +47,6 @@ import {
 import { PROTOCOL_CHOICES, type Protocol } from "../init/personas-catalog.js";
 import {
   listProjects,
-  rememberProject,
   registerProject,
   removeProject,
   type RegistryPaths
@@ -265,6 +265,7 @@ function sendNotFound(res: ServerResponse, pathname: string): void {
       "GET /api/studio/browse-directory",
       "GET /api/studio/detect-program",
       "GET /api/studio/artifacts",
+      "GET /api/studio/changes",
       "GET /api/studio/graph",
       "GET /api/studio/report",
       "GET /api/studio/jobs",
@@ -360,30 +361,66 @@ async function refreshWorkspaces(ctx: StudioContext): Promise<void> {
     caseStudiesRoot: ctx.caseStudiesRoot,
     registryPaths: ctx.registryPaths
   });
-  await rememberDiscoveredWorkspaces(next, ctx.registryPaths);
   ctx.workspaces = next;
   ctx.workspacesById = new Map(next.map((w) => [w.id, w]));
   ctx.jobs.setWorkspaces(next);
 }
 
-async function rememberDiscoveredWorkspaces(
-  workspaces: StudioWorkspace[],
-  registryPaths: RegistryPaths | undefined
-): Promise<void> {
-  for (const workspace of workspaces) {
-    if (!workspace.has_riptide) continue;
-    try {
-      await rememberProject(
-        {
-          label: workspace.label,
-          path: workspace.path
-        },
-        registryPaths
-      );
-    } catch {
-      // The registry is convenience state. Studio should still launch if
-      // the user-level file is temporarily unwritable or malformed.
-    }
+async function describeRemovedWorkspace(repoPath: string): Promise<{
+  path: string;
+  riptide_path: string;
+  has_riptide: boolean;
+  preserved: boolean;
+}> {
+  const root = path.resolve(repoPath);
+  const parsed = path.parse(root);
+  if (root === parsed.root) {
+    throw new Error("refusing to remove filesystem root from Studio");
+  }
+  const riptidePath = path.resolve(root, ".riptide");
+  if (path.basename(riptidePath) !== ".riptide" || path.dirname(riptidePath) !== root) {
+    throw new Error(`invalid .riptide path for workspace removal: ${riptidePath}`);
+  }
+  let hasRiptide = false;
+  try {
+    const riptideStat = await stat(riptidePath);
+    hasRiptide = riptideStat.isDirectory();
+  } catch {
+    hasRiptide = false;
+  }
+  return { path: root, riptide_path: riptidePath, has_riptide: hasRiptide, preserved: true };
+}
+
+function clearWorkspaceRuntimeState(ctx: StudioContext, repoPath: string): void {
+  const root = path.resolve(repoPath);
+  for (const workspace of ctx.workspaces) {
+    if (path.resolve(workspace.path) !== root) continue;
+    const service = ctx.chatServices.get(workspace.id);
+    service?.abortAll();
+    ctx.chatServices.delete(workspace.id);
+    ctx.jobs.clearWorkspace(workspace.id);
+  }
+}
+
+async function hasRiptideDirectory(repoPath: string): Promise<boolean> {
+  try {
+    const riptideStat = await stat(path.join(repoPath, ".riptide"));
+    return riptideStat.isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function registerWorkspaceReference(
+  ctx: StudioContext,
+  repoPath: string,
+  label: string
+): Promise<string | null> {
+  try {
+    await registerProject({ label, path: repoPath }, ctx.registryPaths);
+    return null;
+  } catch (err) {
+    return `could not save project to registry: ${(err as Error).message}`;
   }
 }
 
@@ -832,7 +869,8 @@ async function runDirectoryPickerCommand(
 
 function execFilePromise(
   file: string,
-  args: string[]
+  args: string[],
+  options: { cwd?: string; maxBuffer?: number; timeoutMs?: number } = {}
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     execFile(
@@ -840,8 +878,9 @@ function execFilePromise(
       args,
       {
         encoding: "utf8",
-        maxBuffer: 64 * 1024,
-        timeout: 10 * 60 * 1000,
+        cwd: options.cwd,
+        maxBuffer: options.maxBuffer ?? 64 * 1024,
+        timeout: options.timeoutMs ?? 10 * 60 * 1000,
         windowsHide: false
       },
       (err, stdout, stderr) => {
@@ -1040,24 +1079,34 @@ function makeRequestHandler(ctx: StudioContext) {
           programName: parsed.programName,
           protocol: parsed.protocol
         };
+        const registeredPath = parsed.targetPath ?? targetCwd;
+        const fallbackLabel = path.basename(registeredPath) || parsed.programName;
+        const registryLabel = parsed.label ?? fallbackLabel;
+        if (await hasRiptideDirectory(targetCwd)) {
+          const warnings = [
+            "existing .riptide directory found; Studio saved this workspace without overwriting it."
+          ];
+          const warning = await registerWorkspaceReference(ctx, registeredPath, registryLabel);
+          if (warning) warnings.push(warning);
+          await refreshWorkspaces(ctx);
+          sendJson(res, 200, {
+            schema_version: "studio-init.v1",
+            program_name: parsed.programName,
+            protocol: parsed.protocol,
+            target_path: parsed.targetPath,
+            created: [],
+            warnings,
+            workspaces: ctx.workspaces
+          });
+          return;
+        }
         try {
           const result = await scaffold(scaffoldOptions);
           // Persist every scaffolded project to the user-level registry
           // so the workspace rail can show it on future Studio launches
           // from any directory.
-          try {
-            const registeredPath = parsed.targetPath ?? targetCwd;
-            const fallbackLabel = path.basename(registeredPath) || parsed.programName;
-            await registerProject(
-              {
-                label: parsed.label ?? fallbackLabel,
-                path: registeredPath
-              },
-              ctx.registryPaths
-            );
-          } catch (err) {
-            result.warnings.push(`could not save project to registry: ${(err as Error).message}`);
-          }
+          const warning = await registerWorkspaceReference(ctx, registeredPath, registryLabel);
+          if (warning) result.warnings.push(warning);
           await refreshWorkspaces(ctx);
           sendJson(res, 201, {
             schema_version: "studio-init.v1",
@@ -1120,14 +1169,18 @@ function makeRequestHandler(ctx: StudioContext) {
       if (registryDeleteMatch && method === "DELETE") {
         const id = registryDeleteMatch[1] as string;
         try {
-          const removed = await removeProject(id, ctx.registryPaths);
-          if (!removed) {
+          const project = (await listProjects(ctx.registryPaths)).find((entry) => entry.id === id);
+          if (!project) {
             sendJson(res, 404, { error: "not_found", message: `no registered project with id ${id}` });
             return;
           }
+          const removed = await describeRemovedWorkspace(project.path);
+          clearWorkspaceRuntimeState(ctx, project.path);
+          await removeProject(id, ctx.registryPaths);
           await refreshWorkspaces(ctx);
           sendJson(res, 200, {
             schema_version: "studio-registry-removed.v1",
+            removed,
             workspaces: ctx.workspaces
           });
         } catch (err) {
@@ -1193,6 +1246,20 @@ function makeRequestHandler(ctx: StudioContext) {
         return;
       }
       if (pathname === "/api/studio/detect-program") {
+        const requestedPath = url.searchParams.get("path");
+        if (requestedPath && requestedPath.trim().length > 0) {
+          const expanded = expandHome(requestedPath.trim());
+          if (!path.isAbsolute(expanded)) {
+            sendJson(res, 400, {
+              error: "invalid_path",
+              message: "path must be absolute (starting with / or ~)"
+            });
+            return;
+          }
+          const detection = detectProgramForStudio(path.resolve(expanded));
+          sendJson(res, 200, { schema_version: "studio-detect-program.v1", ...detection });
+          return;
+        }
         const selection = selectWorkspace(ctx, url.searchParams);
         if ("error" in selection) {
           sendJson(res, selection.error.status, selection.error.payload);
@@ -1216,6 +1283,30 @@ function makeRequestHandler(ctx: StudioContext) {
           schema_version: "studio-artifacts.v1",
           ...index
         });
+        return;
+      }
+      if (pathname === "/api/studio/changes") {
+        const selection = selectWorkspace(ctx, url.searchParams);
+        if ("error" in selection) {
+          sendJson(res, selection.error.status, selection.error.payload);
+          return;
+        }
+        const threadId = url.searchParams.get("thread");
+        if (threadId) {
+          const serviceResult = getChatService(ctx, selection.id);
+          if ("status" in serviceResult) {
+            sendJson(res, serviceResult.status, serviceResult.payload);
+            return;
+          }
+          await serviceResult.getStore().hydrate();
+          if (!serviceResult.getStore().getThread(threadId)) {
+            sendJson(res, 404, { error: "thread_not_found", message: threadId });
+            return;
+          }
+          sendJson(res, 200, await serviceResult.getThreadChangesPayload(threadId, selection.id));
+          return;
+        }
+        sendJson(res, 200, await readCurrentWorkspaceChanges(selection.id, selection.path));
         return;
       }
       if (pathname === "/api/studio/graph") {
@@ -1456,7 +1547,6 @@ export async function startStudioServer(
     caseStudiesRoot,
     registryPaths: options.registryPaths
   });
-  await rememberDiscoveredWorkspaces(workspaces, options.registryPaths);
   const jobQueue = options.jobQueue ?? new StudioJobQueue();
   jobQueue.setWorkspaces(workspaces);
   for (const ws of workspaces) {

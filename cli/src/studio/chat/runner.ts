@@ -24,6 +24,15 @@ import { ChatStore, isValidThreadId } from "./store.js";
 import { getAdapter } from "./adapters/index.js";
 import type { SseSink } from "./sse.js";
 import { redact } from "./adapters/normalize.js";
+import {
+  buildStudioChangesPayload,
+  createThreadChangesState,
+  diffWorkspaceSnapshots,
+  readWorkspaceStatusSnapshot,
+  snapshotFromThreadChangesState,
+  type StudioChangesPayload,
+  type WorkspaceStatusSnapshot
+} from "../workspace-changes.js";
 
 const RUN_GC_RETENTION_MS = 60_000;
 const GLOBAL_CONCURRENCY = 1;
@@ -37,6 +46,7 @@ export interface RunRecord {
   cwd: string;
   startedAt: string;
   resumeSessionId: string | null;
+  changeBaseline: WorkspaceStatusSnapshot;
   controller: AbortController;
   buffered: ChatStreamEvent[];
   sinks: Set<SseSink>;
@@ -76,6 +86,48 @@ export class ChatService {
     return this.store;
   }
 
+  async getThreadChangesPayload(threadId: string, workspaceId: string): Promise<StudioChangesPayload> {
+    const activeRunId = this.activeByThread.get(threadId);
+    const activeRun = activeRunId ? this.runs.get(activeRunId) ?? null : null;
+    if (activeRun) {
+      const current = await readWorkspaceStatusSnapshot(activeRun.cwd);
+      return buildStudioChangesPayload({
+        workspaceId,
+        workspacePath: activeRun.cwd,
+        scope: "chat_thread",
+        threadId,
+        isGitWorkspace: current.isGitWorkspace,
+        changes: diffWorkspaceSnapshots(activeRun.changeBaseline, current),
+        warnings: current.warnings,
+        generatedAt: current.capturedAt
+      });
+    }
+
+    const saved = await this.store.readThreadWorkspaceChanges(threadId);
+    if (saved) {
+      return buildStudioChangesPayload({
+        workspaceId,
+        workspacePath: this.store.workspacePath(),
+        scope: "chat_thread",
+        threadId,
+        isGitWorkspace: saved.isGitWorkspace,
+        changes: saved.changes,
+        warnings: saved.warnings,
+        generatedAt: saved.updatedAt
+      });
+    }
+
+    return buildStudioChangesPayload({
+      workspaceId,
+      workspacePath: this.store.workspacePath(),
+      scope: "chat_thread",
+      threadId,
+      isGitWorkspace: true,
+      changes: [],
+      warnings: []
+    });
+  }
+
   getRun(runId: string): RunRecord | null {
     return this.runs.get(runId) ?? null;
   }
@@ -106,6 +158,13 @@ export class ChatService {
     if (!runId) return;
     const run = this.runs.get(runId);
     if (run && !run.finished) run.controller.abort();
+  }
+
+  /** Abort every in-flight run for this workspace before workspace reset. */
+  abortAll(): void {
+    for (const run of this.runs.values()) {
+      if (!run.finished) run.controller.abort();
+    }
   }
 
   async postRun(input: PostRunInput): Promise<
@@ -179,6 +238,7 @@ export class ChatService {
     const controller = new AbortController();
     const startedAt = new Date().toISOString();
     const cwd = this.store.workspacePath();
+    const changeBaseline = await this.ensureThreadChangeBaseline(input.threadId, cwd);
 
     const record: RunRecord = {
       runId,
@@ -189,6 +249,7 @@ export class ChatService {
       cwd,
       startedAt,
       resumeSessionId,
+      changeBaseline,
       controller,
       buffered: [],
       sinks: new Set<SseSink>(),
@@ -227,6 +288,44 @@ export class ChatService {
       kind: "ok",
       outcome: { runId, streamUrl: `/api/studio/chat/runs/${runId}/stream` }
     };
+  }
+
+  private async ensureThreadChangeBaseline(threadId: string, cwd: string): Promise<WorkspaceStatusSnapshot> {
+    const saved = await this.store.readThreadWorkspaceChanges(threadId);
+    if (saved && saved.baseline.every((entry) => entry.source === "git" || entry.source === "filesystem")) {
+      return snapshotFromThreadChangesState(saved);
+    }
+
+    const baseline = await readWorkspaceStatusSnapshot(cwd);
+    try {
+      await this.store.writeThreadWorkspaceChanges(
+        threadId,
+        createThreadChangesState({ threadId, baseline })
+      );
+    } catch {
+      // The active run can still report changes from memory; persistence is
+      // best effort until the terminal update below.
+    }
+    return baseline;
+  }
+
+  private async persistThreadChanges(record: RunRecord): Promise<void> {
+    try {
+      const current = await readWorkspaceStatusSnapshot(record.cwd);
+      const changes = diffWorkspaceSnapshots(record.changeBaseline, current);
+      await this.store.writeThreadWorkspaceChanges(
+        record.threadId,
+        createThreadChangesState({
+          threadId: record.threadId,
+          baseline: record.changeBaseline,
+          current,
+          changes
+        })
+      );
+    } catch {
+      // Change tracking is advisory. Chat completion should never fail because
+      // git status or the sidecar write failed after an agent run.
+    }
   }
 
   private async executeTurn(input: {
@@ -333,6 +432,8 @@ export class ChatService {
       liveSessionId = null;
       result = await runOnce(null);
     }
+
+    await this.persistThreadChanges(record);
 
     const linesToAppend: JsonlLine[] = [];
     const userLine: JsonlLine = {

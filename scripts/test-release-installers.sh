@@ -59,6 +59,56 @@ run_unsupported_posix_case() {
   grep -F "Supported: Linux x86_64, macOS x86_64, macOS arm64" <<<"$output" >/dev/null
 }
 
+run_posix_default_release_proxy_case() {
+  local output
+  output="$(
+    PATH="$FAKE_BIN:$PATH" \
+    HOME="$TMP/home" \
+    RIPTIDE_TEST_UNAME_S="Linux" \
+    RIPTIDE_TEST_UNAME_M="x86_64" \
+    sh "$ROOT/scripts/install-release.sh" --dry-run
+  )"
+
+  grep -F "archive      https://riptide.run/releases/latest/download/riptide-x86_64-unknown-linux-gnu.tar.gz" <<<"$output" >/dev/null
+}
+
+run_posix_download_failure_case() {
+  local curl_bin="$TMP/curl-fail-bin"
+  local output
+  mkdir -p "$curl_bin"
+
+  cat > "$curl_bin/curl" <<'EOF'
+#!/usr/bin/env sh
+case "${1:-}" in
+  --help)
+    printf '%s\n' '     --retry-connrefused   Retry on connection refused'
+    exit 0
+    ;;
+esac
+printf '%s\n' 'curl: (7) Failed to connect to release host port 443' >&2
+exit 7
+EOF
+  chmod +x "$curl_bin/curl"
+
+  if output="$(
+    PATH="$curl_bin:$FAKE_BIN:$PATH" \
+    HOME="$TMP/home" \
+    RIPTIDE_TEST_UNAME_S="Linux" \
+    RIPTIDE_TEST_UNAME_M="x86_64" \
+    sh "$ROOT/scripts/install-release.sh" \
+      --bin-dir "$TMP/failure-bin" \
+      --install-dir "$TMP/failure-install" 2>&1
+  )"; then
+    printf '%s\n' "$output"
+    printf 'expected download failure to fail\n' >&2
+    exit 1
+  fi
+
+  grep -F "curl: (7) Failed to connect to release host port 443" <<<"$output" >/dev/null
+  grep -F "riptide install: failed to download https://riptide.run/releases/latest/download/riptide-x86_64-unknown-linux-gnu.tar.gz" <<<"$output" >/dev/null
+  grep -F "RIPTIDE_RELEASE_BASE_URL" <<<"$output" >/dev/null
+}
+
 write_checksum_file() {
   local archive="$1"
   local checksum="$2"
@@ -151,6 +201,8 @@ run_windows_static_checks() {
   grep -F 'Get-FileHash' "$ps1" >/dev/null
   grep -F 'Expand-Archive' "$ps1" >/dev/null
   grep -F 'riptide.cmd' "$ps1" >/dev/null
+  grep -F 'ReleaseProxyBase' "$ps1" >/dev/null
+  grep -F 'https://riptide.run/releases' "$ps1" >/dev/null
   grep -F 'NoAgentSkills' "$ps1" >/dev/null
   grep -F 'CODEX_HOME' "$ps1" >/dev/null
   grep -F 'CLAUDE_HOME' "$ps1" >/dev/null
@@ -258,6 +310,8 @@ run_posix_case Linux x86_64 x86_64-unknown-linux-gnu
 run_posix_case Darwin x86_64 x86_64-apple-darwin
 run_posix_case Darwin arm64 aarch64-apple-darwin
 run_unsupported_posix_case
+run_posix_default_release_proxy_case
+run_posix_download_failure_case
 run_posix_agent_skill_install_case
 run_windows_static_checks
 run_windows_powershell_parse_check

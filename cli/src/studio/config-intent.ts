@@ -175,7 +175,8 @@ function renderHandoffPrompt(
     ? `\nOperator notes:\n${intent.notes}\n`
     : "";
   return [
-    "You are the riptide-config skill. Apply the following Studio handoff in the target repo.",
+    "Use the riptide-config skill to apply the following Studio handoff in the target repo.",
+    "If this session says the skill is unavailable, do not proceed from memory; read and follow the first existing local instructions file at .claude/skills/riptide-config/SKILL.md, .codex/skills/riptide-config/SKILL.md, ~/.codex/skills/riptide-config/SKILL.md, or ~/.claude/skills/riptide-config/SKILL.md.",
     "",
     `- Repository: ${intent.repo_path}`,
     `- Protocol class: ${intent.protocol_class}`,

@@ -142,7 +142,7 @@ export async function indexWorkspaceArtifacts(
   await collectPacks(root, artifacts);
   // 6) Guided-sim manifests/artifacts under `.riptide/sim/` and legacy `.riptide/sims/`.
   await collectGuidedSims(root, artifacts);
-  // 7) Readiness reports under `.riptide/readiness/` and Sprint 30 report roots.
+  // 7) Readiness reports under `.riptide/readiness/` and workspace-local report roots.
   await collectReadinessReports(root, options.workspaceId, artifacts);
   // 8) Markdown summaries at top-level `.riptide/`.
   await collectTopLevelMarkdown(root, artifacts);
@@ -1033,11 +1033,7 @@ function relTo(root: string, file: string): string {
 
 function readinessReportRoots(root: string): string[] {
   const candidates = [
-    path.join(root, "reports", "case-study-readiness"),
-    // Case-study workspaces live under `<workspace>/case-studies/<slug>`,
-    // while Sprint 30 raw readiness reports live in the sibling
-    // Riptide repo at `<workspace>/riptide/reports/case-study-readiness`.
-    path.resolve(root, "..", "..", "riptide", "reports", "case-study-readiness")
+    path.join(root, "reports", "case-study-readiness")
   ];
   const seen = new Set<string>();
   const out: string[] = [];

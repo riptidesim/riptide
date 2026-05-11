@@ -15,7 +15,7 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { listProjects, type RegistryPaths } from "./registry.js";
+import { listProjects, type RegisteredProject, type RegistryPaths } from "./registry.js";
 
 export interface StudioWorkspaceWarning {
   message: string;
@@ -29,6 +29,8 @@ export interface StudioWorkspace {
   label: string;
   /** Source: "current" (cwd), "case-study", or "registered" (added via the wizard). */
   source: "current" | "case-study" | "registered";
+  /** Backing registry id when this path is remembered in ~/.riptide/projects.json. */
+  registry_id?: string | null;
   /** Absolute repo path. */
   path: string;
   /** Path to `.riptide/`. May not exist yet. */
@@ -54,24 +56,36 @@ export async function discoverStudioWorkspaces(
   options: DiscoverWorkspacesOptions
 ): Promise<StudioWorkspace[]> {
   const cwd = path.resolve(options.cwd);
+  const projects = await safeListProjects(options.registryPaths);
+  const registryByPath = registryProjectsByPath(projects);
   const primary = await describeWorkspace({
     id: PRIMARY_ID,
     label: workspaceLabel(cwd),
     source: "current",
-    repoPath: cwd
+    repoPath: cwd,
+    registryId: registryByPath.get(cwd)?.id ?? null
   });
 
   const studies = options.caseStudiesRoot
-    ? await discoverCaseStudyWorkspaces(path.resolve(options.caseStudiesRoot))
+    ? await discoverCaseStudyWorkspaces(path.resolve(options.caseStudiesRoot), registryByPath)
     : [];
 
   const registered = await discoverRegisteredWorkspaces({
     cwdAbsolute: cwd,
-    registryPaths: options.registryPaths
+    projects
   });
 
-  const out = dedupeByPath([primary, ...studies, ...registered]);
+  const discovered = [...studies, ...registered];
+  const out = dedupeByPath([
+    ...(shouldIncludePrimary(primary, discovered) ? [primary] : []),
+    ...discovered
+  ]);
   return out.sort((a, b) => primaryFirst(a, b) || compareStrings(a.id, b.id));
+}
+
+function shouldIncludePrimary(primary: StudioWorkspace, discovered: StudioWorkspace[]): boolean {
+  if (primary.has_riptide || primary.registry_id) return true;
+  return discovered.length === 0;
 }
 
 function dedupeByPath(workspaces: StudioWorkspace[]): StudioWorkspace[] {
@@ -88,20 +102,14 @@ function dedupeByPath(workspaces: StudioWorkspace[]): StudioWorkspace[] {
 
 interface DiscoverRegisteredOptions {
   cwdAbsolute: string;
-  registryPaths?: RegistryPaths;
+  projects: RegisteredProject[];
 }
 
 async function discoverRegisteredWorkspaces(
   options: DiscoverRegisteredOptions
 ): Promise<StudioWorkspace[]> {
-  let projects: Awaited<ReturnType<typeof listProjects>>;
-  try {
-    projects = await listProjects(options.registryPaths);
-  } catch {
-    return [];
-  }
   const out: StudioWorkspace[] = [];
-  for (const entry of projects) {
+  for (const entry of options.projects) {
     const absolute = path.resolve(entry.path);
     if (absolute === options.cwdAbsolute) continue;
     out.push(
@@ -109,14 +117,18 @@ async function discoverRegisteredWorkspaces(
         id: entry.id,
         label: entry.label,
         source: "registered",
-        repoPath: absolute
+        repoPath: absolute,
+        registryId: entry.id
       })
     );
   }
   return out;
 }
 
-async function discoverCaseStudyWorkspaces(root: string): Promise<StudioWorkspace[]> {
+async function discoverCaseStudyWorkspaces(
+  root: string,
+  registryByPath: Map<string, RegisteredProject>
+): Promise<StudioWorkspace[]> {
   const rootStat = await safeStat(root);
   if (!rootStat || !rootStat.isDirectory()) return [];
 
@@ -131,7 +143,8 @@ async function discoverCaseStudyWorkspaces(root: string): Promise<StudioWorkspac
         id: entry.name,
         label: entry.name,
         source: "case-study",
-        repoPath
+        repoPath,
+        registryId: registryByPath.get(path.resolve(repoPath))?.id ?? null
       })
     );
   }
@@ -143,6 +156,7 @@ interface DescribeInput {
   label: string;
   source: "current" | "case-study" | "registered";
   repoPath: string;
+  registryId?: string | null;
 }
 
 async function describeWorkspace(input: DescribeInput): Promise<StudioWorkspace> {
@@ -160,11 +174,28 @@ async function describeWorkspace(input: DescribeInput): Promise<StudioWorkspace>
     id: input.id,
     label: input.label,
     source: input.source,
+    registry_id: input.registryId ?? null,
     path: input.repoPath,
     riptide_path: riptidePath,
     has_riptide: hasRiptide,
     warnings
   };
+}
+
+async function safeListProjects(registryPaths: RegistryPaths | undefined): Promise<RegisteredProject[]> {
+  try {
+    return await listProjects(registryPaths);
+  } catch {
+    return [];
+  }
+}
+
+function registryProjectsByPath(projects: RegisteredProject[]): Map<string, RegisteredProject> {
+  const out = new Map<string, RegisteredProject>();
+  for (const project of projects) {
+    out.set(path.resolve(project.path), project);
+  }
+  return out;
 }
 
 async function safeStat(target: string) {

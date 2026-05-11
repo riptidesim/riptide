@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   api,
@@ -12,12 +12,20 @@ import {
 import { Icon, type IconName } from "../ui/Icon";
 import { Kicker } from "../ui/primitives";
 import { AGENT_TAGLINE, AGENT_ICON, MODEL_OPTIONS, MODEL_LABEL } from "../agentMeta";
+import {
+  DirectoryBrowser,
+  FolderHint,
+  basename as pathBasename,
+  deriveProgramName,
+  folderValidationError,
+  samePath
+} from "./AddProjectWizard";
 
 type Step = 0 | 1 | 2;
 
 interface FirstRunWizardProps {
   workspace: StudioWorkspace;
-  onDone: (workspaces: StudioWorkspace[]) => void;
+  onDone: (workspaces: StudioWorkspace[], activeWorkspaceId?: string | null) => void;
   onPickAgent?: (pref: { agentId: string; model: string }) => void;
 }
 
@@ -25,6 +33,16 @@ const PROGRAM_NAME_RE = /^[a-z][a-z0-9-]*$/;
 
 export function FirstRunWizard({ workspace, onDone, onPickAgent }: FirstRunWizardProps) {
   const [step, setStep] = useState<Step>(0);
+  const [targetPath, setTargetPath] = useState(workspace.path);
+  const [targetTouched, setTargetTouched] = useState(false);
+  const [folderPickMessage, setFolderPickMessage] = useState<string | null>(null);
+  const [pickingFolder, setPickingFolder] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [browserPath, setBrowserPath] = useState("");
+  const [browserEntries, setBrowserEntries] = useState<Array<{ name: string; path: string }>>([]);
+  const [browserParent, setBrowserParent] = useState<string | null>(null);
+  const [browserLoading, setBrowserLoading] = useState(false);
+  const [browserError, setBrowserError] = useState<string | null>(null);
   const [detection, setDetection] = useState<ProgramDetection | null>(null);
   const [detectionLoading, setDetectionLoading] = useState(true);
   const [programName, setProgramName] = useState(defaultProgramName(workspace));
@@ -38,6 +56,10 @@ export function FirstRunWizard({ workspace, onDone, onPickAgent }: FirstRunWizar
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [agentProbing, setAgentProbing] = useState(false);
+  const existingRiptide = workspace.has_riptide;
+  const targetFolderError = useMemo(() => folderValidationError(targetPath), [targetPath]);
+  const targetFolderValid = targetFolderError === null && targetPath.trim().length > 0;
+  const targetLabel = pathBasename(targetPath.trim()) || workspace.label;
 
   function reprobeAgents() {
     return api
@@ -50,16 +72,34 @@ export function FirstRunWizard({ workspace, onDone, onPickAgent }: FirstRunWizar
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     setDetectionLoading(true);
+    const path = targetPath.trim() || workspace.path;
+    if (folderValidationError(path)) {
+      setDetection(null);
+      setDetectionLoading(false);
+      return () => { cancelled = true; };
+    }
     api
-      .detectProgram(workspace.id)
+      .detectProgram(undefined, path)
       .then((res) => {
+        if (cancelled) return;
         setDetection(res);
-        if (res.programName) setProgramName(res.programName);
+        if (res.programName && !nameTouched) setProgramName(res.programName);
       })
       .catch(() => {})
-      .finally(() => setDetectionLoading(false));
-  }, [workspace.id]);
+      .finally(() => {
+        if (!cancelled) setDetectionLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [targetPath, workspace.path, nameTouched]);
+
+  useEffect(() => {
+    if (!nameTouched) {
+      const derived = deriveProgramName(targetPath.trim() || workspace.path);
+      setProgramName(derived || defaultProgramName(workspace));
+    }
+  }, [nameTouched, targetPath, workspace.path]);
 
   useEffect(() => {
     setAgentsLoading(true);
@@ -76,7 +116,7 @@ export function FirstRunWizard({ workspace, onDone, onPickAgent }: FirstRunWizar
 
   const programNameValid = PROGRAM_NAME_RE.test(programName);
   const canContinue =
-    step === 0 ? programNameValid && protocol.length > 0
+    step === 0 ? targetFolderValid && programNameValid && protocol.length > 0 && !pickingFolder
     : step === 1 ? agents.some((a) => a.id === agentId) && !agentProbing
     : true;
 
@@ -84,14 +124,16 @@ export function FirstRunWizard({ workspace, onDone, onPickAgent }: FirstRunWizar
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const trimmed = targetPath.trim() || workspace.path;
       const res = await api.init({
         programName,
         protocol,
-        path: workspace.path,
-        label: workspace.label
+        path: trimmed,
+        label: pathBasename(trimmed) || programName
       });
+      const selected = res.workspaces.find((w) => samePath(w.path, trimmed)) ?? null;
       onPickAgent?.({ agentId, model });
-      onDone(res.workspaces);
+      onDone(res.workspaces, selected?.id ?? null);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : (err as Error).message;
       setSubmitError(message);
@@ -99,15 +141,88 @@ export function FirstRunWizard({ workspace, onDone, onPickAgent }: FirstRunWizar
     }
   }
 
+  async function loadBrowserDirectory(path?: string) {
+    setBrowserLoading(true);
+    setBrowserError(null);
+    try {
+      const res = await api.browseDirectory(path);
+      setBrowserPath(res.path);
+      setBrowserParent(res.parent);
+      setBrowserEntries(res.entries);
+    } catch (err) {
+      setBrowserError(err instanceof ApiError ? err.message : (err as Error).message);
+    } finally {
+      setBrowserLoading(false);
+    }
+  }
+
+  async function pickFolder() {
+    if (submitting || pickingFolder) return;
+    setPickingFolder(true);
+    setFolderPickMessage(null);
+    try {
+      const native = await api.pickDirectory();
+      if (native.cancelled) return;
+      if (native.path) {
+        setTargetPath(native.path);
+        setTargetTouched(true);
+        setFolderPickMessage("selected via OS folder picker");
+        return;
+      }
+      if (native.message) setFolderPickMessage(native.message);
+      setBrowserOpen(true);
+      await loadBrowserDirectory(targetFolderValid ? targetPath.trim() : undefined);
+    } catch (err) {
+      setFolderPickMessage((err as Error).message);
+      setBrowserOpen(true);
+      try {
+        await loadBrowserDirectory(targetFolderValid ? targetPath.trim() : undefined);
+      } catch {
+        // DirectoryBrowser renders the loading error.
+      }
+    } finally {
+      setPickingFolder(false);
+    }
+  }
+
+  function useBrowserPath() {
+    if (!browserPath) return;
+    setTargetPath(browserPath);
+    setTargetTouched(true);
+    setFolderPickMessage("selected from workspace browser");
+    setBrowserOpen(false);
+  }
+
   return (
     <div className="scrim">
       <div className="modal" style={{ maxWidth: 920 }}>
-        <Header step={step} />
+        <Header step={step} existingRiptide={existingRiptide} />
         <Stepper step={step} />
         <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
           {step === 0 && (
             <ProjectStep
-              workspace={workspace}
+              targetPath={targetPath}
+              setTargetPath={(next) => {
+                setTargetPath(next);
+                setTargetTouched(true);
+                setFolderPickMessage(null);
+              }}
+              targetTouched={targetTouched}
+              targetFolderError={targetFolderError}
+              targetFolderValid={targetFolderValid}
+              pickingFolder={pickingFolder}
+              folderPickMessage={folderPickMessage}
+              browserOpen={browserOpen}
+              browserPath={browserPath}
+              browserParent={browserParent}
+              browserEntries={browserEntries}
+              browserLoading={browserLoading}
+              browserError={browserError}
+              onPickFolder={() => void pickFolder()}
+              onCloseBrowser={() => setBrowserOpen(false)}
+              onRefreshBrowser={() => void loadBrowserDirectory(browserPath)}
+              onNavigateBrowser={(next) => void loadBrowserDirectory(next)}
+              onUseBrowserPath={useBrowserPath}
               programName={programName}
               setProgramName={(v) => { setProgramName(v); setNameTouched(true); }}
               programNameValid={programNameValid}
@@ -117,7 +232,7 @@ export function FirstRunWizard({ workspace, onDone, onPickAgent }: FirstRunWizar
               detection={detection}
               detectionLoading={detectionLoading}
               nameTouched={nameTouched}
-              onPickCandidate={(c) => { setProgramName(c); setNameTouched(false); }}
+              onPickCandidate={(c) => { setProgramName(c); setNameTouched(true); }}
             />
           )}
           {step === 1 && (
@@ -134,12 +249,14 @@ export function FirstRunWizard({ workspace, onDone, onPickAgent }: FirstRunWizar
           )}
           {step === 2 && (
             <LaunchStep
-              workspace={workspace}
+              targetPath={targetPath}
+              targetLabel={targetLabel}
               programName={programName}
               protocol={protocol}
               protocolLabel={protocols.find((p) => p.value === protocol)?.label ?? protocol}
               agent={agents.find((a) => a.id === agentId) ?? null}
               error={submitError}
+              existingRiptide={existingRiptide}
             />
           )}
         </div>
@@ -156,8 +273,10 @@ export function FirstRunWizard({ workspace, onDone, onPickAgent }: FirstRunWizar
   );
 }
 
-function Header({ step }: { step: Step }) {
-  const titles = ["Name your project", "Connect a coding agent", "Confirm and bootstrap"];
+function Header({ step, existingRiptide }: { step: Step; existingRiptide: boolean }) {
+  const titles = existingRiptide
+    ? ["Choose project folder", "Connect a coding agent", "Save workspace"]
+    : ["Choose project folder", "Connect a coding agent", "Confirm setup"];
   return (
     <div style={{ padding: "18px 24px", borderBottom: "1px solid var(--rt-slate-line)", display: "flex", alignItems: "center", gap: 14 }}>
       <img src="assets/logo-icon.png" style={{ width: 24, height: 24 }} alt="Riptide" />
@@ -187,7 +306,24 @@ function Stepper({ step }: { step: Step }) {
 }
 
 interface ProjectStepProps {
-  workspace: StudioWorkspace;
+  targetPath: string;
+  setTargetPath: (v: string) => void;
+  targetTouched: boolean;
+  targetFolderError: string | null;
+  targetFolderValid: boolean;
+  pickingFolder: boolean;
+  folderPickMessage: string | null;
+  browserOpen: boolean;
+  browserPath: string;
+  browserParent: string | null;
+  browserEntries: Array<{ name: string; path: string }>;
+  browserLoading: boolean;
+  browserError: string | null;
+  onPickFolder: () => void;
+  onCloseBrowser: () => void;
+  onRefreshBrowser: () => void;
+  onNavigateBrowser: (path: string) => void;
+  onUseBrowserPath: () => void;
   programName: string;
   setProgramName: (v: string) => void;
   programNameValid: boolean;
@@ -207,7 +343,10 @@ const SOURCE_LABEL: Record<NonNullable<ProgramDetection["source"]>, string> = {
 };
 
 function ProjectStep({
-  workspace, programName, setProgramName, programNameValid,
+  targetPath, setTargetPath, targetTouched, targetFolderError, targetFolderValid, pickingFolder,
+  folderPickMessage, browserOpen, browserPath, browserParent, browserEntries, browserLoading, browserError,
+  onPickFolder, onCloseBrowser, onRefreshBrowser, onNavigateBrowser, onUseBrowserPath,
+  programName, setProgramName, programNameValid,
   protocol, setProtocol, protocols, detection, detectionLoading, nameTouched, onPickCandidate
 }: ProjectStepProps) {
   const candidates = detection?.candidates ?? [];
@@ -218,23 +357,61 @@ function ProjectStep({
   return (
     <div>
       <div style={{ font: "400 14px/1.55 Inter", color: "var(--rt-fg-2)", marginBottom: 18, maxWidth: 580 }}>
-        Riptide will scaffold a thin <span style={{ color: "var(--rt-teal)", fontFamily: "IBM Plex Mono" }}>.riptide/</span>{" "}
-        directory in this folder. You'll fill it in yourself — personas, scenarios, invariants — once setup is done.
+        Choose the folder Studio should use. If it already has{" "}
+        <span style={{ color: "var(--rt-teal)", fontFamily: "IBM Plex Mono" }}>.riptide/</span>, Studio opens it.
+        Otherwise Riptide creates a small{" "}
+        <span style={{ color: "var(--rt-teal)", fontFamily: "IBM Plex Mono" }}>.riptide/</span>{" "}
+        setup there.
       </div>
 
-      <div style={{
-        padding: 14, background: "var(--rt-slate-2)", border: "1px solid var(--rt-slate-line)",
-        borderRadius: 8, marginBottom: 22, display: "flex", alignItems: "center", gap: 10
-      }}>
-        <Icon name="folder" size={14} color="var(--rt-fog-dim)" />
-        <div style={{ flex: 1 }}>
-          <div style={{ font: '500 10px "IBM Plex Mono"', color: "var(--rt-fog-dim)", letterSpacing: "0.08em", marginBottom: 2 }}>
-            WORKSPACE
-          </div>
-          <div style={{ font: '500 12.5px "IBM Plex Mono"', color: "var(--rt-off-white)" }}>
-            {basenameOf(workspace.path)}
-          </div>
+      <div style={{ marginBottom: 22 }}>
+        <label style={{ display: "block", font: '500 10px "IBM Plex Mono"', color: "var(--rt-fog-dim)", letterSpacing: "0.08em", marginBottom: 6 }}>
+          WORKSPACE FOLDER
+        </label>
+        <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+          <input
+            className="input"
+            value={targetPath}
+            onChange={(e) => setTargetPath(e.target.value)}
+            placeholder="/home/you/code/my-program  or  ~/code/my-program"
+            spellCheck={false}
+            style={{ minWidth: 0, flex: 1, fontFamily: "IBM Plex Mono" }}
+          />
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={onPickFolder}
+            disabled={pickingFolder}
+            title="Choose workspace folder"
+            style={{ justifyContent: "center" }}
+          >
+            <Icon name={pickingFolder ? "refresh" : "folder"} size={13} />
+            {pickingFolder ? "Opening..." : "Browse"}
+          </button>
         </div>
+        <FolderHint
+          error={targetTouched ? targetFolderError : null}
+          path={targetPath}
+          valid={targetFolderValid}
+        />
+        {folderPickMessage && (
+          <div style={{ font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)", marginTop: 6 }}>
+            {folderPickMessage}
+          </div>
+        )}
+        {browserOpen && (
+          <DirectoryBrowser
+            path={browserPath}
+            parent={browserParent}
+            entries={browserEntries}
+            loading={browserLoading}
+            error={browserError}
+            onClose={onCloseBrowser}
+            onRefresh={onRefreshBrowser}
+            onNavigate={onNavigateBrowser}
+            onUse={onUseBrowserPath}
+          />
+        )}
       </div>
 
       <div style={{ marginBottom: 18 }}>
@@ -536,29 +713,32 @@ function ProbingSkeleton() {
 }
 
 interface LaunchStepProps {
-  workspace: StudioWorkspace;
+  targetPath: string;
+  targetLabel: string;
   programName: string;
   protocol: Protocol;
   protocolLabel: string;
   agent: AgentProbe | null;
   error: string | null;
+  existingRiptide: boolean;
 }
 
-function LaunchStep({ workspace, programName, protocol, protocolLabel, agent, error }: LaunchStepProps) {
+function LaunchStep({ targetPath, targetLabel, programName, protocol, protocolLabel, agent, error, existingRiptide }: LaunchStepProps) {
   const _ = protocol;
   void _;
   return (
     <div>
       <div style={{ font: "400 14px/1.55 Inter", color: "var(--rt-fg-2)", marginBottom: 22, maxWidth: 580 }}>
-        Riptide is about to write a thin scaffold. Nothing else changes — no compile, no network, no edits outside{" "}
-        <span style={{ color: "var(--rt-teal)", fontFamily: "IBM Plex Mono" }}>.riptide/</span>.
+        Studio will use the folder below. If{" "}
+        <span style={{ color: "var(--rt-teal)", fontFamily: "IBM Plex Mono" }}>.riptide/</span>{" "}
+        already exists there, Studio opens it. Otherwise Riptide creates a small setup folder.
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
         <div className="card" style={{ padding: 18 }}>
           <Kicker style={{ marginBottom: 8 }}>WORKSPACE</Kicker>
           <div style={{ font: "500 16px Inter", color: "var(--rt-off-white)", marginBottom: 4 }}>{programName}</div>
           <div style={{ font: '400 12px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}>
-            {basenameOf(workspace.path)}
+            {targetLabel}
           </div>
           <div style={{ font: "400 12px Inter", color: "var(--rt-fog-dim)", marginTop: 8 }}>
             class · {protocolLabel}
@@ -581,17 +761,16 @@ function LaunchStep({ workspace, programName, protocol, protocolLabel, agent, er
         </div>
       </div>
       <div className="card" style={{ padding: 18, marginBottom: 14 }}>
-        <Kicker style={{ marginBottom: 8 }}>WILL CREATE</Kicker>
+        <Kicker style={{ marginBottom: 8 }}>WILL USE</Kicker>
         <div className="code" style={{ background: "transparent", border: "none", padding: 0 }}>
-{`.riptide/
-  adapters/${programName}.toml
-  scenarios/         (empty — fill in)
-  GETTING-STARTED.md`}
+{`${targetPath.replace(/\/+$/g, "")}/.riptide
+  opened if present
+  created if missing`}
         </div>
       </div>
       {error && (
         <div className="card" style={{ padding: 14, border: "1px solid rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.06)" }}>
-          <Kicker style={{ marginBottom: 6, color: "var(--rt-fail)" }}>BOOTSTRAP FAILED</Kicker>
+          <Kicker style={{ marginBottom: 6, color: "var(--rt-fail)" }}>{existingRiptide ? "SAVE FAILED" : "SETUP FAILED"}</Kicker>
           <div style={{ font: '400 12.5px "IBM Plex Mono"', color: "var(--rt-fail)" }}>{error}</div>
         </div>
       )}
@@ -609,10 +788,12 @@ interface FooterProps {
 }
 
 function Footer({ step, canContinue, submitting, onBack, onNext, onSubmit }: FooterProps) {
+  const busyLabel = "Adding…";
+  const submitLabel = "Add workspace";
   return (
     <div style={{ padding: "14px 24px", borderTop: "1px solid var(--rt-slate-line)", display: "flex", alignItems: "center", gap: 8 }}>
       <div style={{ flex: 1, font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-faint)" }}>
-        {submitting && "Bootstrapping…"}
+        {submitting && busyLabel}
       </div>
       {step > 0 && !submitting && (
         <button className="btn btn--ghost btn--sm" onClick={onBack}>Back</button>
@@ -624,15 +805,11 @@ function Footer({ step, canContinue, submitting, onBack, onNext, onSubmit }: Foo
       ) : (
         <button className="btn btn--primary btn--sm" onClick={onSubmit} disabled={submitting}>
           {submitting ? <Icon name="refresh" size={13} /> : <Icon name="play" size={13} />}
-          {submitting ? "Bootstrapping…" : "Bootstrap workspace"}
+          {submitting ? busyLabel : submitLabel}
         </button>
       )}
     </div>
   );
-}
-
-function basenameOf(p: string): string {
-  return p.split("/").filter(Boolean).pop() ?? p;
 }
 
 function defaultProgramName(workspace: StudioWorkspace): string {

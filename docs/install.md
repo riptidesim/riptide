@@ -18,7 +18,7 @@ Windows PowerShell:
 irm https://riptide.run/install.ps1 | iex
 ```
 
-The POSIX installer script lives at [`../scripts/install-release.sh`](../scripts/install-release.sh), and the Windows installer lives at [`../scripts/install-release.ps1`](../scripts/install-release.ps1). They download a prebuilt bundle for the current platform, verify the bundle `.sha256`, unpack it under the user's local app/data directory, and write a `riptide` launcher to the configured bin directory.
+The POSIX installer script lives at [`../scripts/install-release.sh`](../scripts/install-release.sh), and the Windows installer lives at [`../scripts/install-release.ps1`](../scripts/install-release.ps1). They download a prebuilt bundle for the current platform through the `riptide.run` release proxy, verify the bundle `.sha256`, unpack it under the user's local app/data directory, and write a `riptide` launcher to the configured bin directory.
 
 The release bundle does not require Rust, Node.js, npm, Solana CLI, or `cargo-build-sbf` on the user's machine. It carries the compiled TypeScript CLI, pinned Node runtime, native `riptide-engine` binary, fixtures, examples, shipped `.so` artifacts, and generated fixture deploy keypairs required by owner-aware shipped adapters.
 
@@ -52,7 +52,7 @@ riptide-x86_64-pc-windows-msvc.zip
 riptide-x86_64-pc-windows-msvc.zip.sha256
 ```
 
-Those files must be attached to the matching GitHub Release tag for the hosted command to install that version. Use the repository checkout or Docker path below for unreleased changes.
+Those files must be attached to the matching GitHub Release tag for the hosted command to install that version. The public installer fetches official releases through `https://riptide.run/releases/...`; set `RIPTIDE_RELEASE_BASE_URL` only when you intentionally maintain a private mirror with both the archive and `.sha256` file. Use the repository checkout or Docker path below for unreleased changes.
 
 ## Prerequisites
 
@@ -154,7 +154,9 @@ and starter campaign readiness in one loop. It should finish with
 If you used the hosted installer, `riptide-config` is installed into
 Codex and Claude Code skill folders automatically unless agent skill
 installation was disabled or a user-authored skill with the same name
-already existed.
+already existed. Start a new Codex or Claude Code session after install
+before asking for `/riptide-config`; sessions that were already running
+usually will not reload newly installed skills.
 
 When it reports campaign readiness, run the campaign and review the
 printed campaign root:
@@ -227,9 +229,10 @@ docker pull ghcr.io/riptidesim/riptide
 ```
 
 The curl and PowerShell commands expect matching GitHub Release assets
-for the requested version. GHCR, crates.io, and npm publication remain
-separate distribution paths and should be documented as supported only
-after the corresponding artifacts exist.
+for the requested version, served through the `riptide.run` release
+proxy for the official repository. GHCR, crates.io, and npm publication
+remain separate distribution paths and should be documented as supported
+only after the corresponding artifacts exist.
 
 ## Further Reading
 

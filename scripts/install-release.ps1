@@ -13,6 +13,7 @@ param(
   [string]$BinDir = $(if ($env:RIPTIDE_BIN_DIR) { $env:RIPTIDE_BIN_DIR } else { Join-Path $HOME ".local\bin" }),
   [string]$InstallDir = $(if ($env:RIPTIDE_INSTALL_DIR) { $env:RIPTIDE_INSTALL_DIR } elseif ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA "riptide" } else { Join-Path $HOME ".local\share\riptide" }),
   [string]$ReleaseBaseUrl = $(if ($env:RIPTIDE_RELEASE_BASE_URL) { $env:RIPTIDE_RELEASE_BASE_URL } else { "" }),
+  [string]$ReleaseProxyBase = $(if ($env:RIPTIDE_RELEASE_PROXY_BASE) { $env:RIPTIDE_RELEASE_PROXY_BASE } else { "https://riptide.run/releases" }),
   [string]$Repo = $(if ($env:RIPTIDE_GITHUB_REPO) { $env:RIPTIDE_GITHUB_REPO } else { "riptidesim/riptide" }),
   [switch]$DryRun,
   [switch]$Force,
@@ -140,10 +141,16 @@ function Download {
     [string]$Url,
     [string]$Destination
   )
-  try {
-    Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing
-  } catch {
-    Die "failed to download $Url"
+  for ($attempt = 1; $attempt -le 3; $attempt++) {
+    try {
+      Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing
+      return
+    } catch {
+      if ($attempt -eq 3) {
+        Die "failed to download $Url. Retry in a moment, check access to the release host, or set RIPTIDE_RELEASE_BASE_URL to a mirror containing the release archive and .sha256 file"
+      }
+      Start-Sleep -Seconds ([Math]::Min($attempt * 2, 5))
+    }
   }
 }
 
@@ -289,8 +296,17 @@ function Install-AgentSkills {
 $target = Get-Target
 $asset = "riptide-$target.zip"
 
+$defaultRepo = "riptidesim/riptide"
 if ($ReleaseBaseUrl) {
   $base = $ReleaseBaseUrl.TrimEnd("/")
+} elseif ($Repo -eq $defaultRepo) {
+  $releaseBase = $ReleaseProxyBase.TrimEnd("/")
+  if ($Version -eq "latest") {
+    $base = "$releaseBase/latest/download"
+  } else {
+    $tag = Get-TagForVersion -Value $Version
+    $base = "$releaseBase/download/$tag"
+  }
 } elseif ($Version -eq "latest") {
   $base = "https://github.com/$Repo/releases/latest/download"
 } else {
@@ -435,6 +451,9 @@ try {
   Write-Styled "  Next:" -Color White
   if ($pathHint) {
     Write-Styled "    (open a new shell or update PATH first)" -Color DarkGray
+  }
+  if (Test-AgentSkillsEnabled) {
+    Write-Styled "    (start a new Codex/Claude session before using /riptide-config)" -Color DarkGray
   }
   Write-Styled "    1. " -Color White -NoNewline
   Write-Styled "riptide doctor" -Color Cyan -NoNewline

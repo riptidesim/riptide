@@ -289,6 +289,7 @@ button { font-family: inherit; }
 .studio {
   display: grid;
   grid-template-columns: 56px 240px 1fr;
+  grid-template-rows: minmax(0, 1fr);
   height: 100vh;
   width: 100vw;
   overflow: hidden;
@@ -304,17 +305,26 @@ button { font-family: inherit; }
   padding: 14px 0 12px;
   gap: 10px;
   overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rt-slate-line) transparent;
 }
+.rail::-webkit-scrollbar { width: 6px; }
+.rail::-webkit-scrollbar-track { background: transparent; }
+.rail::-webkit-scrollbar-thumb { background: var(--rt-slate-line); border-radius: 3px; }
+.rail::-webkit-scrollbar-thumb:hover { background: var(--rt-slate-strong); }
 .rail__brand {
   width: 30px; height: 30px;
   display: flex; align-items: center; justify-content: center;
   margin-bottom: 6px;
+  flex: none;
 }
 .rail__brand img { width: 28px; height: 28px; }
 .rail__divider {
   width: 24px; height: 1px;
   background: var(--rt-slate-line);
   margin: 2px 0 4px;
+  flex: none;
 }
 .rail__avatar {
   width: 32px; height: 32px;
@@ -326,6 +336,7 @@ button { font-family: inherit; }
   position: relative;
   border: 2px solid transparent;
   transition: transform .12s, border-color .12s;
+  flex: none;
 }
 .rail__avatar:hover { transform: scale(1.05); }
 .rail__avatar--active { border-color: var(--rt-teal); box-shadow: 0 0 0 2px rgba(20,184,182,0.18); }
@@ -358,6 +369,7 @@ button { font-family: inherit; }
   cursor: pointer;
   background: transparent;
   margin-top: auto;
+  flex: none;
 }
 .rail__add:hover { border-color: var(--rt-teal); color: var(--rt-teal); }
 
@@ -367,6 +379,7 @@ button { font-family: inherit; }
   border-right: 1px solid var(--rt-slate-line);
   display: flex; flex-direction: column;
   overflow: hidden;
+  min-height: 0;
 }
 .side__head {
   padding: 18px 16px 14px;
@@ -654,6 +667,22 @@ button { font-family: inherit; }
 .btn--quiet { color: var(--rt-fog); }
 .btn--quiet:hover { background: var(--rt-slate-2); color: var(--rt-off-white); }
 .btn--sm { padding: 6px 10px; font-size: 12px; }
+.btn--danger {
+  background: var(--rt-fail);
+  color: #ffffff;
+  border-color: var(--rt-fail);
+  box-shadow: 0 0 0 1px rgba(239,68,68,0.18), 0 10px 20px -14px rgba(239,68,68,0.75);
+}
+.btn--danger:hover {
+  background: #f05252;
+  border-color: #f05252;
+  color: #ffffff;
+}
+.btn--danger-ghost {
+  border-color: rgba(239,68,68,0.45);
+  color: var(--rt-fail);
+}
+.btn--danger-ghost:hover { background: rgba(239,68,68,0.10); border-color: var(--rt-fail); }
 
 .input, .textarea, .select {
   width: 100%;

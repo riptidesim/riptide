@@ -22,10 +22,6 @@ export default defineConfig({
           return mockApiPath;
         }
         return null;
-      },
-      transform(code, id) {
-        if (!id.split(path.sep).join("/").includes("/cli/studio-app/src/styles.css")) return null;
-        return code.replace(/@import\s+url\(["'][^"']+["']\);\s*/g, "");
       }
     }
   ],
