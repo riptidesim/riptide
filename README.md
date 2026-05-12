@@ -120,4 +120,5 @@ Detailed command-line workflows live in the docs, not in this README.
 | [Evidence packs](docs/pack.md) | Pack shape, canonical hashes, rerun scripts, and reviewer workflow. |
 | [Trust and review path](docs/trust.md) | Flagship proof rerun, CI handoff, case-study readiness, Studio, known limits, and reviewer ask. |
 | [Audit handoff packet](docs/audit-handoff.md) | Launch/review checklist, reviewer packet template, and follow-up issue format. |
+| [Submission package](docs/submission-package.md) | Demo script, shot list, and bounded submission copy for the shipped trust path. |
 | [Contributing](CONTRIBUTING.md) | Development setup, project structure, code style, and contribution rules. |

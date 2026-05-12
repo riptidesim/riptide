@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../api";
-import type { StudioGraphNode } from "../studioTypes";
+import type { StudioGraphEdge, StudioGraphNode, StudioGraphNodeKind } from "../studioTypes";
 import { Icon } from "../ui/Icon";
 import { EmptyState, Kicker, PageLabel, Pill } from "../ui/primitives";
 import { TabStrip } from "../ui/TabStrip";
@@ -18,6 +18,7 @@ interface AdapterPageProps {
 export function AdapterPage({ workspaceId, onNavigate }: AdapterPageProps) {
   const [tab, setTab] = useState<AdapterTab>("manifest");
   const [nodes, setNodes] = useState<StudioGraphNode[]>([]);
+  const [edges, setEdges] = useState<StudioGraphEdge[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,9 +27,13 @@ export function AdapterPage({ workspaceId, onNavigate }: AdapterPageProps) {
     setLoading(true);
     setError(null);
     setNodes([]);
+    setEdges([]);
     api.graph({ workspaceId })
       .then((graph) => {
-        if (!cancelled) setNodes(graph.nodes);
+        if (!cancelled) {
+          setNodes(graph.nodes);
+          setEdges(graph.edges);
+        }
       })
       .catch((err) => {
         if (!cancelled) setError((err as Error).message);
@@ -89,6 +94,8 @@ export function AdapterPage({ workspaceId, onNavigate }: AdapterPageProps) {
             </div>
           </div>
 
+          <SimulationDiagram nodes={nodes} edges={edges} />
+
           <TabStrip
             value={tab}
             onChange={setTab}
@@ -108,6 +115,181 @@ export function AdapterPage({ workspaceId, onNavigate }: AdapterPageProps) {
       )}
     </div>
   );
+}
+
+const DIAGRAM_COLUMNS: Array<{ title: string; kinds: StudioGraphNodeKind[] }> = [
+  { title: "Workspace", kinds: ["workspace"] },
+  { title: "Inputs", kinds: ["adapter", "semantics", "persona", "scenario", "campaign", "parameter"] },
+  { title: "Runner", kinds: ["engine", "invariant"] },
+  { title: "Evidence", kinds: ["run", "report", "pack"] }
+];
+
+interface DiagramNode extends StudioGraphNode {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function SimulationDiagram({ nodes, edges }: { nodes: StudioGraphNode[]; edges: StudioGraphEdge[] }) {
+  const [selectedId, setSelectedId] = useState<string | null>(nodes[0]?.id ?? null);
+  const layout = useMemo(() => layoutDiagram(nodes), [nodes]);
+  const selected = layout.nodes.find((node) => node.id === selectedId) ?? layout.nodes[0] ?? null;
+
+  useEffect(() => {
+    setSelectedId((current) => current && nodes.some((node) => node.id === current) ? current : nodes[0]?.id ?? null);
+  }, [nodes]);
+
+  if (layout.nodes.length === 0) return null;
+
+  return (
+    <div className="card" style={{ padding: 16, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+        <div>
+          <Kicker style={{ marginBottom: 4 }}>SIMULATION DIAGRAM</Kicker>
+          <div className="card__sub">Local graph endpoint rendered without external layout services.</div>
+        </div>
+        <Pill kind="info">{layout.nodes.length} nodes</Pill>
+      </div>
+      <div style={{ overflowX: "auto", border: "1px solid var(--rt-slate-line)", borderRadius: 8, background: "var(--rt-slate-1)" }}>
+        <svg
+          viewBox={`0 0 ${layout.width} ${layout.height}`}
+          width="100%"
+          height={layout.height}
+          role="img"
+          aria-label="Riptide simulation graph"
+          style={{ minWidth: layout.width }}
+        >
+          <defs>
+            <marker id="diagram-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 8 4 L 0 8 z" fill="var(--rt-fog-dim)" />
+            </marker>
+          </defs>
+          {layout.columns.map((column) => (
+            <text key={column.title} x={column.x} y={24} fill="var(--rt-fog-dim)" fontFamily="IBM Plex Mono" fontSize="10" fontWeight="600">
+              {column.title.toUpperCase()}
+            </text>
+          ))}
+          {edges.map((edge) => {
+            const from = layout.byId.get(edge.from);
+            const to = layout.byId.get(edge.to);
+            if (!from || !to) return null;
+            const x1 = from.x + from.w;
+            const y1 = from.y + from.h / 2;
+            const x2 = to.x;
+            const y2 = to.y + to.h / 2;
+            const mid = x1 + Math.max(24, (x2 - x1) / 2);
+            return (
+              <path
+                key={edge.id}
+                d={`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2 - 8} ${y2}`}
+                fill="none"
+                stroke="var(--rt-fog-dim)"
+                strokeWidth="1.4"
+                opacity="0.7"
+                markerEnd="url(#diagram-arrow)"
+              />
+            );
+          })}
+          {layout.nodes.map((node) => {
+            const selectedNode = selected?.id === node.id;
+            return (
+              <g
+                key={node.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`${node.kind} ${node.label}`}
+                onClick={() => setSelectedId(node.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedId(node.id);
+                  }
+                }}
+                style={{ cursor: "pointer" }}
+              >
+                <rect
+                  x={node.x}
+                  y={node.y}
+                  width={node.w}
+                  height={node.h}
+                  rx="7"
+                  fill={selectedNode ? "var(--rt-slate-3)" : "var(--rt-slate-2)"}
+                  stroke={selectedNode ? "var(--rt-teal)" : "var(--rt-slate-line)"}
+                  strokeWidth={selectedNode ? 1.6 : 1}
+                />
+                <text x={node.x + 12} y={node.y + 20} fill="var(--rt-fog-dim)" fontFamily="IBM Plex Mono" fontSize="9" fontWeight="600">
+                  {node.kind.toUpperCase()}
+                </text>
+                <text x={node.x + 12} y={node.y + 39} fill="var(--rt-off-white)" fontFamily="IBM Plex Mono" fontSize="12" fontWeight="500">
+                  {shorten(node.label, 18)}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      {selected && (
+        <div style={{ marginTop: 12, border: "1px solid var(--rt-slate-line)", borderRadius: 8, padding: 12, background: "var(--rt-slate-2)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <Pill kind="info">{selected.kind}</Pill>
+            <span style={{ font: "600 13px Inter", color: "var(--rt-off-white)" }}>{selected.label}</span>
+          </div>
+          <div style={{ font: "400 12.5px/1.55 Inter", color: "var(--rt-fg-2)" }}>{selected.meaning}</div>
+          {selected.source_path && (
+            <div style={{ marginTop: 8, font: '400 11px "IBM Plex Mono"', color: "var(--rt-fog-dim)" }}>
+              {selected.source_path}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function layoutDiagram(nodes: StudioGraphNode[]): {
+  nodes: DiagramNode[];
+  byId: Map<string, DiagramNode>;
+  columns: Array<{ title: string; x: number }>;
+  width: number;
+  height: number;
+} {
+  const nodeWidth = 156;
+  const nodeHeight = 58;
+  const gapX = 64;
+  const gapY = 14;
+  const top = 40;
+  const left = 18;
+  const laidOut: DiagramNode[] = [];
+  const seen = new Set<string>();
+  const columns: Array<{ title: string; x: number }> = [];
+
+  DIAGRAM_COLUMNS.forEach((column, columnIdx) => {
+    const x = left + columnIdx * (nodeWidth + gapX);
+    columns.push({ title: column.title, x });
+    const columnNodes = nodes.filter((node) => column.kinds.includes(node.kind)).sort((a, b) => a.id.localeCompare(b.id));
+    columnNodes.forEach((node, rowIdx) => {
+      seen.add(node.id);
+      laidOut.push({ ...node, x, y: top + rowIdx * (nodeHeight + gapY), w: nodeWidth, h: nodeHeight });
+    });
+  });
+
+  const extraX = left + DIAGRAM_COLUMNS.length * (nodeWidth + gapX);
+  nodes
+    .filter((node) => !seen.has(node.id))
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .forEach((node, rowIdx) => {
+      laidOut.push({ ...node, x: extraX, y: top + rowIdx * (nodeHeight + gapY), w: nodeWidth, h: nodeHeight });
+    });
+
+  const maxY = laidOut.reduce((max, node) => Math.max(max, node.y + node.h), top + nodeHeight);
+  const width = left * 2 + DIAGRAM_COLUMNS.length * nodeWidth + (DIAGRAM_COLUMNS.length - 1) * gapX;
+  const byId = new Map(laidOut.map((node) => [node.id, node]));
+  return { nodes: laidOut, byId, columns, width, height: maxY + 18 };
+}
+
+function shorten(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, Math.max(0, max - 3))}...` : value;
 }
 
 function AdapterShell({ title, body }: { title: string; body: string }) {

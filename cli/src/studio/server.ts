@@ -1485,9 +1485,18 @@ function makeRequestHandler(ctx: StudioContext) {
         return;
       }
       if (pathname === "/api/studio/jobs") {
+        let jobs = ctx.jobs.list();
+        if (url.searchParams.has("workspace")) {
+          const selection = selectWorkspace(ctx, url.searchParams);
+          if ("error" in selection) {
+            sendJson(res, selection.error.status, selection.error.payload);
+            return;
+          }
+          jobs = jobs.filter((job) => job.workspace_id === selection.id);
+        }
         sendJson(res, 200, {
           schema_version: "studio-jobs.v1",
-          jobs: ctx.jobs.list()
+          jobs
         });
         return;
       }

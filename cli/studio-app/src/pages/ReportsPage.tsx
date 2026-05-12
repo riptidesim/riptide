@@ -31,6 +31,13 @@ const KIND_ORDER: StudioArtifactKind[] = [
   "campaign-input"
 ];
 
+const DASHBOARD_KINDS = new Set<StudioArtifactKind>([
+  "run-collection",
+  "last-run",
+  "run",
+  "pack"
+]);
+
 export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: ReportsPageProps) {
   const [artifacts, setArtifacts] = useState<StudioArtifactEntry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -64,10 +71,7 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
       .then((res) => {
         if (cancelled) return;
         setArtifacts(res.artifacts);
-        const initial = queryArtifact && res.artifacts.some((artifact) => artifact.id === queryArtifact)
-          ? queryArtifact
-          : res.artifacts[0]?.id ?? null;
-        setSelectedId(initial);
+        setSelectedId(pickInitialArtifact(res.artifacts, queryArtifact));
       })
       .catch((err) => {
         if (!cancelled) setError((err as Error).message);
@@ -113,6 +117,7 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
   const filteredArtifacts = useMemo(() => filterArtifacts(artifacts, query), [artifacts, query]);
   const grouped = useMemo(() => groupArtifacts(filteredArtifacts), [filteredArtifacts]);
   const selected = artifacts.find((artifact) => artifact.id === selectedId) ?? artifacts[0] ?? null;
+  const dashboardHref = selected ? dashboardHrefFor(workspaceId, selected) : null;
 
   async function refreshArtifacts() {
     if (refreshing) return;
@@ -123,7 +128,7 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
       setSelectedId((current) =>
         current && res.artifacts.some((artifact) => artifact.id === current)
           ? current
-          : res.artifacts[0]?.id ?? null
+          : pickInitialArtifact(res.artifacts, null)
       );
       setError(null);
     } catch (err) {
@@ -260,6 +265,17 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      {dashboardHref && (
+                        <a
+                          className="btn btn--ghost btn--sm"
+                          href={dashboardHref}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Icon name="external" size={12} />
+                          Open dashboard
+                        </a>
+                      )}
                       {(selected.kind === "run-collection" || selected.kind === "run" || selected.kind === "scenario") && (
                         <button className="btn btn--primary btn--sm" onClick={runSelected} disabled={launching}>
                           <Icon name="play" size={12} />
@@ -376,6 +392,37 @@ function filterArtifacts(artifacts: StudioArtifactEntry[], query: string): Studi
     const haystack = `${artifact.label} ${artifact.kind} ${artifact.relative_path} ${artifact.verdict ?? ""} ${artifact.status ?? ""}`.toLowerCase();
     return haystack.includes(q);
   });
+}
+
+function pickInitialArtifact(artifacts: StudioArtifactEntry[], requestedId: string | null): string | null {
+  if (requestedId && artifacts.some((artifact) => artifact.id === requestedId)) return requestedId;
+  const preferredKinds: StudioArtifactKind[] = [
+    "run-collection",
+    "pack",
+    "run",
+    "campaign-root",
+    "readiness-report",
+    "markdown-summary",
+    "last-run",
+    "guided-sim",
+    "campaign-input",
+    "scenario",
+    "adapter"
+  ];
+  for (const kind of preferredKinds) {
+    const artifact = artifacts.find((entry) => entry.kind === kind);
+    if (artifact) return artifact.id;
+  }
+  return artifacts[0]?.id ?? null;
+}
+
+function dashboardHrefFor(workspaceId: string, artifact: StudioArtifactEntry): string | null {
+  if (!DASHBOARD_KINDS.has(artifact.kind)) return null;
+  const params = new URLSearchParams({
+    workspace: workspaceId,
+    source: artifact.relative_path
+  });
+  return `/dashboard?${params.toString()}`;
 }
 
 function kindLabel(kind: StudioArtifactKind): string {

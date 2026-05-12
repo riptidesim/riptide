@@ -14,6 +14,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 | [Guided simulations](guided-sim.md) | Use `.riptide/sim/` for dynamic Rust-authored protocol flows that don't fit static TOML. |
 | [Vision](vision.md) | Understand the lab-not-oracle stance, what Riptide claims, and what it explicitly does not claim. |
 | [Trust and review path](trust.md) | Rerun the flagship proof, inspect evidence surfaces, and understand known limits. |
+| [Submission package](submission-package.md) | Demo script, shot list, bounded submission copy, and links to the shipped trust surfaces. |
 | [Solend-fork case study](case-studies/lending.md) | See the whale-share × price-shock grid that anchors the main product story. |
 | [Studio](studio.md) | Open the localhost visual control plane: workspaces, evidence library, simulation diagram, dashboard drilldown, allowlisted job launcher, and `riptide-config` handoff. |
 | [Static demo](static-demo.md) | Build and deploy the mocked `riptide.run` root demo while preserving installer routes. |

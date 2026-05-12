@@ -41,7 +41,7 @@ The skills are authoring accelerators. The engine only needs the plain files the
 | A validator fork | LiteSVM does not model gossip, voting, PoH, or consensus. Use validator tests when those surfaces matter. |
 | A MEV simulator | Personas are deterministic actors, not searchers racing for ordering. |
 | A fuzzer | It runs bounded scenarios instead of arbitrary byte generation. |
-| An audit replacement | It helps turn economic concerns into evidence, but it does not certify code. |
+| A code-certification shortcut | It helps turn economic concerns into evidence, but it does not certify code. |
 | A mainnet forecast | It maps modeled conditions; the model is only as good as the declared assumptions. |
 
 ## What Good Evidence Looks Like

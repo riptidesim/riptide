@@ -1723,6 +1723,48 @@ test("studio jobs hydration normalizes legacy current ids to the owning workspac
   });
 });
 
+test("studio jobs HTTP list scopes rows to the selected workspace", async () => {
+  const primary = await tmpRoot("jobs-http-scope-primary");
+  const caseRoot = await tmpRoot("jobs-http-scope-cases");
+  const lending = path.join(caseRoot, "lending");
+  const amm = path.join(caseRoot, "amm");
+  await mkdir(path.join(primary, ".riptide", "studio", "jobs"), { recursive: true });
+  await mkdir(path.join(lending, ".riptide", "studio", "jobs"), { recursive: true });
+  await mkdir(path.join(amm, ".riptide", "studio", "jobs"), { recursive: true });
+
+  await writeLegacyJob(path.join(primary, ".riptide", "studio", "jobs", "current.json"), {
+    id: "current-job",
+    cwd: primary,
+    workspaceId: "current"
+  });
+  await writeLegacyJob(path.join(lending, ".riptide", "studio", "jobs", "lending.json"), {
+    id: "lending-job",
+    cwd: lending,
+    workspaceId: "lending"
+  });
+  await writeLegacyJob(path.join(amm, ".riptide", "studio", "jobs", "amm.json"), {
+    id: "amm-job",
+    cwd: amm,
+    workspaceId: "amm"
+  });
+
+  await withServer({ workspace: primary, caseStudiesRoot: caseRoot }, async (handle) => {
+    const all = (await getJson(`${handle.url}/api/studio/jobs`)) as {
+      jobs: Array<{ id: string; workspace_id: string }>;
+    };
+    assert.deepEqual(new Set(all.jobs.map((job) => job.id)), new Set(["current-job", "lending-job", "amm-job"]));
+
+    const scoped = (await getJson(`${handle.url}/api/studio/jobs?workspace=lending`)) as {
+      jobs: Array<{ id: string; workspace_id: string }>;
+    };
+    assert.deepEqual(scoped.jobs.map((job) => job.id), ["lending-job"]);
+    assert.ok(scoped.jobs.every((job) => job.workspace_id === "lending"));
+
+    const missing = await fetch(`${handle.url}/api/studio/jobs?workspace=does-not-exist`);
+    assert.equal(missing.status, 404);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Sprint 31 / T10 — chat-like config handoff
 // ---------------------------------------------------------------------------

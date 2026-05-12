@@ -35,7 +35,8 @@ Useful flags:
   with status/verdict/coverage/confidence/canonical-hash columns and
   filters.
 - **Report viewer** — Markdown reports rendered locally, with raw JSON
-  fallback for non-Markdown artifacts.
+  fallback for non-Markdown artifacts and an explicit dashboard drilldown
+  link for run, pack, and collection artifacts.
 - **Simulation diagram** — adapter -> semantics -> personas/scenario/campaign
   -> invariants -> engine -> runs -> reports/packs flow rendered as a
   deterministic SVG layout. Click a node for source path + meaning.
@@ -49,31 +50,32 @@ Useful flags:
   `config-intent.json` and a copyable `riptide-config` prompt. Studio
   does not edit files for you.
 
-## Lending demo path
+## Case-study walkthrough path
 
 ```sh
-riptide studio --no-open --case-studies-root /home/ailton/Work/riptide/case-studies
+riptide studio --no-open --case-studies-root <path-to-case-studies>
 ```
 
-1. **Open Studio.** Pick the `lending` workspace from the workspace
-   selector (top bar).
-2. **Open Simulation diagram.** Verify the adapter, personas, scenario,
-   campaign, invariants, engine, runs, and packs nodes render with
-   readable labels and source paths.
-3. **Open Report viewer.** Pick a `run` (e.g. `whale-shock-grid`) or a
-   `pack` and read the Markdown report inline.
-4. **Open Dashboard drilldown.** Confirm the embedded run/replay
-   dashboard loads with a scoped `?source=` URL.
-5. **Open Launch jobs.** Pick `riptide run`, set scenario to
-   `whale-shock-grid`, click *Preview command*, then *Queue this job*.
-   The job appears with `cwd`, `argv`, `output_path`, and live log
-   tails. The CLI process is the same one `riptide run whale-shock-grid`
-   would invoke directly — Studio just spawns it with explicit `argv`.
-6. **Open Config handoff.** Fill in protocol class `lending`, repo path
-   pointing at a new program, risk goal `no_bad_debt`, scenario target
-   `whale-shock-grid`, evidence boundary `campaign-grid`, and click
-   *Generate handoff*. Copy the prompt and paste it into a fresh
-   `riptide-config` agent context — Studio will not run it for you.
+1. **Open Studio.** Pick a case-study workspace that already has
+   `.riptide/` evidence. The current pre-submission smoke path uses
+   `raydium-cp-swap` because it has adapters, scenarios, campaigns,
+   packs, readiness reports, and persisted job history.
+2. **Open Adapter.** Verify the simulation diagram renders workspace,
+   adapter, persona/scenario/campaign, engine, invariant, run, and pack
+   nodes with readable labels. Click a node to inspect its source path
+   and meaning.
+3. **Open Reports.** The viewer should default to a report-capable
+   artifact such as `run-collection.json`; pick a `pack` to read the
+   Markdown summary or trace inline.
+4. **Open Dashboard drilldown.** From a run, pack, or collection in
+   Reports, click *Open dashboard*. Confirm the dashboard opens with
+   `workspace=<id>` and a scoped `source=<workspace-relative-path>`.
+5. **Open Campaigns.** Pick a `*.campaign.toml`, click *Preview run*,
+   and confirm Studio shows the allowlisted `argv`, `cwd`, expected
+   artifact, and notes before any queue action.
+6. **Open Agent chat / config handoff.** Fill a handoff prompt for a
+   new repo and confirm Studio prepares the `riptide-config` prompt
+   without editing files or launching an agent unless the user sends it.
 
 ## Allowlisted job kinds
 
