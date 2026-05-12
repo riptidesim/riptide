@@ -77,6 +77,23 @@ export function App() {
   const [addOpen, setAddOpen] = useState(false);
   const [counts, setCounts] = useState<SidebarCounts>({});
   const [pendingArtifact, setPendingArtifact] = useState<{ id: string; nonce: number } | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    function open() { setMobileNavOpen(true); }
+    function close() { setMobileNavOpen(false); }
+    function onResize() {
+      if (window.innerWidth > 720) setMobileNavOpen(false);
+    }
+    window.addEventListener("riptide-mobile-nav-open", open);
+    window.addEventListener("riptide-mobile-nav-close", close);
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("riptide-mobile-nav-open", open);
+      window.removeEventListener("riptide-mobile-nav-close", close);
+      window.removeEventListener("resize", onResize);
+    };
+  }, []);
 
   useEffect(() => {
     api.workspaces().then((r) => setWorkspaces(r.workspaces)).catch((e) => setLoadError((e as Error).message));
@@ -190,6 +207,7 @@ export function App() {
   const navigateToPage = useCallback((nextPage: PageId) => {
     setPage(nextPage);
     writeStudioLocation(nextPage, active?.id ?? readStudioWorkspace(), "push");
+    setMobileNavOpen(false);
   }, [active?.id]);
 
   const switchWorkspace = useCallback((idx: number) => {
@@ -276,7 +294,34 @@ export function App() {
   }
 
   return (
-    <div className="studio">
+    <div className={`studio${mobileNavOpen ? " studio--nav-open" : ""}`}>
+      <button
+        type="button"
+        className="studio__nav-toggle"
+        aria-label={mobileNavOpen ? "Close navigation" : "Open navigation"}
+        aria-expanded={mobileNavOpen}
+        onClick={() => setMobileNavOpen((o) => !o)}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          {mobileNavOpen ? (
+            <>
+              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="6" y1="18" x2="18" y2="6" />
+            </>
+          ) : (
+            <>
+              <line x1="3" y1="7" x2="21" y2="7" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="17" x2="21" y2="17" />
+            </>
+          )}
+        </svg>
+      </button>
+      <div
+        className="studio__nav-scrim"
+        onClick={() => setMobileNavOpen(false)}
+        aria-hidden="true"
+      />
       <WorkspaceRail
         workspaces={workspaces}
         activeIdx={activeWs}

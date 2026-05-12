@@ -119,6 +119,16 @@ function TourOverlay() {
   }, [page, snapshot]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.innerWidth > 720) return;
+    const needsDrawer = step === "agent-nav" || step === "campaigns-nav";
+    const eventName = needsDrawer
+      ? "riptide-mobile-nav-open"
+      : "riptide-mobile-nav-close";
+    window.dispatchEvent(new Event(eventName));
+  }, [step]);
+
+  useEffect(() => {
     document.body.classList.add("riptide-demo");
     return () => {
       document.body.classList.remove("riptide-demo");

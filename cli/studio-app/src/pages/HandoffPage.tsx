@@ -480,10 +480,8 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
     <div>
       <PageLabel>AGENT CHAT</PageLabel>
       <div
+        className="handoff-shell"
         style={{
-          display: "grid",
-          gridTemplateColumns: "240px 1fr 280px",
-          gap: 0,
           height: "calc(100vh - 110px)",
           background: "var(--rt-slate-panel)",
           border: "1px solid var(--rt-slate-line)",
@@ -492,7 +490,7 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
         }}
       >
         {/* Thread list */}
-        <div style={{ borderRight: "1px solid var(--rt-slate-line)", display: "flex", flexDirection: "column" }}>
+        <div className="handoff-shell__threads" style={{ borderRight: "1px solid var(--rt-slate-line)", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: 14, borderBottom: "1px solid var(--rt-slate-line)" }}>
             <button
               type="button"
@@ -567,7 +565,7 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
         </div>
 
         {/* Chat center */}
-        <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, height: "100%" }}>
+        <div className="handoff-shell__chat" style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, height: "100%" }}>
           <div
             ref={transcriptRef}
             style={{
@@ -868,7 +866,7 @@ function WorkspaceChangesPanel({
   onRefresh: () => void;
 }) {
   return (
-    <div style={{ borderLeft: "1px solid var(--rt-slate-line)", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, height: "100%" }}>
+    <div className="handoff-shell__changes" style={{ borderLeft: "1px solid var(--rt-slate-line)", display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, height: "100%" }}>
       <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--rt-slate-line)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ flex: 1 }}>

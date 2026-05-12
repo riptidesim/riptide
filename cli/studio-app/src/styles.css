@@ -1605,3 +1605,264 @@ button { font-family: inherit; }
   font: 400 11.5px/1.4 Inter;
   font-style: italic;
 }
+
+/* ===================== DASHBOARD GRIDS ===================== */
+
+.dash-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.dash-analytics {
+  display: grid;
+  grid-template-columns: repeat(var(--dash-analytics-cols, 3), minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.dash-pressure {
+  display: grid;
+  grid-template-columns: repeat(var(--dash-pressure-cols, 2), minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.dash-job-slots {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+/* ===================== AGENT CHAT SHELL ===================== */
+.handoff-shell {
+  display: grid;
+  grid-template-columns: 240px 1fr 280px;
+}
+
+/* ===================== MOBILE NAV TOGGLE ===================== */
+
+.studio__nav-toggle {
+  display: none;
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 1300;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  background: var(--rt-slate-panel);
+  border: 1px solid var(--rt-slate-line);
+  border-radius: 8px;
+  color: var(--rt-off-white);
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.studio__nav-toggle:hover {
+  border-color: var(--rt-slate-strong);
+  color: var(--rt-teal);
+}
+.studio__nav-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(3, 7, 12, 0.6);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* ===================== RESPONSIVE ===================== */
+
+/* Tablet: shrink chrome but keep three-column shell */
+@media (max-width: 960px) {
+  .studio { grid-template-columns: 52px 204px 1fr; }
+  .main { padding: 18px 18px 32px; }
+  .side__head { padding: 14px 12px 10px !important; }
+  .side__nav { padding: 8px 6px; }
+  .lview {
+    grid-template-columns: 260px 1fr;
+    height: calc(100vh - 96px);
+  }
+  .lview__detail { padding: 18px 18px; }
+  .rrep__body--with-toc {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rrep__toc { display: none; }
+  .scrim { padding: 16px; }
+  .cmdk { padding: 8vh 14px 14px; }
+  .dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dash-job-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Phone / large mobile: single-column shell with slide-in nav drawer */
+@media (max-width: 720px) {
+  html, body, #root { font-size: 13px; }
+
+  .studio {
+    display: block;
+    height: 100dvh;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  /* Hamburger toggle is the entry point to navigation */
+  .studio__nav-toggle { display: inline-flex; }
+
+  /* Workspace rail becomes a thin horizontal top bar.
+     Pushed right so the hamburger doesn't overlap content. */
+  .rail {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    flex-direction: row;
+    width: 100%;
+    height: 52px;
+    border-right: 0;
+    border-bottom: 1px solid var(--rt-slate-line);
+    padding: 6px 12px 6px 56px;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    align-items: center;
+    z-index: 1050;
+  }
+  .rail__brand { margin-bottom: 0; }
+  .rail__brand img { width: 22px; height: 22px; }
+  .rail__divider {
+    width: 1px;
+    height: 22px;
+    margin: 0 4px;
+  }
+  .rail__avatar { width: 30px; height: 30px; }
+  .rail__add { margin-top: 0; margin-left: auto; }
+
+  /* Sidebar is now a slide-in drawer */
+  .side {
+    position: fixed;
+    top: 52px;
+    left: 0;
+    bottom: 0;
+    width: min(280px, 86vw);
+    border-right: 1px solid var(--rt-slate-line);
+    border-bottom: 0;
+    background: var(--rt-ink);
+    z-index: 1200;
+    transform: translateX(-100%);
+    transition: transform 220ms ease;
+    overflow: hidden;
+    box-shadow: 12px 0 32px rgba(0, 0, 0, 0.45);
+  }
+  .studio--nav-open .side { transform: translateX(0); }
+  .studio--nav-open .studio__nav-scrim { display: block; }
+  .side__head {
+    padding: 14px 14px 12px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .side__nav {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    overflow-x: hidden;
+    overflow-y: auto;
+    gap: 0;
+    padding: 10px 8px 8px;
+  }
+  .side__item {
+    flex: none;
+    width: 100%;
+    padding: 9px 12px;
+  }
+
+  /* Main content scrolls below the rail */
+  .main {
+    position: absolute;
+    top: 52px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 16px 14px 28px;
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .page-label { margin-bottom: 16px; }
+
+  /* List/detail views stack vertically.
+     Several pages set inline grid-template-columns, so we !important here. */
+  .lview {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: minmax(120px, 32vh) minmax(200px, 1fr);
+    height: auto;
+    min-height: calc(100dvh - 220px);
+  }
+  .lview__list {
+    border-right: 0;
+    border-bottom: 1px solid var(--rt-slate-line);
+  }
+  .lview__detail { padding: 14px 14px; }
+
+  /* Modals fill the screen */
+  .scrim { padding: 0; align-items: stretch; }
+  .modal {
+    max-width: 100% !important;
+    width: 100%;
+    max-height: 100dvh !important;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .cmdk { padding: 6vh 8px 8px; }
+  .cmdk__panel { width: 100%; max-height: 80vh; }
+
+  /* Dashboard grids — give cards room to breathe */
+  .dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .dash-analytics { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .dash-pressure { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .dash-job-slots { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 16px !important; }
+
+  /* Agent Chat: collapse 3-pane shell to the chat only.
+     Thread list lives in the hamburger drawer's New conversation already;
+     workspace changes pane is supplementary info best kept off mobile. */
+  .handoff-shell {
+    grid-template-columns: minmax(0, 1fr);
+    height: calc(100dvh - 130px) !important;
+  }
+  .handoff-shell__threads,
+  .handoff-shell__changes { display: none !important; }
+
+  /* Horizontal-scroll the busy bits */
+  .ad-tabs { overflow-x: auto; max-width: 100%; }
+  .ad-list-head, .ad-list-row { padding: 8px 10px; gap: 8px; }
+  .cm-axes { padding: 8px 10px; }
+  .cm-grid { font-size: 11px; }
+
+  .rrep__hero, .rrep__glance, .rrep__meta, .rrep__metric-group, .rrep__section {
+    padding: 14px 16px;
+  }
+  .rrep__hero-line { font-size: 15px; }
+  .rrep__meta-key { width: 90px; }
+}
+
+/* Small phone */
+@media (max-width: 480px) {
+  .main { padding: 14px 12px 24px; }
+  .lview__detail { padding: 12px 10px; }
+  .rail { height: 48px; padding: 4px 10px 4px 52px; gap: 6px; }
+  .rail__avatar { width: 28px; height: 28px; font-size: 11px; }
+  .side { top: 48px; }
+  .main { top: 48px; }
+  .side__item { padding: 8px 10px; font-size: 13px; }
+  .lview { grid-template-rows: minmax(120px, 28vh) minmax(200px, 1fr); }
+  .rrep__hero, .rrep__glance, .rrep__meta, .rrep__metric-group, .rrep__section {
+    padding: 12px 12px;
+  }
+  .rrep__meta-key { width: 78px; font-size: 10.5px; }
+  .rrep__hero-line { font-size: 14.5px; }
+  .ad-list-head, .ad-list-row { font-size: 11.5px; }
+  .studio__nav-toggle { top: 6px; left: 6px; width: 36px; height: 36px; }
+}

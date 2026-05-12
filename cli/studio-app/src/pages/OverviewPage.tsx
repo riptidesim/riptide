@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
 import { api } from "../api";
 import type { Job, StudioArtifactEntry } from "../studioTypes";
@@ -148,7 +148,7 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
       )}
       {!loading && !error && (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 18 }}>
+          <div className="dash-tiles">
             <MetricCard label="RUNS" value={String(runs.length)} sub={`${reports.length} report-capable artifacts`} />
             <MetricCard label="CAMPAIGNS" value={String(campaignInputs.length + campaignRoots.length)} sub={`${campaignRoots.length} completed roots`} />
             <MetricCard label="JOBS" value={String(runningJobs.length)} sub="queued or running now" />
@@ -157,12 +157,10 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
 
           {analyticsCards.length > 0 && (
             <div
+              className="dash-analytics"
               style={{
-                display: "grid",
-                gridTemplateColumns: `repeat(${analyticsCards.length}, minmax(0, 1fr))`,
-                gap: 12,
-                marginBottom: 18
-              }}
+                ["--dash-analytics-cols" as string]: analyticsCards.length
+              } as CSSProperties}
             >
               {analyticsCards.map((card) => (
                 <div key={card.key} className="card" style={{ padding: 16, display: "flex", flexDirection: "column" }}>
@@ -177,12 +175,10 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
           )}
 
           <div
+            className="dash-pressure"
             style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(${1 + (invariantBars.length > 0 ? 1 : 0)}, minmax(0, 1fr))`,
-              gap: 12,
-              marginBottom: 18
-            }}
+              ["--dash-pressure-cols" as string]: 1 + (invariantBars.length > 0 ? 1 : 0)
+            } as CSSProperties}
           >
             <div className="card" style={{ padding: 16, display: "flex", flexDirection: "column" }}>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
@@ -348,7 +344,7 @@ function InlineCard({
 
 function DashedGrid({ label, action }: { label: string; action: string }) {
   return (
-    <div className="card" style={{ padding: "26px 18px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+    <div className="card dash-job-slots" style={{ padding: "26px 18px" }}>
       {[0, 1, 2, 3].map((idx) => (
         <div
           key={idx}
