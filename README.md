@@ -19,7 +19,7 @@ Studio is the default product path: a localhost visual control plane for
 workspaces, setup handoff, simulation graphs, allowlisted run jobs, reports,
 and evidence packs. The CLI remains available for terminal and CI workflows.
 
-[Open Studio](#open-studio) - [What Studio Offers](#what-studio-offers) - [Run From CLI](#run-from-cli) - [Docs](#docs)
+[Open Studio](#open-studio) - [What Studio Offers](#what-studio-offers) - [Run From CLI](#run-from-cli) - [Trust & Review](docs/trust.md) - [Docs](#docs)
 
 <div align="center">
   <video src="https://github.com/user-attachments/assets/7f3475d2-5459-4abc-983a-72d6af0f5f05" width="720" controls></video>
@@ -118,4 +118,6 @@ Detailed command-line workflows live in the docs, not in this README.
 | [Architecture](docs/architecture.md) | The adapter/persona/scenario stack, LiteSVM runtime, determinism, and dashboard artifacts. |
 | [Campaign Runner](docs/campaigns.md) | Deterministic campaign sweeps, retained cases, and review handoff. |
 | [Evidence packs](docs/pack.md) | Pack shape, canonical hashes, rerun scripts, and reviewer workflow. |
+| [Trust and review path](docs/trust.md) | Flagship proof rerun, CI handoff, case-study readiness, Studio, known limits, and reviewer ask. |
+| [Audit handoff packet](docs/audit-handoff.md) | Launch/review checklist, reviewer packet template, and follow-up issue format. |
 | [Contributing](CONTRIBUTING.md) | Development setup, project structure, code style, and contribution rules. |

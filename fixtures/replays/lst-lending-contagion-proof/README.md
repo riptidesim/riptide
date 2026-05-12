@@ -40,6 +40,36 @@ cargo test -p riptide-engine --release --features litesvm-backend \
   contagion_proof_matches_expected_summary_and_is_deterministic
 ```
 
+## Cold reviewer runbook
+
+From a fresh checkout with Riptide installed, run the proof from the
+repository root:
+
+```bash
+bash fixtures/replays/lst-lending-contagion-proof/rerun.sh
+```
+
+The expected success signal is a `wrote pack:` line for
+`.riptide/pack/replay-multi-lst-lending-contagion-proof-upstream`
+with canonical hash:
+
+```text
+d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb
+```
+
+Then validate the emitted pack without rerunning the engine:
+
+```bash
+riptide review .riptide/pack/replay-multi-lst-lending-contagion-proof-upstream
+```
+
+This review command is expected to exit `1` because the proof is
+designed to record invariant firings. The reviewer signal is not a
+clean invariant pass; it is that the `Reproducibility` section reports
+the same canonical hash and `Hash verification: passed`, while the
+`Invariant Fires` section names the upstream slash and downstream bad
+debt that make up the contagion trace.
+
 ## Forwardable evidence pack
 
 The pack at

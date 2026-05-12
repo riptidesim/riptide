@@ -13,6 +13,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 | [Case-study corpus readiness](case-study-corpus.md) | Read the local case-study matrix, executed evidence, claim boundaries, and next actions. |
 | [Guided simulations](guided-sim.md) | Use `.riptide/sim/` for dynamic Rust-authored protocol flows that don't fit static TOML. |
 | [Vision](vision.md) | Understand the lab-not-oracle stance, what Riptide claims, and what it explicitly does not claim. |
+| [Trust and review path](trust.md) | Rerun the flagship proof, inspect evidence surfaces, and understand known limits. |
 | [Solend-fork case study](case-studies/lending.md) | See the whale-share × price-shock grid that anchors the main product story. |
 | [Studio](studio.md) | Open the localhost visual control plane: workspaces, evidence library, simulation diagram, dashboard drilldown, allowlisted job launcher, and `riptide-config` handoff. |
 | [Static demo](static-demo.md) | Build and deploy the mocked `riptide.run` root demo while preserving installer routes. |
@@ -27,6 +28,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 | [Guided simulations](guided-sim.md) | Review guided artifacts with `riptide sim review` or `riptide review`. |
 | [QA benchmarks](qa-benchmarks.md) | Run the reusable stress/dev-UX benchmark harness and interpret its outputs. |
 | [CI handoff](ci-handoff.md) | Pin a replay proof in GitHub Actions with a canonical hash. |
+| [Audit handoff packet](audit-handoff.md) | Use the launch/review checklist, reviewer ask, and follow-up issue template. |
 | [Adapter lineage](adapter-lineage.md) | Record and inspect adapter provenance, inferred assumptions, unsupported fields, and JSON IDL lint coverage. |
 
 ## Supporting Material
