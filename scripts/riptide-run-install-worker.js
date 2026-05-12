@@ -1,5 +1,6 @@
 const REPO = "riptidesim/riptide";
 const RELEASE_ORIGIN = `https://github.com/${REPO}/releases`;
+const PAGES_ORIGIN = "https://riptide-run.pages.dev";
 const ASSET_BASENAMES = [
   "riptide-x86_64-unknown-linux-gnu.tar.gz",
   "riptide-x86_64-apple-darwin.tar.gz",
@@ -88,12 +89,21 @@ async function proxyReleaseAsset(request) {
   });
 }
 
+async function proxyPagesAsset(request) {
+  const url = new URL(request.url);
+  const upstream = new URL(url.pathname + url.search, PAGES_ORIGIN);
+  const upstreamReq = new Request(upstream.toString(), request);
+  upstreamReq.headers.set("host", new URL(PAGES_ORIGIN).host);
+  return fetch(upstreamReq, { redirect: "manual" });
+}
+
 export default {
   async fetch(request, env) {
+    void env;
     const url = new URL(request.url);
     if (url.pathname.startsWith("/releases/")) {
       return proxyReleaseAsset(request);
     }
-    return env.ASSETS.fetch(request);
+    return proxyPagesAsset(request);
   },
 };
