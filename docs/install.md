@@ -25,7 +25,7 @@ The release bundle does not require Rust, Node.js, npm, Solana CLI, or `cargo-bu
 Useful options:
 
 ```bash
-curl -fsSL https://riptide.run/install | sh -s -- --version 0.9.0
+curl -fsSL https://riptide.run/install | sh -s -- --version 0.9.1
 curl -fsSL https://riptide.run/install | sh -s -- --bin-dir "$HOME/bin"
 curl -fsSL https://riptide.run/install | sh -s -- --dry-run
 curl -fsSL https://riptide.run/install | sh -s -- --no-agent-skills
@@ -84,12 +84,15 @@ The installer:
 
 If `$HOME/.local/bin` is not on your `PATH`, the installer prints the export line to add to your shell rc.
 
-Verify the install:
+Verify the launcher:
 
 ```bash
 riptide --help
-riptide doctor
 ```
+
+`riptide doctor` is a workspace health check. Run it from a configured
+Riptide workspace; in an empty directory it reports that no adapters were
+found.
 
 ## Docker
 

@@ -456,8 +456,8 @@ try {
     Write-Styled "    (start a new Codex/Claude session before using /riptide-config)" -Color DarkGray
   }
   Write-Styled "    1. " -Color White -NoNewline
-  Write-Styled "riptide doctor" -Color Cyan -NoNewline
-  Write-Styled "          # verify your toolchain" -Color DarkGray
+  Write-Styled "riptide --help" -Color Cyan -NoNewline
+  Write-Styled "          # verify the launcher" -Color DarkGray
   Write-Styled "    2. " -Color White -NoNewline
   Write-Styled "cd <your-program>" -Color Cyan -NoNewline
   Write-Styled "       # the Solana program you want to simulate" -Color DarkGray
@@ -467,6 +467,9 @@ try {
   Write-Styled "    4. " -Color White -NoNewline
   Write-Styled "/riptide-config" -Color Cyan -NoNewline
   Write-Styled "         # configure adapter, harness, scenarios, campaign readiness" -Color DarkGray
+  Write-Styled "    5. " -Color White -NoNewline
+  Write-Styled "riptide doctor" -Color Cyan -NoNewline
+  Write-Styled "          # check the configured workspace" -Color DarkGray
   Write-Host ""
   Write-Styled "  New to Riptide? " -Color DarkGray -NoNewline
   Write-Styled "riptide --help" -Color White -NoNewline

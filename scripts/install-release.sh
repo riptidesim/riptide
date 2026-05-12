@@ -75,10 +75,10 @@ Riptide release installer
 
 Usage:
   curl -fsSL https://riptide.run/install | sh
-  curl -fsSL https://riptide.run/install | sh -s -- --version 0.9.0
+  curl -fsSL https://riptide.run/install | sh -s -- --version 0.9.1
 
 Options:
-  --version <version>     Install a specific release. Accepts 0.9.0 or v0.9.0.
+  --version <version>     Install a specific release. Accepts 0.9.1 or v0.9.1.
                           Defaults to latest.
   --bin-dir <dir>         Directory for the riptide launcher.
                           Defaults to $HOME/.local/bin.
@@ -536,9 +536,10 @@ fi
 if agent_skills_enabled; then
   printf '    %s%s%s\n' "$C_DIM" "(start a new Codex/Claude session before using /riptide-config)" "$C_RESET"
 fi
-printf '    1. %sriptide doctor%s          %s# verify your toolchain%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+printf '    1. %sriptide --help%s          %s# verify the launcher%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '    2. %scd <your-program>%s       %s# the Solana program you want to simulate%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '    3. %sriptide init%s            %s# thin .riptide/ bootstrap%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '    4. %s/riptide-config%s         %s# configure adapter, harness, scenarios, campaign readiness%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+printf '    5. %sriptide doctor%s          %s# check the configured workspace%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '\n  %sNew to Riptide?%s %sriptide --help%s walks through the full surface.\n' "$C_DIM" "$C_RESET" "$C_BOLD" "$C_RESET"
 printf '\n'

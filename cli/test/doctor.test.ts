@@ -25,6 +25,7 @@ import { runDoctor } from "../src/commands/doctor.js";
 import {
   buildDoctorReport,
   discoverAdapters,
+  shouldUseModuleRootFixtureFallback,
   type DiscoveredAdapter,
 } from "../src/doctor/index.js";
 
@@ -253,8 +254,9 @@ test("discoverAdapters: module-root fallback — source-checkout CLI still finds
   // `cd cli && riptide doctor` contributor case after a build). This
   // test runs in exactly that shape — it is a source-checkout
   // regression gate, NOT a claim about arbitrary npm-installed
-  // packages; `cli/package.json` does not ship fixtures,
-  // so a truly packaged install returns `[]` here by design.
+  // packages. Release bundles intentionally ship fixtures, but they do
+  // not ship the source root's Cargo.toml, so packaged installs return
+  // `[]` here by design when the user cwd has no local adapters.
   const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-doctor-fallback-"));
   const found = discoverAdapters(cwd);
   const monorepoHits = found.filter((a) => a.source === "monorepo-fixtures");
@@ -262,6 +264,52 @@ test("discoverAdapters: module-root fallback — source-checkout CLI still finds
     monorepoHits.length > 0,
     `expected shipping fixtures via source-checkout module-derived fallback; got ${found.length} entries`
   );
+});
+
+test("shouldUseModuleRootFixtureFallback: only real source checkouts use bundled fixtures", async () => {
+  const sourceRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-source-root-"));
+  await mkdir(path.join(sourceRoot, "fixtures", "adapters"), { recursive: true });
+  await writeFile(path.join(sourceRoot, "Cargo.toml"), "[workspace]\n", "utf8");
+
+  const releaseRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-release-root-"));
+  await mkdir(path.join(releaseRoot, "fixtures", "adapters"), { recursive: true });
+
+  assert.equal(shouldUseModuleRootFixtureFallback(sourceRoot), true);
+  assert.equal(
+    shouldUseModuleRootFixtureFallback(releaseRoot),
+    false,
+    "packaged release roots must not make doctor lint bundled fixtures from arbitrary user cwd"
+  );
+  assert.equal(shouldUseModuleRootFixtureFallback(undefined), false);
+});
+
+test("discoverAdapters: release-shaped module roots do not leak bundled fixtures into an empty cwd", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-empty-user-cwd-"));
+  const releaseRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-release-root-"));
+  const releaseAdapters = path.join(releaseRoot, "fixtures", "adapters");
+  await mkdir(releaseAdapters, { recursive: true });
+  await writeFile(path.join(releaseAdapters, "bundled-hit.toml"), "protocol = \"lending\"\n", "utf8");
+
+  const found = discoverAdapters(cwd, { moduleRoot: releaseRoot });
+  assert.deepEqual(
+    found,
+    [],
+    "packaged release roots must not make doctor lint bundled fixtures from arbitrary user cwd"
+  );
+});
+
+test("discoverAdapters: source-shaped module roots keep the contributor fixture fallback", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-empty-source-cwd-"));
+  const sourceRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-source-root-"));
+  const sourceAdapters = path.join(sourceRoot, "fixtures", "adapters");
+  await mkdir(sourceAdapters, { recursive: true });
+  await writeFile(path.join(sourceRoot, "Cargo.toml"), "[workspace]\n", "utf8");
+  await writeFile(path.join(sourceAdapters, "source-hit.toml"), "protocol = \"lending\"\n", "utf8");
+
+  const found = discoverAdapters(cwd, { moduleRoot: sourceRoot });
+  assert.deepEqual(found.map((a) => a.name), ["source-hit"]);
+  assert.equal(found[0]!.source, "monorepo-fixtures");
+  assert.equal(found[0]!.path, path.join(sourceAdapters, "source-hit.toml"));
 });
 
 // ---- runDoctor / buildDoctorReport ----

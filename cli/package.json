@@ -1,6 +1,6 @@
 {
   "name": "@riptide/cli",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Riptide CLI — deterministic multi-agent simulator for Solana programs. Runs hundreds of adversarial personas against your code in LiteSVM and maps the knife edge before mainnet does.",
   "type": "module",
   "license": "MIT OR Apache-2.0",

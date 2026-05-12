@@ -85,6 +85,10 @@ export interface DoctorReport {
   exitCode: 0 | 1 | 2;
 }
 
+export interface AdapterDiscoveryOptions {
+  moduleRoot?: string | null;
+}
+
 // Documented version bands from TOOLCHAIN.md. Drift outside the band
 // is WARN, not FAIL — Doctor is a hint, not a gate.
 //
@@ -643,21 +647,26 @@ function siblingDeployKeypairPath(programSo: string): string | null {
  * (e.g. running doctor inside `/tmp/.../child` inherited
  * `/tmp/.../fixtures/adapters/parent-hit.toml`). Dropped.
  *
- * **Scope note on packaged installs.** The install-first path is
- * `install.sh` + source checkout; the npm package is dry-run-verified
- * but not published, and `cli/package.json`'s `files` list does not ship
- * `fixtures/`. For a truly packaged CLI running from an arbitrary cwd with
- * nothing under `<cwd>`, all three layers will miss and `discoverAdapters`
- * returns `[]` — doctor then prints the `run riptide init` hint. That is
- * the honest behaviour today.
+ * **Scope note on packaged installs.** Release bundles ship examples and
+ * fixtures for explicit commands, but `riptide doctor` should not inherit
+ * bundled fixture warnings from an arbitrary user cwd. The module-derived
+ * fallback is therefore gated to real source checkouts, identified by the
+ * monorepo root's `Cargo.toml`. Packaged release roots have no `Cargo.toml`,
+ * so a fresh installed CLI reports the user workspace only.
  */
-export function discoverAdapters(cwd: string): DiscoveredAdapter[] {
+export function discoverAdapters(
+  cwd: string,
+  options: AdapterDiscoveryOptions = {}
+): DiscoveredAdapter[] {
   const layers: Array<{ dir: string; source: AdapterDiscoverySource }> = [
     { dir: path.join(cwd, ".riptide", "adapters"), source: "user-repo-riptide-dir" },
     { dir: path.join(cwd, "fixtures", "adapters"), source: "monorepo-fixtures" },
   ];
-  const moduleRoot = monorepoRootFromModule();
-  if (moduleRoot) {
+  const moduleRoot =
+    options.moduleRoot === undefined
+      ? monorepoRootFromModule()
+      : options.moduleRoot ?? undefined;
+  if (shouldUseModuleRootFixtureFallback(moduleRoot)) {
     layers.push({
       dir: path.join(moduleRoot, "fixtures", "adapters"),
       source: "monorepo-fixtures",
@@ -672,6 +681,13 @@ export function discoverAdapters(cwd: string): DiscoveredAdapter[] {
     }
   }
   return [];
+}
+
+export function shouldUseModuleRootFixtureFallback(
+  moduleRoot: string | undefined
+): moduleRoot is string {
+  if (!moduleRoot) return false;
+  return existsSync(path.join(moduleRoot, "Cargo.toml"));
 }
 
 function readAdapterDir(
