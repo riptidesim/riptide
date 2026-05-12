@@ -118,9 +118,11 @@ function Get-Target {
   }
 
   switch -Regex ($arch) {
-    "^(X64|AMD64)$" { return "x86_64-pc-windows-msvc" }
+    "^(X64|AMD64)$" {
+      Die "Windows release bundles are not currently published for v0.9.1. Use WSL/Linux, macOS, or build from source until riptide-x86_64-pc-windows-msvc.zip is attached to a release."
+    }
     default {
-      Die "no prebuilt Riptide release bundle for Windows $arch yet. Supported: Windows x64."
+      Die "no prebuilt Riptide release bundle for Windows $arch yet."
     }
   }
 }
