@@ -136,11 +136,15 @@ export function OverviewPage({ workspaceId, onNavigate }: OverviewProps) {
       {loading && <InlineCard icon="refresh" title="Loading workspace" body="Fetching artifacts and jobs from the Studio API." />}
       {error && <InlineCard icon="plug" title="Studio API error" body={error} />}
       {!loading && !error && artifacts.length === 0 && jobs.length === 0 && (
-        <InlineCard
-          icon="plug"
-          title="No workspace artifacts yet"
-          body="Run a scenario or configure a campaign and these panels will populate from .riptide artifacts."
-        />
+        <div style={{ marginBottom: 24 }}>
+          <InlineCard
+            icon="plug"
+            title="No workspace artifacts yet"
+            body="Run a scenario or configure a campaign and these panels will populate from .riptide artifacts."
+            ctaLabel="Configure with agent"
+            onCta={() => onNavigate("handoff")}
+          />
+        </div>
       )}
       {!loading && !error && (
         <>
@@ -322,10 +326,22 @@ function VerdictLegend({ buckets }: { buckets: VerdictBuckets }) {
   );
 }
 
-function InlineCard({ icon, title, body }: { icon: "refresh" | "plug"; title: string; body: string }) {
+function InlineCard({
+  icon,
+  title,
+  body,
+  ctaLabel,
+  onCta
+}: {
+  icon: "refresh" | "plug";
+  title: string;
+  body: string;
+  ctaLabel?: string;
+  onCta?: () => void;
+}) {
   return (
     <div className="card" style={{ padding: 0 }}>
-      <EmptyState icon={icon} title={title} body={body} />
+      <EmptyState icon={icon} title={title} body={body} ctaLabel={ctaLabel} onCta={onCta} />
     </div>
   );
 }

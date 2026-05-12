@@ -384,8 +384,8 @@ function kindLabel(kind: StudioArtifactKind): string {
 
 function pillForArtifact(artifact: StudioArtifactEntry): PillKind {
   const value = `${artifact.verdict ?? ""} ${artifact.status ?? ""}`.toLowerCase();
+  if (value.includes("no-failure") || value.includes("pass")) return "pass";
   if (value.includes("fail") || value.includes("error")) return "fail";
-  if (value.includes("pass") || value.includes("no-failure")) return "pass";
   if (value.includes("running")) return "running";
   if (value.includes("queued")) return "queued";
   if (value.includes("warn") || value.includes("inconclusive")) return "warn";

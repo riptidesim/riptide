@@ -993,17 +993,12 @@ function WorkspaceChangeRow({ change }: { change: StudioWorkspaceChange }) {
         </span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--rt-fog-dim)", font: '400 10.5px "IBM Plex Mono"' }}>
-        <span>{gitStatusCode(change)}</span>
         {change.staged && <span>staged</span>}
         {change.unstaged && <span>{change.status === "untracked" ? "new" : "unstaged"}</span>}
         {change.old_path && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>from {change.old_path}</span>}
       </div>
     </div>
   );
-}
-
-function gitStatusCode(change: StudioWorkspaceChange): string {
-  return `${change.index_status === " " ? "." : change.index_status}${change.worktree_status === " " ? "." : change.worktree_status}`;
 }
 
 function changeStatusLabel(status: StudioWorkspaceChange["status"]): string {
