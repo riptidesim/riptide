@@ -66,6 +66,46 @@
   pointer-events: auto;
 }
 
+body.riptide-demo .rail__add {
+  display: none !important;
+}
+
+body.riptide-demo button[data-demo-locked="true"] {
+  opacity: 0.45 !important;
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+  filter: grayscale(0.35);
+}
+
+.tour-rerun {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--rt-teal-hot);
+  background: var(--rt-teal);
+  color: var(--rt-teal-ink);
+  font: 600 12px var(--rt-font-sans);
+  cursor: pointer;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(34, 240, 230, 0.45), 0 0 24px rgba(34, 240, 230, 0.35);
+  transition: background 120ms, box-shadow 120ms, transform 120ms;
+}
+
+.tour-rerun:hover {
+  background: var(--rt-teal-hot);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(34, 240, 230, 0.65), 0 0 32px rgba(34, 240, 230, 0.5);
+  transform: translateY(-1px);
+}
+
+.tour-rerun:active {
+  transform: translateY(0);
+}
+
 @media (max-width: 720px) {
   .tour-card {
     left: 14px !important;

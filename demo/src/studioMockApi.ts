@@ -8,6 +8,7 @@ import type {
   JobStatus,
   StudioArtifactEntry,
   StudioArtifactIndex,
+  StudioChangesPayload,
   StudioGraphEdge,
   StudioGraphNode,
   StudioGraphPayload,
@@ -15,7 +16,8 @@ import type {
   StudioJobResponse,
   StudioJobsResponse,
   StudioReportPayload,
-  StudioSourcePayload
+  StudioSourcePayload,
+  StudioWorkspaceChange
 } from "../../cli/studio-app/src/studioTypes";
 
 export type Protocol = "amm" | "lending" | "perpetuals" | "liquid-staking" | "stablecoin" | "custom";
@@ -179,11 +181,12 @@ interface DemoState extends DemoSnapshot {
   report: StudioReportPayload | null;
   threads: ChatThreadSummary[];
   messages: Record<string, ChatJsonlLine[]>;
+  changesByThread: Record<string, StudioWorkspaceChange[]>;
 }
 
 type Listener = () => void;
 
-const STORAGE_KEY = "riptide.static-studio-demo.v3";
+const STORAGE_KEY = "riptide.static-studio-demo.v4";
 const WORKSPACE_ID = "demo-lending-workspace";
 const PROTOCOLS: ProtocolChoice[] = [
   { value: "lending", label: "Lending" },
@@ -201,17 +204,44 @@ const AGENTS: AgentProbe[] = [
     binary: "claude",
     recommended: true,
     detected: true,
-    version: "demo",
+    version: "1.0.0",
     path: "/usr/local/bin/claude"
   },
   {
     id: "codex",
     label: "Codex",
     binary: "codex",
-    recommended: false,
+    recommended: true,
     detected: true,
-    version: "demo",
+    version: "0.40.0",
     path: "/usr/local/bin/codex"
+  },
+  {
+    id: "gemini",
+    label: "Gemini CLI",
+    binary: "gemini",
+    recommended: false,
+    detected: false,
+    version: null,
+    path: null
+  },
+  {
+    id: "cursor",
+    label: "Cursor",
+    binary: "cursor-agent",
+    recommended: false,
+    detected: false,
+    version: null,
+    path: null
+  },
+  {
+    id: "opencode",
+    label: "OpenCode",
+    binary: "opencode",
+    recommended: false,
+    detected: false,
+    version: null,
+    path: null
   }
 ];
 
@@ -325,6 +355,17 @@ export const api = {
     artifacts: state.artifacts,
     warnings: demoWarnings()
   }),
+  changes: async (q: { workspaceId?: string; threadId?: string } = {}): Promise<StudioChangesPayload> => ({
+    schema_version: "studio-changes.v1",
+    workspace_id: state.workspace.id,
+    workspace_path: state.workspace.path,
+    scope: q.threadId ? "chat_thread" : "workspace",
+    thread_id: q.threadId ?? null,
+    is_git_workspace: true,
+    generated_at: nowIso(),
+    changes: q.threadId ? state.changesByThread[q.threadId] ?? [] : [],
+    warnings: []
+  }),
   graph: async (): Promise<StudioGraphPayload> => ({
     schema_version: "studio-graph.v2",
     workspace_id: state.workspace.id,
@@ -418,7 +459,8 @@ export const chatApi = {
     state = {
       ...state,
       threads: [thread, ...state.threads],
-      messages: { ...state.messages, [thread.id]: [] }
+      messages: { ...state.messages, [thread.id]: [] },
+      changesByThread: { ...state.changesByThread, [thread.id]: [] }
     };
     persistAndNotify();
     return { schema_version: "studio-chat-thread.v1" as const, thread };
@@ -431,10 +473,13 @@ export const chatApi = {
   deleteThread: async (id: string): Promise<void> => {
     const messages = { ...state.messages };
     delete messages[id];
+    const changesByThread = { ...state.changesByThread };
+    delete changesByThread[id];
     state = {
       ...state,
       threads: state.threads.filter((thread) => thread.id !== id),
-      messages
+      messages,
+      changesByThread
     };
     persistAndNotify();
   },
@@ -483,16 +528,46 @@ export class DemoEventSource extends EventTarget {
     const parts = url.split("/");
     const runId = decodeURIComponent(parts.pop() ?? "run-demo-chat");
     const threadId = decodeURIComponent(parts.pop() ?? "");
-    this.schedule(120, "meta", {});
-    this.schedule(900, "tool", { name: "read_workspace", summary: "Indexed project files" });
-    this.schedule(1900, "delta", { text: "I found a lending-shaped workspace. I am drafting the adapter, personas, scenarios, and invariants now." });
-    this.schedule(3300, "tool", { name: "write_config", summary: "Created .riptide workspace files" });
-    this.schedule(4600, "delta", { text: " The workspace is configured. Open Overview to inspect the graph and evidence counters." });
+
+    this.schedule(200, "meta", {});
+    this.schedule(1200, "tool", { name: "read_workspace", summary: "Indexed Anchor.toml, programs/lending, and existing .riptide layout" });
+    this.schedule(2600, "delta", {
+      text: "Inspecting the workspace — looks like a lending program. I'll sketch the adapter, personas, scenarios, and invariants now."
+    });
+    this.schedule(4000, "tool", { name: "detect_protocol", summary: "Matched lending.v1 semantics (collateral, debt, oracle, health factor)" });
+
+    this.scheduleChange(5400, threadId, ".riptide/adapters/lending.toml");
+    this.schedule(5400, "tool", { name: "write_adapter", summary: "Wrote .riptide/adapters/lending.toml" });
+
+    this.schedule(6800, "delta", {
+      text: " Adapter drafted with three personas — whale borrower, liquidation keeper, small depositor — and four invariants on health, reserve solvency, oracle freshness, and withdrawal liquidity."
+    });
+
+    this.scheduleChange(8200, threadId, ".riptide/scenarios/whale-shock-grid/run-config.json");
+    this.schedule(8200, "tool", { name: "write_scenario", summary: "Created whale-shock-grid scenario (3 seeds, 64 ticks)" });
+
+    this.scheduleChange(9600, threadId, ".riptide/scenarios/oracle-drawdown/run-config.json");
+    this.schedule(9600, "tool", { name: "write_scenario", summary: "Created oracle-drawdown scenario (12 seeds, 80 ticks)" });
+
+    this.scheduleChange(11000, threadId, ".riptide/scenarios/liquidity-exit/run-config.json");
+    this.schedule(11000, "tool", { name: "write_scenario", summary: "Created liquidity-exit scenario (8 seeds, 72 ticks)" });
+
+    this.scheduleChange(12400, threadId, ".riptide/campaigns/bounded-risk-slice.toml");
+    this.schedule(12400, "tool", { name: "write_campaign", summary: "Wrote bounded-risk-slice campaign (3 axes, 18 runs)" });
+
+    this.schedule(13800, "delta", {
+      text: " Validating the new files against the Riptide schema."
+    });
+    this.schedule(15000, "tool", { name: "validate", summary: "riptide lint .riptide/adapters/lending.toml — OK" });
+    this.schedule(16200, "delta", {
+      text: " Workspace is configured. Open Overview to inspect the graph, then run the whale-shock-grid scenario from Reports."
+    });
+
     this.timers.push(window.setTimeout(() => {
       finishChatRun(threadId, runId);
       this.dispatch("done", { restarted: false });
       this.close();
-    }, 5600));
+    }, 17400));
   }
 
   close(): void {
@@ -505,6 +580,10 @@ export class DemoEventSource extends EventTarget {
     this.timers.push(window.setTimeout(() => this.dispatch(type, data), ms));
   }
 
+  private scheduleChange(ms: number, threadId: string, path: string): void {
+    this.timers.push(window.setTimeout(() => pushChange(threadId, path), ms));
+  }
+
   private dispatch(type: string, data: unknown): void {
     if (this.readyState === 2) return;
     this.readyState = 1;
@@ -512,6 +591,26 @@ export class DemoEventSource extends EventTarget {
     this.dispatchEvent(event);
     if (type === "error") this.onerror?.(event);
   }
+}
+
+function pushChange(threadId: string, path: string): void {
+  if (!threadId) return;
+  const prev = state.changesByThread[threadId] ?? [];
+  if (prev.some((entry) => entry.path === path)) return;
+  const change: StudioWorkspaceChange = {
+    path,
+    old_path: null,
+    status: "added",
+    index_status: "A",
+    worktree_status: "",
+    staged: true,
+    unstaged: false
+  };
+  state = {
+    ...state,
+    changesByThread: { ...state.changesByThread, [threadId]: [...prev, change] }
+  };
+  persistAndNotify();
 }
 
 function finishChatRun(threadId: string, runId: string): void {
@@ -624,7 +723,8 @@ function createInitialState(): DemoState {
     jobs: [],
     report: null,
     threads: [],
-    messages: {}
+    messages: {},
+    changesByThread: {}
   };
 }
 
@@ -820,18 +920,17 @@ function projectEntry(): RegisteredProject {
 }
 
 function baselineArtifacts(workspace: StudioWorkspace): StudioArtifactEntry[] {
+  // Post-configure / pre-run: only the inputs the agent just wrote. The user
+  // hasn't launched a scenario yet, so there are no run, campaign-root,
+  // retained-case, or report artifacts to display. The first entry is
+  // selected by default when the Reports page mounts — keep the scenario the
+  // tour expects to run at the top.
   return [
-    runCollectionArtifact(workspace),
-    lastRunArtifact(workspace),
-    ...Array.from({ length: 5 }, (_, index) => historicalRunArtifact(workspace, index)),
-    ...Array.from({ length: 2 }, (_, index) => campaignRootArtifact(workspace, index)),
-    ...Array.from({ length: 6 }, (_, index) => retainedCaseArtifact(workspace, index)),
-    ...Array.from({ length: 64 }, (_, index) => summaryArtifact(workspace, index)),
-    adapterArtifact(workspace),
-    campaignArtifact(workspace),
     scenarioArtifact(workspace, "whale-shock-grid", 0),
     scenarioArtifact(workspace, "oracle-drawdown", 1),
-    scenarioArtifact(workspace, "liquidity-exit", 2)
+    scenarioArtifact(workspace, "liquidity-exit", 2),
+    campaignArtifact(workspace),
+    adapterArtifact(workspace)
   ];
 }
 
@@ -936,7 +1035,7 @@ function adapterArtifact(workspace: StudioWorkspace): StudioArtifactEntry {
     label: "lending.toml",
     relative_path: ".riptide/adapters/lending.toml",
     path: `${workspace.riptide_path}/adapters/lending.toml`,
-    updated_at: recentIso(84),
+    updated_at: recentIso(2),
     meta: { generated_by: "agent", protocol_class: "lending" },
     warnings: []
   };
@@ -949,7 +1048,7 @@ function scenarioArtifact(workspace: StudioWorkspace, label: string, index: numb
     label,
     relative_path: `.riptide/scenarios/${label}/run-config.json`,
     path: `${workspace.riptide_path}/scenarios/${label}/run-config.json`,
-    updated_at: recentIso(85 + index),
+    updated_at: recentIso(2 - index * 0.1),
     meta: { seeds: [3, 12, 8][index] ?? 3, seed_root: 1337 + index },
     warnings: []
   };
@@ -962,8 +1061,8 @@ function campaignArtifact(workspace: StudioWorkspace): StudioArtifactEntry {
     label: "bounded-risk-slice.toml",
     relative_path: ".riptide/campaigns/bounded-risk-slice.toml",
     path: `${workspace.riptide_path}/campaigns/bounded-risk-slice.toml`,
-    updated_at: recentIso(88),
-    meta: { total_runs: 60, retained_runs: 5 },
+    updated_at: recentIso(1),
+    meta: { axes: 3, total_runs: 18 },
     warnings: []
   };
 }
@@ -1080,12 +1179,10 @@ function createReport(workspace: StudioWorkspace): StudioReportPayload {
   };
 }
 
-function baselineJobs(workspace: StudioWorkspace): Job[] {
-  const rows: Job[] = [];
-  for (let index = 0; index < 11; index += 1) rows.push(historyJob(workspace, "succeeded", index));
-  for (let index = 0; index < 5; index += 1) rows.push(historyJob(workspace, "failed", index + 11));
-  rows.push(historyJob(workspace, "cancelled", 16));
-  return rows;
+function baselineJobs(_workspace: StudioWorkspace): Job[] {
+  // No historical jobs after configure — the user runs scenarios from Reports
+  // and the Job queue populates from there.
+  return [];
 }
 
 function historyJob(workspace: StudioWorkspace, status: JobStatus, index: number): Job {

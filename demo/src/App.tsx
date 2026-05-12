@@ -10,7 +10,7 @@ type TourStep =
   | "agent-preset"
   | "agent-send"
   | "overview"
-  | "reports-nav"
+  | "campaigns-nav"
   | "run-button"
   | "report"
   | "done";
@@ -21,6 +21,23 @@ interface TargetBox {
   width: number;
   height: number;
 }
+
+// Buttons that should never be clickable in the demo, regardless of tour state —
+// the demo runs a single workspace and never offers real workspace management.
+const ALWAYS_LOCKED_LABELS = new Set<string>(["Remove from Studio"]);
+
+// Buttons that act on the workspace (chat, scenario runs, campaign runs, thread
+// management). The tour walks through one Send and one Run all click; once the
+// tour is "done", these are locked so the user can only inspect the result.
+const POST_TOUR_LOCKED_LABELS = new Set<string>([
+  "Send",
+  "Stop",
+  "Run",
+  "Run all",
+  "Preview run",
+  "New conversation",
+  "Delete thread"
+]);
 
 export function App() {
   return (
@@ -101,7 +118,43 @@ function TourOverlay() {
     }
   }, [page, snapshot]);
 
-  if (step === "done") return null;
+  useEffect(() => {
+    document.body.classList.add("riptide-demo");
+    return () => {
+      document.body.classList.remove("riptide-demo");
+    };
+  }, []);
+
+  useEffect(() => {
+    const lockDoneActions = step === "done";
+
+    function syncLocks() {
+      const buttons = document.querySelectorAll<HTMLButtonElement>("button");
+      for (const button of Array.from(buttons)) {
+        const text = (button.textContent ?? "").trim();
+        const isRailAdd = button.classList.contains("rail__add");
+        const shouldLock =
+          isRailAdd ||
+          ALWAYS_LOCKED_LABELS.has(text) ||
+          (lockDoneActions && POST_TOUR_LOCKED_LABELS.has(text));
+        if (shouldLock) {
+          if (button.dataset.demoLocked !== "true") {
+            button.dataset.demoLocked = "true";
+            button.setAttribute("aria-disabled", "true");
+          }
+        } else if (button.dataset.demoLocked === "true") {
+          delete button.dataset.demoLocked;
+          button.removeAttribute("aria-disabled");
+        }
+      }
+    }
+
+    syncLocks();
+    const id = window.setInterval(syncLocks, 350);
+    return () => window.clearInterval(id);
+  }, [step]);
+
+  if (step === "done") return <RerunButton />;
   if (snapshot.agentRunning || snapshot.jobRunning) return <InteractionLock />;
 
   const copy = copyFor(step, page);
@@ -136,6 +189,29 @@ function InteractionLock() {
   return <div className="tour-interaction-lock" aria-hidden="true" />;
 }
 
+function RerunButton() {
+  return (
+    <button
+      type="button"
+      className="tour-rerun"
+      onClick={rerunDemo}
+      title="Replay the guided demo from the beginning"
+    >
+      <Icon name="refresh" size={13} />
+      Rerun guided demo
+    </button>
+  );
+}
+
+function rerunDemo(): void {
+  demoStore.reset();
+  const url = new URL(window.location.href);
+  url.searchParams.delete("page");
+  url.searchParams.delete("artifact");
+  url.searchParams.delete("workspace");
+  window.location.assign(`${url.pathname}${url.search}${url.hash}`);
+}
+
 function Blockers({ box }: { box: TargetBox }) {
   const right = Math.max(0, window.innerWidth - box.left - box.width);
   const bottom = Math.max(0, window.innerHeight - box.top - box.height);
@@ -153,7 +229,7 @@ function deriveStep(snapshot: DemoSnapshot, page: string, composerPrimed: boolea
   if (!snapshot.workspace.has_riptide) return "bootstrap";
   if (!snapshot.configured) return page === "handoff" ? composerPrimed ? "agent-send" : "agent-preset" : "agent-nav";
   if (!snapshot.overviewSeen) return "overview";
-  if (!snapshot.runComplete) return page === "reports" ? "run-button" : "reports-nav";
+  if (!snapshot.runComplete) return page === "campaigns" ? "run-button" : "campaigns-nav";
   if (!snapshot.reportSeen) return "report";
   return "done";
 }
@@ -191,18 +267,18 @@ function copyFor(step: TourStep, page: string): { title: string; body: string; p
       icon: "check"
     };
   }
-  if (step === "reports-nav") {
+  if (step === "campaigns-nav") {
     return {
-      title: "Open Reports to launch the demo run.",
-      body: "Studio launches runs from report-capable artifacts. Click Reports, then use the highlighted Run button.",
-      primary: page === "reports" ? undefined : "Open Reports",
+      title: "Open Campaigns to launch the demo run.",
+      body: "The agent wrote a campaign that sweeps the lending workspace. Click Campaigns, then use the highlighted Run all button.",
+      primary: page === "campaigns" ? undefined : "Open Campaigns",
       icon: "play"
     };
   }
   if (step === "run-button") {
     return {
-      title: "Run the selected scenario.",
-      body: "Click Run. Studio will move to the job queue while the run progresses."
+      title: "Run the campaign.",
+      body: "Click Run all. Studio will move to the job queue while the campaign progresses, and route you to the report when it finishes."
     };
   }
   return {
@@ -216,9 +292,9 @@ function copyFor(step: TourStep, page: string): { title: string; body: string; p
 function handlePrimary(step: TourStep, snapshot: DemoSnapshot): void {
   if (step === "overview") {
     demoStore.markOverviewSeen();
-    routeTo("reports", snapshot.workspace.id);
-  } else if (step === "reports-nav") {
-    routeTo("reports", snapshot.workspace.id);
+    routeTo("campaigns", snapshot.workspace.id);
+  } else if (step === "campaigns-nav") {
+    routeTo("campaigns", snapshot.workspace.id);
   } else if (step === "report") {
     demoStore.markReportSeen();
   }
@@ -229,9 +305,9 @@ function findTarget(step: TourStep, page: string): HTMLElement | null {
   if (step === "agent-nav") return buttonByText("Agent chat");
   if (step === "agent-preset") return buttonByText("Configure my project");
   if (step === "agent-send") return buttonByText("Send");
-  if (step === "overview") return document.querySelector("main .card") ?? document.querySelector("main");
-  if (step === "reports-nav") return page === "reports" ? buttonByText("Run") : buttonByText("Reports");
-  if (step === "run-button") return buttonByText("Run");
+  if (step === "overview") return document.querySelector("main");
+  if (step === "campaigns-nav") return page === "campaigns" ? buttonByText("Run all") : buttonByText("Campaigns");
+  if (step === "run-button") return buttonByText("Run all");
   if (step === "report") return document.querySelector(".lview__detail") ?? document.querySelector("main");
   return null;
 }
