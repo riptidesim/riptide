@@ -24,14 +24,14 @@ No invariant violation was observed within this campaign. That means only that t
 
 ## Key Risk Signal
 
-No non-zero lending risk metric or invariant failure was retained in this campaign run.
+No amm.v1 semantic warning signal or invariant failure was retained in this campaign run.
 
 ## Scenario Families
 
-| Family | Planned | Completed | Failed | Setup errors | First failure tick | Bad debt max | Max utilization | Min TVL |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| fee_growth_churn | 1 | 1 | 0 | 0 |  |  |  |  |
-| whale_exit_pressure | 1 | 1 | 0 | 0 |  |  |  |  |
+| Family | Planned | Completed | Failed | Setup errors | First failure tick |
+|---|---:|---:|---:|---:|---:|
+| fee_growth_churn | 1 | 1 | 0 | 0 |  |
+| whale_exit_pressure | 1 | 1 | 0 | 0 |  |
 
 ## Parameters
 

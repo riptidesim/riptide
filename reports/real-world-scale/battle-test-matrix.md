@@ -6,6 +6,11 @@ This matrix defines the first real-world/prod-adjacent battle-test boundary
 before execution. Verdicts use the hard vocabulary `runs`, `blocked`,
 `needs-feature`, and `out-of-scope`.
 
+Sprint 35 later promoted the Raydium CP-Swap local slice to semantic `amm.v1`
+evidence and classified Whirlpool as base `amm.v1` proxy evidence, not full
+CLMM coverage. See `reports/real-world-scale/semantic-amm-evidence.md` for the
+newer evidence boundary; this file remains the Sprint 34 pre-execution matrix.
+
 `runs` means the local artifact set is expected to execute through a declared
 Riptide path during T04. It is not a claim that Riptide supports the live
 protocol. Live/prod-adjacent work is limited to public source, local IDL/SBF

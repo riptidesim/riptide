@@ -7,7 +7,13 @@ All execution stayed local: no private keys, no deployments, no live RPC writes,
 no publishing, and no protocol-support claim beyond the exact declared inputs
 and generated artifacts.
 
-Generated artifacts are under:
+Sprint 35 added a semantic AMM evidence summary at:
+
+```text
+reports/real-world-scale/semantic-amm-evidence.md
+```
+
+Generated Sprint 34 artifacts are under:
 
 ```text
 reports/real-world-scale/artifacts/t04
@@ -24,10 +30,10 @@ $ cd /home/ailton/Work/riptide/riptide && du -sh reports/real-world-scale/artifa
 
 | Target | Fresh evidence | Exit status | Actual verdict | Blocker class | Next smallest action |
 | --- | --- | ---: | --- | --- | --- |
-| Raydium CP-Swap | `doctor`, `readiness`, `lint`, direct `run`, campaign `validate`, `plan`, bounded `run`, campaign `review` | all 0 | `runs` | Missing Riptide/evidence primitive for stronger claim: semantic `amm.v1` mapping is not exercised. | Add `[semantics]` with existing `amm.v1`, rerun semantic/slice evidence, keep generic result as bounded local smoke. |
+| Raydium CP-Swap | `doctor`, `readiness`, `lint`, direct `run`, campaign `validate`, `plan`, bounded `run`, campaign `review`; Sprint 35 semantic `amm.v1` lint/direct/campaign/review | all 0 | `runs` with semantic AMM local-slice evidence | Sprint 35 removed the generic-only semantic blocker for the bounded CP-Swap smoke slice. | Keep the claim scoped to Raydium CP-Swap semantic AMM local-slice evidence; do not claim broad Raydium support. |
 | Lending committed controls | root `doctor`, `run`, campaign `validate`, `plan`, bounded `run`, campaign `review`, flagship `replay` | doctor 1, others 0 | `runs` | Root doctor warning is fixture lint coverage, not execution failure. Temp replay clone exposed missing built SBF artifact if the clone does not build programs. | Keep clean-checkout gate building SBF before replay; do not claim proof-level review unless provenance/proof metadata is present. |
 | Mango V4 | `readiness`, `lint`, direct `run`, campaign `validate`, `plan`, bounded `run`, campaign `review` | all 0 | `runs` | No T04 execution blocker for bounded local slice. | Expand market-state target selection before claiming order placement, fills, funding, PnL settlement, bankruptcy, or liquidation coverage. |
-| Whirlpools | `readiness`, `lint`, direct `run`, attempted direct `review`, campaign `validate`, `plan`, bounded `run`, campaign `review` | direct review 2, others 0 | `runs` | Direct run output is not a review pack; campaign review is the supported review path. | Keep campaign retained-case review for reviewer evidence; use packs/campaign roots for `riptide review`. |
+| Whirlpools | `readiness`, `lint`, direct `run`, attempted direct `review`, campaign `validate`, `plan`, bounded `run`, campaign `review`; Sprint 35 semantic lint/review classification | direct review 2, others 0 | `runs` with base `amm.v1` proxy evidence | Direct run output is not a review pack; campaign review is the supported review path. Full CLMM semantics are not covered. | Keep the campaign retained-case review as base AMM proxy evidence; defer tick/range/position/fee-growth/reward semantics to a future CLMM extension. |
 | Anchor Uniswap V2 | `readiness`, `lint` | readiness 0, lint 2 | `blocked` | Repo artifact/setup blocker. | Finish adapter accounts/actions/personas and restore or regenerate scenario/campaign/guided artifacts before execution. |
 | Drift protocol-v2 | `readiness`, `lint` | both 0 | `blocked` | Repo artifact/setup blocker despite lint pass: run collection lacks passing state movement and no harness is present. | Adjust scenario/personas/adapter dispatch or add harness so a run produces state movement. |
 | SPL selected target | `readiness`, `lint` | both 0 | `blocked` | Evidence blocker for stronger claim: readiness partial, no harness, lint skips machine lineage validation. | Add harness or clearly document harness-free boundary; add `[lineage]` for machine validation. |
@@ -99,6 +105,13 @@ $ cd /home/ailton/Work/riptide/case-studies/raydium-cp-swap && NO_COLOR=1 RIPTID
 - Setup errors: 0
 - pass: retained case digest verified: 61391e33445457aa3841395d86a566b68a65af45664ab904352eac5f4be0134e
 ```
+
+Sprint 35 semantic update:
+
+- New artifact root: `reports/real-world-scale/artifacts/semantic-amm/raydium/campaign_c691a3a7933c`
+- Classification: Raydium CP-Swap semantic `amm.v1` local-slice evidence.
+- Boundary: this is the local CP-Swap smoke slice only, not broad Raydium support.
+- Summary: `reports/real-world-scale/semantic-amm-evidence.md`
 
 ### Lending Controls
 
@@ -279,6 +292,14 @@ $ cd /home/ailton/Work/riptide/case-studies/whirlpools && NO_COLOR=1 RIPTIDE_ENG
 - pass: median maps to run_000000_41c052cc85f5
 ```
 
+Sprint 35 boundary update:
+
+- Classification: base `amm.v1` proxy evidence for the current local slice.
+- Boundary: not full concentrated-liquidity coverage.
+- Missing CLMM concepts include tick arrays, range positions, `sqrt_price`/tick movement, fee-growth accounting, rewards, V2/token-extension paths, bundled positions, metadata, and two-hop routing.
+- The Whirlpool campaign summary was regenerated with the current class-aware renderer so the `amm.v1` summary no longer shows lending-only risk columns.
+- Summary: `reports/real-world-scale/semantic-amm-evidence.md`
+
 ## Blocker Evidence
 
 ### Anchor Uniswap V2
@@ -373,6 +394,7 @@ $ cd /home/ailton/Work/riptide/riptide && NO_COLOR=1 RIPTIDE_ENGINE_BIN=/home/ai
 
 Generated artifacts intentionally kept:
 
+- `reports/real-world-scale/artifacts/semantic-amm/raydium`
 - `reports/real-world-scale/artifacts/t04/raydium-run`
 - `reports/real-world-scale/artifacts/t04/raydium-campaign`
 - `reports/real-world-scale/artifacts/t04/lending-safe`
@@ -389,14 +411,16 @@ supported an output override.
 
 ## Recommendation
 
-The next feature sprint should prioritize semantic/readiness closure over more
-raw scenarios:
+The next feature sprint should prioritize remaining semantic/readiness closure
+over more raw scenarios:
 
-1. Add and exercise semantic mappings for local generic rows that already run,
-   starting with Raydium CP-Swap `amm.v1`.
-2. Add harness/state-movement repair for Drift protocol-v2, where lint passes
+1. Keep Raydium wording scoped to CP-Swap semantic AMM local-slice evidence; use
+   additional Raydium scenarios only when they are separately mapped and run.
+2. Treat Whirlpool as base `amm.v1` proxy evidence until a CLMM semantic class or
+   explicit extension models tick/range/position/fee-growth behavior.
+3. Add harness/state-movement repair for Drift protocol-v2, where lint passes
    but readiness blocks on no passing state movement.
-3. Clarify reviewable artifact surfaces: direct run output is not a review pack;
+4. Clarify reviewable artifact surfaces: direct run output is not a review pack;
    campaign roots and evidence packs are reviewable today.
-4. Add `[lineage]` plus harness guidance for SPL Token if it is meant to move
+5. Add `[lineage]` plus harness guidance for SPL Token if it is meant to move
    from readiness-only to execution evidence.

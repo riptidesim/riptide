@@ -4,6 +4,12 @@ This page is the launch-readiness boundary for the local case-study corpus.
 It combines deterministic static inventory with the executed validation
 commands captured for the current release candidate.
 
+> **Snapshot note:** This page records the earlier corpus-readiness snapshot.
+> Newer real-world evidence for Raydium CP-Swap, Mango V4, and Whirlpools is
+> recorded in the local report set under `reports/real-world-scale/`, including
+> `reports/real-world-scale/semantic-amm-evidence.md`. Treat the matrix below as
+> historical unless it is refreshed with those later commands.
+
 - Case-study root: `/home/ailton/Work/riptide/case-studies`
 - Local repositories with `.riptide/`: 10
 - Public claim summary from executed evidence: demo-ready=2, blocked=8
