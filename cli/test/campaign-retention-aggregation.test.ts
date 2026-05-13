@@ -161,6 +161,13 @@ test("campaign retention aggregation: unsupported or absent labels warn without 
   assert.equal(result.retentionManifest.warnings.length, 3);
   assert.match(result.retentionManifest.warnings.join("\n"), /unsupported for class amm\.v1/);
   assert.match(result.retentionManifest.warnings.join("\n"), /at least three completed runs/);
+
+  const markdown = await readFile(result.artifactPaths.summaryMarkdownPath, "utf8");
+  assert.match(markdown, /No amm\.v1 semantic warning signal or invariant failure/);
+  assert.doesNotMatch(markdown, /lending risk metric/i);
+  assert.doesNotMatch(markdown, /Bad debt max/);
+  assert.doesNotMatch(markdown, /Max utilization/);
+  assert.doesNotMatch(markdown, /Min TVL/);
 });
 
 test("campaign retention aggregation: case digests are stable across output roots", async () => {

@@ -1168,11 +1168,27 @@ function renderCampaignSummaryMarkdown(
 
   lines.push("## Key Risk Signal", "", keyRiskSignal(summary), "");
 
-  lines.push("## Scenario Families", "", "| Family | Planned | Completed | Failed | Setup errors | First failure tick | Bad debt max | Max utilization | Min TVL |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|");
-  for (const [family, row] of Object.entries(summary.scenario_families)) {
+  lines.push("## Scenario Families", "");
+  if (summary.lending) {
     lines.push(
-      `| ${family} | ${row.planned_runs} | ${row.completed_runs} | ${row.invariant_failed_runs} | ${row.setup_errors} | ${displayValue(row.first_failure_tick_min)} | ${displayValue(row.total_bad_debt_max)} | ${displayValue(row.max_utilization_observed)} | ${displayValue(row.min_tvl_observed)} |`
+      "| Family | Planned | Completed | Failed | Setup errors | First failure tick | Bad debt max | Max utilization | Min TVL |",
+      "|---|---:|---:|---:|---:|---:|---:|---:|---:|"
     );
+    for (const [family, row] of Object.entries(summary.scenario_families)) {
+      lines.push(
+        `| ${family} | ${row.planned_runs} | ${row.completed_runs} | ${row.invariant_failed_runs} | ${row.setup_errors} | ${displayValue(row.first_failure_tick_min)} | ${displayValue(row.total_bad_debt_max)} | ${displayValue(row.max_utilization_observed)} | ${displayValue(row.min_tvl_observed)} |`
+      );
+    }
+  } else {
+    lines.push(
+      "| Family | Planned | Completed | Failed | Setup errors | First failure tick |",
+      "|---|---:|---:|---:|---:|---:|"
+    );
+    for (const [family, row] of Object.entries(summary.scenario_families)) {
+      lines.push(
+        `| ${family} | ${row.planned_runs} | ${row.completed_runs} | ${row.invariant_failed_runs} | ${row.setup_errors} | ${displayValue(row.first_failure_tick_min)} |`
+      );
+    }
   }
   lines.push("");
 
@@ -1311,7 +1327,10 @@ function keyRiskSignal(summary: CampaignSummaryJson): string {
   if (summary.totals.setup_errors > 0) {
     return `${summary.totals.setup_errors} setup error(s) prevented complete campaign evidence.`;
   }
-  return "No non-zero lending risk metric or invariant failure was retained in this campaign run.";
+  if (summary.campaign.class === "lending.v1") {
+    return "No non-zero lending risk metric or invariant failure was retained in this campaign run.";
+  }
+  return `No ${summary.campaign.class} semantic warning signal or invariant failure was retained in this campaign run.`;
 }
 
 function hasMeaningfulLendingRisk(summary: CampaignSummaryJson): boolean {
