@@ -1,0 +1,19 @@
+# Perps persona — aggressive long trader.
+#
+#. Ships as a standalone TOML fragment that the sidecar
+# script `scripts/perps-scratch.sh` concatenates onto a
+# truncated copy of `fixtures/adapters/perpetuals.toml` below the
+# `# === SIDECAR-CUT ===` marker.
+#
+# Runtime note: perpetuals's generic-path executable actions
+# are limited to `deposit` and `withdraw` (single-u64-arg encoding).
+# Semantic flavour is encoded in the relative weights and in the
+# persona's trigger condition referencing a perps-specific observation.
+
+[personas.leveraged-long]
+label = "Leveraged long"
+action_rate_multiplier = 1.5
+action_weights = { deposit = 1.0, withdraw = 0.05 }
+triggers = [
+  { if = "position.collateral < 500", then = "deposit", weight_boost = 3.0 },
+]

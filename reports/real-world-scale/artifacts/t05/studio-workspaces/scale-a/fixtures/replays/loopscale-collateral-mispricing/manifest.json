@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "kind": "replay",
+  "run_id": "replay-loopscale-collateral-mispricing",
+  "scenario": "replay:loopscale-collateral-mispricing",
+  "proof_level": 3,
+  "proof_level_label": "Failure-shape replay",
+  "adapter": "adapter.toml",
+  "component_adapters": {},
+  "total_ticks": 2,
+  "agents": 2,
+  "event_count": 2,
+  "canonical_hash": "d6d71b3b79be760d486f510606866bdccb4be4d9ab8c2df19e45409ad7b386ff",
+  "invariant_firings": [
+    {
+      "name": "collateral_health",
+      "firings": 1,
+      "first_tick": 2,
+      "field": "bad_debt",
+      "op": "==",
+      "value": 0.0
+    }
+  ],
+  "exit_code": 1,
+  "inputs": {
+    "adapter": "adapter.toml",
+    "config": "config.json",
+    "policies": null,
+    "trajectory_dirs": {},
+    "component_adapters": {}
+  },
+  "outputs": {
+    "simulation_result": "riptide-output/replays/loopscale-collateral-mispricing/simulation-result.json",
+    "last_run": null
+  },
+  "simulation_boundaries": [
+    "Replay mode bypasses persona compilation and dispatches a declared instruction trajectory directly.",
+    "Trajectory args are supplied inline per event; generic adapters may still fall back to adapter literals for unmapped constants.",
+    "initial-state.json, when present, is applied as a pre-tick bootstrap instruction list before tick 0 is recorded.",
+    "Agent balance/PnL fields are bookkeeping-only in replay mode; authoritative outputs are primitive snapshots, events, and invariant rollups."
+  ],
+  "what_this_proof_does_not_claim": [
+    "a byte-level reproduction of Loopscale's mainnet program or the slot state from the April 2025 exploit,",
+    "an audit or safety claim about Loopscale Labs, their lending program, or any deployed Solana lending protocol,",
+    "a faithful model of LP-token NAV pricing — the toy fixture realizes the mispricing as a single-tick oracle correction rather than a structural recompute."
+  ]
+}

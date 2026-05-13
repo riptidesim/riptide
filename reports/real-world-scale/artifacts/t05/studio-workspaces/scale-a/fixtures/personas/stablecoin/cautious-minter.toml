@@ -1,0 +1,25 @@
+# Stablecoin persona — cautious minter.
+#
+# Standalone TOML fragment. Canonical reviewer-inspection source for
+# the persona mirrored inline into `fixtures/adapters/stablecoin.toml`
+# above that file's `# === SIDECAR-CUT ===` marker. A future
+# bare-adapter scratch harness that wants to compose an adapter from
+# scratch (not from the shipping adapter) can concatenate this file
+# alongside its siblings; it must NOT be appended to the shipping
+# adapter, which already carries the same persona inline and would
+# fail to load with a duplicate-key error.
+#
+# Low-rate, deposit-dominant. Represents the quiet majority that
+# overcollateralizes well above the mint target — they contribute
+# backing to the pool but rarely draw on redemption liquidity. No
+# triggers: cautious-minter is the reference population against
+# which panic-redeemer and arb-redeemer pressure is measured.
+#
+# Action names match the shipped stablecoin adapter's
+# `[instructions]` keys: `deposit_collateral`, `mint_stable`,
+# `request_redeem`, `claim_redeem`.
+[personas.cautious-minter]
+label = "Cautious minter"
+action_rate_multiplier = 0.5
+action_weights = { deposit_collateral = 0.8, mint_stable = 0.15, request_redeem = 0.03, claim_redeem = 0.02 }
+triggers = []

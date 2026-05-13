@@ -1,0 +1,30 @@
+# Scenario-local persona notes for the open-interest-skew-squeeze smoke shape.
+#
+# Perps-lite exposes open-interest observations as proxy fields, but
+# funding-rate updates are not modeled. This run overweights botter
+# arrivals to make the deterministic shape visibly skewed without
+# claiming live funding mechanics.
+
+[personas.botter]
+label = "OI-skew pressure taker"
+action_rate_multiplier = 2.0
+action_weights = { deposit = 0.8, withdraw = 0.2 }
+triggers = [
+  { if = "market.total_oi_long > 3000", then = "deposit", weight_boost = 1.8 },
+]
+
+[personas.grinder]
+label = "Collateral defender"
+action_rate_multiplier = 1.0
+action_weights = { deposit = 0.9, withdraw = 0.1 }
+triggers = [
+  { if = "position.collateral < 500", then = "deposit", weight_boost = 2.2 },
+]
+
+[personas.casual]
+label = "Passive margin account"
+action_rate_multiplier = 0.5
+action_weights = { deposit = 0.5, withdraw = 0.5 }
+triggers = [
+  { if = "position.collateral > 2000", then = "withdraw", weight_boost = 1.5 },
+]

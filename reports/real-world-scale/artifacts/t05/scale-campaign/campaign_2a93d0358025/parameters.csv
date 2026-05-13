@@ -1,0 +1,9 @@
+run_index,run_id,status,scenario_family,run_seed,first_failure_tick,total_bad_debt,max_utilization,min_tvl,total_liquidations,fixed_one,oracle_lag_ticks,shock_profile,whale_share_bps
+0,run_000000_2e458233cab5,pass,oracle_lag_baseline,13729282824399190890,,720,6.4,1000,1,,2,price-shock,
+1,run_000001_60f464f418c7,pass,whale_share_sweep,9407949198581743194,,3600,16,2000,5,,,price-shock,2633
+2,run_000002_2465e1b314c3,pass,whale_shock_grid,17262572687639666670,,4320,16.8,1384,6,,,price-shock,2953
+3,run_000003_2b82e11d59ee,pass,whale_share_sweep,15059542142580741637,,2880,12.8,1992,4,,,price-shock,1895
+4,run_000004_01fba41fd6bc,pass,whale_shock_grid,15493757539397113209,,2160,9.6,2000,3,,,price-shock,1319
+5,run_000005_2216348e7e35,pass,whale_shock_grid,16725239056936951245,,2880,12.8,1984,4,,,price-shock,2138
+6,run_000006_a756808d330f,pass,whale_shock_grid,3907168807494901908,,720,3.2,1149,1,,,price-shock,617
+7,run_000007_381d169f4cb7,pass,whale_share_sweep,8279562487573856656,,0,3.0917874396135265,2000,0,,,bank-run,1286

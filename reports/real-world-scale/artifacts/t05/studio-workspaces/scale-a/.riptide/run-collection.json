@@ -1,0 +1,2013 @@
+{
+  "schema_version": 1,
+  "started_at": "2026-05-13T02:02:41.863Z",
+  "finished_at": "2026-05-13T02:02:43.697Z",
+  "selected_source_path": "fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml",
+  "allow_invariant_violations": false,
+  "total_scenarios": 16,
+  "totals_by_status": {
+    "pass": 16,
+    "fail": 0,
+    "error": 0,
+    "skipped": 0
+  },
+  "totals_by_verdict": {
+    "failure-observed": 0,
+    "no-failure-observed": 16,
+    "inconclusive": 0,
+    "setup-error": 0,
+    "interrupted": 0
+  },
+  "totals_by_coverage": {
+    "exercised": 0,
+    "partial": 16,
+    "unexercised": 0,
+    "unknown": 0
+  },
+  "scenarios": [
+    {
+      "name": "run_000000_2e458233cab5",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000000_2e458233cab5/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.135,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000000_2e458233cab5",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "213 events recorded",
+          "23 timeseries snapshots recorded",
+          "10 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000000_2e458233cab5"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 144 successful and 57 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 22 of 22 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "209 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "144 successful and 57 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 99.89910852072708"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "10 final agents across 10 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 22 of 22 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "209 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "144 successful and 57 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 99.89910852072708"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "10 final agents across 10 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 1763,
+        "final_utilization": 0,
+        "total_bad_debt": 720,
+        "largest_single_tick_drawdown": 0.4007151238568199,
+        "total_liquidations": 1,
+        "agents_active": 9,
+        "agents_liquidated": 1,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000000_2e458233cab5/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000000_2e458233cab5/report.md"
+    },
+    {
+      "name": "run_000001_60f464f418c7",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000001_60f464f418c7/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.115,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000001_60f464f418c7",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "353 events recorded",
+          "21 timeseries snapshots recorded",
+          "20 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000001_60f464f418c7"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 285 successful and 55 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "350 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "285 successful and 55 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 100.14004049247754"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "20 final agents across 20 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "350 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "285 successful and 55 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 100.14004049247754"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "20 final agents across 20 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 2000,
+        "final_utilization": 0,
+        "total_bad_debt": 3600,
+        "largest_single_tick_drawdown": 0.3972216713527401,
+        "total_liquidations": 5,
+        "agents_active": 15,
+        "agents_liquidated": 5,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000001_60f464f418c7/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000001_60f464f418c7/report.md"
+    },
+    {
+      "name": "run_000002_2465e1b314c3",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000002_2465e1b314c3/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.119,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000002_2465e1b314c3",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "343 events recorded",
+          "21 timeseries snapshots recorded",
+          "20 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000002_2465e1b314c3"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 264 successful and 68 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "340 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "264 successful and 68 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 99.93015381672738"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "20 final agents across 20 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "340 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "264 successful and 68 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 99.93015381672738"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "20 final agents across 20 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 2926,
+        "final_utilization": 0,
+        "total_bad_debt": 4320,
+        "largest_single_tick_drawdown": 0.39975484037215653,
+        "total_liquidations": 6,
+        "agents_active": 14,
+        "agents_liquidated": 6,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000002_2465e1b314c3/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000002_2465e1b314c3/report.md"
+    },
+    {
+      "name": "run_000003_2b82e11d59ee",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000003_2b82e11d59ee/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.103,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000003_2b82e11d59ee",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "363 events recorded",
+          "21 timeseries snapshots recorded",
+          "20 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000003_2b82e11d59ee"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 260 successful and 88 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "360 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "260 successful and 88 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 100.10340672125393"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "20 final agents across 20 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "360 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "260 successful and 88 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 100.10340672125393"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "20 final agents across 20 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 1992,
+        "final_utilization": 0,
+        "total_bad_debt": 2880,
+        "largest_single_tick_drawdown": 0.40088373321014203,
+        "total_liquidations": 4,
+        "agents_active": 16,
+        "agents_liquidated": 4,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000003_2b82e11d59ee/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000003_2b82e11d59ee/report.md"
+    },
+    {
+      "name": "run_000004_01fba41fd6bc",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000004_01fba41fd6bc/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.1,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000004_01fba41fd6bc",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "372 events recorded",
+          "21 timeseries snapshots recorded",
+          "20 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000004_01fba41fd6bc"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 299 successful and 57 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "370 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "299 successful and 57 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 99.91805721969557"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "20 final agents across 20 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "370 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "299 successful and 57 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 99.91805721969557"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "20 final agents across 20 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 2000,
+        "final_utilization": 0,
+        "total_bad_debt": 2160,
+        "largest_single_tick_drawdown": 0.4018012391985169,
+        "total_liquidations": 3,
+        "agents_active": 17,
+        "agents_liquidated": 3,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000004_01fba41fd6bc/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000004_01fba41fd6bc/report.md"
+    },
+    {
+      "name": "run_000005_2216348e7e35",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000005_2216348e7e35/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.094,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000005_2216348e7e35",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "363 events recorded",
+          "21 timeseries snapshots recorded",
+          "20 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000005_2216348e7e35"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 292 successful and 56 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "360 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "292 successful and 56 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 99.99779294435669"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "20 final agents across 20 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "360 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "292 successful and 56 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 99.99779294435669"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "20 final agents across 20 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 1984,
+        "final_utilization": 0,
+        "total_bad_debt": 2880,
+        "largest_single_tick_drawdown": 0.39765836221888623,
+        "total_liquidations": 4,
+        "agents_active": 16,
+        "agents_liquidated": 4,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000005_2216348e7e35/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000005_2216348e7e35/report.md"
+    },
+    {
+      "name": "run_000006_a756808d330f",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000006_a756808d330f/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.098,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000006_a756808d330f",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "392 events recorded",
+          "21 timeseries snapshots recorded",
+          "20 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000006_a756808d330f"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 332 successful and 40 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "390 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "332 successful and 40 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 99.8899506496352"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "20 final agents across 20 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "390 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "332 successful and 40 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 99.8899506496352"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "20 final agents across 20 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 2985,
+        "final_utilization": 0,
+        "total_bad_debt": 720,
+        "largest_single_tick_drawdown": 0.40020099404913795,
+        "total_liquidations": 1,
+        "agents_active": 19,
+        "agents_liquidated": 1,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000006_a756808d330f/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000006_a756808d330f/report.md"
+    },
+    {
+      "name": "run_000007_381d169f4cb7",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000007_381d169f4cb7/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.12,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000007_381d169f4cb7",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "432 events recorded",
+          "21 timeseries snapshots recorded",
+          "20 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000007_381d169f4cb7"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 29 successful and 371 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "400 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "29 successful and 371 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 100.18588446861297"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "20 final agents across 20 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "400 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "29 successful and 371 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 100.18588446861297"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "20 final agents across 20 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 3105,
+        "final_utilization": 3.0917874396135265,
+        "total_bad_debt": 0,
+        "largest_single_tick_drawdown": 0.5991794915474414,
+        "total_liquidations": 0,
+        "agents_active": 20,
+        "agents_liquidated": 0,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000007_381d169f4cb7/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000007_381d169f4cb7/report.md"
+    },
+    {
+      "name": "run_000008_6c1296b2ff28",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000008_6c1296b2ff28/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.062,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000008_6c1296b2ff28",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "193 events recorded",
+          "21 timeseries snapshots recorded",
+          "10 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000008_6c1296b2ff28"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 162 successful and 20 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "190 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "162 successful and 20 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 99.79746538107757"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "10 final agents across 10 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "190 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "162 successful and 20 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 99.79746538107757"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "10 final agents across 10 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 1362,
+        "final_utilization": 0,
+        "total_bad_debt": 720,
+        "largest_single_tick_drawdown": 0.3997154628980331,
+        "total_liquidations": 1,
+        "agents_active": 9,
+        "agents_liquidated": 1,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000008_6c1296b2ff28/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000008_6c1296b2ff28/report.md"
+    },
+    {
+      "name": "run_000009_24e6a04ddcb8",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000009_24e6a04ddcb8/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.101,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000009_24e6a04ddcb8",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "432 events recorded",
+          "21 timeseries snapshots recorded",
+          "20 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000009_24e6a04ddcb8"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 48 successful and 352 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "400 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "48 successful and 352 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 100.04146192268877"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "20 final agents across 20 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "400 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "48 successful and 352 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 100.04146192268877"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "20 final agents across 20 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 2000,
+        "final_utilization": 6.4,
+        "total_bad_debt": 0,
+        "largest_single_tick_drawdown": 0.5993615391477712,
+        "total_liquidations": 0,
+        "agents_active": 20,
+        "agents_liquidated": 0,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000009_24e6a04ddcb8/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000009_24e6a04ddcb8/report.md"
+    },
+    {
+      "name": "run_000010_456d84ed46f9",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000010_456d84ed46f9/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.09,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000010_456d84ed46f9",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "373 events recorded",
+          "21 timeseries snapshots recorded",
+          "20 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000010_456d84ed46f9"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 282 successful and 74 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "370 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "282 successful and 74 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 100.18198509527775"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "20 final agents across 20 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "370 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "282 successful and 74 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 100.18198509527775"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "20 final agents across 20 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 3116,
+        "final_utilization": 0,
+        "total_bad_debt": 2160,
+        "largest_single_tick_drawdown": 0.4007050809499825,
+        "total_liquidations": 3,
+        "agents_active": 17,
+        "agents_liquidated": 3,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000010_456d84ed46f9/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000010_456d84ed46f9/report.md"
+    },
+    {
+      "name": "run_000011_2d7c6aa00208",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000011_2d7c6aa00208/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.063,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000011_2d7c6aa00208",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "232 events recorded",
+          "21 timeseries snapshots recorded",
+          "10 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000011_2d7c6aa00208"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 22 successful and 178 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "200 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "22 successful and 178 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 99.83591688710911"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "10 final agents across 10 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "200 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "22 successful and 178 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 99.83591688710911"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "10 final agents across 10 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 1000,
+        "final_utilization": 3.2,
+        "total_bad_debt": 0,
+        "largest_single_tick_drawdown": 0.5994944656987946,
+        "total_liquidations": 0,
+        "agents_active": 10,
+        "agents_liquidated": 0,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000011_2d7c6aa00208/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000011_2d7c6aa00208/report.md"
+    },
+    {
+      "name": "run_000012_772800f663a1",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000012_772800f663a1/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.083,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000012_772800f663a1",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "352 events recorded",
+          "21 timeseries snapshots recorded",
+          "20 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000012_772800f663a1"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 255 successful and 85 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "350 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "255 successful and 85 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 99.77853550243488"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "20 final agents across 20 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "350 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "255 successful and 85 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 99.77853550243488"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "20 final agents across 20 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 2005,
+        "final_utilization": 0,
+        "total_bad_debt": 3600,
+        "largest_single_tick_drawdown": 0.39980348528924037,
+        "total_liquidations": 5,
+        "agents_active": 15,
+        "agents_liquidated": 5,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000012_772800f663a1/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000012_772800f663a1/report.md"
+    },
+    {
+      "name": "run_000013_09601a35a28f",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000013_09601a35a28f/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.125,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000013_09601a35a28f",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "394 events recorded",
+          "21 timeseries snapshots recorded",
+          "20 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000013_09601a35a28f"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 275 successful and 97 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "390 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "275 successful and 97 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 99.81903214195785"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "20 final agents across 20 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "390 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "275 successful and 97 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 99.81903214195785"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "20 final agents across 20 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 2034,
+        "final_utilization": 0,
+        "total_bad_debt": 720,
+        "largest_single_tick_drawdown": 0.39848102418614534,
+        "total_liquidations": 1,
+        "agents_active": 19,
+        "agents_liquidated": 1,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000013_09601a35a28f/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000013_09601a35a28f/report.md"
+    },
+    {
+      "name": "run_000014_17ea751a56c9",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000014_17ea751a56c9/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.1,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000014_17ea751a56c9",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "343 events recorded",
+          "21 timeseries snapshots recorded",
+          "20 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000014_17ea751a56c9"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 250 successful and 82 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 20 of 20 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "340 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "250 successful and 82 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 99.90543340286439"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "20 final agents across 20 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 20 of 20 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "340 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "250 successful and 82 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 99.90543340286439"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "20 final agents across 20 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 2002,
+        "final_utilization": 0,
+        "total_bad_debt": 4320,
+        "largest_single_tick_drawdown": 0.3994884638292171,
+        "total_liquidations": 6,
+        "agents_active": 14,
+        "agents_liquidated": 6,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000014_17ea751a56c9/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000014_17ea751a56c9/report.md"
+    },
+    {
+      "name": "run_000015_5de0d4d36a1d",
+      "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000015_5de0d4d36a1d/run-config.json",
+      "status": "pass",
+      "wall_clock_s": 0.07,
+      "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000015_5de0d4d36a1d",
+      "invariant_fires": [],
+      "invariant_fire_count": 0,
+      "interpretation": {
+        "verdict": "no-failure-observed",
+        "confidence": "low",
+        "coverage": "partial",
+        "severity": "info",
+        "summary": "No failure observed in this run.",
+        "next_action": "Review coverage checks and artifacts before using this run as evidence.",
+        "evidence": [
+          "213 events recorded",
+          "23 timeseries snapshots recorded",
+          "10 final agent records recorded",
+          "artifacts directory: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000015_5de0d4d36a1d"
+        ],
+        "reasons": [
+          "zero invariant fires observed",
+          "coverage classified as partial",
+          "execution_outcomes: warn - 135 successful and 66 failed scenario events"
+        ],
+        "coverage_checks": [
+          {
+            "name": "tick_progression",
+            "status": "pass",
+            "detail": "observed 22 of 22 requested ticks"
+          },
+          {
+            "name": "event_stream",
+            "status": "pass",
+            "detail": "209 scenario events observed"
+          },
+          {
+            "name": "execution_outcomes",
+            "status": "warn",
+            "detail": "135 successful and 66 failed scenario events"
+          },
+          {
+            "name": "state_movement",
+            "status": "pass",
+            "detail": "timeseries field oracle_price changed from 100 to 100.20768404503228"
+          },
+          {
+            "name": "invariant_inventory",
+            "status": "pass",
+            "detail": "3 declared invariant rows present"
+          },
+          {
+            "name": "agent_roster",
+            "status": "pass",
+            "detail": "10 final agents across 10 personas"
+          },
+          {
+            "name": "artifact_readability",
+            "status": "pass",
+            "detail": "simulation-result.json and report.md are readable"
+          },
+          {
+            "name": "semantics_evaluated",
+            "status": "pass",
+            "detail": "derived observations computed for at least one tick"
+          }
+        ]
+      },
+      "coverage_checks": [
+        {
+          "name": "tick_progression",
+          "status": "pass",
+          "detail": "observed 22 of 22 requested ticks"
+        },
+        {
+          "name": "event_stream",
+          "status": "pass",
+          "detail": "209 scenario events observed"
+        },
+        {
+          "name": "execution_outcomes",
+          "status": "warn",
+          "detail": "135 successful and 66 failed scenario events"
+        },
+        {
+          "name": "state_movement",
+          "status": "pass",
+          "detail": "timeseries field oracle_price changed from 100 to 100.20768404503228"
+        },
+        {
+          "name": "invariant_inventory",
+          "status": "pass",
+          "detail": "3 declared invariant rows present"
+        },
+        {
+          "name": "agent_roster",
+          "status": "pass",
+          "detail": "10 final agents across 10 personas"
+        },
+        {
+          "name": "artifact_readability",
+          "status": "pass",
+          "detail": "simulation-result.json and report.md are readable"
+        },
+        {
+          "name": "semantics_evaluated",
+          "status": "pass",
+          "detail": "derived observations computed for at least one tick"
+        }
+      ],
+      "metric_preview": {
+        "final_tvl": 622,
+        "final_utilization": 0,
+        "total_bad_debt": 720,
+        "largest_single_tick_drawdown": 0.4002147053103809,
+        "total_liquidations": 1,
+        "agents_active": 9,
+        "agents_liquidated": 1,
+        "agents_depleted": 0
+      },
+      "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000015_5de0d4d36a1d/simulation-result.json",
+      "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000015_5de0d4d36a1d/report.md"
+    }
+  ]
+}

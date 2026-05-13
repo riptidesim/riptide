@@ -1,0 +1,30 @@
+{
+  "agents": 20,
+  "ticks": 24,
+  "scenario": "baseline",
+  "seed": 42,
+  "personas": [
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "casual",
+    "casual",
+    "casual",
+    "casual"
+  ],
+  "validator_url": "http://localhost:8899",
+  "output_path": "fixtures/scenarios/resource-grinder/persona-mix-sweep"
+}

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "kind": "simulation-run",
+  "run_id": "bank-run",
+  "scenario": "bank-run",
+  "adapter": "fixtures/adapters/lending.toml",
+  "component_adapters": {},
+  "total_ticks": 20,
+  "agents": 20,
+  "event_count": 432,
+  "canonical_hash": "18aa834175f858b2e4dec800000e7e2b858fa8a7c2fcc2187dac6b8174fd24f2",
+  "invariant_firings": [
+    {
+      "name": "bad_debt_bound",
+      "firings": 0,
+      "first_tick": null,
+      "field": "debt_value <= collateral_value",
+      "op": "expr",
+      "value": null
+    },
+    {
+      "name": "ltv_below_max",
+      "firings": 16,
+      "first_tick": 5,
+      "field": "debt_value <= max_borrow_value",
+      "op": "expr",
+      "value": null
+    },
+    {
+      "name": "collection_worst_health_factor",
+      "firings": 16,
+      "first_tick": 5,
+      "field": "collection.worst_health_factor > 1.0",
+      "op": "expr",
+      "value": null
+    }
+  ],
+  "exit_code": 0,
+  "inputs": {
+    "adapter": "fixtures/adapters/lending.toml",
+    "config": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000007_381d169f4cb7/run-config.json",
+    "policies": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000007_381d169f4cb7/policies.json",
+    "trajectory_dirs": {},
+    "component_adapters": {}
+  },
+  "outputs": {
+    "simulation_result": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000007_381d169f4cb7/simulation-result.json",
+    "last_run": null
+  },
+  "simulation_boundaries": [
+    "In-process LiteSVM backend (no external validator).",
+    "No slippage, fees, or MEV modeled.",
+    "Oracle prices are scenario-driven, not external feeds.",
+    "Agents funded via deterministic airdrop, not realistic onboarding."
+  ]
+}

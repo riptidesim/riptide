@@ -1,0 +1,4 @@
+{
+  "adapter": "fixtures/replays/drift-fake-collateral-vault-drain/adapter.toml",
+  "config": "fixtures/replays/drift-fake-collateral-vault-drain/config.json"
+}

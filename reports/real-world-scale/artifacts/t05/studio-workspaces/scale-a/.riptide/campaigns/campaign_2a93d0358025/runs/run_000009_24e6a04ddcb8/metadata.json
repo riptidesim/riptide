@@ -1,0 +1,27 @@
+{
+  "schema_version": "campaign-run-metadata.v1",
+  "campaign_id": "campaign_2a93d0358025",
+  "campaign_digest": "2a93d03580255a41454b9b05a87dd34c30981447ed7f787d420ffda8ebf51581",
+  "campaign_name": "solend-shape-liquidation-safety",
+  "class": "lending.v1",
+  "risk_objective": "liquidation-safety",
+  "run_id": "run_000009_24e6a04ddcb8",
+  "run_index": 9,
+  "run_seed": "3196376537142380571",
+  "engine_seed": 1501259560,
+  "run_config_digest": "24e6a04ddcb8b5a3158ab5c4b4e09c1ae7f8b71733b9b04eb23d69f8c03fb664",
+  "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000009_24e6a04ddcb8/run-config.json",
+  "scenario_family": "whale_shock_grid",
+  "scenario_source": "../../../scenarios/lending/whale-shock-grid",
+  "sampled_parameters": {
+    "shock_profile": "bank-run",
+    "whale_share_bps": 2155
+  },
+  "personas": [],
+  "config_status": "created",
+  "status": "pass",
+  "invariant_fires": [],
+  "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000009_24e6a04ddcb8",
+  "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000009_24e6a04ddcb8/simulation-result.json",
+  "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000009_24e6a04ddcb8/report.md"
+}

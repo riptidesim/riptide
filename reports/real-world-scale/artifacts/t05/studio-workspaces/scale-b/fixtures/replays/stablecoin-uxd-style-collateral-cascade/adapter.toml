@@ -1,0 +1,151 @@
+# Stablecoin-fork adapter — replay variant.
+#
+# Copy of `fixtures/adapters/stablecoin.toml` trimmed to just the
+# replay-load-bearing surface (accounts, state mapping, oracle
+# binding, invariants). Personas are intentionally omitted because
+# replay mode bypasses persona compilation — every instruction is
+# dispatched directly from `trajectory.json`.
+#
+# **Why a replay-specific adapter.** The shipping adapter's
+# invariants are tick-0-safe and structural only: it declares
+# `no_hedge_loss_during_healthy_run` (mirrored below so the depeg
+# half of the proof is machine-checkable) and a `collateral_ratio_bounded`
+# sanity ceiling. It deliberately does NOT declare the economically
+# meaningful floor `effective_collateral_ratio_bps >= 10_000` because
+# the generic harness's zero-byte bootstrap path can read the ratio
+# as `default_bps` at tick 0 and a floor invariant would false-fire
+# during smoke. The replay operates against *explicitly-initialized*
+# pool state (`initialize_pool` + 5 × `deposit_collateral` +
+# 5 × `mint_stable` in `initial-state.json`), so the floor has honest
+# meaning here. Same discipline liquid-staking uses: replay adds
+# `no_queue_formation` scoped locally.
+#
+# The `riptide replay` CLI's replay-config JSON (at
+# `fixtures/replays/stablecoin-uxd-style-collateral-cascade/config.json`)
+# points at this adapter directly; the replay-gate engine test loads
+# it via `load_adapter(fixture_dir().join("adapter.toml"))`.
+
+protocol = "generic"
+program_so = "../../../programs/stablecoin/target/deploy/stablecoin.so"
+idl_path = "../../../fixtures/idls/stablecoin.json"
+
+[accounts.pool]
+kind = "shared"
+space = 121
+
+[accounts.position]
+kind = "agent"
+space = 105
+
+[accounts.oracle]
+kind = "shared"
+space = 50
+owner = { program_so = "../../../programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so" }
+
+[instructions]
+deposit_collateral = { action = "deposit_collateral", amount = "amount" }
+mint_stable        = { action = "mint_stable",        amount = "amount" }
+request_redeem     = { action = "request_redeem",     amount = "stable_amount" }
+claim_redeem       = { action = "claim_redeem" }
+
+[state_mapping]
+"pool.collateral_assets"              = "pool.collateral_assets"
+"pool.stable_supply"                  = "pool.stable_supply"
+"pool.reserve_buffer_assets"          = "pool.reserve_buffer_assets"
+"pool.pending_redemption_assets"      = "pool.pending_redemption_assets"
+"pool.pending_redemption_count"       = "pool.pending_redemption_count"
+"pool.effective_collateral_ratio_bps" = "pool.effective_collateral_ratio_bps"
+"pool.cumulative_hedge_loss_bps"      = "pool.cumulative_hedge_loss_bps"
+"position.collateral_deposited"   = "position.collateral_deposited"
+"position.stable_minted"          = "position.stable_minted"
+"position.pending_redeem_assets"  = "position.pending_redeem_assets"
+"position.claimable_collateral"   = "position.claimable_collateral"
+"position.cumulative_claimed"     = "position.cumulative_claimed"
+
+[actions.deposit_collateral]
+label = "Deposit collateral into the stablecoin pool"
+takes = ["amount"]
+
+[actions.mint_stable]
+label = "Mint stablecoins against already-deposited collateral"
+takes = ["amount"]
+
+[actions.request_redeem]
+label = "Burn stablecoins, post a redemption claim (covered from reserve or queued)"
+takes = ["stable_amount"]
+
+[actions.claim_redeem]
+label = "Flush claimable and settle queued entries if reserve covers them"
+takes = []
+
+[observations]
+"pool.collateral_assets"              = "uint"
+"pool.stable_supply"                  = "uint"
+"pool.reserve_buffer_assets"          = "uint"
+"pool.pending_redemption_assets"      = "uint"
+"pool.pending_redemption_count"       = "uint"
+"pool.effective_collateral_ratio_bps" = "uint"
+"pool.cumulative_hedge_loss_bps"      = "uint"
+"position.collateral_deposited"   = "uint"
+"position.stable_minted"          = "uint"
+"position.pending_redeem_assets"  = "uint"
+"position.claimable_collateral"   = "uint"
+"position.cumulative_claimed"     = "uint"
+
+# `no_hedge_loss_during_healthy_run` — mirror of the shipping adapter's
+# invariant. Fires on the first tick at or after the scheduled
+# hedge-loss (`cumulative_hedge_loss_bps > 0`). Proves the depeg half
+# of the claim.
+#
+# `full_backing` — replay-scoped floor invariant. Fires on the first
+# tick where `effective_collateral_ratio_bps` drops below the
+# nominal 10_000-bps full-backing line. Proves the under-backed half
+# of the claim. Scoped to the replay fixture because the shipping
+# adapter's generic zero-byte bootstrap would false-fire it at tick 0;
+# here the initial-state bootstrap explicitly initializes the pool
+# with a fully-backed 7_500 stable-supply against 10_000 collateral
+# (ratio = 13_333 bps), so the floor crossing is unambiguous.
+#
+# `no_redemption_queue_formation` — replay-scoped invariant. Fires on
+# the first tick where the redemption queue accumulates a non-zero
+# account count (`pool.pending_redemption_count > 0`). Proves the
+# redemption-run half of the claim — reserve was sufficient at tick 0
+# but a panic cohort overruns it post-haircut. Scoped to the replay
+# fixture so the shipping adapter's one-tick boot gate stays free of
+# queue-related firings on the smoke-personas path.
+
+[[invariants]]
+name = "no_hedge_loss_during_healthy_run"
+field = "pool.cumulative_hedge_loss_bps"
+op = "=="
+value = 0
+
+[[invariants]]
+name = "full_backing"
+field = "pool.effective_collateral_ratio_bps"
+op = ">="
+value = 10000
+
+[[invariants]]
+name = "no_redemption_queue_formation"
+field = "pool.pending_redemption_count"
+op = "=="
+value = 0
+
+[[oracles]]
+name = "stablecoin_nav_feed"
+kind = "admin-mock"
+account = "oracle"
+base_price = 1.0
+exponent = -2
+
+# Replay mode bypasses persona compilation, but the generic adapter
+# loader still requires at least one declared persona. Ship a single
+# `replay` persona with zero action weights — every instruction the
+# replay dispatches comes from `trajectory.json`, never from a
+# persona-side weight draw.
+[personas.replay]
+label = "Replay"
+action_rate_multiplier = 0.0
+action_weights = { deposit_collateral = 0.0, mint_stable = 0.0, request_redeem = 0.0, claim_redeem = 0.0 }
+triggers = []

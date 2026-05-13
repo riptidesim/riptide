@@ -1,0 +1,6 @@
+{
+  "adapter": "fixtures/adapters/stablecoin.toml",
+  "slug": "redemption-run-sweep",
+  "failure_mode": "redemption_run",
+  "rationale": "Midpoint (redemption share 0.50 = 10 redemption-heavy agents of 20) of a redemption-run sweep {0.25, 0.50, 0.75} against a mixed 20-agent population (5 cautious-minter + 5 leverage-looper + 7 panic-redeemer + 3 arb-redeemer). Classification flagged redemption_run because the IDL declares request_redeem + claim_redeem as distinct instructions, the adapter observes pool.reserve_buffer_assets + pool.pending_redemption_assets + pool.pending_redemption_count, and panic-redeemer + arb-redeemer together weight request_redeem heavily enough to outrun the 20%-reserve-fraction refill from deposit flow. reserve_buffer_exhaustion is cited as a secondary downstream mode per propose.md Rule 17 — the reserve drain is what forces claims onto the queue. Baseline scenario (no scheduled hedge-loss) so the queue forms from organic persona pressure alone; the named UXD-style collateral-cascade proof under fixtures/replays/ covers the hedge-loss path."
+}

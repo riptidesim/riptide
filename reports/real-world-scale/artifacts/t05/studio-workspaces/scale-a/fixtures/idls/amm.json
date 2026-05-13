@@ -1,0 +1,87 @@
+{
+  "version": "0.1.0",
+  "name": "amm",
+  "description": "Minimal constant-product AMM fork. Virtual u64 reserves, no SPL token mint, no oracle — price derives from reserves. The runtime (generic-primitive) dispatches all four instructions through the multi-arg builder: initialize_pool + add_liquidity (2 args) / remove_liquidity (1 arg) / swap (3 args). See fixtures/adapters/amm.toml for the adapter binding and fixtures/personas/*.toml for the persona library.",
+  "instructions": [
+    {
+      "name": "initialize_pool",
+      "discriminator": [0],
+      "accounts": [
+        { "name": "admin", "signer": true, "writable": false },
+        { "name": "pool", "signer": false, "writable": true },
+        { "name": "lp_position", "signer": false, "writable": true }
+      ],
+      "args": [
+        { "name": "initial_a", "type": "u64" },
+        { "name": "initial_b", "type": "u64" },
+        { "name": "fee_bps", "type": "u64" }
+      ]
+    },
+    {
+      "name": "add_liquidity",
+      "discriminator": [1],
+      "accounts": [
+        { "name": "owner", "signer": true, "writable": false },
+        { "name": "pool", "signer": false, "writable": true },
+        { "name": "lp_position", "signer": false, "writable": true }
+      ],
+      "args": [
+        { "name": "amount_a", "type": "u64" },
+        { "name": "amount_b", "type": "u64" }
+      ]
+    },
+    {
+      "name": "remove_liquidity",
+      "discriminator": [2],
+      "accounts": [
+        { "name": "owner", "signer": true, "writable": false },
+        { "name": "pool", "signer": false, "writable": true },
+        { "name": "lp_position", "signer": false, "writable": true }
+      ],
+      "args": [
+        { "name": "shares", "type": "u64" }
+      ]
+    },
+    {
+      "name": "swap",
+      "discriminator": [3],
+      "accounts": [
+        { "name": "trader", "signer": true, "writable": false },
+        { "name": "pool", "signer": false, "writable": true }
+      ],
+      "args": [
+        { "name": "amount_in", "type": "u64" },
+        { "name": "min_amount_out", "type": "u64" },
+        { "name": "direction", "type": "u64" }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "pool",
+      "fields": [
+        { "name": "is_initialized", "type": "bool" },
+        { "name": "admin", "type": "pubkey" },
+        { "name": "token_a_mint", "type": "pubkey" },
+        { "name": "token_b_mint", "type": "pubkey" },
+        { "name": "reserve_a", "type": "u64" },
+        { "name": "reserve_b", "type": "u64" },
+        { "name": "total_lp_supply", "type": "u64" },
+        { "name": "last_swap_price", "type": "u64" },
+        { "name": "cumulative_volume", "type": "u64" },
+        { "name": "cumulative_fees", "type": "u64" },
+        { "name": "fee_bps", "type": "u64" },
+        { "name": "k_last", "type": "u64" }
+      ]
+    },
+    {
+      "name": "lp_position",
+      "fields": [
+        { "name": "is_initialized", "type": "bool" },
+        { "name": "owner", "type": "pubkey" },
+        { "name": "pool", "type": "pubkey" },
+        { "name": "lp_shares", "type": "u64" }
+      ]
+    }
+  ]
+}

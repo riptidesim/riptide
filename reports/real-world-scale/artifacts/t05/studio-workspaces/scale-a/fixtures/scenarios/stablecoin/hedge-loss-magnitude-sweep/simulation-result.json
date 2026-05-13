@@ -1,0 +1,6496 @@
+{
+  "run_config": {
+    "agents": 20,
+    "ticks": 24,
+    "scenario": "baseline",
+    "seed": 28412426,
+    "personas": [
+      "cautious-minter",
+      "cautious-minter",
+      "cautious-minter",
+      "cautious-minter",
+      "cautious-minter",
+      "cautious-minter",
+      "cautious-minter",
+      "leverage-looper",
+      "leverage-looper",
+      "leverage-looper",
+      "leverage-looper",
+      "leverage-looper",
+      "leverage-looper",
+      "leverage-looper",
+      "panic-redeemer",
+      "panic-redeemer",
+      "panic-redeemer",
+      "panic-redeemer",
+      "arb-redeemer",
+      "arb-redeemer"
+    ],
+    "validator_url": "http://localhost:8899",
+    "output_path": "/home/ailton/Work/riptide/riptide/fixtures/scenarios/stablecoin/hedge-loss-magnitude-sweep"
+  },
+  "seed": 28412426,
+  "total_ticks": 24,
+  "timeseries": [
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 0,
+        "collateral_value": 0,
+        "collateralization_ratio": 0,
+        "hedge_gap_value": 0,
+        "liability_value": 0,
+        "peg_deviation_bps": 10000,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 0,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 0,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 0,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 0,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 0,
+      "tick": 0
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 90000,
+        "collateral_value": 9,
+        "collateralization_ratio": 10000,
+        "hedge_gap_value": 0,
+        "liability_value": 0,
+        "peg_deviation_bps": 0,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 9,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 10000,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 0,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 0.45,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 0,
+      "tick": 1
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 200000,
+        "collateral_value": 20,
+        "collateralization_ratio": 200000,
+        "hedge_gap_value": 0,
+        "liability_value": 1,
+        "peg_deviation_bps": 190000,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 20,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 200000,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 1,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 1,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 0.05,
+      "tick": 2
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 58000,
+        "collateral_value": 29,
+        "collateralization_ratio": 58000,
+        "hedge_gap_value": 0,
+        "liability_value": 5,
+        "peg_deviation_bps": 48000,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 29,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 58000,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 5,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 1.45,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 0.25,
+      "tick": 3
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 66666,
+        "collateral_value": 40,
+        "collateralization_ratio": 66666,
+        "hedge_gap_value": 0,
+        "liability_value": 6,
+        "peg_deviation_bps": 56666,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 40,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 66666,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 6,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 2,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 0.3,
+      "tick": 4
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 74285,
+        "collateral_value": 52,
+        "collateralization_ratio": 74285,
+        "hedge_gap_value": 0,
+        "liability_value": 7,
+        "peg_deviation_bps": 64285,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 52,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 74285,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 7,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 2.6,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 0.35,
+      "tick": 5
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 70000,
+        "collateral_value": 63,
+        "collateralization_ratio": 70000,
+        "hedge_gap_value": 0,
+        "liability_value": 9,
+        "peg_deviation_bps": 60000,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 63,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 70000,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 9,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 3.15,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 0.45,
+      "tick": 6
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 68181,
+        "collateral_value": 75,
+        "collateralization_ratio": 68181,
+        "hedge_gap_value": 0,
+        "liability_value": 11,
+        "peg_deviation_bps": 58181,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 75,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 68181,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 11,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 3.75,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 0.55,
+      "tick": 7
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 56666,
+        "collateral_value": 85,
+        "collateralization_ratio": 56666,
+        "hedge_gap_value": 0,
+        "liability_value": 15,
+        "peg_deviation_bps": 46666,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 85,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 56666,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 15,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 4.25,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 0.75,
+      "tick": 8
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 53333,
+        "collateral_value": 96,
+        "collateralization_ratio": 53333,
+        "hedge_gap_value": 0,
+        "liability_value": 18,
+        "peg_deviation_bps": 43333,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 96,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 53333,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 18,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 4.8,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 0.9,
+      "tick": 9
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 48181,
+        "collateral_value": 106,
+        "collateralization_ratio": 48181,
+        "hedge_gap_value": 0,
+        "liability_value": 22,
+        "peg_deviation_bps": 38181,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 106,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 48181,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 22,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 5.3,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 1.1,
+      "tick": 10
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 46400,
+        "collateral_value": 116,
+        "collateralization_ratio": 46400,
+        "hedge_gap_value": 0,
+        "liability_value": 25,
+        "peg_deviation_bps": 36400,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 116,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 46400,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 25,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 5.8,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 1.25,
+      "tick": 11
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 45000,
+        "collateral_value": 126,
+        "collateralization_ratio": 45000,
+        "hedge_gap_value": 0,
+        "liability_value": 28,
+        "peg_deviation_bps": 35000,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 126,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 45000,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 28,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 6.3,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 1.4,
+      "tick": 12
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 47586,
+        "collateral_value": 138,
+        "collateralization_ratio": 47586,
+        "hedge_gap_value": 0,
+        "liability_value": 29,
+        "peg_deviation_bps": 37586,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 138,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 47586,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 29,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 6.9,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 1.45,
+      "tick": 13
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 44242,
+        "collateral_value": 146,
+        "collateralization_ratio": 44242,
+        "hedge_gap_value": 0,
+        "liability_value": 33,
+        "peg_deviation_bps": 34242,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 146,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 44242,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 33,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 7.3,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 1.65,
+      "tick": 14
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 44857,
+        "collateral_value": 157,
+        "collateralization_ratio": 44857,
+        "hedge_gap_value": 0,
+        "liability_value": 35,
+        "peg_deviation_bps": 34857,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 157,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 44857,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 35,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 7.85,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 1.75,
+      "tick": 15
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 44210,
+        "collateral_value": 168,
+        "collateralization_ratio": 44210,
+        "hedge_gap_value": 0,
+        "liability_value": 38,
+        "peg_deviation_bps": 34210,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 168,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 44210,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 38,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 8.4,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 1.9,
+      "tick": 16
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 44750,
+        "collateral_value": 179,
+        "collateralization_ratio": 44750,
+        "hedge_gap_value": 0,
+        "liability_value": 40,
+        "peg_deviation_bps": 34750,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 179,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 44750,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 40,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 8.95,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 2,
+      "tick": 17
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 44186,
+        "collateral_value": 190,
+        "collateralization_ratio": 44186,
+        "hedge_gap_value": 0,
+        "liability_value": 43,
+        "peg_deviation_bps": 34186,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 190,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 44186,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 43,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 9.5,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 2.15,
+      "tick": 18
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 43695,
+        "collateral_value": 201,
+        "collateralization_ratio": 43695,
+        "hedge_gap_value": 0,
+        "liability_value": 46,
+        "peg_deviation_bps": 33695,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 201,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 43695,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 46,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 10.05,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 2.3,
+      "tick": 19
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 45319,
+        "collateral_value": 213,
+        "collateralization_ratio": 45319,
+        "hedge_gap_value": 0,
+        "liability_value": 47,
+        "peg_deviation_bps": 35319,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 213,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 45319,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 47,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 10.65,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 2.35,
+      "tick": 20
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 43529,
+        "collateral_value": 222,
+        "collateralization_ratio": 43529,
+        "hedge_gap_value": 0,
+        "liability_value": 51,
+        "peg_deviation_bps": 33529,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 222,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 43529,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 51,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 11.1,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 2.55,
+      "tick": 21
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 42000,
+        "collateral_value": 231,
+        "collateralization_ratio": 42000,
+        "hedge_gap_value": 0,
+        "liability_value": 55,
+        "peg_deviation_bps": 32000,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 231,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 42000,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 55,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 11.55,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 2.75,
+      "tick": 22
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 40677,
+        "collateral_value": 240,
+        "collateralization_ratio": 40677,
+        "hedge_gap_value": 0,
+        "liability_value": 59,
+        "peg_deviation_bps": 30677,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 240,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 40677,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 59,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 12,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 2.95,
+      "tick": 23
+    },
+    {
+      "active_agents": 20,
+      "derived_observations": {
+        "backing_ratio": 38750,
+        "collateral_value": 248,
+        "collateralization_ratio": 38750,
+        "hedge_gap_value": 0,
+        "liability_value": 64,
+        "peg_deviation_bps": 28750,
+        "redemption_coverage_ratio": 0,
+        "redemption_pressure": 0
+      },
+      "pool.collateral_assets": 248,
+      "pool.cumulative_hedge_loss_bps": 0,
+      "pool.effective_collateral_ratio_bps": 38750,
+      "pool.pending_redemption_assets": 0,
+      "pool.pending_redemption_count": 0,
+      "pool.reserve_buffer_assets": 0,
+      "pool.stable_supply": 64,
+      "position.claimable_collateral": 0,
+      "position.collateral_deposited": 12.4,
+      "position.cumulative_claimed": 0,
+      "position.pending_redeem_assets": 0,
+      "position.stable_minted": 3.2,
+      "tick": 24
+    }
+  ],
+  "events": [
+    {
+      "tick": 1,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 21,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 22,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 23,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "deposit_collateral",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "action": "mint_stable",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    },
+    {
+      "tick": 24,
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "action": "request_redeem",
+      "params": {
+        "amount": 1
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(5))"
+    }
+  ],
+  "agents": [
+    {
+      "agent_id": "agent-001",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 24,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-002",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 24,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-003",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 24,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-004",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 24,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-005",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 24,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-006",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 24,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-007",
+      "persona_id": "cautious-minter",
+      "persona_label": "Cautious minter",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 24,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-008",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 20,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-009",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 18,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-010",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 22,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-011",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 16,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-012",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 24,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-013",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 23,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-014",
+      "persona_id": "leverage-looper",
+      "persona_label": "Leverage looper",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 21,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-015",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-016",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-017",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-018",
+      "persona_id": "panic-redeemer",
+      "persona_label": "Panic redeemer",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-019",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-020",
+      "persona_id": "arb-redeemer",
+      "persona_label": "Arb redeemer",
+      "status": "active",
+      "final_balance": 20000,
+      "pnl": 0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    }
+  ],
+  "summary": {
+    "agents_active": 20,
+    "agents_depleted": 0,
+    "agents_liquidated": 0,
+    "expression_invariants": [
+      {
+        "name": "collateral_value_covers_liability_value",
+        "expr": "collateral_value >= liability_value",
+        "severity": "warn",
+        "first_tick": null,
+        "firing_count": 0,
+        "observed": [],
+        "first_fired_tick": null,
+        "firings": 0
+      },
+      {
+        "name": "redemptions_within_collateral_value",
+        "expr": "redemption_queue.pending_redemption_assets <= collateral_value",
+        "severity": "warn",
+        "first_tick": null,
+        "firing_count": 0,
+        "observed": [],
+        "first_fired_tick": null,
+        "firings": 0
+      },
+      {
+        "name": "hedge_gap_within_collateral_value",
+        "expr": "hedge_gap_value <= collateral_value",
+        "severity": "warn",
+        "first_tick": null,
+        "firing_count": 0,
+        "observed": [],
+        "first_fired_tick": null,
+        "firings": 0
+      }
+    ],
+    "invariants_fired": [
+      {
+        "name": "no_hedge_loss_during_healthy_run",
+        "field": "pool.cumulative_hedge_loss_bps",
+        "op": "==",
+        "value": 0,
+        "firings": 0
+      },
+      {
+        "name": "collateral_ratio_bounded",
+        "field": "pool.effective_collateral_ratio_bps",
+        "op": "<=",
+        "value": 1000000,
+        "firings": 0
+      }
+    ],
+    "pool.collateral_assets_avg": 126,
+    "pool.collateral_assets_max": 248,
+    "pool.collateral_assets_min": 0,
+    "pool.cumulative_hedge_loss_bps_avg": 0,
+    "pool.cumulative_hedge_loss_bps_max": 0,
+    "pool.cumulative_hedge_loss_bps_min": 0,
+    "pool.effective_collateral_ratio_bps_avg": 52820.52,
+    "pool.effective_collateral_ratio_bps_max": 200000,
+    "pool.effective_collateral_ratio_bps_min": 0,
+    "pool.pending_redemption_assets_avg": 0,
+    "pool.pending_redemption_assets_max": 0,
+    "pool.pending_redemption_assets_min": 0,
+    "pool.pending_redemption_count_avg": 0,
+    "pool.pending_redemption_count_max": 0,
+    "pool.pending_redemption_count_min": 0,
+    "pool.reserve_buffer_assets_avg": 0,
+    "pool.reserve_buffer_assets_max": 0,
+    "pool.reserve_buffer_assets_min": 0,
+    "pool.stable_supply_avg": 27.48,
+    "pool.stable_supply_max": 64,
+    "pool.stable_supply_min": 0,
+    "position.claimable_collateral_avg": 0,
+    "position.claimable_collateral_max": 0,
+    "position.claimable_collateral_min": 0,
+    "position.collateral_deposited_avg": 6.3,
+    "position.collateral_deposited_max": 12.4,
+    "position.collateral_deposited_min": 0,
+    "position.cumulative_claimed_avg": 0,
+    "position.cumulative_claimed_max": 0,
+    "position.cumulative_claimed_min": 0,
+    "position.pending_redeem_assets_avg": 0,
+    "position.pending_redeem_assets_max": 0,
+    "position.pending_redeem_assets_min": 0,
+    "position.stable_minted_avg": 1.374,
+    "position.stable_minted_max": 3.2,
+    "position.stable_minted_min": 0
+  },
+  "semantics": {
+    "class": "stablecoin.v1",
+    "roles_bound": [
+      {
+        "role_name": "backing_module",
+        "source": "account.pool"
+      },
+      {
+        "role_name": "collateral_pool",
+        "source": "account.pool"
+      },
+      {
+        "role_name": "liabilities",
+        "source": "account.pool"
+      },
+      {
+        "role_name": "oracle",
+        "source": "account.pool"
+      },
+      {
+        "role_name": "peg_config",
+        "source": "account.pool"
+      },
+      {
+        "role_name": "redemption_queue",
+        "source": "account.pool"
+      }
+    ],
+    "derived_observation_definitions": [
+      {
+        "name": "backing_ratio",
+        "expr": "collateral_value * 10000 / max(liability_value, 1)"
+      },
+      {
+        "name": "collateral_value",
+        "expr": "collateral_pool.collateral_assets"
+      },
+      {
+        "name": "collateralization_ratio",
+        "expr": "collateral_pool.effective_collateral_ratio_bps"
+      },
+      {
+        "name": "hedge_gap_value",
+        "expr": "collateral_pool.collateral_assets * backing_module.cumulative_hedge_loss_bps / 10000"
+      },
+      {
+        "name": "liability_value",
+        "expr": "liabilities.stable_supply"
+      },
+      {
+        "name": "peg_deviation_bps",
+        "expr": "max(10000, peg_config.effective_collateral_ratio_bps) - min(10000, peg_config.effective_collateral_ratio_bps)"
+      },
+      {
+        "name": "redemption_coverage_ratio",
+        "expr": "backing_module.reserve_buffer_assets * 10000 / max(redemption_queue.pending_redemption_assets, 1)"
+      },
+      {
+        "name": "redemption_pressure",
+        "expr": "redemption_queue.pending_redemption_assets * 10000 / max(liability_value, 1)"
+      }
+    ]
+  },
+  "simulation_boundaries": [
+    "In-process LiteSVM backend (no external validator).",
+    "Generic adapters expose only adapter-defined actions/observations; no default TVL/health semantics are inferred.",
+    "Pool-wide TVL/utilization metrics are zeroed on the generic path until a protocol-specific aggregate is declared.",
+    "Custom actions do not mutate engine cash/PnL by default; only on-chain account observations are authoritative."
+  ]
+}

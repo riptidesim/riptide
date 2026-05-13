@@ -1,0 +1,33 @@
+# Stablecoin persona — leverage looper.
+#
+# Standalone TOML fragment. Canonical reviewer-inspection source for
+# the persona mirrored inline into `fixtures/adapters/stablecoin.toml`
+# above that file's `# === SIDECAR-CUT ===` marker. A future
+# bare-adapter scratch harness that wants to compose an adapter from
+# scratch (not from the shipping adapter) can concatenate this file
+# alongside its siblings; it must NOT be appended to the shipping
+# adapter, which already carries the same persona inline and would
+# fail to load with a duplicate-key error.
+#
+# High-rate, deposit+mint-balanced. Represents the yield-seeking
+# minter who keeps pressing the mint side of the pool to maximize
+# outstanding stable liability against deposited collateral. The
+# persona does not loop *on-chain* (that would require per-call
+# compounded deposits the generic runtime does not encode in a
+# single tick), but the high deposit+mint weighting simulates a
+# population of loopers whose net effect is the same at the pool
+# level: `stable_supply` rises alongside `collateral_assets` and
+# `effective_collateral_ratio_bps` hugs the 10_000-bps floor.
+#
+# `action_rate_multiplier = 1.5` mirrors liquid-staking's yield-maxi.
+# A modest `claim_redeem` trigger on pending-queue sweeps mops up
+# any claimable balance the looper accumulates during a stress path —
+# a looper with idle claimable units drifts away from its target mint
+# ratio, so claim pressure is realistic even for this persona.
+[personas.leverage-looper]
+label = "Leverage looper"
+action_rate_multiplier = 1.5
+action_weights = { deposit_collateral = 0.45, mint_stable = 0.45, request_redeem = 0.05, claim_redeem = 0.05 }
+triggers = [
+  { if = "pool.pending_redemption_count > 0", then = "claim_redeem", weight_boost = 1.5 },
+]

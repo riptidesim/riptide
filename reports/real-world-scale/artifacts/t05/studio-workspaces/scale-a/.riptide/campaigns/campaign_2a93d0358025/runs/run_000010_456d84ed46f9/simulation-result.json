@@ -1,0 +1,5348 @@
+{
+  "run_config": {
+    "agents": 20,
+    "ticks": 20,
+    "scenario": "price-shock",
+    "seed": 1246742233,
+    "personas": [
+      "whale",
+      "whale",
+      "whale",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp",
+      "steady-lp"
+    ],
+    "validator_url": "unused",
+    "output_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000010_456d84ed46f9"
+  },
+  "seed": 1246742233,
+  "total_ticks": 20,
+  "timeseries": [
+    {
+      "active_agents": 20,
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 100,
+      "tick": 0,
+      "tvl": 2000,
+      "utilization": 0
+    },
+    {
+      "active_agents": 20,
+      "collection_observations": {
+        "worst_health_factor": 10000
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 10000,
+        "debt_value": 0,
+        "health_factor": 8000,
+        "liquidation_threshold_value": 8000,
+        "max_borrow_value": 7000,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 100.18198509527775,
+      "tick": 1,
+      "tvl": 3105,
+      "utilization": 0.7729468599033816
+    },
+    {
+      "active_agents": 20,
+      "collection_observations": {
+        "worst_health_factor": 6
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 10000,
+        "debt_value": 1600,
+        "health_factor": 5,
+        "liquidation_threshold_value": 8000,
+        "max_borrow_value": 7000,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 99.83454684497389,
+      "tick": 2,
+      "tvl": 3105,
+      "utilization": 1.5458937198067633
+    },
+    {
+      "active_agents": 20,
+      "collection_observations": {
+        "worst_health_factor": 4
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 10000,
+        "debt_value": 2400,
+        "health_factor": 3,
+        "liquidation_threshold_value": 8000,
+        "max_borrow_value": 7000,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 99.99726939549944,
+      "tick": 3,
+      "tvl": 3105,
+      "utilization": 2.318840579710145
+    },
+    {
+      "active_agents": 20,
+      "collection_observations": {
+        "worst_health_factor": 16500
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 16500,
+        "debt_value": 0,
+        "health_factor": 13200,
+        "liquidation_threshold_value": 13200,
+        "max_borrow_value": 11550,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 100.0145368836881,
+      "tick": 4,
+      "tvl": 2000,
+      "utilization": 4.8
+    },
+    {
+      "active_agents": 20,
+      "collection_observations": {
+        "worst_health_factor": 10000
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 10000,
+        "debt_value": 0,
+        "health_factor": 8000,
+        "liquidation_threshold_value": 8000,
+        "max_borrow_value": 7000,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 100.02673618159803,
+      "tick": 5,
+      "tvl": 3105,
+      "utilization": 3.864734299516908
+    },
+    {
+      "active_agents": 20,
+      "collection_observations": {
+        "worst_health_factor": 16500
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 16500,
+        "debt_value": 0,
+        "health_factor": 13200,
+        "liquidation_threshold_value": 13200,
+        "max_borrow_value": 11550,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 100.03601419189607,
+      "tick": 6,
+      "tvl": 2000,
+      "utilization": 7.2
+    },
+    {
+      "active_agents": 20,
+      "collection_observations": {
+        "worst_health_factor": 1
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 10000,
+        "debt_value": 5600,
+        "health_factor": 1,
+        "liquidation_threshold_value": 8000,
+        "max_borrow_value": 7000,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 99.9238213925907,
+      "tick": 7,
+      "tvl": 2000,
+      "utilization": 8.4
+    },
+    {
+      "active_agents": 20,
+      "collection_observations": {
+        "worst_health_factor": 1
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 10000,
+        "debt_value": 6400,
+        "health_factor": 1,
+        "liquidation_threshold_value": 8000,
+        "max_borrow_value": 7000,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 99.76196372287734,
+      "tick": 8,
+      "tvl": 2000,
+      "utilization": 9.6
+    },
+    {
+      "active_agents": 20,
+      "collection_observations": {
+        "worst_health_factor": 10000
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 10000,
+        "debt_value": 0,
+        "health_factor": 8000,
+        "liquidation_threshold_value": 8000,
+        "max_borrow_value": 7000,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 100.03168291915479,
+      "tick": 9,
+      "tvl": 3105,
+      "utilization": 6.183574879227053
+    },
+    {
+      "active_agents": 17,
+      "collection_observations": {
+        "worst_health_factor": 0
+      },
+      "cumulative_bad_debt": 2160,
+      "cumulative_liquidations": 3,
+      "derived_observations": {
+        "collateral_value": 0,
+        "debt_value": 0,
+        "health_factor": 0,
+        "liquidation_threshold_value": 0,
+        "max_borrow_value": 0,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 59.94847931747189,
+      "tick": 10,
+      "tvl": 3105,
+      "utilization": 0
+    },
+    {
+      "active_agents": 17,
+      "collection_observations": {
+        "worst_health_factor": 9900
+      },
+      "cumulative_bad_debt": 2160,
+      "cumulative_liquidations": 3,
+      "derived_observations": {
+        "collateral_value": 9900,
+        "debt_value": 0,
+        "health_factor": 7920,
+        "liquidation_threshold_value": 7920,
+        "max_borrow_value": 6930,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 60.066630483778056,
+      "tick": 11,
+      "tvl": 1269,
+      "utilization": 0
+    },
+    {
+      "active_agents": 17,
+      "collection_observations": {
+        "worst_health_factor": 3420
+      },
+      "cumulative_bad_debt": 2160,
+      "cumulative_liquidations": 3,
+      "derived_observations": {
+        "collateral_value": 3420,
+        "debt_value": 0,
+        "health_factor": 2736,
+        "liquidation_threshold_value": 2736,
+        "max_borrow_value": 2394,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 59.85655919554752,
+      "tick": 12,
+      "tvl": 2468,
+      "utilization": 0
+    },
+    {
+      "active_agents": 17,
+      "collection_observations": {
+        "worst_health_factor": 9960
+      },
+      "cumulative_bad_debt": 2160,
+      "cumulative_liquidations": 3,
+      "derived_observations": {
+        "collateral_value": 9960,
+        "debt_value": 0,
+        "health_factor": 7968,
+        "liquidation_threshold_value": 7968,
+        "max_borrow_value": 6972,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 59.93498054514202,
+      "tick": 13,
+      "tvl": 1280,
+      "utilization": 0
+    },
+    {
+      "active_agents": 17,
+      "collection_observations": {
+        "worst_health_factor": 3480
+      },
+      "cumulative_bad_debt": 2160,
+      "cumulative_liquidations": 3,
+      "derived_observations": {
+        "collateral_value": 3480,
+        "debt_value": 0,
+        "health_factor": 2784,
+        "liquidation_threshold_value": 2784,
+        "max_borrow_value": 2436,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 60.00282813468822,
+      "tick": 14,
+      "tvl": 3116,
+      "utilization": 0
+    },
+    {
+      "active_agents": 17,
+      "collection_observations": {
+        "worst_health_factor": 9960
+      },
+      "cumulative_bad_debt": 2160,
+      "cumulative_liquidations": 3,
+      "derived_observations": {
+        "collateral_value": 9960,
+        "debt_value": 0,
+        "health_factor": 7968,
+        "liquidation_threshold_value": 7968,
+        "max_borrow_value": 6972,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 60.1048655800899,
+      "tick": 15,
+      "tvl": 1280,
+      "utilization": 0
+    },
+    {
+      "active_agents": 17,
+      "collection_observations": {
+        "worst_health_factor": 3480
+      },
+      "cumulative_bad_debt": 2160,
+      "cumulative_liquidations": 3,
+      "derived_observations": {
+        "collateral_value": 3480,
+        "debt_value": 0,
+        "health_factor": 2784,
+        "liquidation_threshold_value": 2784,
+        "max_borrow_value": 2436,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 59.92912261400304,
+      "tick": 16,
+      "tvl": 3116,
+      "utilization": 0
+    },
+    {
+      "active_agents": 17,
+      "collection_observations": {
+        "worst_health_factor": 9960
+      },
+      "cumulative_bad_debt": 2160,
+      "cumulative_liquidations": 3,
+      "derived_observations": {
+        "collateral_value": 9960,
+        "debt_value": 0,
+        "health_factor": 7968,
+        "liquidation_threshold_value": 7968,
+        "max_borrow_value": 6972,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 59.932755027714364,
+      "tick": 17,
+      "tvl": 1280,
+      "utilization": 0
+    },
+    {
+      "active_agents": 17,
+      "collection_observations": {
+        "worst_health_factor": 3480
+      },
+      "cumulative_bad_debt": 2160,
+      "cumulative_liquidations": 3,
+      "derived_observations": {
+        "collateral_value": 3480,
+        "debt_value": 0,
+        "health_factor": 2784,
+        "liquidation_threshold_value": 2784,
+        "max_borrow_value": 2436,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 60.0414254730599,
+      "tick": 18,
+      "tvl": 3116,
+      "utilization": 0
+    },
+    {
+      "active_agents": 17,
+      "collection_observations": {
+        "worst_health_factor": 9960
+      },
+      "cumulative_bad_debt": 2160,
+      "cumulative_liquidations": 3,
+      "derived_observations": {
+        "collateral_value": 9960,
+        "debt_value": 0,
+        "health_factor": 7968,
+        "liquidation_threshold_value": 7968,
+        "max_borrow_value": 6972,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 60.04876752249718,
+      "tick": 19,
+      "tvl": 1280,
+      "utilization": 0
+    },
+    {
+      "active_agents": 17,
+      "collection_observations": {
+        "worst_health_factor": 3480
+      },
+      "cumulative_bad_debt": 2160,
+      "cumulative_liquidations": 3,
+      "derived_observations": {
+        "collateral_value": 3480,
+        "debt_value": 0,
+        "health_factor": 2784,
+        "liquidation_threshold_value": 2784,
+        "max_borrow_value": 2436,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 60.083338181718226,
+      "tick": 20,
+      "tvl": 3116,
+      "utilization": 0
+    }
+  ],
+  "events": [
+    {
+      "tick": 1,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-002",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-003",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-002",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-003",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-002",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-003",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-002",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-003",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-002",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-003",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-002",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-003",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-002",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-003",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 7,
+      "agent_id": "__engine__",
+      "persona_id": "expression_invariant",
+      "persona_label": "expression_invariant",
+      "action": "expression_invariant_fire:collection_worst_health_factor",
+      "params": {
+        "expr": "collection.worst_health_factor > 1.0",
+        "name": "collection_worst_health_factor",
+        "observed": {
+          "collection.worst_health_factor": 1
+        },
+        "severity": "warn",
+        "tick": 7
+      },
+      "outcome": "success",
+      "outcome_detail": "expression invariant `collection_worst_health_factor` fired with severity warn"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-002",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-003",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(7))",
+      "program_error": {
+        "code": 7,
+        "label": "position_healthy",
+        "interpretation": "The position is healthy and cannot be liquidated."
+      }
+    },
+    {
+      "tick": 8,
+      "agent_id": "__engine__",
+      "persona_id": "expression_invariant",
+      "persona_label": "expression_invariant",
+      "action": "expression_invariant_fire:collection_worst_health_factor",
+      "params": {
+        "expr": "collection.worst_health_factor > 1.0",
+        "name": "collection_worst_health_factor",
+        "observed": {
+          "collection.worst_health_factor": 1
+        },
+        "severity": "warn",
+        "tick": 8
+      },
+      "outcome": "success",
+      "outcome_detail": "expression invariant `collection_worst_health_factor` fired with severity warn"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))",
+      "program_error": {
+        "code": 8,
+        "label": "insufficient_collateral",
+        "interpretation": "Borrow or withdraw exceeded the position collateral constraint."
+      }
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-002",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))",
+      "program_error": {
+        "code": 8,
+        "label": "insufficient_collateral",
+        "interpretation": "Borrow or withdraw exceeded the position collateral constraint."
+      }
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-003",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))",
+      "program_error": {
+        "code": 8,
+        "label": "insufficient_collateral",
+        "interpretation": "Borrow or withdraw exceeded the position collateral constraint."
+      }
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))",
+      "program_error": {
+        "code": 8,
+        "label": "insufficient_collateral",
+        "interpretation": "Borrow or withdraw exceeded the position collateral constraint."
+      }
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-002",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))",
+      "program_error": {
+        "code": 8,
+        "label": "insufficient_collateral",
+        "interpretation": "Borrow or withdraw exceeded the position collateral constraint."
+      }
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-003",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "action": "borrow",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "failed",
+      "outcome_detail": "InstructionError(0, Custom(8))",
+      "program_error": {
+        "code": 8,
+        "label": "insufficient_collateral",
+        "interpretation": "Borrow or withdraw exceeded the position collateral constraint."
+      }
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "liquidate",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "skipped",
+      "outcome_detail": "no liquidation target"
+    },
+    {
+      "tick": 10,
+      "agent_id": "__engine__",
+      "persona_id": "expression_invariant",
+      "persona_label": "expression_invariant",
+      "action": "expression_invariant_fire:collection_worst_health_factor",
+      "params": {
+        "expr": "collection.worst_health_factor > 1.0",
+        "name": "collection_worst_health_factor",
+        "observed": {
+          "collection.worst_health_factor": 0
+        },
+        "severity": "warn",
+        "tick": 10
+      },
+      "outcome": "success",
+      "outcome_detail": "expression invariant `collection_worst_health_factor` fired with severity warn"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 11,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 12,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 13,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 14,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 15,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 16,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 17,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 18,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 19,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "withdraw",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 20,
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 6500
+      },
+      "outcome": "success"
+    }
+  ],
+  "agents": [
+    {
+      "agent_id": "agent-001",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "status": "liquidated",
+      "final_balance": 16400,
+      "pnl": -3600,
+      "total_actions": 8,
+      "triggers_activated": 0,
+      "liquidated_at_tick": 10
+    },
+    {
+      "agent_id": "agent-002",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "status": "liquidated",
+      "final_balance": 16400,
+      "pnl": -3600,
+      "total_actions": 8,
+      "triggers_activated": 0,
+      "liquidated_at_tick": 10
+    },
+    {
+      "agent_id": "agent-003",
+      "persona_id": "whale",
+      "persona_label": "Whale",
+      "status": "liquidated",
+      "final_balance": 16400,
+      "pnl": -3600,
+      "total_actions": 8,
+      "triggers_activated": 0,
+      "liquidated_at_tick": 10
+    },
+    {
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 15923.789188158848,
+      "pnl": -4076.2108118411525,
+      "total_actions": 16,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-005",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 15923.789188158848,
+      "pnl": -4076.2108118411525,
+      "total_actions": 16,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-006",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 15923.789188158848,
+      "pnl": -4076.2108118411525,
+      "total_actions": 16,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-007",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-008",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-009",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-010",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-011",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-012",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-013",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-014",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-015",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-016",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-017",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-018",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-019",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-020",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 13420.50748664276,
+      "pnl": -6579.49251335724,
+      "total_actions": 15,
+      "triggers_activated": 0
+    }
+  ],
+  "summary": {
+    "agents_active": 17,
+    "agents_depleted": 0,
+    "agents_liquidated": 3,
+    "expression_invariants": [
+      {
+        "name": "bad_debt_bound",
+        "expr": "debt_value <= collateral_value",
+        "severity": "warn",
+        "first_tick": null,
+        "firing_count": 0,
+        "observed": [],
+        "first_fired_tick": null,
+        "firings": 0
+      },
+      {
+        "name": "ltv_below_max",
+        "expr": "debt_value <= max_borrow_value",
+        "severity": "warn",
+        "first_tick": null,
+        "firing_count": 0,
+        "observed": [],
+        "first_fired_tick": null,
+        "firings": 0
+      },
+      {
+        "name": "collection_worst_health_factor",
+        "expr": "collection.worst_health_factor > 1.0",
+        "severity": "warn",
+        "first_tick": 7,
+        "firing_count": 3,
+        "observed": [
+          {
+            "tick": 7,
+            "values": {
+              "collection.worst_health_factor": 1
+            }
+          },
+          {
+            "tick": 8,
+            "values": {
+              "collection.worst_health_factor": 1
+            }
+          },
+          {
+            "tick": 10,
+            "values": {
+              "collection.worst_health_factor": 0
+            }
+          }
+        ],
+        "first_fired_tick": 7,
+        "firings": 3
+      }
+    ],
+    "final_tvl": 3116,
+    "final_utilization": 0,
+    "largest_single_tick_drawdown": 0.4007050809499825,
+    "total_bad_debt": 2160,
+    "total_liquidations": 3
+  },
+  "semantics": {
+    "class": "lending.v1",
+    "roles_bound": [
+      {
+        "role_name": "liquidation_config",
+        "source": "account.reserve"
+      },
+      {
+        "role_name": "oracle",
+        "source": "account.oracle"
+      },
+      {
+        "role_name": "position",
+        "source": "instruction.deposit_or_borrow"
+      },
+      {
+        "role_name": "reserve",
+        "source": "account.reserve"
+      },
+      {
+        "role_name": "usdc",
+        "source": "account.oracle"
+      }
+    ],
+    "derived_observation_definitions": [
+      {
+        "name": "collateral_value",
+        "expr": "position.collateral_amount * reserve.collateral_price"
+      },
+      {
+        "name": "debt_value",
+        "expr": "position.debt_amount"
+      },
+      {
+        "name": "health_factor",
+        "expr": "liquidation_threshold_value / max(debt_value, 1)"
+      },
+      {
+        "name": "liquidation_threshold_value",
+        "expr": "collateral_value * liquidation_config.liquidation_threshold_bps / 10000"
+      },
+      {
+        "name": "max_borrow_value",
+        "expr": "collateral_value * reserve.max_ltv_bps / 10000"
+      }
+    ]
+  },
+  "simulation_boundaries": [
+    "In-process LiteSVM backend (no external validator).",
+    "No slippage, fees, or MEV modeled.",
+    "Oracle prices are scenario-driven, not external feeds.",
+    "Agents funded via deterministic airdrop, not realistic onboarding."
+  ]
+}

@@ -1,0 +1,185 @@
+{
+  "schema_version": "campaign-retention-manifest.v1",
+  "campaign_id": "campaign_2a93d0358025",
+  "campaign_digest": "2a93d03580255a41454b9b05a87dd34c30981447ed7f787d420ffda8ebf51581",
+  "campaign_name": "solend-shape-liquidation-safety",
+  "class": "lending.v1",
+  "risk_objective": "liquidation-safety",
+  "requested_labels": [
+    "first_failure",
+    "worst_bad_debt",
+    "worst_liquidity",
+    "median",
+    "surprising_outlier"
+  ],
+  "entries": [
+    {
+      "label": "first_failure",
+      "status": "warning",
+      "warning": "no invariant failure tick was observed within this campaign"
+    },
+    {
+      "label": "worst_bad_debt",
+      "status": "selected",
+      "run_id": "run_000002_2465e1b314c3",
+      "run_index": 2,
+      "scenario_family": "whale_shock_grid",
+      "sampled_parameters": {
+        "shock_profile": "price-shock",
+        "whale_share_bps": 2953
+      },
+      "reason": "highest lending bad debt observed within this campaign",
+      "score": 4320,
+      "tie_breaker": null,
+      "risk_signals": {
+        "status": "pass",
+        "first_failure_tick": null,
+        "invariant_names": [],
+        "semantic_signal_names": [
+          "collection_worst_health_factor"
+        ],
+        "total_bad_debt": 4320,
+        "total_liquidations": 6,
+        "max_utilization": 16.8,
+        "min_tvl": 1384,
+        "min_available_liquidity": null,
+        "risk_score": 31120.722543
+      },
+      "rerun_command": "exec riptide run reports/real-world-scale/artifacts/t04/lending-campaign/campaign_2a93d0358025/runs/run_000002_2465e1b314c3/run-config.json",
+      "paths": {
+        "run_dir": "runs/run_000002_2465e1b314c3",
+        "run_config": "runs/run_000002_2465e1b314c3/run-config.json",
+        "metadata": "runs/run_000002_2465e1b314c3/metadata.json",
+        "case_dir": "retained/worst_bad_debt-run_000002_2465e1b314c3",
+        "case_manifest": "retained/worst_bad_debt-run_000002_2465e1b314c3/case.json",
+        "rerun_sh": "retained/worst_bad_debt-run_000002_2465e1b314c3/rerun.sh",
+        "simulation_result": "runs/run_000002_2465e1b314c3/simulation-result.json",
+        "report": "runs/run_000002_2465e1b314c3/report.md"
+      },
+      "case_digest": "963bb205f85e1edbdc851395a85e03a845611d25fe53ee9538d250e11a88b3b6"
+    },
+    {
+      "label": "worst_liquidity",
+      "status": "selected",
+      "run_id": "run_000002_2465e1b314c3",
+      "run_index": 2,
+      "scenario_family": "whale_shock_grid",
+      "sampled_parameters": {
+        "shock_profile": "price-shock",
+        "whale_share_bps": 2953
+      },
+      "reason": "highest utilization, then lowest TVL, observed within this campaign",
+      "score": 16.8,
+      "tie_breaker": null,
+      "risk_signals": {
+        "status": "pass",
+        "first_failure_tick": null,
+        "invariant_names": [],
+        "semantic_signal_names": [
+          "collection_worst_health_factor"
+        ],
+        "total_bad_debt": 4320,
+        "total_liquidations": 6,
+        "max_utilization": 16.8,
+        "min_tvl": 1384,
+        "min_available_liquidity": null,
+        "risk_score": 31120.722543
+      },
+      "rerun_command": "exec riptide run reports/real-world-scale/artifacts/t04/lending-campaign/campaign_2a93d0358025/runs/run_000002_2465e1b314c3/run-config.json",
+      "paths": {
+        "run_dir": "runs/run_000002_2465e1b314c3",
+        "run_config": "runs/run_000002_2465e1b314c3/run-config.json",
+        "metadata": "runs/run_000002_2465e1b314c3/metadata.json",
+        "case_dir": "retained/worst_liquidity-run_000002_2465e1b314c3",
+        "case_manifest": "retained/worst_liquidity-run_000002_2465e1b314c3/case.json",
+        "rerun_sh": "retained/worst_liquidity-run_000002_2465e1b314c3/rerun.sh",
+        "simulation_result": "runs/run_000002_2465e1b314c3/simulation-result.json",
+        "report": "runs/run_000002_2465e1b314c3/report.md"
+      },
+      "case_digest": "8b042fcac4e872f5166cbd8094813a37356151539256c3964e475a7f104ce495"
+    },
+    {
+      "label": "median",
+      "status": "selected",
+      "run_id": "run_000001_60f464f418c7",
+      "run_index": 1,
+      "scenario_family": "whale_share_sweep",
+      "sampled_parameters": {
+        "shock_profile": "price-shock",
+        "whale_share_bps": 2633
+      },
+      "reason": "middle completed run by deterministic campaign risk score",
+      "score": 29600.5,
+      "tie_breaker": null,
+      "risk_signals": {
+        "status": "pass",
+        "first_failure_tick": null,
+        "invariant_names": [],
+        "semantic_signal_names": [
+          "collection_worst_health_factor"
+        ],
+        "total_bad_debt": 3600,
+        "total_liquidations": 5,
+        "max_utilization": 16,
+        "min_tvl": 2000,
+        "min_available_liquidity": null,
+        "risk_score": 29600.5
+      },
+      "rerun_command": "exec riptide run reports/real-world-scale/artifacts/t04/lending-campaign/campaign_2a93d0358025/runs/run_000001_60f464f418c7/run-config.json",
+      "paths": {
+        "run_dir": "runs/run_000001_60f464f418c7",
+        "run_config": "runs/run_000001_60f464f418c7/run-config.json",
+        "metadata": "runs/run_000001_60f464f418c7/metadata.json",
+        "case_dir": "retained/median-run_000001_60f464f418c7",
+        "case_manifest": "retained/median-run_000001_60f464f418c7/case.json",
+        "rerun_sh": "retained/median-run_000001_60f464f418c7/rerun.sh",
+        "simulation_result": "runs/run_000001_60f464f418c7/simulation-result.json",
+        "report": "runs/run_000001_60f464f418c7/report.md"
+      },
+      "case_digest": "0c69d2aa46bdc9c28df9282c6767393bc09267761d1e6783eae8647f77a6c821"
+    },
+    {
+      "label": "surprising_outlier",
+      "status": "selected",
+      "run_id": "run_000000_2e458233cab5",
+      "run_index": 0,
+      "scenario_family": "oracle_lag_baseline",
+      "sampled_parameters": {
+        "shock_profile": "price-shock",
+        "oracle_lag_ticks": 2
+      },
+      "reason": "largest absolute distance from the median campaign risk score",
+      "score": 17121,
+      "tie_breaker": null,
+      "risk_signals": {
+        "status": "pass",
+        "first_failure_tick": null,
+        "invariant_names": [],
+        "semantic_signal_names": [
+          "collection_worst_health_factor"
+        ],
+        "total_bad_debt": 720,
+        "total_liquidations": 1,
+        "max_utilization": 6.4,
+        "min_tvl": 1000,
+        "min_available_liquidity": null,
+        "risk_score": 17121
+      },
+      "rerun_command": "exec riptide run reports/real-world-scale/artifacts/t04/lending-campaign/campaign_2a93d0358025/runs/run_000000_2e458233cab5/run-config.json",
+      "paths": {
+        "run_dir": "runs/run_000000_2e458233cab5",
+        "run_config": "runs/run_000000_2e458233cab5/run-config.json",
+        "metadata": "runs/run_000000_2e458233cab5/metadata.json",
+        "case_dir": "retained/surprising_outlier-run_000000_2e458233cab5",
+        "case_manifest": "retained/surprising_outlier-run_000000_2e458233cab5/case.json",
+        "rerun_sh": "retained/surprising_outlier-run_000000_2e458233cab5/rerun.sh",
+        "simulation_result": "runs/run_000000_2e458233cab5/simulation-result.json",
+        "report": "runs/run_000000_2e458233cab5/report.md"
+      },
+      "case_digest": "21fb66bfaec9d93afe895a222422acd1ee56ae1f87aa3c33b35c1b150493ba88"
+    }
+  ],
+  "warnings": [
+    "first_failure: no invariant failure tick was observed within this campaign"
+  ]
+}

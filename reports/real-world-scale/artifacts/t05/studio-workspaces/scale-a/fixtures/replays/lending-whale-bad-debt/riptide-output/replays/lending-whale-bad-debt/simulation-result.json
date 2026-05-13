@@ -1,0 +1,259 @@
+{
+  "run_config": {
+    "agents": 10,
+    "ticks": 4,
+    "scenario": "replay:lending-whale-bad-debt",
+    "seed": 0,
+    "personas": [],
+    "validator_url": "http://127.0.0.1:8899",
+    "output_path": "/home/ailton/Work/riptide/riptide/fixtures/replays/lending-whale-bad-debt/riptide-output/replays/lending-whale-bad-debt"
+  },
+  "seed": 0,
+  "total_ticks": 4,
+  "timeseries": [
+    {
+      "active_agents": 10,
+      "cumulative_bad_debt": 0.0,
+      "oracle_price": 100.0,
+      "tick": 0,
+      "tvl": 500.0,
+      "utilization": 64.0
+    },
+    {
+      "active_agents": 10,
+      "cumulative_bad_debt": 0.0,
+      "oracle_price": 92.0,
+      "tick": 1,
+      "tvl": 500.0,
+      "utilization": 64.0
+    },
+    {
+      "active_agents": 10,
+      "cumulative_bad_debt": 0.0,
+      "oracle_price": 84.0,
+      "tick": 2,
+      "tvl": 500.0,
+      "utilization": 64.0
+    },
+    {
+      "active_agents": 10,
+      "cumulative_bad_debt": 0.0,
+      "oracle_price": 72.0,
+      "tick": 3,
+      "tvl": 500.0,
+      "utilization": 64.0
+    },
+    {
+      "active_agents": 10,
+      "cumulative_bad_debt": 3600.0,
+      "oracle_price": 60.0,
+      "tick": 4,
+      "tvl": 500.0,
+      "utilization": 0.0
+    }
+  ],
+  "events": [
+    {
+      "tick": 4,
+      "agent_id": "otc-liquidator-0",
+      "persona_id": "otc-liquidator-0",
+      "persona_label": "otc-liquidator-0",
+      "action": "liquidate",
+      "params": {
+        "amount": 6400,
+        "target": "whale-0"
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "otc-liquidator-1",
+      "persona_id": "otc-liquidator-1",
+      "persona_label": "otc-liquidator-1",
+      "action": "liquidate",
+      "params": {
+        "amount": 6400,
+        "target": "whale-1"
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "otc-liquidator-2",
+      "persona_id": "otc-liquidator-2",
+      "persona_label": "otc-liquidator-2",
+      "action": "liquidate",
+      "params": {
+        "amount": 6400,
+        "target": "whale-2"
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "otc-liquidator-3",
+      "persona_id": "otc-liquidator-3",
+      "persona_label": "otc-liquidator-3",
+      "action": "liquidate",
+      "params": {
+        "amount": 6400,
+        "target": "whale-3"
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "otc-liquidator-4",
+      "persona_id": "otc-liquidator-4",
+      "persona_label": "otc-liquidator-4",
+      "action": "liquidate",
+      "params": {
+        "amount": 6400,
+        "target": "whale-4"
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "__engine__",
+      "persona_id": "invariant",
+      "persona_label": "invariant",
+      "action": "invariant_violation:no_bad_debt",
+      "params": {
+        "expected": 0.0,
+        "field": "bad_debt",
+        "index": 0,
+        "observed": 3600.0,
+        "op": "=="
+      },
+      "outcome": "failed",
+      "outcome_detail": "invariant `no_bad_debt`: 3600 == 0 (observed vs expected)"
+    }
+  ],
+  "agents": [
+    {
+      "agent_id": "otc-liquidator-0",
+      "persona_id": "otc-liquidator-0",
+      "persona_label": "otc-liquidator-0",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 1,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "otc-liquidator-1",
+      "persona_id": "otc-liquidator-1",
+      "persona_label": "otc-liquidator-1",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 1,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "otc-liquidator-2",
+      "persona_id": "otc-liquidator-2",
+      "persona_label": "otc-liquidator-2",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 1,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "otc-liquidator-3",
+      "persona_id": "otc-liquidator-3",
+      "persona_label": "otc-liquidator-3",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 1,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "otc-liquidator-4",
+      "persona_id": "otc-liquidator-4",
+      "persona_label": "otc-liquidator-4",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 1,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "whale-0",
+      "persona_id": "whale-0",
+      "persona_label": "whale-0",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "whale-1",
+      "persona_id": "whale-1",
+      "persona_label": "whale-1",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "whale-2",
+      "persona_id": "whale-2",
+      "persona_label": "whale-2",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "whale-3",
+      "persona_id": "whale-3",
+      "persona_label": "whale-3",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "whale-4",
+      "persona_id": "whale-4",
+      "persona_label": "whale-4",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    }
+  ],
+  "summary": {
+    "agents_active": 10,
+    "agents_depleted": 0,
+    "agents_liquidated": 0,
+    "final_tvl": 500.0,
+    "final_utilization": 0.0,
+    "invariants_fired": [
+      {
+        "field": "bad_debt",
+        "firings": 1,
+        "name": "no_bad_debt",
+        "op": "==",
+        "value": 0.0
+      }
+    ],
+    "largest_single_tick_drawdown": 0.16666666666666666,
+    "total_bad_debt": 3600.0
+  },
+  "simulation_boundaries": [
+    "Replay mode bypasses persona compilation and dispatches a declared instruction trajectory directly.",
+    "Trajectory args are supplied inline per event; generic adapters may still fall back to adapter literals for unmapped constants.",
+    "initial-state.json, when present, is applied as a pre-tick bootstrap instruction list before tick 0 is recorded.",
+    "Agent balance/PnL fields are bookkeeping-only in replay mode; authoritative outputs are primitive snapshots, events, and invariant rollups."
+  ]
+}

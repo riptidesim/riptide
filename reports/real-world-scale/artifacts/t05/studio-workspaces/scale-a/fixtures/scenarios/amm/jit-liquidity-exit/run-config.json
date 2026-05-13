@@ -1,0 +1,26 @@
+{
+  "agents": 15,
+  "ticks": 32,
+  "scenario": "jit-liquidity-exit",
+  "seed": 4602,
+  "personas": [
+    "botter",
+    "botter",
+    "botter",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "casual",
+    "casual",
+    "casual",
+    "casual"
+  ],
+  "adapter": "../../../adapters/amm.toml",
+  "validator_url": "http://localhost:8899",
+  "output_path": "fixtures/scenarios/amm/jit-liquidity-exit"
+}

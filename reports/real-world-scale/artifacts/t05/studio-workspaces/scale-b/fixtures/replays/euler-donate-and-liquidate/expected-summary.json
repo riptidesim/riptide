@@ -1,0 +1,15 @@
+{
+  "result_sha256": "03de00e2d2ba97344b1572ae79679d43473a27a136447c6b1a28691eda14a2f8",
+  "event_count": 3,
+  "terminal_bad_debt_tick": 2,
+  "bad_debt_invariant_firings": 1,
+  "summary": {
+    "agents_active": 2,
+    "agents_depleted": 0,
+    "agents_liquidated": 0,
+    "final_tvl": 20.0,
+    "final_utilization": 0.0,
+    "largest_single_tick_drawdown": 0.0,
+    "total_bad_debt": 4720.0
+  }
+}

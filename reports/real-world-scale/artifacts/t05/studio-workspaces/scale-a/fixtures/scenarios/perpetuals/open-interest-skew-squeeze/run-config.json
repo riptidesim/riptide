@@ -1,0 +1,27 @@
+{
+  "agents": 16,
+  "ticks": 34,
+  "scenario": "open-interest-skew-squeeze",
+  "seed": 4503,
+  "personas": [
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "grinder",
+    "grinder",
+    "grinder",
+    "casual",
+    "casual",
+    "casual"
+  ],
+  "adapter": "../../../adapters/perpetuals.toml",
+  "validator_url": "http://localhost:8899",
+  "output_path": "fixtures/scenarios/perpetuals/open-interest-skew-squeeze"
+}

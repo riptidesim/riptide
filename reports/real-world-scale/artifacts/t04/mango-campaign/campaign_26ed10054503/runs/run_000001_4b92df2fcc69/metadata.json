@@ -1,0 +1,27 @@
+{
+  "schema_version": "campaign-run-metadata.v1",
+  "campaign_id": "campaign_26ed10054503",
+  "campaign_digest": "26ed100545030627ba3a7466c854d46558509b1b694dc25c120acf1801f6ef82",
+  "campaign_name": "mango-v4-broad-perps",
+  "class": "perps-margin.v1",
+  "risk_objective": "custom:mango-v4-perps-margin-broad",
+  "run_id": "run_000001_4b92df2fcc69",
+  "run_index": 1,
+  "run_seed": "1396",
+  "engine_seed": 1396,
+  "run_config_digest": "4b92df2fcc695b24c9d394b068c7e11098d1f8bbfb7402d614f09682d708adf3",
+  "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t04/mango-campaign/campaign_26ed10054503/runs/run_000001_4b92df2fcc69/run-config.json",
+  "scenario_family": "orderbook_keeper_pressure",
+  "scenario_source": "../scenarios/orderbook-keeper-pressure",
+  "sampled_parameters": {
+    "shock_profile": "oracle-down-35",
+    "whale_share_bps": 1500
+  },
+  "personas": [],
+  "config_status": "created",
+  "status": "pass",
+  "invariant_fires": [],
+  "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t04/mango-campaign/campaign_26ed10054503/runs/run_000001_4b92df2fcc69",
+  "simulation_result_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t04/mango-campaign/campaign_26ed10054503/runs/run_000001_4b92df2fcc69/simulation-result.json",
+  "report_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t04/mango-campaign/campaign_26ed10054503/runs/run_000001_4b92df2fcc69/report.md"
+}

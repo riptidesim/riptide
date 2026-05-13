@@ -1,0 +1,6 @@
+{
+  "instructions": [
+    { "name": "deposit", "agent": "attacker-donor", "args": { "amount": 100 } },
+    { "name": "borrow",  "agent": "attacker-donor", "args": { "amount": 6400 } }
+  ]
+}

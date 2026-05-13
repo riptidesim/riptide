@@ -1,0 +1,5 @@
+{
+  "adapter": "fixtures/adapters/lending.toml",
+  "config": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000004_01fba41fd6bc/run-config.json",
+  "policies": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000004_01fba41fd6bc/policies.json"
+}

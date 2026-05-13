@@ -1,0 +1,34 @@
+# Scenario-local persona notes for the funding-stress smoke shape.
+#
+# The current perps adapter dispatches deposit/withdraw in the generic runtime.
+# These persona IDs intentionally match the adapter's inline smoke personas so
+# `riptide run perpetuals/funding-stress` stays cold-runnable without adapter
+# changes. The scenario name and catalog copy carry the perps risk objective:
+# margin pressure, leverage bounds, and socialized-loss monitoring. Funding and
+# insurance semantics for this fixture are deterministic proxies over observable
+# open-interest and collateral/socialized-loss fields; this scenario does not
+# execute live funding-rate updates or insurance-fund flows.
+
+[personas.botter]
+label = "Perps stress taker"
+action_rate_multiplier = 2.0
+action_weights = { deposit = 0.7, withdraw = 0.3 }
+triggers = [
+  { if = "market.total_oi_long > 3000", then = "deposit", weight_boost = 1.6 },
+]
+
+[personas.grinder]
+label = "Collateral defender"
+action_rate_multiplier = 1.0
+action_weights = { deposit = 0.9, withdraw = 0.1 }
+triggers = [
+  { if = "position.collateral < 500", then = "deposit", weight_boost = 2.2 },
+]
+
+[personas.casual]
+label = "Passive margin account"
+action_rate_multiplier = 0.5
+action_weights = { deposit = 0.5, withdraw = 0.5 }
+triggers = [
+  { if = "position.collateral > 2000", then = "withdraw", weight_boost = 1.5 },
+]

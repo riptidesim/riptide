@@ -1,0 +1,26 @@
+{
+  "agents": 15,
+  "ticks": 36,
+  "scenario": "fee-growth-lp-accounting",
+  "seed": 4604,
+  "personas": [
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "casual",
+    "casual",
+    "casual"
+  ],
+  "adapter": "../../../adapters/amm.toml",
+  "validator_url": "http://localhost:8899",
+  "output_path": "fixtures/scenarios/amm/fee-growth-lp-accounting"
+}

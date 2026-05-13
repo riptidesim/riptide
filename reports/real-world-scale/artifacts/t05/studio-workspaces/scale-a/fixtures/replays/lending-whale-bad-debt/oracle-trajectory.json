@@ -1,0 +1,9 @@
+{
+  "ticks": [
+    { "tick": 0, "price": 100.0, "exponent": 0 },
+    { "tick": 1, "price": 92.0, "exponent": 0 },
+    { "tick": 2, "price": 84.0, "exponent": 0 },
+    { "tick": 3, "price": 72.0, "exponent": 0 },
+    { "tick": 4, "price": 60.0, "exponent": 0 }
+  ]
+}

@@ -1,0 +1,68 @@
+protocol = "generic"
+program_so = "../../programs/resource_grinder/target/deploy/resource_grinder.so"
+idl_path = "../idls/resource-grinder.json"
+
+[accounts.player]
+kind = "agent"
+space = 48
+
+[accounts.marketplace]
+kind = "shared"
+space = 512
+
+[instructions]
+mine = { action = "mine", amount = "amount" }
+craft = { action = "craft", amount = "amount" }
+list_for_sale = { action = "list_for_sale", amount = "amount" }
+
+[state_mapping]
+"player.gold" = "player.gold"
+"player.wood" = "player.wood"
+"marketplace.listings" = "marketplace.listings"
+
+[actions.mine]
+label = "Mine"
+takes = ["amount"]
+
+[actions.craft]
+label = "Craft"
+takes = ["amount"]
+
+[actions.list_for_sale]
+label = "List for sale"
+takes = ["amount"]
+
+[observations]
+"player.gold" = "uint"
+"player.wood" = "uint"
+"marketplace.listings" = "map"
+
+[personas.grinder]
+label = "Grinder"
+action_rate_multiplier = 1.0
+action_weights = { mine = 1.2, craft = 0.8, list_for_sale = 0.2 }
+triggers = [{ if = "player.wood < 10", then = "mine", weight_boost = 2.0 }]
+
+[personas.botter]
+label = "Botter"
+action_rate_multiplier = 4.0
+action_weights = { mine = 0.2, craft = 0.4, list_for_sale = 2.5 }
+triggers = []
+
+[personas.casual]
+label = "Casual"
+action_rate_multiplier = 0.8
+action_weights = { mine = 1.0, craft = 1.0, list_for_sale = 1.0 }
+triggers = []
+
+[lineage]
+idl_source = "fixtures/idls/resource-grinder.json"
+generator = "hand-authored"
+inferred_assumptions = [
+  "`protocol = \"generic\"` is intentional: this adapter exists to exercise the generic SBF/IDL runtime with a compact non-DeFi surface.",
+  "All IDL instructions are runtime-dispatchable because each accepts a single `amount` argument and maps cleanly to the generic action encoder.",
+  "The marketplace listing vector is surfaced as a coarse `map` observation; listing seller identity is not interpreted by the smoke personas.",
+]
+unsupported_fields = [
+  "account `player.owner` — pubkey bootstrap metadata, not persona-observable state",
+]

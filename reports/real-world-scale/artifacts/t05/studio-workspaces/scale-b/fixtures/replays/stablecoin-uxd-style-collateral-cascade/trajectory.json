@@ -1,0 +1,30 @@
+{
+  "metadata": {
+    "name": "stablecoin-uxd-style-collateral-cascade",
+    "description": "UXD-style stablecoin collateral-cascade + redemption-run pressure replay. Scheduled hedge-loss at tick 3 shrinks delegated collateral; panic redemption demand at tick 4 exceeds the reserve buffer and lands three accounts on the pending-redemption queue; tick 5 partial claim settles only the reserve-covered position. Historical inspiration: the November 2022 UXD delta-neutral backing gap after the Mango exploit wiped the hedge leg. Honest boundary: single-program pressure replay against the shipped minimal stablecoin, not a literal UXD codebase reconstruction and not a live hedge-venue integration.",
+    "source": "UXD Protocol post-incident disclosures, November 2022 (Mango exploit contagion)"
+  },
+  "ticks": [
+    {
+      "tick": 3,
+      "instructions": [
+        { "name": "apply_hedge_loss", "agent": "admin-actor", "args": { "loss_bps": 4000 } }
+      ]
+    },
+    {
+      "tick": 4,
+      "instructions": [
+        { "name": "request_redeem", "agent": "staker-0", "args": { "stable_amount": 1500 } },
+        { "name": "request_redeem", "agent": "staker-1", "args": { "stable_amount": 1500 } },
+        { "name": "request_redeem", "agent": "staker-2", "args": { "stable_amount": 1500 } },
+        { "name": "request_redeem", "agent": "staker-3", "args": { "stable_amount": 1500 } }
+      ]
+    },
+    {
+      "tick": 5,
+      "instructions": [
+        { "name": "claim_redeem", "agent": "staker-0", "args": {} }
+      ]
+    }
+  ]
+}

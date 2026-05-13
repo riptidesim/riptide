@@ -1,0 +1,27 @@
+{
+  "schema_version": "campaign-run-metadata.v1",
+  "campaign_id": "campaign_a0852f66871d",
+  "campaign_digest": "a0852f66871d39aa63a89f15915871a544ed8e9e6d5e2346212eaaa5e1dd5dcd",
+  "campaign_name": "whirlpool-amm-broad",
+  "class": "amm.v1",
+  "risk_objective": "liquidity-exit",
+  "run_id": "run_000001_8e5af07005a7",
+  "run_index": 1,
+  "run_seed": "2026050846",
+  "engine_seed": 2026050846,
+  "run_config_digest": "8e5af07005a7c0bb239f5185cf0d579cc9f36e642c1637232cfacda9d7b1c4d3",
+  "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t04/whirlpool-campaign/campaign_a0852f66871d/runs/run_000001_8e5af07005a7/run-config.json",
+  "scenario_family": "fee_growth_churn",
+  "scenario_source": "../scenarios/fee-growth-churn",
+  "sampled_parameters": {
+    "oracle_lag_ticks": 4,
+    "whale_share_bps": 0
+  },
+  "personas": [],
+  "config_status": "created",
+  "status": "pass",
+  "invariant_fires": [],
+  "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t04/whirlpool-campaign/campaign_a0852f66871d/runs/run_000001_8e5af07005a7",
+  "simulation_result_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t04/whirlpool-campaign/campaign_a0852f66871d/runs/run_000001_8e5af07005a7/simulation-result.json",
+  "report_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t04/whirlpool-campaign/campaign_a0852f66871d/runs/run_000001_8e5af07005a7/report.md"
+}

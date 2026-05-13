@@ -1,0 +1,26 @@
+{
+  "id": "63325855-b2aa-4ff0-b1a3-517a94cd011a",
+  "kind": "review",
+  "status": "succeeded",
+  "created_at": "2026-05-13T02:02:41.419Z",
+  "updated_at": "2026-05-13T02:02:44.189Z",
+  "workspace_id": "current",
+  "cwd": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a",
+  "argv": [
+    "riptide",
+    "review",
+    ".riptide/campaigns/campaign_2a93d0358025",
+    "--quiet",
+    "--out",
+    ".riptide/studio/scale-review.md"
+  ],
+  "output_path": ".riptide/studio/scale-review.md",
+  "expected_artifact": ".riptide/studio/scale-review.md",
+  "exit_code": 0,
+  "stdout_tail": "wrote review markdown: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/studio/scale-review.md\n",
+  "stderr_tail": "",
+  "artifact_paths": [
+    ".riptide/studio/scale-review.md"
+  ],
+  "warnings": []
+}

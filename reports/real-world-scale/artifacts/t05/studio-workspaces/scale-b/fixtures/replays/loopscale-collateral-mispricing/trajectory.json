@@ -1,0 +1,15 @@
+{
+  "metadata": {
+    "name": "loopscale-collateral-mispricing",
+    "description": "Collateral-mispricing bad-debt pressure replay against the shipped Solana lending fork. The borrower opens a position when the oracle reports an inflated collateral price (200), borrowing 13500 against 100 collateral (healthy under the inflated regime). At tick 1 the oracle realizes the true price (100) — the position becomes underwater (health factor ~ 5926 bps). At tick 2 the liquidator settles: the seized collateral is far below repay+bonus value, so bad debt accrues at the pool level and the collateral_health invariant fires. Historical inspiration: the April 2025 Loopscale exploit (~$5.8M), where LP-token NAV mispricing enabled undercollateralized loans on Solana. Honest boundary: economic-shape replay on Riptide's Solend-fork toy lending program, NOT a byte-level reconstruction of Loopscale's mainnet program or slot state.",
+    "source": "https://x.com/LoopscaleLabs"
+  },
+  "ticks": [
+    {
+      "tick": 2,
+      "instructions": [
+        { "name": "liquidate", "agent": "liquidator-0", "args": { "amount": 13500, "target": "borrower-0" } }
+      ]
+    }
+  ]
+}

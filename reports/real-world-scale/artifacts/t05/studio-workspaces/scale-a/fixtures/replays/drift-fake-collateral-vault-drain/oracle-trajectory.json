@@ -1,0 +1,7 @@
+{
+  "ticks": [
+    { "tick": 0, "price": 1000.0, "exponent": 0 },
+    { "tick": 1, "price": 1000.0, "exponent": 0 },
+    { "tick": 2, "price": 20.0, "exponent": 0 }
+  ]
+}

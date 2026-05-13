@@ -1,0 +1,30 @@
+# Scenario-local persona notes for the insurance-socialized-loss smoke shape.
+#
+# Perps-lite exposes cumulative_socialized_loss as a proxy observation,
+# but it does not model insurance-fund depletion or socialized-loss
+# allocation. This fixture keeps the deterministic bad-debt-pressure
+# shape cataloged without inventing an insurance stress claim.
+
+[personas.botter]
+label = "Bad-debt pressure taker"
+action_rate_multiplier = 2.0
+action_weights = { deposit = 0.65, withdraw = 0.35 }
+triggers = [
+  { if = "market.total_collateral > 1000", then = "withdraw", weight_boost = 1.4 },
+]
+
+[personas.grinder]
+label = "Insurance backstop proxy"
+action_rate_multiplier = 1.0
+action_weights = { deposit = 0.85, withdraw = 0.15 }
+triggers = [
+  { if = "market.cumulative_socialized_loss == 0", then = "deposit", weight_boost = 1.2 },
+]
+
+[personas.casual]
+label = "Passive margin account"
+action_rate_multiplier = 0.5
+action_weights = { deposit = 0.5, withdraw = 0.5 }
+triggers = [
+  { if = "position.collateral > 2000", then = "withdraw", weight_boost = 1.5 },
+]

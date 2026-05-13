@@ -1,0 +1,6 @@
+{
+  "adapter": "fixtures/adapters/lending.toml",
+  "slug": "utilization-climb",
+  "failure_mode": "utilization_stress",
+  "rationale": "Sustained high-borrow population (10 leveraged borrowers vs 5 steady LPs) to drive pool utilization toward the kink point. Classification flagged utilization_stress because the shared pool in state_mapping (pool.total_deposits / pool.total_borrows) implies a kink-point utilization curve where sustained borrow pressure interacts nonlinearly with the liquidation health-factor thresholds used by the steady-LP trigger."
+}

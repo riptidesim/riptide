@@ -1,0 +1,87 @@
+{
+  "run_config": {
+    "agents": 5,
+    "ticks": 10,
+    "scenario": "baseline",
+    "seed": 42,
+    "personas": [
+      "cautious-yield-farmer",
+      "panic-whale"
+    ],
+    "validator_url": "http://localhost:8899",
+    "output_path": "riptide-output/sample-run"
+  },
+  "seed": 42,
+  "total_ticks": 10,
+  "timeseries": [
+    {
+      "tick": 0,
+      "tvl": 1000000,
+      "utilization": 0.45,
+      "oracle_price": 100,
+      "active_agents": 5,
+      "cumulative_liquidations": 0,
+      "cumulative_bad_debt": 0
+    },
+    {
+      "tick": 1,
+      "tvl": 1005000,
+      "utilization": 0.48,
+      "oracle_price": 99.5,
+      "active_agents": 5,
+      "cumulative_liquidations": 0,
+      "cumulative_bad_debt": 0
+    }
+  ],
+  "events": [
+    {
+      "tick": 0,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 1000
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "trigger_activated",
+      "params": {
+        "condition": "portfolio_drawdown"
+      },
+      "outcome": "skipped",
+      "triggered_by": "event-0001"
+    }
+  ],
+  "agents": [
+    {
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "status": "active",
+      "final_balance": 1012.5,
+      "pnl": 12.5,
+      "total_actions": 2,
+      "triggers_activated": 1
+    }
+  ],
+  "summary": {
+    "final_tvl": 1005000,
+    "final_utilization": 0.48,
+    "total_liquidations": 0,
+    "total_bad_debt": 0,
+    "agents_active": 5,
+    "agents_liquidated": 0,
+    "agents_depleted": 0,
+    "largest_single_tick_drawdown": 0.005
+  },
+  "simulation_boundaries": [
+    "No slippage or transaction fees modeled.",
+    "Oracle prices are scenario-driven, not external feeds."
+  ]
+}

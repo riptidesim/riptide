@@ -1,0 +1,21 @@
+# Perps persona — funding arbitrageur (proxy).
+#
+#. The full funding-arbitrageur opens the less-funded
+# side and waits for funding-rate normalization. In perps-lite
+# (funding rate scope-cut from ) there is no funding_rate
+# observation to trigger on. This proxy persona uses
+# market.total_oi_long vs market.total_oi_short as a stand-in signal
+# — it deposits aggressively when open-interest skew is detectable,
+# matching the "opens the less-funded side" archetype in spirit.
+#
+# A drop that adds update_funding_rate can replace the
+# proxy trigger with `funding_rate > threshold` and the persona
+# becomes load-bearing.
+
+[personas.funding-arbitrageur]
+label = "Funding arbitrageur (proxy)"
+action_rate_multiplier = 0.6
+action_weights = { deposit = 0.7, withdraw = 0.3 }
+triggers = [
+  { if = "market.total_oi_long > 3000", then = "deposit", weight_boost = 2.0 },
+]

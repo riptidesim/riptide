@@ -1,0 +1,65 @@
+# Solend-shaped liquidation-safety stress for the local lending fixture.
+#
+# This is not a Solend mainnet replay and does not claim protocol safety.
+# It reuses shipped lending scenario templates and records sampled campaign
+# coordinates around shock profile, oracle-lag duration, and whale concentration.
+
+[campaign]
+name = "solend-shape-liquidation-safety"
+adapter = "../../../adapters/lending.toml"
+class = "lending.v1"
+risk_objective = "liquidation-safety"
+run_budget = 16
+seed_policy = "fixed:20260502"
+replay_retention = [
+  "first_failure",
+  "worst_bad_debt",
+  "worst_liquidity",
+  "median",
+  "surprising_outlier",
+]
+
+[campaign.scenarios]
+selection = "weighted"
+families = [
+  "oracle_lag_baseline",
+  "whale_shock_grid",
+  "whale_share_sweep",
+]
+
+[campaign.scenarios.oracle_lag_baseline]
+source = "../../../scenarios/lending/oracle-lag-baseline"
+weight = 2
+parameters = ["shock_profile", "oracle_lag_ticks"]
+
+[campaign.scenarios.whale_shock_grid]
+source = "../../../scenarios/lending/whale-shock-grid"
+weight = 2
+parameters = ["shock_profile", "whale_share_bps"]
+
+[campaign.scenarios.whale_share_sweep]
+source = "../../../scenarios/lending/whale-share-sweep"
+weight = 1
+parameters = ["shock_profile", "whale_share_bps"]
+
+[campaign.personas]
+base = "../../../personas"
+families = []
+
+[campaign.parameters.shock_profile]
+distribution = "discrete"
+values = ["price-shock", "bank-run"]
+weights = [2, 1]
+
+[campaign.parameters.oracle_lag_ticks]
+distribution = "discrete"
+values = [0, 2, 4]
+weights = [2, 2, 1]
+unit = "ticks"
+
+[campaign.parameters.whale_share_bps]
+distribution = "uniform"
+min = 500
+max = 3000
+integer = true
+unit = "bps"

@@ -1,0 +1,27 @@
+{
+  "schema_version": "campaign-run-metadata.v1",
+  "campaign_id": "campaign_2a93d0358025",
+  "campaign_digest": "2a93d03580255a41454b9b05a87dd34c30981447ed7f787d420ffda8ebf51581",
+  "campaign_name": "solend-shape-liquidation-safety",
+  "class": "lending.v1",
+  "risk_objective": "liquidation-safety",
+  "run_id": "run_000015_5de0d4d36a1d",
+  "run_index": 15,
+  "run_seed": "14682327132893709045",
+  "engine_seed": 1203353713,
+  "run_config_digest": "5de0d4d36a1d6d51531d2b762b254bb39b1b841bc14c3c6777d2d0947f1e6434",
+  "run_config_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000015_5de0d4d36a1d/run-config.json",
+  "scenario_family": "oracle_lag_baseline",
+  "scenario_source": "../../../scenarios/lending/oracle-lag-baseline",
+  "sampled_parameters": {
+    "shock_profile": "price-shock",
+    "oracle_lag_ticks": 2
+  },
+  "personas": [],
+  "config_status": "created",
+  "status": "pass",
+  "invariant_fires": [],
+  "artifacts_dir": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000015_5de0d4d36a1d",
+  "simulation_result_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000015_5de0d4d36a1d/simulation-result.json",
+  "report_path": ".riptide/campaigns/campaign_2a93d0358025/runs/run_000015_5de0d4d36a1d/report.md"
+}

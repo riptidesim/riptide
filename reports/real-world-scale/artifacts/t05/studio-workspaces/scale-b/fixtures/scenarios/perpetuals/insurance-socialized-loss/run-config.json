@@ -1,0 +1,23 @@
+{
+  "agents": 12,
+  "ticks": 34,
+  "scenario": "insurance-socialized-loss",
+  "seed": 4504,
+  "personas": [
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "casual",
+    "casual"
+  ],
+  "adapter": "../../../adapters/perpetuals.toml",
+  "validator_url": "http://localhost:8899",
+  "output_path": "fixtures/scenarios/perpetuals/insurance-socialized-loss"
+}

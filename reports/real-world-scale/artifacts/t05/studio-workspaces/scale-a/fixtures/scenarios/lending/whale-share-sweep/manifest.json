@@ -1,0 +1,6 @@
+{
+  "adapter": "fixtures/adapters/lending.toml",
+  "slug": "whale-share-sweep",
+  "failure_mode": "whale_concentration",
+  "rationale": "Middle point (15% whales) of a whale-share sweep. Classification flagged whale_concentration because the adapter declares protocol=lending with all five lending actions and a single shared reserve (pool.total_deposits/pool.total_borrows/pool.bad_debt) and no per-account borrow cap — so a sufficiently large single position can dominate pool utilization and dictate the liquidation path. Sweep axis: whale_share in {5%, 15%, 25%} over fixed agents=20."
+}

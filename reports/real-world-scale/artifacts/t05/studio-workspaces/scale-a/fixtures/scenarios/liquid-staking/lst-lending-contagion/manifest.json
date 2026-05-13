@@ -1,0 +1,6 @@
+{
+  "adapter": "fixtures/adapters/liquid-staking.toml",
+  "slug": "lst-lending-contagion",
+  "failure_mode": "depeg_after_slash",
+  "rationale": "Single-program LST pre-bridge shape for the paired LST-lending contagion replay. The cold run emphasizes panic-exiter and arb-redeemer pressure on LST withdrawal state only; it deliberately does not claim downstream lending bad debt. LST-only stress shape; cross-program contagion lives in the paired replay artifact."
+}

@@ -1,0 +1,73 @@
+{
+  "schema_version": "campaign-retention-manifest.v1",
+  "campaign_id": "campaign_a0852f66871d",
+  "campaign_digest": "a0852f66871d39aa63a89f15915871a544ed8e9e6d5e2346212eaaa5e1dd5dcd",
+  "campaign_name": "whirlpool-amm-broad",
+  "class": "amm.v1",
+  "risk_objective": "liquidity-exit",
+  "requested_labels": [
+    "first_failure",
+    "worst_liquidity",
+    "median",
+    "surprising_outlier"
+  ],
+  "entries": [
+    {
+      "label": "first_failure",
+      "status": "warning",
+      "warning": "no invariant failure tick was observed within this campaign"
+    },
+    {
+      "label": "worst_liquidity",
+      "status": "warning",
+      "warning": "unsupported for class amm.v1; liquidity-stress metrics are lending.v1-specific in v1"
+    },
+    {
+      "label": "median",
+      "status": "selected",
+      "run_id": "run_000000_41c052cc85f5",
+      "run_index": 0,
+      "scenario_family": "whale_exit_pressure",
+      "sampled_parameters": {
+        "whale_share_bps": 5000
+      },
+      "reason": "middle completed run by deterministic campaign risk score; tie: 2 runs shared the same deterministic risk score; selected lowest run index 0",
+      "score": 0,
+      "tie_breaker": "2 runs shared the same deterministic risk score; selected lowest run index 0",
+      "risk_signals": {
+        "status": "pass",
+        "first_failure_tick": null,
+        "invariant_names": [],
+        "semantic_signal_names": [],
+        "total_bad_debt": null,
+        "total_liquidations": null,
+        "max_utilization": null,
+        "min_tvl": null,
+        "min_available_liquidity": null,
+        "risk_score": 0
+      },
+      "rerun_command": "exec riptide run /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t04/whirlpool-campaign/campaign_a0852f66871d/runs/run_000000_41c052cc85f5/run-config.json --harness .riptide/harness",
+      "paths": {
+        "run_dir": "runs/run_000000_41c052cc85f5",
+        "run_config": "runs/run_000000_41c052cc85f5/run-config.json",
+        "metadata": "runs/run_000000_41c052cc85f5/metadata.json",
+        "case_dir": "retained/median-run_000000_41c052cc85f5",
+        "case_manifest": "retained/median-run_000000_41c052cc85f5/case.json",
+        "rerun_sh": "retained/median-run_000000_41c052cc85f5/rerun.sh",
+        "simulation_result": "runs/run_000000_41c052cc85f5/simulation-result.json",
+        "report": "runs/run_000000_41c052cc85f5/report.md"
+      },
+      "case_digest": "e7aec84d1a781d73d8f1936adc4430458624eb147594df18b7b91b4440dc25e8"
+    },
+    {
+      "label": "surprising_outlier",
+      "status": "warning",
+      "warning": "at least three completed runs are needed for the simple outlier heuristic"
+    }
+  ],
+  "warnings": [
+    "first_failure: no invariant failure tick was observed within this campaign",
+    "worst_liquidity: unsupported for class amm.v1; liquidity-stress metrics are lending.v1-specific in v1",
+    "surprising_outlier: at least three completed runs are needed for the simple outlier heuristic"
+  ]
+}

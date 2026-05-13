@@ -1,0 +1,21 @@
+{
+  "metadata": {
+    "name": "euler-donate-and-liquidate",
+    "description": "Donate-and-liquidate bad-debt pressure replay against the shipped Solana lending fork. The donor (attacker-donor) opens a healthy position, then calls Donate to remove most of the position's collateral without triggering an LTV recheck. A separate liquidator (attacker-liquidator) liquidates the now-underwater donor; the seized collateral is far below the repay+bonus value, so bad debt accrues at the pool level and the no_bad_debt invariant fires. Historical inspiration: the March 2023 Euler Finance exploit (~$197M); this is an abstracted economic-shape replay on Riptide's Solana toy lending program, NOT a byte-level reconstruction of Euler's EVM bytecode.",
+    "source": "https://www.halborn.com/blog/post/explained-the-euler-finance-hack-march-2023"
+  },
+  "ticks": [
+    {
+      "tick": 1,
+      "instructions": [
+        { "name": "donate", "agent": "attacker-donor", "args": { "amount": 80 } }
+      ]
+    },
+    {
+      "tick": 2,
+      "instructions": [
+        { "name": "liquidate", "agent": "attacker-liquidator", "args": { "amount": 6400, "target": "attacker-donor" } }
+      ]
+    }
+  ]
+}

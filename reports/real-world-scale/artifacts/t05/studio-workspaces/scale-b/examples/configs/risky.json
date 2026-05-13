@@ -1,0 +1,9 @@
+{
+  "_comment": "Risky config: 5 aggressive agents under the same 50% price shock (RIPTIDE_PRICE_SHOCK_DROP=0.5 — set by run-demo.sh), same seed, same pool params. All that changes is persona behavior.",
+  "agents": 5,
+  "ticks": 10,
+  "scenario": "price-shock",
+  "seed": 42,
+  "personas": ["panic-whale", "degen-borrower", "aggressive-arb-bot"],
+  "output_path": "examples/outputs/risky"
+}

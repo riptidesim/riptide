@@ -1,0 +1,12 @@
+{
+  "agents": 5,
+  "ticks": 10,
+  "scenario": "baseline",
+  "seed": 42,
+  "personas": [
+    "cautious-yield-farmer",
+    "panic-whale"
+  ],
+  "validator_url": "http://localhost:8899",
+  "output_path": "riptide-output/sample-run"
+}

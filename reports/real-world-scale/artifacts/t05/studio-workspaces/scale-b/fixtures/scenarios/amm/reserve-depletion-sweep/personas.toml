@@ -1,0 +1,33 @@
+# Scenario-local persona notes for the reserve-depletion-sweep smoke shape.
+#
+# The shipping AMM adapter cold-runs through inline botter/grinder/casual
+# personas. The existing AMM persona library remains in fixtures/personas;
+# this fixture reuses the cold-runnable IDs from price-impact to avoid a
+# scenario-local adapter fork.
+
+[personas.botter]
+label = "Directional swap pressure taker"
+action_rate_multiplier = 2.0
+action_weights = { add_liquidity = 0.2, swap = 0.8 }
+triggers = [
+  { if = "pool.last_swap_price > 1010000", then = "swap", weight_boost = 1.8 },
+]
+persona_args = { amount_b = 500, direction = 1 }
+
+[personas.grinder]
+label = "Liquidity stabilizer"
+action_rate_multiplier = 1.0
+action_weights = { add_liquidity = 0.55, swap = 0.45 }
+triggers = [
+  { if = "pool.reserve_a > 500000", then = "add_liquidity", weight_boost = 1.6 },
+]
+persona_args = { amount_b = 1000, direction = 0 }
+
+[personas.casual]
+label = "Baseline swapper"
+action_rate_multiplier = 0.5
+action_weights = { add_liquidity = 0.6, swap = 0.4 }
+triggers = [
+  { if = "pool.fee_bps < 100", then = "swap", weight_boost = 1.2 },
+]
+persona_args = { amount_b = 1500, direction = 0 }

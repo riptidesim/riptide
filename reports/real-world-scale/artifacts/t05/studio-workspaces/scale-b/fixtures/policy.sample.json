@@ -1,0 +1,66 @@
+{
+  "persona_id": "cautious-yield-farmer",
+  "persona_label": "Cautious Yield Farmer",
+  "risk_tolerance": 0.2,
+  "action_weights": {
+    "deposit": 0.8,
+    "borrow": 0.2,
+    "withdraw": 0.3,
+    "repay": 0.6,
+    "liquidate": 0.1
+  },
+  "triggers": [
+    {
+      "condition": {
+        "type": "portfolio_drawdown",
+        "threshold": 0.12
+      },
+      "response": "reduce_exposure",
+      "severity": 5,
+      "cooldown_ticks": 3
+    },
+    {
+      "condition": {
+        "type": "utilization_above",
+        "threshold": 0.9
+      },
+      "response": "hold",
+      "severity": 3,
+      "cooldown_ticks": 2
+    },
+    {
+      "condition": {
+        "type": "price_drop_percent",
+        "threshold": 0.18
+      },
+      "response": "panic_exit",
+      "severity": 10,
+      "cooldown_ticks": 5
+    },
+    {
+      "condition": {
+        "type": "exposure_above",
+        "threshold": 0.75
+      },
+      "response": "reduce_exposure",
+      "severity": 4,
+      "cooldown_ticks": 2
+    },
+    {
+      "condition": {
+        "type": "health_factor_below",
+        "threshold": 1.2
+      },
+      "response": "repay",
+      "severity": 8,
+      "cooldown_ticks": 1
+    }
+  ],
+  "position_sizing": {
+    "strategy": "proportional",
+    "params": {
+      "percent": 0.1
+    }
+  },
+  "max_exposure": 0.35
+}

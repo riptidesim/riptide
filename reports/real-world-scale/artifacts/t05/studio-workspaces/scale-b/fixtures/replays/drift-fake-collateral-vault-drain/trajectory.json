@@ -1,0 +1,21 @@
+{
+  "metadata": {
+    "name": "drift-fake-collateral-vault-drain",
+    "description": "Fake-collateral vault-drain pressure replay against the shipped Solana lending fork. The attacker deposits 100 units of accepted collateral while the oracle marks that collateral at 1000. At tick 1 the attacker borrows 70000 against the accepted mark (healthy under the marked regime: 100*1000*0.8/70000 ~ 11428 bps health factor). At tick 2 the mark collapses to 20 — the position is deeply underwater (~ 228 bps). The liquidator-0 settles at tick 2; seized collateral is far below repay+bonus value, so bad debt accrues at the pool level and the collateral_backing invariant fires. Historical inspiration: the April 2026 Drift incident, where the primary compromise was off-chain/privileged control but the on-chain loss path included fake or mispriced collateral being treated as borrowable value. Honest boundary: economic-shape replay on Riptide's Solend-fork toy lending program, NOT a byte-level reconstruction of Drift's program, admin controls, oracle accounts, or slot state.",
+    "source": "https://www.drift.trade/updates/recovery-plan-for-affected-users"
+  },
+  "ticks": [
+    {
+      "tick": 1,
+      "instructions": [
+        { "name": "borrow", "agent": "attacker", "args": { "amount": 70000 } }
+      ]
+    },
+    {
+      "tick": 2,
+      "instructions": [
+        { "name": "liquidate", "agent": "liquidator-0", "args": { "amount": 70000, "target": "attacker" } }
+      ]
+    }
+  ]
+}

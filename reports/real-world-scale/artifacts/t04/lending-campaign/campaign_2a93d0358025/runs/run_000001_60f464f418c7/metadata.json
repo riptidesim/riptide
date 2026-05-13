@@ -1,0 +1,27 @@
+{
+  "schema_version": "campaign-run-metadata.v1",
+  "campaign_id": "campaign_2a93d0358025",
+  "campaign_digest": "2a93d03580255a41454b9b05a87dd34c30981447ed7f787d420ffda8ebf51581",
+  "campaign_name": "solend-shape-liquidation-safety",
+  "class": "lending.v1",
+  "risk_objective": "liquidation-safety",
+  "run_id": "run_000001_60f464f418c7",
+  "run_index": 1,
+  "run_seed": "9407949198581743194",
+  "engine_seed": 1669480002,
+  "run_config_digest": "60f464f418c79fdb9e9960a5f44a60e63fdd2cf4c9f799483c6fc2e277e6d69d",
+  "run_config_path": "reports/real-world-scale/artifacts/t04/lending-campaign/campaign_2a93d0358025/runs/run_000001_60f464f418c7/run-config.json",
+  "scenario_family": "whale_share_sweep",
+  "scenario_source": "../../../scenarios/lending/whale-share-sweep",
+  "sampled_parameters": {
+    "shock_profile": "price-shock",
+    "whale_share_bps": 2633
+  },
+  "personas": [],
+  "config_status": "created",
+  "status": "pass",
+  "invariant_fires": [],
+  "artifacts_dir": "reports/real-world-scale/artifacts/t04/lending-campaign/campaign_2a93d0358025/runs/run_000001_60f464f418c7",
+  "simulation_result_path": "reports/real-world-scale/artifacts/t04/lending-campaign/campaign_2a93d0358025/runs/run_000001_60f464f418c7/simulation-result.json",
+  "report_path": "reports/real-world-scale/artifacts/t04/lending-campaign/campaign_2a93d0358025/runs/run_000001_60f464f418c7/report.md"
+}

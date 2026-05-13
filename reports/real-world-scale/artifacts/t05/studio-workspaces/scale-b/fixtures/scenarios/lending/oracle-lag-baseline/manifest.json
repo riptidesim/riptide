@@ -1,0 +1,6 @@
+{
+  "adapter": "fixtures/adapters/lending.toml",
+  "slug": "oracle-lag-baseline",
+  "failure_mode": "oracle_lag",
+  "rationale": "Staging baseline. Classification flagged oracle_lag because protocol=lending exposes a collateral-price feed surface against liquidation thresholds. The current engine has no oracle-lag knob, so this proposal records a baseline run to diff against once that knob lands — the experiment surface is identified even though it can't be exercised yet."
+}

@@ -1,0 +1,22 @@
+{
+  "id": "94fa9d20-d44a-4d54-913d-3ffa982e699d",
+  "kind": "review",
+  "status": "failed",
+  "created_at": "2026-05-13T02:02:41.480Z",
+  "updated_at": "2026-05-13T02:02:44.543Z",
+  "workspace_id": "current",
+  "cwd": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a",
+  "argv": [
+    "riptide",
+    "review",
+    ".riptide/pack/does-not-exist",
+    "--quiet"
+  ],
+  "output_path": null,
+  "expected_artifact": null,
+  "exit_code": 2,
+  "stdout_tail": "",
+  "stderr_tail": "riptide: review manifest not found\n  expected: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/pack/does-not-exist/manifest.json\n  next: pass a Riptide evidence pack directory containing manifest.json\n(set RIPTIDE_DEBUG=1 for the full stack trace)\n",
+  "artifact_paths": [],
+  "warnings": []
+}

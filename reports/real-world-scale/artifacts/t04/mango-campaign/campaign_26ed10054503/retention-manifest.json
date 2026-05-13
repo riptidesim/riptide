@@ -1,0 +1,114 @@
+{
+  "schema_version": "campaign-retention-manifest.v1",
+  "campaign_id": "campaign_26ed10054503",
+  "campaign_digest": "26ed100545030627ba3a7466c854d46558509b1b694dc25c120acf1801f6ef82",
+  "campaign_name": "mango-v4-broad-perps",
+  "class": "perps-margin.v1",
+  "risk_objective": "custom:mango-v4-perps-margin-broad",
+  "requested_labels": [
+    "first_failure",
+    "worst_bad_debt",
+    "worst_liquidity",
+    "median",
+    "surprising_outlier"
+  ],
+  "entries": [
+    {
+      "label": "first_failure",
+      "status": "warning",
+      "warning": "no invariant failure tick was observed within this campaign"
+    },
+    {
+      "label": "worst_bad_debt",
+      "status": "warning",
+      "warning": "unsupported for class perps-margin.v1; bad-debt metrics are lending.v1-specific in v1"
+    },
+    {
+      "label": "worst_liquidity",
+      "status": "warning",
+      "warning": "unsupported for class perps-margin.v1; liquidity-stress metrics are lending.v1-specific in v1"
+    },
+    {
+      "label": "median",
+      "status": "selected",
+      "run_id": "run_000001_4b92df2fcc69",
+      "run_index": 1,
+      "scenario_family": "orderbook_keeper_pressure",
+      "sampled_parameters": {
+        "shock_profile": "oracle-down-35",
+        "whale_share_bps": 1500
+      },
+      "reason": "middle completed run by deterministic campaign risk score; tie: 3 runs shared the same deterministic risk score; selected lowest run index 1",
+      "score": 0,
+      "tie_breaker": "3 runs shared the same deterministic risk score; selected lowest run index 1",
+      "risk_signals": {
+        "status": "pass",
+        "first_failure_tick": null,
+        "invariant_names": [],
+        "semantic_signal_names": [],
+        "total_bad_debt": null,
+        "total_liquidations": null,
+        "max_utilization": null,
+        "min_tvl": null,
+        "min_available_liquidity": null,
+        "risk_score": 0
+      },
+      "rerun_command": "exec riptide run /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t04/mango-campaign/campaign_26ed10054503/runs/run_000001_4b92df2fcc69/run-config.json --harness .riptide/harness",
+      "paths": {
+        "run_dir": "runs/run_000001_4b92df2fcc69",
+        "run_config": "runs/run_000001_4b92df2fcc69/run-config.json",
+        "metadata": "runs/run_000001_4b92df2fcc69/metadata.json",
+        "case_dir": "retained/median-run_000001_4b92df2fcc69",
+        "case_manifest": "retained/median-run_000001_4b92df2fcc69/case.json",
+        "rerun_sh": "retained/median-run_000001_4b92df2fcc69/rerun.sh",
+        "simulation_result": "runs/run_000001_4b92df2fcc69/simulation-result.json",
+        "report": "runs/run_000001_4b92df2fcc69/report.md"
+      },
+      "case_digest": "74ebf947d8782d8d67200dfb2197a6246c6f4b4e1773756a687ab018722d24e0"
+    },
+    {
+      "label": "surprising_outlier",
+      "status": "selected",
+      "run_id": "run_000000_44713dd4efda",
+      "run_index": 0,
+      "scenario_family": "oracle_shock_margin",
+      "sampled_parameters": {
+        "shock_profile": "funding-skew",
+        "oracle_lag_ticks": 8,
+        "whale_share_bps": 3000
+      },
+      "reason": "largest absolute distance from the median campaign risk score; tie: 3 runs shared the same distance from median risk score; selected lowest run index 0",
+      "score": 0,
+      "tie_breaker": "3 runs shared the same distance from median risk score; selected lowest run index 0",
+      "risk_signals": {
+        "status": "pass",
+        "first_failure_tick": null,
+        "invariant_names": [],
+        "semantic_signal_names": [],
+        "total_bad_debt": null,
+        "total_liquidations": null,
+        "max_utilization": null,
+        "min_tvl": null,
+        "min_available_liquidity": null,
+        "risk_score": 0
+      },
+      "rerun_command": "exec riptide run /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t04/mango-campaign/campaign_26ed10054503/runs/run_000000_44713dd4efda/run-config.json --harness .riptide/harness",
+      "paths": {
+        "run_dir": "runs/run_000000_44713dd4efda",
+        "run_config": "runs/run_000000_44713dd4efda/run-config.json",
+        "metadata": "runs/run_000000_44713dd4efda/metadata.json",
+        "case_dir": "retained/surprising_outlier-run_000000_44713dd4efda",
+        "case_manifest": "retained/surprising_outlier-run_000000_44713dd4efda/case.json",
+        "rerun_sh": "retained/surprising_outlier-run_000000_44713dd4efda/rerun.sh",
+        "simulation_result": "runs/run_000000_44713dd4efda/simulation-result.json",
+        "report": "runs/run_000000_44713dd4efda/report.md"
+      },
+      "case_digest": "ce06a9e5102ab20bc07748ab93fd0ae686a3606722db5efb7defec6d4a76b92c"
+    }
+  ],
+  "warnings": [
+    "first_failure: no invariant failure tick was observed within this campaign",
+    "worst_bad_debt: unsupported for class perps-margin.v1; bad-debt metrics are lending.v1-specific in v1",
+    "worst_liquidity: unsupported for class perps-margin.v1; liquidity-stress metrics are lending.v1-specific in v1"
+  ]
+}

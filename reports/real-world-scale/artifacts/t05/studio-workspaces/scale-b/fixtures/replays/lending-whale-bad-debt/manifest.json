@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "kind": "replay",
+  "run_id": "replay-lending-whale-bad-debt",
+  "scenario": "replay:lending-whale-bad-debt",
+  "proof_level": 3,
+  "proof_level_label": "Failure-shape replay",
+  "adapter": "adapter.toml",
+  "component_adapters": {},
+  "total_ticks": 4,
+  "agents": 10,
+  "event_count": 6,
+  "canonical_hash": "6c59db5ebf916c8cc068c8fea8727d4edf26d244f288f6dadd7e9ae47d16c4a1",
+  "invariant_firings": [
+    {
+      "name": "no_bad_debt",
+      "firings": 1,
+      "first_tick": 4,
+      "field": "bad_debt",
+      "op": "==",
+      "value": 0.0
+    }
+  ],
+  "exit_code": 1,
+  "inputs": {
+    "adapter": "adapter.toml",
+    "config": "config.json",
+    "policies": null,
+    "trajectory_dirs": {},
+    "component_adapters": {}
+  },
+  "outputs": {
+    "simulation_result": "riptide-output/replays/lending-whale-bad-debt/simulation-result.json",
+    "last_run": null
+  },
+  "simulation_boundaries": [
+    "Replay mode bypasses persona compilation and dispatches a declared instruction trajectory directly.",
+    "Trajectory args are supplied inline per event; generic adapters may still fall back to adapter literals for unmapped constants.",
+    "initial-state.json, when present, is applied as a pre-tick bootstrap instruction list before tick 0 is recorded.",
+    "Agent balance/PnL fields are bookkeeping-only in replay mode; authoritative outputs are primitive snapshots, events, and invariant rollups."
+  ],
+  "what_this_proof_does_not_claim": [
+    "a byte-level reproduction of any specific on-chain incident,",
+    "a governance-intervention / OTC-coordination claim,",
+    "an audit or safety claim about any real lending protocol (Solend / Save, Kamino, MarginFi, etc.)."
+  ]
+}

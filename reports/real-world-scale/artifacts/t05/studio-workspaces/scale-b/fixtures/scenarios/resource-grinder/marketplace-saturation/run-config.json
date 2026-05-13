@@ -1,0 +1,22 @@
+{
+  "agents": 12,
+  "ticks": 30,
+  "scenario": "baseline",
+  "seed": 42,
+  "personas": [
+    "botter",
+    "botter",
+    "botter",
+    "botter",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder",
+    "grinder"
+  ],
+  "validator_url": "http://localhost:8899",
+  "output_path": "fixtures/scenarios/resource-grinder/marketplace-saturation"
+}

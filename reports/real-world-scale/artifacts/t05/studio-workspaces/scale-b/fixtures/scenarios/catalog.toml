@@ -1,0 +1,260 @@
+# Riptide public scenario-family catalog.
+#
+# Schema v1:
+# - [meta].version must be 1.
+# - Each [[family]] slug is <class>/<family-slug>, kebab-case, and unique.
+# - class is one of: lending, stablecoin, liquid-staking, perpetuals, amm.
+# - fixture_path is relative to the repo root and points at the matching
+#   fixtures/scenarios/<class>/<family-slug> directory.
+# - claim_level is one of: smoke-shape, stress, failure-shape.
+# - result_hash is the sha256 of the committed simulation-result.json file.
+
+[meta]
+version = 1
+
+[[family]]
+slug = "lending/oracle-lag-baseline"
+class = "lending"
+name = "Oracle Lag Baseline"
+summary = "Baseline lending price-shock run used to stage delayed-oracle review."
+fixture_path = "fixtures/scenarios/lending/oracle-lag-baseline"
+claim_level = "smoke-shape"
+result_hash = "1ef6e3061bf1d58172c172302a46e2489c147af61c560a28f9186c25e4a2ee68"
+notes = "No oracle-lag knob is modeled yet; this is the baseline comparison cell."
+
+[[family]]
+slug = "lending/shock-magnitude-sweep"
+class = "lending"
+name = "Shock Magnitude Sweep"
+summary = "Lending price-shock sweep midpoint over collateral shock magnitude."
+fixture_path = "fixtures/scenarios/lending/shock-magnitude-sweep"
+claim_level = "smoke-shape"
+result_hash = "afcfe40b023fb8b5d127740591ad40b86ea8b3e5f8575b4412095a94e3894646"
+notes = "The run records bad-debt shape but the committed fixture declares no invariant firing."
+
+[[family]]
+slug = "lending/utilization-climb"
+class = "lending"
+name = "Utilization Climb"
+summary = "Sustained high-borrow lending population for utilization-pressure review."
+fixture_path = "fixtures/scenarios/lending/utilization-climb"
+claim_level = "smoke-shape"
+result_hash = "073b906af9b3cc4ec1d876f89a8b5a5da3029de5666ee0ac7642517101d679a9"
+
+[[family]]
+slug = "lending/whale-share-sweep"
+class = "lending"
+name = "Whale Share Sweep"
+summary = "Lending concentration sweep midpoint over whale share."
+fixture_path = "fixtures/scenarios/lending/whale-share-sweep"
+claim_level = "smoke-shape"
+result_hash = "4a285324ca5678f315fdfff643dfa5eac12c46ce41528f24307fa265f70a727d"
+notes = "The run records bad-debt shape but the committed fixture declares no invariant firing."
+
+[[family]]
+slug = "lending/whale-shock-grid"
+class = "lending"
+name = "Whale Shock Grid"
+summary = "Canonical lending whale-share by shock-magnitude cell for bad-debt boundary review."
+fixture_path = "fixtures/scenarios/lending/whale-shock-grid"
+claim_level = "smoke-shape"
+result_hash = "60f72adee15451af60f559cdfb9609813b54c34565f7c76fe7e5cf8495a42470"
+notes = "This is the active post-collapse canary; derived presentation artifacts live outside the counted family tree."
+
+[[family]]
+slug = "stablecoin/collateral-cascade-replay"
+class = "stablecoin"
+name = "Collateral Cascade Replay"
+summary = "Stablecoin collateral-cascade sweep midpoint using scheduled hedge-loss and redemption pressure."
+fixture_path = "fixtures/scenarios/stablecoin/collateral-cascade-replay"
+claim_level = "stress"
+result_hash = "696a8640854bee9512651534a8b12a5babd9849e146fa7ecd324e4ba46c21bb5"
+notes = "Fixture-local scheduled apply_hedge_loss fires the declared no_hedge_loss_during_healthy_run invariant; the paired replay owns the frozen single-trajectory proof."
+
+[[family]]
+slug = "stablecoin/hedge-loss-magnitude-sweep"
+class = "stablecoin"
+name = "Hedge Loss Magnitude Sweep"
+summary = "Stablecoin backing-pressure midpoint over declared hedge-loss magnitude."
+fixture_path = "fixtures/scenarios/stablecoin/hedge-loss-magnitude-sweep"
+claim_level = "smoke-shape"
+result_hash = "7d30598688f866df1f0ddeac8cd9b1d9d48d3fbb65de15819b0369cc22d37198"
+notes = "apply_hedge_loss is not runtime-dispatchable in the generic primitive."
+
+[[family]]
+slug = "stablecoin/mint-concentration-sweep"
+class = "stablecoin"
+name = "Mint Concentration Sweep"
+summary = "Stablecoin mint-share concentration shape with leverage-looper-heavy issuance pressure."
+fixture_path = "fixtures/scenarios/stablecoin/mint-concentration-sweep"
+claim_level = "smoke-shape"
+result_hash = "8a724206ffc7fc0f954320ac76585c55b45d6af103a01cd7e11ffc295edd0774"
+notes = "stablecoin-fork does not enforce mint caps or top-N mint-share limits; this fixture exercises the deterministic concentration shape only."
+
+[[family]]
+slug = "stablecoin/redemption-run-sweep"
+class = "stablecoin"
+name = "Redemption Run Sweep"
+summary = "Stablecoin redemption-pressure midpoint for reserve-buffer and queue review."
+fixture_path = "fixtures/scenarios/stablecoin/redemption-run-sweep"
+claim_level = "smoke-shape"
+result_hash = "cb51ab5341a33db14dae6a6b2f8dd8d8a86ac27888c606ef60cf1d21662a9a27"
+
+[[family]]
+slug = "stablecoin/reserve-buffer-exhaustion-sweep"
+class = "stablecoin"
+name = "Reserve Buffer Exhaustion Sweep"
+summary = "Stablecoin redemption-rate by reserve-buffer sweep midpoint that forces a queued redemption claim."
+fixture_path = "fixtures/scenarios/stablecoin/reserve-buffer-exhaustion-sweep"
+claim_level = "stress"
+result_hash = "bb49c50d9323440c6d7a6d95961d336e0edab2038d4fd15151c52a379e500531"
+notes = "Fixture-local scheduled redeems drain the reserve buffer and fire the declared no_redemption_queue_formation invariant when a queued claim appears."
+
+[[family]]
+slug = "liquid-staking/lst-lending-contagion"
+class = "liquid-staking"
+name = "LST Lending Contagion"
+summary = "Liquid-staking-only pre-bridge shape for the paired LST-to-lending contagion replay."
+fixture_path = "fixtures/scenarios/liquid-staking/lst-lending-contagion"
+claim_level = "smoke-shape"
+result_hash = "3ff135f4e26ce3e3cc6c57d120a41be535a5eb20b831596016486f13ed29c693"
+notes = "LST-only stress shape; cross-program contagion lives in the paired replay artifact."
+
+[[family]]
+slug = "liquid-staking/reserve-refill-lag-sweep"
+class = "liquid-staking"
+name = "Reserve Refill Lag Sweep"
+summary = "Liquid-staking reserve-refill lag shape under steady redemption pressure."
+fixture_path = "fixtures/scenarios/liquid-staking/reserve-refill-lag-sweep"
+claim_level = "smoke-shape"
+result_hash = "5064414fc99fda634c1df2c9db144510c9a006ba660d6984b7a76eec3c538eb0"
+notes = "The LST runtime exposes reserve_buffer but no explicit refill-lag knob; this fixture exercises the deterministic flow shape only."
+
+[[family]]
+slug = "liquid-staking/slash-magnitude-sweep"
+class = "liquid-staking"
+name = "Slash Magnitude Sweep"
+summary = "Liquid-staking slash-pressure midpoint over declared slash magnitude."
+fixture_path = "fixtures/scenarios/liquid-staking/slash-magnitude-sweep"
+claim_level = "smoke-shape"
+result_hash = "c6a53f6c2f928fc3ada11a6e2d0e77ab56b440821f347c299585155676993277"
+notes = "apply_slash is not runtime-dispatchable in the generic primitive."
+
+[[family]]
+slug = "liquid-staking/slash-redemption-cascade"
+class = "liquid-staking"
+name = "Slash Redemption Cascade"
+summary = "Liquid-staking slash magnitude by open-queue depth shape with redemption-heavy pressure."
+fixture_path = "fixtures/scenarios/liquid-staking/slash-redemption-cascade"
+claim_level = "smoke-shape"
+result_hash = "1db82eff106b261040f6d75b90605ce880d603a036c7a3e4f5fac0ed79a384a5"
+notes = "apply_slash is replay-only for this adapter; the committed fixture stages the slash-plus-redemption population shape without a direct slash mutation."
+
+[[family]]
+slug = "liquid-staking/withdrawal-queue-run-sweep"
+class = "liquid-staking"
+name = "Withdrawal Queue Run Sweep"
+summary = "Liquid-staking withdrawal-queue pressure midpoint under redemption-heavy flow."
+fixture_path = "fixtures/scenarios/liquid-staking/withdrawal-queue-run-sweep"
+claim_level = "smoke-shape"
+result_hash = "4a607ef5e859550a4bb3284e5e20e0e3e26796f4a80acdfcb7472495504e1787"
+
+[[family]]
+slug = "perpetuals/funding-stress"
+class = "perpetuals"
+name = "Funding Stress"
+summary = "Perpetuals smoke shape for margin, leverage, funding, and socialized-loss boundaries."
+fixture_path = "fixtures/scenarios/perpetuals/funding-stress"
+claim_level = "smoke-shape"
+result_hash = "4ba22a50bafa12a900571c2495670d391b40f11cc7dcc2138079b82a715041e7"
+notes = "Funding and insurance accounting remain proxy-level."
+
+[[family]]
+slug = "perpetuals/insurance-socialized-loss"
+class = "perpetuals"
+name = "Insurance Socialized Loss"
+summary = "Perpetuals bad-debt accumulation shape against a proxy under-funded insurance surface."
+fixture_path = "fixtures/scenarios/perpetuals/insurance-socialized-loss"
+claim_level = "smoke-shape"
+result_hash = "d2a313de921d1cce3ae8d595175bac6beb1aeae385bb8fa8114138a98392c50d"
+notes = "perps-lite does not yet model insurance-fund depletion or socialized-loss allocation; this fixture exercises the deterministic shape only."
+
+[[family]]
+slug = "perpetuals/max-leverage-boundary-sweep"
+class = "perpetuals"
+name = "Max Leverage Boundary Sweep"
+summary = "Perpetuals max-leverage boundary shape over deposit-heavy margin accounts."
+fixture_path = "fixtures/scenarios/perpetuals/max-leverage-boundary-sweep"
+claim_level = "smoke-shape"
+result_hash = "770d539788acb3688c6fe85be5ff5e2801c4285fbaa21d253b92bbd860b8d565"
+notes = "perps-lite does not runtime-dispatch open_position from personas; leverage remains a proxy observation in this fixture."
+
+[[family]]
+slug = "perpetuals/open-interest-skew-squeeze"
+class = "perpetuals"
+name = "Open Interest Skew Squeeze"
+summary = "Perpetuals open-interest imbalance shape under high-arrival margin pressure."
+fixture_path = "fixtures/scenarios/perpetuals/open-interest-skew-squeeze"
+claim_level = "smoke-shape"
+result_hash = "90d1132d28665834ff0a23a000686299421fe0140f75c713467787166e573d8d"
+notes = "perps-lite does not yet model funding-rate updates; this fixture exercises the deterministic OI-skew shape only."
+
+[[family]]
+slug = "perpetuals/oracle-shock-liquidation-cascade"
+class = "perpetuals"
+name = "Oracle Shock Liquidation Cascade"
+summary = "Perpetuals oracle-shock liquidation-cascade shape over a high-rate persona mix."
+fixture_path = "fixtures/scenarios/perpetuals/oracle-shock-liquidation-cascade"
+claim_level = "smoke-shape"
+result_hash = "314443c6cf722b50508a6dd4c4f1c4cb55a7253fbb4f2b420269693b1042a218"
+notes = "The shipping perps adapter has no runtime oracle shock or liquidate_position dispatch; this fixture is the deterministic margin-pressure shape only."
+
+[[family]]
+slug = "amm/fee-growth-lp-accounting"
+class = "amm"
+name = "Fee Growth LP Accounting"
+summary = "AMM sustained-volume LP accounting shape for fee-growth review."
+fixture_path = "fixtures/scenarios/amm/fee-growth-lp-accounting"
+claim_level = "smoke-shape"
+result_hash = "1f10e0ea42af88a9fd5f0e484928ca1ff6ddea6bc3ccf30c43e035a26e447818"
+notes = "The shared AMM adapter keeps cumulative_fees at zero under the current amount path; this fixture exercises LP accounting shape only."
+
+[[family]]
+slug = "amm/jit-liquidity-exit"
+class = "amm"
+name = "JIT Liquidity Exit"
+summary = "AMM liquidity add and swap timing shape around a large-flow window."
+fixture_path = "fixtures/scenarios/amm/jit-liquidity-exit"
+claim_level = "smoke-shape"
+result_hash = "8bfe9500ec000978542f57c218c5d4a959ad75293ad117729cc779c40fadcac8"
+notes = "AMM-lite does not model JIT MEV or front-running advantage; this fixture exercises deterministic timing shape only."
+
+[[family]]
+slug = "amm/price-impact"
+class = "amm"
+name = "Price Impact"
+summary = "AMM swap-pressure shape for pool invariant and reserve-derived price-impact review."
+fixture_path = "fixtures/scenarios/amm/price-impact"
+claim_level = "smoke-shape"
+result_hash = "5c375fd05174e7e4c3815009e9c18cb44616b991517097fc73446e5b849679d6"
+notes = "MEV and slippage are not fully modeled."
+
+[[family]]
+slug = "amm/reserve-depletion-sweep"
+class = "amm"
+name = "Reserve Depletion Sweep"
+summary = "AMM directional swap-pressure shape toward reserve imbalance."
+fixture_path = "fixtures/scenarios/amm/reserve-depletion-sweep"
+claim_level = "smoke-shape"
+result_hash = "4ff739559534e55f7557584bd17228a6d9b757a81e3dc47e3eab6eb81160a327"
+notes = "No reserve-floor invariant fires in the cold run; this fixture exercises directional reserve-pressure shape only."
+
+[[family]]
+slug = "amm/sandwich-volume-spike"
+class = "amm"
+name = "Sandwich Volume Spike"
+summary = "AMM sandwich-attacker volume-spike shape under high-rate swap pressure."
+fixture_path = "fixtures/scenarios/amm/sandwich-volume-spike"
+claim_level = "smoke-shape"
+result_hash = "8ef7e8815fb79405dcb42c8b7c4dacbf3ed2da96724b180476be07f4dfec77a0"
+notes = "AMM-lite does not model mempool ordering or frontrun fee extraction; this fixture exercises deterministic volume-spike shape only."

@@ -1,0 +1,126 @@
+# Liquid-staking-fork adapter — slash-with-open-queue replay variant.
+#
+# Sibling to `fixtures/replays/liquid-staking-depeg-redemption-run/adapter.toml`.
+# The shape is identical; the difference is the trajectory ordering
+# (withdrawal run *before* the slash) and one additional invariant
+# (`no_catastrophic_depeg`) that fires only when the fix to
+# `recompute_exchange_rate` (subtracting `pending_unstake_assets` from
+# `total_assets`) is in place. A pre-fix implementation would push the
+# rate *up* past 10_000 bps when the slash lands on an open queue, so
+# the `>= 5000 bps` invariant would never fire — the replay would
+# silently go green on an economically wrong signal.
+#
+# Keeping this adapter scoped to the replay fixture (rather than
+# folding the extra invariant into `fixtures/adapters/liquid-staking.toml`)
+# preserves the shipping adapter's hash and keeps the smoke-gate
+# invariant row count stable.
+
+protocol = "generic"
+program_so = "../../../programs/liquid-staking/target/deploy/liquid_staking.so"
+idl_path = "../../../fixtures/idls/liquid-staking.json"
+
+[accounts.pool]
+kind = "shared"
+space = 121
+
+[accounts.stake_account]
+kind = "agent"
+space = 97
+
+[accounts.oracle]
+kind = "shared"
+space = 50
+owner = { program_so = "../../../programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so" }
+
+[instructions]
+stake           = { action = "stake",           amount = "amount" }
+request_unstake = { action = "request_unstake", amount = "lst_amount" }
+claim_unstake   = { action = "claim_unstake" }
+
+[state_mapping]
+"pool.total_assets"           = "pool.total_assets"
+"pool.lst_supply"             = "pool.lst_supply"
+"pool.reserve_buffer"         = "pool.reserve_buffer"
+"pool.pending_unstake_assets" = "pool.pending_unstake_assets"
+"pool.pending_unstake_count"  = "pool.pending_unstake_count"
+"pool.exchange_rate_bps"      = "pool.exchange_rate_bps"
+"pool.cumulative_slashed"     = "pool.cumulative_slashed"
+"stake_account.lst_balance"              = "stake_account.lst_balance"
+"stake_account.pending_unstake_assets"   = "stake_account.pending_unstake_assets"
+"stake_account.claimable_assets"         = "stake_account.claimable_assets"
+"stake_account.cumulative_claimed"       = "stake_account.cumulative_claimed"
+
+[actions.stake]
+label = "Stake underlying into the pool, mint LST"
+takes = ["amount"]
+
+[actions.request_unstake]
+label = "Burn LST, post a redemption claim (covered from reserve or queued)"
+takes = ["lst_amount"]
+
+[actions.claim_unstake]
+label = "Flush claimable and settle queued entries if reserve covers them"
+takes = []
+
+[observations]
+"pool.total_assets"           = "uint"
+"pool.lst_supply"             = "uint"
+"pool.reserve_buffer"         = "uint"
+"pool.pending_unstake_assets" = "uint"
+"pool.pending_unstake_count"  = "uint"
+"pool.exchange_rate_bps"      = "uint"
+"pool.cumulative_slashed"     = "uint"
+"stake_account.lst_balance"            = "uint"
+"stake_account.pending_unstake_assets" = "uint"
+"stake_account.claimable_assets"       = "uint"
+"stake_account.cumulative_claimed"     = "uint"
+
+# `no_slash_during_healthy_run` — mirror of the sibling fixture's
+# invariant. Fires on the first tick at or after the scheduled slash
+# (`cumulative_slashed > 0`).
+#
+# `no_queue_formation` — mirror of the sibling invariant. Fires on the
+# first tick where the withdrawal queue accumulates a non-zero account
+# count (`pool.pending_unstake_count > 0`). In this fixture the queue
+# forms *before* the slash (tick 3), so this invariant fires one tick
+# earlier than in the sibling.
+#
+# `no_catastrophic_depeg` — replay-scoped invariant that anchors the
+# queue-open-during-slash claim. When the queue is open at slash time
+# and the rate formula correctly subtracts `pending_unstake_assets`,
+# the post-slash rate collapses to 2_000 bps (80 % depeg). A pre-fix
+# formula that ignored `pending_unstake_assets` would instead report
+# ~26_000 bps (peg appears to strengthen) and this invariant would
+# never fire — so the firing is the machine-checkable signal that the
+# accounting is honest.
+
+[[invariants]]
+name = "no_slash_during_healthy_run"
+field = "pool.cumulative_slashed"
+op = "=="
+value = 0
+
+[[invariants]]
+name = "no_queue_formation"
+field = "pool.pending_unstake_count"
+op = "=="
+value = 0
+
+[[invariants]]
+name = "no_catastrophic_depeg"
+field = "pool.exchange_rate_bps"
+op = ">="
+value = 5000
+
+[[oracles]]
+name = "stake_price_feed"
+kind = "admin-mock"
+account = "oracle"
+base_price = 1.0
+exponent = -2
+
+[personas.replay]
+label = "Replay"
+action_rate_multiplier = 0.0
+action_weights = { stake = 0.0, request_unstake = 0.0, claim_unstake = 0.0 }
+triggers = []

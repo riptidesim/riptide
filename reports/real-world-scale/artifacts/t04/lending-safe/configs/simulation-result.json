@@ -1,0 +1,932 @@
+{
+  "run_config": {
+    "agents": 5,
+    "ticks": 10,
+    "scenario": "price-shock",
+    "seed": 2095041311,
+    "personas": [
+      "cautious-yield-farmer",
+      "steady-lp"
+    ],
+    "validator_url": "http://127.0.0.1:8899",
+    "output_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t04/lending-safe/configs"
+  },
+  "seed": 2095041311,
+  "total_ticks": 10,
+  "timeseries": [
+    {
+      "active_agents": 5,
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "oracle_price": 100,
+      "tick": 0,
+      "tvl": 500,
+      "utilization": 0
+    },
+    {
+      "active_agents": 5,
+      "collection_observations": {
+        "worst_health_factor": 10000
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 10000,
+        "debt_value": 0,
+        "health_factor": 8000,
+        "liquidation_threshold_value": 8000,
+        "max_borrow_value": 7000,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 99.90823374943346,
+      "tick": 1,
+      "tvl": 544,
+      "utilization": 0
+    },
+    {
+      "active_agents": 5,
+      "collection_observations": {
+        "worst_health_factor": 10800
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 10800,
+        "debt_value": 0,
+        "health_factor": 8640,
+        "liquidation_threshold_value": 8640,
+        "max_borrow_value": 7560,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 99.77874816651983,
+      "tick": 2,
+      "tvl": 583,
+      "utilization": 0
+    },
+    {
+      "active_agents": 5,
+      "collection_observations": {
+        "worst_health_factor": 11500
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 11500,
+        "debt_value": 0,
+        "health_factor": 9200,
+        "liquidation_threshold_value": 9200,
+        "max_borrow_value": 8050,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 99.85197194516711,
+      "tick": 3,
+      "tvl": 620,
+      "utilization": 0
+    },
+    {
+      "active_agents": 5,
+      "collection_observations": {
+        "worst_health_factor": 12200
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 12200,
+        "debt_value": 0,
+        "health_factor": 9760,
+        "liquidation_threshold_value": 9760,
+        "max_borrow_value": 8540,
+        "usdc.median_price": 100
+      },
+      "oracle_price": 100.14393222577638,
+      "tick": 4,
+      "tvl": 652,
+      "utilization": 0
+    },
+    {
+      "active_agents": 5,
+      "collection_observations": {
+        "worst_health_factor": 7680
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 7680,
+        "debt_value": 0,
+        "health_factor": 6144,
+        "liquidation_threshold_value": 6144,
+        "max_borrow_value": 5376,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 59.85743141023965,
+      "tick": 5,
+      "tvl": 644,
+      "utilization": 0
+    },
+    {
+      "active_agents": 5,
+      "collection_observations": {
+        "worst_health_factor": 7080
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 7080,
+        "debt_value": 0,
+        "health_factor": 5664,
+        "liquidation_threshold_value": 5664,
+        "max_borrow_value": 4956,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 59.888502010754266,
+      "tick": 6,
+      "tvl": 694,
+      "utilization": 0
+    },
+    {
+      "active_agents": 5,
+      "collection_observations": {
+        "worst_health_factor": 7680
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 7680,
+        "debt_value": 0,
+        "health_factor": 6144,
+        "liquidation_threshold_value": 6144,
+        "max_borrow_value": 5376,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 60.09799578978513,
+      "tick": 7,
+      "tvl": 742,
+      "utilization": 0
+    },
+    {
+      "active_agents": 5,
+      "collection_observations": {
+        "worst_health_factor": 8280
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 8280,
+        "debt_value": 0,
+        "health_factor": 6624,
+        "liquidation_threshold_value": 6624,
+        "max_borrow_value": 5796,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 60.043810399342846,
+      "tick": 8,
+      "tvl": 785,
+      "utilization": 0
+    },
+    {
+      "active_agents": 5,
+      "collection_observations": {
+        "worst_health_factor": 8820
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 8820,
+        "debt_value": 0,
+        "health_factor": 7056,
+        "liquidation_threshold_value": 7056,
+        "max_borrow_value": 6174,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 60.02974607534753,
+      "tick": 9,
+      "tvl": 775,
+      "utilization": 0
+    },
+    {
+      "active_agents": 5,
+      "collection_observations": {
+        "worst_health_factor": 8340
+      },
+      "cumulative_bad_debt": 0,
+      "cumulative_liquidations": 0,
+      "derived_observations": {
+        "collateral_value": 8340,
+        "debt_value": 0,
+        "health_factor": 6672,
+        "liquidation_threshold_value": 6672,
+        "max_borrow_value": 5838,
+        "usdc.median_price": 60
+      },
+      "oracle_price": 59.95743612945505,
+      "tick": 10,
+      "tvl": 816,
+      "utilization": 0
+    }
+  ],
+  "events": [
+    {
+      "tick": 1,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 1000
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 1000
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 1,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 800
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 736
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 900
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 736
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 900
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 2,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 736
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 680
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 810
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 680
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 810
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 680
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 624
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 730
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 624
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 730
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 624
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "withdraw",
+      "params": {
+        "amount": 576
+      },
+      "outcome": "success",
+      "triggered_by": "price_drop_percent"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 660
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "withdraw",
+      "params": {
+        "amount": 576
+      },
+      "outcome": "success",
+      "triggered_by": "price_drop_percent"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 660
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "withdraw",
+      "params": {
+        "amount": 576
+      },
+      "outcome": "success",
+      "triggered_by": "price_drop_percent"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 624
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 594
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 624
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 594
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 6,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 624
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 576
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 535
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 576
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 535
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 7,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 576
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 528
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 480
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 528
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 480
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 8,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 528
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "withdraw",
+      "params": {
+        "amount": 485
+      },
+      "outcome": "success",
+      "triggered_by": "portfolio_drawdown"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 432
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "withdraw",
+      "params": {
+        "amount": 485
+      },
+      "outcome": "success",
+      "triggered_by": "portfolio_drawdown"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 432
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 9,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "withdraw",
+      "params": {
+        "amount": 485
+      },
+      "outcome": "success",
+      "triggered_by": "portfolio_drawdown"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 523
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 390
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-003",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 523
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "action": "deposit",
+      "params": {
+        "amount": 390
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 10,
+      "agent_id": "agent-005",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "action": "deposit",
+      "params": {
+        "amount": 523
+      },
+      "outcome": "success"
+    }
+  ],
+  "agents": [
+    {
+      "agent_id": "agent-001",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "status": "active",
+      "final_balance": 14875.092128968015,
+      "pnl": -5124.9078710319845,
+      "total_actions": 10,
+      "triggers_activated": 3
+    },
+    {
+      "agent_id": "agent-002",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 14636.709261587248,
+      "pnl": -5363.290738412752,
+      "total_actions": 10,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-003",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "status": "active",
+      "final_balance": 14875.092128968015,
+      "pnl": -5124.9078710319845,
+      "total_actions": 10,
+      "triggers_activated": 3
+    },
+    {
+      "agent_id": "agent-004",
+      "persona_id": "steady-lp",
+      "persona_label": "Steady LP",
+      "status": "active",
+      "final_balance": 14636.709261587248,
+      "pnl": -5363.290738412752,
+      "total_actions": 10,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "agent-005",
+      "persona_id": "cautious-yield-farmer",
+      "persona_label": "Cautious Yield Farmer",
+      "status": "active",
+      "final_balance": 14875.092128968015,
+      "pnl": -5124.9078710319845,
+      "total_actions": 10,
+      "triggers_activated": 3
+    }
+  ],
+  "summary": {
+    "agents_active": 5,
+    "agents_depleted": 0,
+    "agents_liquidated": 0,
+    "expression_invariants": [
+      {
+        "name": "bad_debt_bound",
+        "expr": "debt_value <= collateral_value",
+        "severity": "warn",
+        "first_tick": null,
+        "firing_count": 0,
+        "observed": [],
+        "first_fired_tick": null,
+        "firings": 0
+      },
+      {
+        "name": "ltv_below_max",
+        "expr": "debt_value <= max_borrow_value",
+        "severity": "warn",
+        "first_tick": null,
+        "firing_count": 0,
+        "observed": [],
+        "first_fired_tick": null,
+        "firings": 0
+      },
+      {
+        "name": "collection_worst_health_factor",
+        "expr": "collection.worst_health_factor > 1.0",
+        "severity": "warn",
+        "first_tick": null,
+        "firing_count": 0,
+        "observed": [],
+        "first_fired_tick": null,
+        "firings": 0
+      }
+    ],
+    "final_tvl": 816,
+    "final_utilization": 0,
+    "largest_single_tick_drawdown": 0.40228598897744555,
+    "total_bad_debt": 0,
+    "total_liquidations": 0
+  },
+  "semantics": {
+    "class": "lending.v1",
+    "roles_bound": [
+      {
+        "role_name": "liquidation_config",
+        "source": "account.reserve"
+      },
+      {
+        "role_name": "oracle",
+        "source": "account.oracle"
+      },
+      {
+        "role_name": "position",
+        "source": "instruction.deposit_or_borrow"
+      },
+      {
+        "role_name": "reserve",
+        "source": "account.reserve"
+      },
+      {
+        "role_name": "usdc",
+        "source": "account.oracle"
+      }
+    ],
+    "derived_observation_definitions": [
+      {
+        "name": "collateral_value",
+        "expr": "position.collateral_amount * reserve.collateral_price"
+      },
+      {
+        "name": "debt_value",
+        "expr": "position.debt_amount"
+      },
+      {
+        "name": "health_factor",
+        "expr": "liquidation_threshold_value / max(debt_value, 1)"
+      },
+      {
+        "name": "liquidation_threshold_value",
+        "expr": "collateral_value * liquidation_config.liquidation_threshold_bps / 10000"
+      },
+      {
+        "name": "max_borrow_value",
+        "expr": "collateral_value * reserve.max_ltv_bps / 10000"
+      }
+    ]
+  },
+  "simulation_boundaries": [
+    "In-process LiteSVM backend (no external validator).",
+    "No slippage, fees, or MEV modeled.",
+    "Oracle prices are scenario-driven, not external feeds.",
+    "Agents funded via deterministic airdrop, not realistic onboarding."
+  ]
+}

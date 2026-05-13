@@ -1,0 +1,14 @@
+{
+  "instructions": [
+    { "name": "deposit", "agent": "whale-0", "args": { "amount": 100 } },
+    { "name": "borrow", "agent": "whale-0", "args": { "amount": 6400 } },
+    { "name": "deposit", "agent": "whale-1", "args": { "amount": 100 } },
+    { "name": "borrow", "agent": "whale-1", "args": { "amount": 6400 } },
+    { "name": "deposit", "agent": "whale-2", "args": { "amount": 100 } },
+    { "name": "borrow", "agent": "whale-2", "args": { "amount": 6400 } },
+    { "name": "deposit", "agent": "whale-3", "args": { "amount": 100 } },
+    { "name": "borrow", "agent": "whale-3", "args": { "amount": 6400 } },
+    { "name": "deposit", "agent": "whale-4", "args": { "amount": 100 } },
+    { "name": "borrow", "agent": "whale-4", "args": { "amount": 6400 } }
+  ]
+}

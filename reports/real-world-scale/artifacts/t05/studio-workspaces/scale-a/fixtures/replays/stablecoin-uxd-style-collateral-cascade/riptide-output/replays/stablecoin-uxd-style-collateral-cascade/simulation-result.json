@@ -1,0 +1,501 @@
+{
+  "run_config": {
+    "agents": 6,
+    "ticks": 6,
+    "scenario": "replay:stablecoin-uxd-style-collateral-cascade",
+    "seed": 0,
+    "personas": [],
+    "validator_url": "http://127.0.0.1:8899",
+    "output_path": "/home/ailton/Work/riptide/riptide/fixtures/replays/stablecoin-uxd-style-collateral-cascade/riptide-output/replays/stablecoin-uxd-style-collateral-cascade"
+  },
+  "seed": 0,
+  "total_ticks": 6,
+  "timeseries": [
+    {
+      "active_agents": 6,
+      "pool.collateral_assets": 10000.0,
+      "pool.cumulative_hedge_loss_bps": 0.0,
+      "pool.effective_collateral_ratio_bps": 13333.0,
+      "pool.pending_redemption_assets": 0.0,
+      "pool.pending_redemption_count": 0.0,
+      "pool.reserve_buffer_assets": 2000.0,
+      "pool.stable_supply": 7500.0,
+      "position.claimable_collateral": 0.0,
+      "position.collateral_deposited": 1666.6666666666667,
+      "position.cumulative_claimed": 0.0,
+      "position.pending_redeem_assets": 0.0,
+      "position.stable_minted": 1250.0,
+      "tick": 0
+    },
+    {
+      "active_agents": 6,
+      "pool.collateral_assets": 10000.0,
+      "pool.cumulative_hedge_loss_bps": 0.0,
+      "pool.effective_collateral_ratio_bps": 13333.0,
+      "pool.pending_redemption_assets": 0.0,
+      "pool.pending_redemption_count": 0.0,
+      "pool.reserve_buffer_assets": 2000.0,
+      "pool.stable_supply": 7500.0,
+      "position.claimable_collateral": 0.0,
+      "position.collateral_deposited": 1666.6666666666667,
+      "position.cumulative_claimed": 0.0,
+      "position.pending_redeem_assets": 0.0,
+      "position.stable_minted": 1250.0,
+      "tick": 1
+    },
+    {
+      "active_agents": 6,
+      "pool.collateral_assets": 10000.0,
+      "pool.cumulative_hedge_loss_bps": 0.0,
+      "pool.effective_collateral_ratio_bps": 13333.0,
+      "pool.pending_redemption_assets": 0.0,
+      "pool.pending_redemption_count": 0.0,
+      "pool.reserve_buffer_assets": 2000.0,
+      "pool.stable_supply": 7500.0,
+      "position.claimable_collateral": 0.0,
+      "position.collateral_deposited": 1666.6666666666667,
+      "position.cumulative_claimed": 0.0,
+      "position.pending_redeem_assets": 0.0,
+      "position.stable_minted": 1250.0,
+      "tick": 2
+    },
+    {
+      "active_agents": 6,
+      "pool.collateral_assets": 6800.0,
+      "pool.cumulative_hedge_loss_bps": 4000.0,
+      "pool.effective_collateral_ratio_bps": 9066.0,
+      "pool.pending_redemption_assets": 0.0,
+      "pool.pending_redemption_count": 0.0,
+      "pool.reserve_buffer_assets": 2000.0,
+      "pool.stable_supply": 7500.0,
+      "position.claimable_collateral": 0.0,
+      "position.collateral_deposited": 1666.6666666666667,
+      "position.cumulative_claimed": 0.0,
+      "position.pending_redeem_assets": 0.0,
+      "position.stable_minted": 1250.0,
+      "tick": 3
+    },
+    {
+      "active_agents": 6,
+      "pool.collateral_assets": 5300.0,
+      "pool.cumulative_hedge_loss_bps": 4000.0,
+      "pool.effective_collateral_ratio_bps": 5333.0,
+      "pool.pending_redemption_assets": 4500.0,
+      "pool.pending_redemption_count": 3.0,
+      "pool.reserve_buffer_assets": 500.0,
+      "pool.stable_supply": 1500.0,
+      "position.claimable_collateral": 250.0,
+      "position.collateral_deposited": 1416.6666666666667,
+      "position.cumulative_claimed": 0.0,
+      "position.pending_redeem_assets": 750.0,
+      "position.stable_minted": 250.0,
+      "tick": 4
+    },
+    {
+      "active_agents": 6,
+      "pool.collateral_assets": 5300.0,
+      "pool.cumulative_hedge_loss_bps": 4000.0,
+      "pool.effective_collateral_ratio_bps": 5333.0,
+      "pool.pending_redemption_assets": 4500.0,
+      "pool.pending_redemption_count": 3.0,
+      "pool.reserve_buffer_assets": 500.0,
+      "pool.stable_supply": 1500.0,
+      "position.claimable_collateral": 0.0,
+      "position.collateral_deposited": 1416.6666666666667,
+      "position.cumulative_claimed": 250.0,
+      "position.pending_redeem_assets": 750.0,
+      "position.stable_minted": 250.0,
+      "tick": 5
+    },
+    {
+      "active_agents": 6,
+      "pool.collateral_assets": 5300.0,
+      "pool.cumulative_hedge_loss_bps": 4000.0,
+      "pool.effective_collateral_ratio_bps": 5333.0,
+      "pool.pending_redemption_assets": 4500.0,
+      "pool.pending_redemption_count": 3.0,
+      "pool.reserve_buffer_assets": 500.0,
+      "pool.stable_supply": 1500.0,
+      "position.claimable_collateral": 0.0,
+      "position.collateral_deposited": 1416.6666666666667,
+      "position.cumulative_claimed": 250.0,
+      "position.pending_redeem_assets": 750.0,
+      "position.stable_minted": 250.0,
+      "tick": 6
+    }
+  ],
+  "events": [
+    {
+      "tick": 3,
+      "agent_id": "admin-actor",
+      "persona_id": "admin-actor",
+      "persona_label": "admin-actor",
+      "action": "apply_hedge_loss",
+      "params": {
+        "loss_bps": 4000
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 3,
+      "agent_id": "__engine__",
+      "persona_id": "invariant",
+      "persona_label": "invariant",
+      "action": "invariant_violation:no_hedge_loss_during_healthy_run",
+      "params": {
+        "expected": 0.0,
+        "field": "pool.cumulative_hedge_loss_bps",
+        "index": 0,
+        "observed": 4000.0,
+        "op": "=="
+      },
+      "outcome": "failed",
+      "outcome_detail": "invariant `no_hedge_loss_during_healthy_run`: 4000 == 0 (observed vs expected)"
+    },
+    {
+      "tick": 3,
+      "agent_id": "__engine__",
+      "persona_id": "invariant",
+      "persona_label": "invariant",
+      "action": "invariant_violation:full_backing",
+      "params": {
+        "expected": 10000.0,
+        "field": "pool.effective_collateral_ratio_bps",
+        "index": 1,
+        "observed": 9066.0,
+        "op": ">="
+      },
+      "outcome": "failed",
+      "outcome_detail": "invariant `full_backing`: 9066 >= 10000 (observed vs expected)"
+    },
+    {
+      "tick": 4,
+      "agent_id": "staker-0",
+      "persona_id": "staker-0",
+      "persona_label": "staker-0",
+      "action": "request_redeem",
+      "params": {
+        "stable_amount": 1500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "staker-1",
+      "persona_id": "staker-1",
+      "persona_label": "staker-1",
+      "action": "request_redeem",
+      "params": {
+        "stable_amount": 1500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "staker-2",
+      "persona_id": "staker-2",
+      "persona_label": "staker-2",
+      "action": "request_redeem",
+      "params": {
+        "stable_amount": 1500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "staker-3",
+      "persona_id": "staker-3",
+      "persona_label": "staker-3",
+      "action": "request_redeem",
+      "params": {
+        "stable_amount": 1500
+      },
+      "outcome": "success"
+    },
+    {
+      "tick": 4,
+      "agent_id": "__engine__",
+      "persona_id": "invariant",
+      "persona_label": "invariant",
+      "action": "invariant_violation:no_hedge_loss_during_healthy_run",
+      "params": {
+        "expected": 0.0,
+        "field": "pool.cumulative_hedge_loss_bps",
+        "index": 0,
+        "observed": 4000.0,
+        "op": "=="
+      },
+      "outcome": "failed",
+      "outcome_detail": "invariant `no_hedge_loss_during_healthy_run`: 4000 == 0 (observed vs expected)"
+    },
+    {
+      "tick": 4,
+      "agent_id": "__engine__",
+      "persona_id": "invariant",
+      "persona_label": "invariant",
+      "action": "invariant_violation:full_backing",
+      "params": {
+        "expected": 10000.0,
+        "field": "pool.effective_collateral_ratio_bps",
+        "index": 1,
+        "observed": 5333.0,
+        "op": ">="
+      },
+      "outcome": "failed",
+      "outcome_detail": "invariant `full_backing`: 5333 >= 10000 (observed vs expected)"
+    },
+    {
+      "tick": 4,
+      "agent_id": "__engine__",
+      "persona_id": "invariant",
+      "persona_label": "invariant",
+      "action": "invariant_violation:no_redemption_queue_formation",
+      "params": {
+        "expected": 0.0,
+        "field": "pool.pending_redemption_count",
+        "index": 2,
+        "observed": 3.0,
+        "op": "=="
+      },
+      "outcome": "failed",
+      "outcome_detail": "invariant `no_redemption_queue_formation`: 3 == 0 (observed vs expected)"
+    },
+    {
+      "tick": 5,
+      "agent_id": "staker-0",
+      "persona_id": "staker-0",
+      "persona_label": "staker-0",
+      "action": "claim_redeem",
+      "params": {},
+      "outcome": "success"
+    },
+    {
+      "tick": 5,
+      "agent_id": "__engine__",
+      "persona_id": "invariant",
+      "persona_label": "invariant",
+      "action": "invariant_violation:no_hedge_loss_during_healthy_run",
+      "params": {
+        "expected": 0.0,
+        "field": "pool.cumulative_hedge_loss_bps",
+        "index": 0,
+        "observed": 4000.0,
+        "op": "=="
+      },
+      "outcome": "failed",
+      "outcome_detail": "invariant `no_hedge_loss_during_healthy_run`: 4000 == 0 (observed vs expected)"
+    },
+    {
+      "tick": 5,
+      "agent_id": "__engine__",
+      "persona_id": "invariant",
+      "persona_label": "invariant",
+      "action": "invariant_violation:full_backing",
+      "params": {
+        "expected": 10000.0,
+        "field": "pool.effective_collateral_ratio_bps",
+        "index": 1,
+        "observed": 5333.0,
+        "op": ">="
+      },
+      "outcome": "failed",
+      "outcome_detail": "invariant `full_backing`: 5333 >= 10000 (observed vs expected)"
+    },
+    {
+      "tick": 5,
+      "agent_id": "__engine__",
+      "persona_id": "invariant",
+      "persona_label": "invariant",
+      "action": "invariant_violation:no_redemption_queue_formation",
+      "params": {
+        "expected": 0.0,
+        "field": "pool.pending_redemption_count",
+        "index": 2,
+        "observed": 3.0,
+        "op": "=="
+      },
+      "outcome": "failed",
+      "outcome_detail": "invariant `no_redemption_queue_formation`: 3 == 0 (observed vs expected)"
+    },
+    {
+      "tick": 6,
+      "agent_id": "__engine__",
+      "persona_id": "invariant",
+      "persona_label": "invariant",
+      "action": "invariant_violation:no_hedge_loss_during_healthy_run",
+      "params": {
+        "expected": 0.0,
+        "field": "pool.cumulative_hedge_loss_bps",
+        "index": 0,
+        "observed": 4000.0,
+        "op": "=="
+      },
+      "outcome": "failed",
+      "outcome_detail": "invariant `no_hedge_loss_during_healthy_run`: 4000 == 0 (observed vs expected)"
+    },
+    {
+      "tick": 6,
+      "agent_id": "__engine__",
+      "persona_id": "invariant",
+      "persona_label": "invariant",
+      "action": "invariant_violation:full_backing",
+      "params": {
+        "expected": 10000.0,
+        "field": "pool.effective_collateral_ratio_bps",
+        "index": 1,
+        "observed": 5333.0,
+        "op": ">="
+      },
+      "outcome": "failed",
+      "outcome_detail": "invariant `full_backing`: 5333 >= 10000 (observed vs expected)"
+    },
+    {
+      "tick": 6,
+      "agent_id": "__engine__",
+      "persona_id": "invariant",
+      "persona_label": "invariant",
+      "action": "invariant_violation:no_redemption_queue_formation",
+      "params": {
+        "expected": 0.0,
+        "field": "pool.pending_redemption_count",
+        "index": 2,
+        "observed": 3.0,
+        "op": "=="
+      },
+      "outcome": "failed",
+      "outcome_detail": "invariant `no_redemption_queue_formation`: 3 == 0 (observed vs expected)"
+    }
+  ],
+  "agents": [
+    {
+      "agent_id": "admin-actor",
+      "persona_id": "admin-actor",
+      "persona_label": "admin-actor",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 1,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "staker-0",
+      "persona_id": "staker-0",
+      "persona_label": "staker-0",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 2,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "staker-1",
+      "persona_id": "staker-1",
+      "persona_label": "staker-1",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 1,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "staker-2",
+      "persona_id": "staker-2",
+      "persona_label": "staker-2",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 1,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "staker-3",
+      "persona_id": "staker-3",
+      "persona_label": "staker-3",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 1,
+      "triggers_activated": 0
+    },
+    {
+      "agent_id": "staker-4",
+      "persona_id": "staker-4",
+      "persona_label": "staker-4",
+      "status": "active",
+      "final_balance": 0.0,
+      "pnl": 0.0,
+      "total_actions": 0,
+      "triggers_activated": 0
+    }
+  ],
+  "summary": {
+    "agents_active": 6,
+    "agents_depleted": 0,
+    "agents_liquidated": 0,
+    "invariants_fired": [
+      {
+        "field": "pool.cumulative_hedge_loss_bps",
+        "firings": 4,
+        "name": "no_hedge_loss_during_healthy_run",
+        "op": "==",
+        "value": 0.0
+      },
+      {
+        "field": "pool.effective_collateral_ratio_bps",
+        "firings": 4,
+        "name": "full_backing",
+        "op": ">=",
+        "value": 10000.0
+      },
+      {
+        "field": "pool.pending_redemption_count",
+        "firings": 3,
+        "name": "no_redemption_queue_formation",
+        "op": "==",
+        "value": 0.0
+      }
+    ],
+    "pool.collateral_assets_avg": 7528.571428571428,
+    "pool.collateral_assets_max": 10000.0,
+    "pool.collateral_assets_min": 5300.0,
+    "pool.cumulative_hedge_loss_bps_avg": 2285.714285714286,
+    "pool.cumulative_hedge_loss_bps_max": 4000.0,
+    "pool.cumulative_hedge_loss_bps_min": 0.0,
+    "pool.effective_collateral_ratio_bps_avg": 9294.857142857143,
+    "pool.effective_collateral_ratio_bps_max": 13333.0,
+    "pool.effective_collateral_ratio_bps_min": 5333.0,
+    "pool.pending_redemption_assets_avg": 1928.5714285714287,
+    "pool.pending_redemption_assets_max": 4500.0,
+    "pool.pending_redemption_assets_min": 0.0,
+    "pool.pending_redemption_count_avg": 1.2857142857142858,
+    "pool.pending_redemption_count_max": 3.0,
+    "pool.pending_redemption_count_min": 0.0,
+    "pool.reserve_buffer_assets_avg": 1357.142857142857,
+    "pool.reserve_buffer_assets_max": 2000.0,
+    "pool.reserve_buffer_assets_min": 500.0,
+    "pool.stable_supply_avg": 4928.571428571428,
+    "pool.stable_supply_max": 7500.0,
+    "pool.stable_supply_min": 1500.0,
+    "position.claimable_collateral_avg": 35.714285714285715,
+    "position.claimable_collateral_max": 250.0,
+    "position.claimable_collateral_min": 0.0,
+    "position.collateral_deposited_avg": 1559.5238095238094,
+    "position.collateral_deposited_max": 1666.6666666666667,
+    "position.collateral_deposited_min": 1416.6666666666667,
+    "position.cumulative_claimed_avg": 71.42857142857143,
+    "position.cumulative_claimed_max": 250.0,
+    "position.cumulative_claimed_min": 0.0,
+    "position.pending_redeem_assets_avg": 321.42857142857144,
+    "position.pending_redeem_assets_max": 750.0,
+    "position.pending_redeem_assets_min": 0.0,
+    "position.stable_minted_avg": 821.4285714285714,
+    "position.stable_minted_max": 1250.0,
+    "position.stable_minted_min": 250.0
+  },
+  "simulation_boundaries": [
+    "Replay mode bypasses persona compilation and dispatches a declared instruction trajectory directly.",
+    "Trajectory args are supplied inline per event; generic adapters may still fall back to adapter literals for unmapped constants.",
+    "initial-state.json, when present, is applied as a pre-tick bootstrap instruction list before tick 0 is recorded.",
+    "Agent balance/PnL fields are bookkeeping-only in replay mode; authoritative outputs are primitive snapshots, events, and invariant rollups."
+  ]
+}
