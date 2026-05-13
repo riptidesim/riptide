@@ -1,0 +1,64 @@
+name: cli-clean-checkout-smoke
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-clean-checkout-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SOLANA_VERSION: v3.0.13
+
+jobs:
+  cli-clean-checkout-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: "1"
+
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install Rust toolchain
+        # dtolnay/rust-toolchain @stable branch as of 2026-04-22
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+        with:
+          toolchain: stable
+
+      - name: Install Solana CLI (pinned + checksum-verified)
+        run: |
+          set -euo pipefail
+          tarball="solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          url="https://github.com/anza-xyz/agave/releases/download/${SOLANA_VERSION}/${tarball}"
+          workdir="$(mktemp -d)"
+          curl -fsSL --retry 3 --retry-all-errors -o "${workdir}/${tarball}" "${url}"
+          (
+            cd "${workdir}" && \
+            sha256sum -c "${GITHUB_WORKSPACE}/scripts/ci/solana-release.sha256"
+          )
+          mkdir -p "${HOME}/.local/share/solana/install/active_release"
+          tar -xjf "${workdir}/${tarball}" \
+            -C "${HOME}/.local/share/solana/install/active_release" \
+            --strip-components=1
+          echo "${HOME}/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Set up Node.js
+        # actions/setup-node v4.1.0
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version: "24"
+
+      - name: Run CLI clean-checkout smoke
+        env:
+          RIPTIDE_CLEAN_CHECKOUT_REQUIRE_CLEAN: "1"
+        run: bash scripts/ci/cli-clean-checkout-smoke.sh

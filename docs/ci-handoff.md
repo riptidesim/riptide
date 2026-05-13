@@ -6,7 +6,7 @@ stranger on a fresh GitHub Actions runner can rerun a committed proof,
 assert its canonical hash, and forward the run URL as the
 reviewer-facing source of truth.
 
-This document covers two paths:
+This document covers three paths:
 
 1. **In-repo handoff** — the workflow Riptide itself ships, which
    reruns the `lst-lending-contagion-proof` replay on every
@@ -18,9 +18,14 @@ This document covers two paths:
    into your own Solana program repo to pin **your own** replay to
    **your own** hash.
 
-Neither path fetches a remote IDL at run time. Neither path runs an
-LLM. Neither path needs secrets beyond the default `GITHUB_TOKEN`.
-Every input is committed under git.
+3. **CLI clean-checkout smoke** — a local script and workflow that
+   prove first-hour CLI surfaces from a temp clean copy of the repo:
+   `doctor`, one `run`, one `campaign run`, the flagship replay proof,
+   canonical hash assertion, and proof review.
+
+None of these paths fetches a remote IDL at run time. None runs an
+LLM. None needs secrets beyond the default `GITHUB_TOKEN`. Every input
+is committed under git.
 
 ---
 
@@ -124,6 +129,45 @@ reviewer inspects when deciding whether a green run is trustworthy.
   `trace.md`, `rerun.sh`, `manifest.json`, `inputs/`, `outputs/`).
 - Optionally, the workflow's "Assert pack canonical_hash" step output,
   which prints the hash + manifest path.
+
+---
+
+## CLI clean-checkout smoke
+
+**Local script:** `scripts/ci/cli-clean-checkout-smoke.sh`
+
+**Workflow file:** `.github/workflows/cli-clean-checkout-smoke.yml`
+
+The local script creates a temp clone at `HEAD`, installs the CLI dependencies
+with npm postinstall scripts disabled, builds the CLI, builds
+`riptide-engine`, builds the three SBF programs needed by the flagship replay,
+and then runs these command surfaces:
+
+```bash
+bash scripts/ci/cli-clean-checkout-smoke.sh
+```
+
+If the source worktree is dirty, the script prints a warning that it is testing
+`HEAD` only. Set `RIPTIDE_CLEAN_CHECKOUT_REQUIRE_CLEAN=1` to fail closed instead;
+the GitHub Actions workflow runs in this strict mode.
+
+The gate pins:
+
+- Flagship canonical hash:
+  `d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb`
+- Accepted proof-review exit: `1`, only for
+  `riptide review .riptide/pack/replay-multi-lst-lending-contagion-proof-upstream`
+  after the hash assertion passes.
+
+The `review` exit remains non-zero because the proof intentionally records an
+invariant-firing evidence pack and still carries the current proof metadata
+boundary. A passing gate requires the canonical hash assertion to succeed first.
+
+Network boundary: the script may use configured npm/Cargo package caches or
+registries while preparing a clean temp checkout. The GitHub workflow also
+downloads the pinned Solana CLI tarball and checksum-verifies it before use.
+The gate does not use RPC, private keys, live mainnet writes, push, release,
+npm publish, cargo publish, Docker publish, or an LLM.
 
 ---
 
