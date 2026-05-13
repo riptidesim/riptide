@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "started_at": "2026-05-13T02:02:41.863Z",
-  "finished_at": "2026-05-13T02:02:43.697Z",
+  "started_at": "2026-05-13T03:36:18.170Z",
+  "finished_at": "2026-05-13T03:36:19.746Z",
   "signal_aborted": false,
   "partial_abort": false,
   "scenarios": [
@@ -9,7 +9,7 @@
       "name": "run_000000_2e458233cab5",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000000_2e458233cab5/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.135,
+      "wall_clock_s": 0.069,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000000_2e458233cab5",
       "interpretation": {
@@ -78,7 +78,7 @@
       "name": "run_000001_60f464f418c7",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000001_60f464f418c7/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.115,
+      "wall_clock_s": 0.078,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000001_60f464f418c7",
       "interpretation": {
@@ -147,7 +147,7 @@
       "name": "run_000002_2465e1b314c3",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000002_2465e1b314c3/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.119,
+      "wall_clock_s": 0.076,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000002_2465e1b314c3",
       "interpretation": {
@@ -216,7 +216,7 @@
       "name": "run_000003_2b82e11d59ee",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000003_2b82e11d59ee/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.103,
+      "wall_clock_s": 0.105,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000003_2b82e11d59ee",
       "interpretation": {
@@ -285,7 +285,7 @@
       "name": "run_000004_01fba41fd6bc",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000004_01fba41fd6bc/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.1,
+      "wall_clock_s": 0.105,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000004_01fba41fd6bc",
       "interpretation": {
@@ -354,7 +354,7 @@
       "name": "run_000005_2216348e7e35",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000005_2216348e7e35/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.094,
+      "wall_clock_s": 0.091,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000005_2216348e7e35",
       "interpretation": {
@@ -423,7 +423,7 @@
       "name": "run_000006_a756808d330f",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000006_a756808d330f/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.098,
+      "wall_clock_s": 0.078,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000006_a756808d330f",
       "interpretation": {
@@ -492,7 +492,7 @@
       "name": "run_000007_381d169f4cb7",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000007_381d169f4cb7/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.12,
+      "wall_clock_s": 0.086,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000007_381d169f4cb7",
       "interpretation": {
@@ -561,7 +561,7 @@
       "name": "run_000008_6c1296b2ff28",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000008_6c1296b2ff28/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.062,
+      "wall_clock_s": 0.066,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000008_6c1296b2ff28",
       "interpretation": {
@@ -630,7 +630,7 @@
       "name": "run_000009_24e6a04ddcb8",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000009_24e6a04ddcb8/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.101,
+      "wall_clock_s": 0.116,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000009_24e6a04ddcb8",
       "interpretation": {
@@ -699,7 +699,7 @@
       "name": "run_000010_456d84ed46f9",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000010_456d84ed46f9/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.09,
+      "wall_clock_s": 0.076,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000010_456d84ed46f9",
       "interpretation": {
@@ -768,7 +768,7 @@
       "name": "run_000011_2d7c6aa00208",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000011_2d7c6aa00208/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.063,
+      "wall_clock_s": 0.08,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000011_2d7c6aa00208",
       "interpretation": {
@@ -837,7 +837,7 @@
       "name": "run_000012_772800f663a1",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000012_772800f663a1/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.083,
+      "wall_clock_s": 0.109,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000012_772800f663a1",
       "interpretation": {
@@ -906,7 +906,7 @@
       "name": "run_000013_09601a35a28f",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000013_09601a35a28f/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.125,
+      "wall_clock_s": 0.08,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000013_09601a35a28f",
       "interpretation": {
@@ -975,7 +975,7 @@
       "name": "run_000014_17ea751a56c9",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000014_17ea751a56c9/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.1,
+      "wall_clock_s": 0.101,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000014_17ea751a56c9",
       "interpretation": {
@@ -1044,7 +1044,7 @@
       "name": "run_000015_5de0d4d36a1d",
       "run_config_path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000015_5de0d4d36a1d/run-config.json",
       "status": "pass",
-      "wall_clock_s": 0.07,
+      "wall_clock_s": 0.055,
       "invariant_fires": [],
       "artifacts_dir": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a/.riptide/campaigns/campaign_2a93d0358025/runs/run_000015_5de0d4d36a1d",
       "interpretation": {

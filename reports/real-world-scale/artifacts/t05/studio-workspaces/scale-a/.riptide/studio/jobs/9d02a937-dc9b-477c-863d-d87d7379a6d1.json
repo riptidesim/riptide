@@ -1,9 +1,9 @@
 {
-  "id": "63325855-b2aa-4ff0-b1a3-517a94cd011a",
+  "id": "9d02a937-dc9b-477c-863d-d87d7379a6d1",
   "kind": "review",
   "status": "succeeded",
-  "created_at": "2026-05-13T02:02:41.419Z",
-  "updated_at": "2026-05-13T02:02:44.189Z",
+  "created_at": "2026-05-13T03:36:16.850Z",
+  "updated_at": "2026-05-13T03:36:20.109Z",
   "workspace_id": "current",
   "cwd": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a",
   "argv": [

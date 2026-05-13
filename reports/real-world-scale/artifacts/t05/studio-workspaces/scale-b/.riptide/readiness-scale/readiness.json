@@ -104,7 +104,7 @@
       "label": "local repository",
       "notes": [
         "branch: main",
-        "commit: 6c62116999457592c0260247a5571c61977aa476",
+        "commit: 5e2cffcde82d73963d551c664b34a6c0aa2869c1",
         "dirty: true",
         "remote: https://github.com/riptidesim/riptide.git"
       ],
@@ -137,7 +137,7 @@
   "repo": {
     "branch": "main",
     "candidate": "scale-b",
-    "commit": "6c62116999457592c0260247a5571c61977aa476",
+    "commit": "5e2cffcde82d73963d551c664b34a6c0aa2869c1",
     "dirty": true,
     "path": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-b",
     "remoteUrl": "https://github.com/riptidesim/riptide.git"

@@ -1,0 +1,26 @@
+{
+  "id": "fd729d2b-fbf9-43f5-a5e3-2312f0216b67",
+  "kind": "campaign-run",
+  "status": "succeeded",
+  "created_at": "2026-05-13T03:36:15.756Z",
+  "updated_at": "2026-05-13T03:36:19.837Z",
+  "workspace_id": "current",
+  "cwd": "/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a",
+  "argv": [
+    "riptide",
+    "campaign",
+    "run",
+    "fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml"
+  ],
+  "output_path": ".riptide/campaigns/",
+  "expected_artifact": ".riptide/campaigns/",
+  "exit_code": 0,
+  "stdout_tail": "Campaign complete: solend-shape-liquidation-safety\n\nResult\n  Outcome: no invariant failures observed, no setup errors\n  Runs: 16/16 completed, 0 setup errors, 0 skipped runs\n  Risk signals: bad debt max=4320, liquidations max=6, max utilization=19.2\n  Coverage: 16 partial; confidence 16 low\n\nWorkload\n  Size: 2x oracle_lag_baseline (10 agents x 22 ticks), 2x oracle_lag_baseline (10 agents x 20 ticks), 5x whale_share_sweep (20 agents x 20 ticks), 7x whale_shock_grid (20 agents x 20 ticks)\n  Simulation time: 1.37s\n  Configs: 16 created, 0 reused\n\nNext\n  riptide review .riptide/campaigns/campaign_2a93d0358025\n\nEvidence\n  Summary: .riptide/campaigns/campaign_2a93d0358025/campaign-summary.md\n  Artifacts: .riptide/campaigns/campaign_2a93d0358025\n  Retained cases: worst_bad_debt -> run_000002_2465e1b314c3, worst_liquidity -> run_000014_17ea751a56c9, median -> run_000007_381d169f4cb7, surprising_outlier -> run_000014_17ea751a56c9\n  Retention warnings: first_failure\n\nDetails\n  Objective: liquidation-safety (lending.v1)\n  Campaign ID: campaign_2a93d0358025\n  Digest: 2a93d0358025...f51581\n\nBoundary\n  No invariant violation observed means none was observed in this campaign, not proof of complete safety.\n",
+  "stderr_tail": "",
+  "artifact_paths": [
+    ".riptide/campaigns/"
+  ],
+  "warnings": [
+    "Campaign run can spawn many child runs and may take several minutes."
+  ]
+}

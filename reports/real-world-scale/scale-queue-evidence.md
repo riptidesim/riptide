@@ -34,7 +34,7 @@ Result
 
 Workload
   Size: 1x oracle_lag_baseline (10 agents x 22 ticks), 3x whale_share_sweep (20 agents x 20 ticks), 4x whale_shock_grid (20 agents x 20 ticks)
-  Simulation time: 663ms
+  Simulation time: 459ms
   Configs: 8 created, 0 reused
 
 Next
@@ -57,7 +57,7 @@ Boundary
 
 ## Studio Queue Stress
 
-- Studio URL: `http://127.0.0.1:41267`
+- Studio URL: `http://127.0.0.1:43383`
 - Workspaces: `current` -> `/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a`, `scale-b` -> `/home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-b`
 - Queue after submit: `queued=4, running=1`
 - Final queue statuses: `cancelled=1, failed=1, succeeded=3`
@@ -68,11 +68,11 @@ Queued jobs:
 
 | Label | Job id | Workspace | Expected terminal behavior |
 | --- | --- | --- | --- |
-| campaign run | `072d3934-0f76-4115-93e5-0dae2571f347` | `current` | succeeds and writes `.riptide/campaigns/campaign_2a93d0358025` |
-| review | `63325855-b2aa-4ff0-b1a3-517a94cd011a` | `current` | succeeds and writes `.riptide/studio/scale-review.md` |
-| failing review | `94fa9d20-d44a-4d54-913d-3ffa982e699d` | `current` | fails on missing pack |
-| readiness | `fbcb9532-7ca7-490f-b616-fbccdae63905` | `scale-b` | succeeds and writes `.riptide/readiness-scale/readiness.json` |
-| cancelled plan | `076991d5-b0ac-4e96-9176-f9ba64ecfd50` | `scale-b` | cancelled before dispatch or terminalized as cancelled |
+| campaign run | `fd729d2b-fbf9-43f5-a5e3-2312f0216b67` | `current` | succeeds and writes `.riptide/campaigns/campaign_2a93d0358025` |
+| review | `9d02a937-dc9b-477c-863d-d87d7379a6d1` | `current` | succeeds and writes `.riptide/studio/scale-review.md` |
+| failing review | `09c4895f-3894-4f82-9bec-84341e39ed66` | `current` | fails on missing pack |
+| readiness | `130b2c3c-8809-47c1-92f9-62ac48f6b5cc` | `scale-b` | succeeds and writes `.riptide/readiness-scale/readiness.json` |
+| cancelled plan | `809abd98-83ab-4de8-897d-7b01295ef4c9` | `scale-b` | cancelled before dispatch or terminalized as cancelled |
 
 Artifact isolation checks:
 

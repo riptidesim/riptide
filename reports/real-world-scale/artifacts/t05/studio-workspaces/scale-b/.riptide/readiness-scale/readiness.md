@@ -1,6 +1,6 @@
 # Riptide Readiness Report
 
-- Repository: scale-b | /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-b | branch main | commit 6c6211699945
+- Repository: scale-b | /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-b | branch main | commit 5e2cffcde82d
 - Observed support level: L3 - Riptide workspace initialized
 - Status: blocked
 - Next level: L4 - generic E2E observed
@@ -25,7 +25,7 @@
 - missing: semantic E2E run evidence (semantic_e2e_run).
 - present: build, IDL, or program artifacts (build_or_program_artifacts). Paths: fixtures/idls/admin_mock_oracle.json, fixtures/idls/amm.json, fixtures/idls/liquid-staking.json, fixtures/idls/perpetuals.json, fixtures/idls/resource-grinder.json, fixtures/idls/stablecoin.json. Notes: idl-artifacts; riptide-workspace.
 - present: candidate (candidate_record). Paths: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-b. Notes: readiness inspection was requested for this local path.
-- present: local repository (local_repo). Paths: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-b. Notes: branch: main; commit: 6c62116999457592c0260247a5571c61977aa476; dirty: true; remote: https://github.com/riptidesim/riptide.git.
+- present: local repository (local_repo). Paths: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-b. Notes: branch: main; commit: 5e2cffcde82d73963d551c664b34a6c0aa2869c1; dirty: true; remote: https://github.com/riptidesim/riptide.git.
 - present: .riptide workspace (riptide_workspace). Paths: .riptide. Notes: 0 adapter(s); 0 harness(es); 0 scenario artifact(s); 0 slice manifest(s).
 
 ## Slices

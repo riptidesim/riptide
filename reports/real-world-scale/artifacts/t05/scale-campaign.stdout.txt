@@ -8,7 +8,7 @@ Result
 
 Workload
   Size: 1x oracle_lag_baseline (10 agents x 22 ticks), 3x whale_share_sweep (20 agents x 20 ticks), 4x whale_shock_grid (20 agents x 20 ticks)
-  Simulation time: 663ms
+  Simulation time: 459ms
   Configs: 8 created, 0 reused
 
 Next
