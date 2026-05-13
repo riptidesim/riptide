@@ -461,7 +461,7 @@ test("studio workspace discovery flags missing .riptide with a next action", asy
   assert.match(workspaces[0]!.warnings[0]!.next_action, /riptide init/);
 });
 
-test("studio workspace discovery hides the uninitialized launch folder when a saved workspace exists", async () => {
+test("studio workspace discovery surfaces the uninitialized launch folder alongside saved workspaces", async () => {
   const root = await tmpRoot("workspaces-launch-shell");
   const external = await tmpRoot("workspaces-saved-external");
   const registryHome = await tmpRoot("workspaces-saved-registry");
@@ -473,10 +473,16 @@ test("studio workspace discovery hides the uninitialized launch folder when a sa
     registryPaths: { home: registryHome }
   });
 
-  assert.equal(workspaces.length, 1);
-  assert.equal(workspaces[0]!.path, external);
-  assert.equal(workspaces[0]!.source, "registered");
-  assert.equal(workspaces[0]!.has_riptide, true);
+  assert.equal(workspaces.length, 2);
+  // The cwd is always included so the first-run wizard can fire for a fresh repo
+  // even when the registry already holds saved workspaces.
+  assert.equal(workspaces[0]!.id, "current");
+  assert.equal(workspaces[0]!.source, "current");
+  assert.equal(workspaces[0]!.has_riptide, false);
+  assert.equal(workspaces[0]!.warnings.length, 1);
+  assert.equal(workspaces[1]!.path, external);
+  assert.equal(workspaces[1]!.source, "registered");
+  assert.equal(workspaces[1]!.has_riptide, true);
 });
 
 test("studio workspace discovery surfaces case-study subfolders deterministically", async () => {
@@ -872,7 +878,7 @@ test("studio init opens an existing .riptide workspace without overwriting it", 
   });
 });
 
-test("studio init from an uninitialized launch folder returns the chosen workspace only", async () => {
+test("studio init from an uninitialized launch folder surfaces both the chosen project and the launch folder", async () => {
   const launchRoot = await tmpRoot("server-init-launch-shell");
   const projectRoot = await tmpRoot("server-init-chosen-project");
 
@@ -889,11 +895,18 @@ test("studio init from an uninitialized launch folder returns the chosen workspa
     });
     assert.equal(initResponse.status, 201);
     const body = (await initResponse.json()) as {
-      workspaces: Array<{ id: string; label: string; path: string; has_riptide: boolean; registry_id: string | null }>;
+      workspaces: Array<{ id: string; label: string; path: string; source: string; has_riptide: boolean; registry_id: string | null }>;
     };
     assert.equal((await stat(path.join(projectRoot, ".riptide"))).isDirectory(), true);
+    // The newly initialized project is registered and managed.
     assert.ok(body.workspaces.some((workspace) => workspace.path === projectRoot && workspace.has_riptide));
-    assert.ok(!body.workspaces.some((workspace) => workspace.path === launchRoot));
+    // The launch folder remains visible as the "current" workspace (uninitialized).
+    // This is required so a user who launches Studio in a fresh repo and points
+    // the wizard at a different path can still see — and pick — the original folder.
+    const launchEntry = body.workspaces.find((workspace) => workspace.path === launchRoot);
+    assert.ok(launchEntry, "launch folder should remain in the workspace list");
+    assert.equal(launchEntry!.source, "current");
+    assert.equal(launchEntry!.has_riptide, false);
   });
 });
 

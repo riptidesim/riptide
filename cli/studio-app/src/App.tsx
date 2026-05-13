@@ -46,8 +46,14 @@ function isManagedWorkspace(workspace: StudioWorkspace): boolean {
 }
 
 function workspaceNeedsFirstRun(active: StudioWorkspace | null, workspaces: StudioWorkspace[] | null): boolean {
-  if (!active || isManagedWorkspace(active)) return false;
-  return !(workspaces ?? []).some(isManagedWorkspace);
+  // Still loading workspaces — don't flash the wizard during the initial fetch.
+  if (workspaces === null) return false;
+  // No workspaces at all (e.g. user removed their last one) — fall back to the wizard.
+  if (workspaces.length === 0 || !active) return true;
+  // Active workspace itself is unmanaged — fire the wizard for this repo, even if
+  // other managed workspaces exist in the registry. This matches the May-6 behavior
+  // before commit 2712c7b over-extended the suppression to global state.
+  return !isManagedWorkspace(active);
 }
 
 function selectWorkspaceAfterRemoval(workspaces: StudioWorkspace[], removedIndex: number): number {

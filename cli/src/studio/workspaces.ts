@@ -76,16 +76,8 @@ export async function discoverStudioWorkspaces(
   });
 
   const discovered = [...studies, ...registered];
-  const out = dedupeByPath([
-    ...(shouldIncludePrimary(primary, discovered) ? [primary] : []),
-    ...discovered
-  ]);
+  const out = dedupeByPath([primary, ...discovered]);
   return out.sort((a, b) => primaryFirst(a, b) || compareStrings(a.id, b.id));
-}
-
-function shouldIncludePrimary(primary: StudioWorkspace, discovered: StudioWorkspace[]): boolean {
-  if (primary.has_riptide || primary.registry_id) return true;
-  return discovered.length === 0;
 }
 
 function dedupeByPath(workspaces: StudioWorkspace[]): StudioWorkspace[] {
