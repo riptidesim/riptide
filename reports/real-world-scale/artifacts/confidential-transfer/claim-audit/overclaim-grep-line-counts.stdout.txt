@@ -1,0 +1,3 @@
+   611 reports/real-world-scale/artifacts/confidential-transfer/claim-audit/overclaim-grep.stdout.txt
+     0 reports/real-world-scale/artifacts/confidential-transfer/claim-audit/overclaim-grep.stderr.txt
+   611 total

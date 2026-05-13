@@ -1,0 +1,3 @@
+  265 reports/real-world-scale/artifacts/confidential-transfer/claim-audit/obsidian-grep.stdout.txt
+    0 reports/real-world-scale/artifacts/confidential-transfer/claim-audit/obsidian-grep.stderr.txt
+  265 total
