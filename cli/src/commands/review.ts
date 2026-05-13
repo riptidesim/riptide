@@ -121,7 +121,8 @@ export async function runReview(
   const stderr = deps.stderrWrite ?? ((chunk: string) => process.stderr.write(chunk));
 
   try {
-    const reviewRoot = path.resolve(deps.cwd ?? process.cwd(), pack);
+    const reviewCwd = path.resolve(deps.cwd ?? process.cwd());
+    const reviewRoot = path.resolve(reviewCwd, pack);
     if (isCampaignRoot(reviewRoot)) {
       return await runCampaignReview(reviewRoot, options, deps);
     }
@@ -132,7 +133,7 @@ export async function runReview(
       return await runGuidedSimReview(reviewRoot, options, deps);
     }
 
-    const packData = await loadPackManifest(pack);
+    const packData = await loadPackManifest(reviewRoot, { workspaceRoot: reviewCwd });
     const validationResults: ValidationResult[] = [...packData.validationResults];
     const warnings: string[] = [];
 
@@ -1070,44 +1071,113 @@ function renderCampaignReviewMarkdown(input: {
 }): string {
   const campaign = objectValue(input.summary.campaign) ?? {};
   const totals = objectValue(input.summary.totals) ?? {};
+  const parameterRows = campaignParameterRows(input.summary);
+  const warnings = Array.isArray(input.manifest.warnings)
+    ? input.manifest.warnings.filter((entry): entry is string => typeof entry === "string")
+    : [];
   const lines: string[] = [
     `# Campaign Review: ${stringValue(campaign.name) ?? path.basename(input.campaignRoot)}`,
     "",
+    "## Executive Summary",
+    "",
+    campaignExecutiveSummary(input),
+    "",
+    `- **Outcome:** ${campaignOutcomeLabel(totals)}`,
+    `- **Campaign ID:** \`${stringValue(campaign.campaign_id) ?? ""}\``,
+    `- **Risk objective:** ${stringValue(campaign.risk_objective) ?? "unknown"}`,
+    `- **Run budget:** ${numberDisplay(campaign.run_budget)} planned, ${numberDisplay(totals.completed_runs)} completed`,
+    "- **Boundary:** Simulation evidence from retained campaign artifacts, not audit signoff or complete protocol safety.",
+    "",
     "## Outcome",
     "",
-    `- Campaign ID: \`${stringValue(campaign.campaign_id) ?? ""}\``,
-    `- Campaign digest: \`${stringValue(campaign.campaign_digest) ?? ""}\``,
-    `- Completed runs: ${numberDisplay(totals.completed_runs)}`,
-    `- Invariant-failed runs: ${numberDisplay(totals.invariant_failed_runs)}`,
-    `- Setup errors: ${numberDisplay(totals.setup_errors)}`,
+    "| Check | Result | Evidence |",
+    "|---|---|---|",
+    `| Completed runs | ${numberValue(totals.completed_runs) === numberValue(totals.requested_runs) ? "pass" : "warn"} | ${numberDisplay(totals.completed_runs)} / ${numberDisplay(totals.requested_runs)} requested |`,
+    `| Invariant failures | ${numberValue(totals.invariant_failed_runs) && numberValue(totals.invariant_failed_runs)! > 0 ? "fail" : "pass"} | ${numberDisplay(totals.invariant_failed_runs)} runs |`,
+    `| Setup errors | ${numberValue(totals.setup_errors) && numberValue(totals.setup_errors)! > 0 ? "fail" : "pass"} | ${numberDisplay(totals.setup_errors)} setup errors |`,
+    `| Retained cases | ${input.selected.length > 0 ? "pass" : "warn"} | ${input.selected.length} selected for review |`,
     "",
-    "## Retained Cases",
+    "## Risk Map",
     "",
-    "| Label | Run | Parameters | Risk result | Rerun |",
-    "|---|---|---|---|---|"
+    "| Signal | Observed | Reviewer meaning |",
+    "|---|---|---|"
   ];
 
+  for (const row of campaignRiskRows(input.summary, totals, input.selected)) {
+    lines.push(`| ${row.signal} | ${row.observed} | ${row.meaning} |`);
+  }
+
+  lines.push(
+    "",
+    "## Invariant Explanation",
+    "",
+    campaignInvariantExplanation(input.summary, input.selected),
+    "",
+    "## Scenario Parameters",
+    "",
+    "| Parameter | Distribution | Samples | Observed range |",
+    "|---|---|---:|---|"
+  );
+  if (parameterRows.length === 0) {
+    lines.push("| (none recorded) | - | 0 | - |");
+  } else {
+    for (const row of parameterRows) {
+      lines.push(`| ${row.name} | ${tableCell(row.distribution)} | ${row.samples} | ${tableCell(row.range)} |`);
+    }
+  }
+
+  lines.push(
+    "",
+    "## Relevant Events",
+    "",
+    "Retained cases are the campaign events to inspect first. Each row links the sampled parameters, risk result, source artifact, and exact rerun recipe.",
+    "",
+    "| Label | Run | Parameters | Risk result | Source artifact | Rerun |",
+    "|---|---|---|---|---|---|"
+  );
   for (const entry of input.selected) {
     lines.push(
-      `| ${stringValue(entry.label) ?? ""} | \`${stringValue(entry.run_id) ?? ""}\` | ${sampledParametersDisplay(objectValue(entry.sampled_parameters))} | ${retainedRiskDisplay(entry)} | \`${stringValue(entry.rerun_command) ?? ""}\` |`
+      `| ${stringValue(entry.label) ?? ""} | \`${stringValue(entry.run_id) ?? ""}\` | ${tableCell(sampledParametersDisplay(objectValue(entry.sampled_parameters)))} | ${tableCell(retainedRiskDisplay(entry))} | \`${sourceArtifactForRetainedCase(entry)}\` | \`${stringValue(entry.rerun_command) ?? ""}\` |`
     );
   }
 
   lines.push(
     "",
-    "## Validation",
+    "## Rerun Command",
+    "",
+    "Review the campaign root:",
+    "",
+    "```sh",
+    `riptide review ${shellQuotePath(relativizeIfInside(process.cwd(), input.campaignRoot))}`,
+    "```",
+    "",
+    "Rerun commands for retained cases are listed in Relevant Events. The review command validated their `rerun.sh` files with `sh -n`; it did not execute them.",
+    "",
+    "## Technical Appendix",
+    "",
+    "### Reproducibility",
+    "",
+    `- Campaign digest: \`${stringValue(campaign.campaign_digest) ?? ""}\``,
+    `- Campaign root: \`${input.campaignRoot}\``,
+    `- Summary: \`${path.join(input.campaignRoot, "campaign-summary.json")}\``,
+    `- Retention manifest: \`${path.join(input.campaignRoot, "retention-manifest.json")}\``,
+    "",
+    "### Validation",
     ""
   );
   for (const result of input.validationResults) {
     lines.push(`- ${result.status}: ${result.message}`);
   }
-  lines.push(
-    "",
-    "## Boundary",
-    "",
-    "This review validates campaign-retained evidence and rerun recipes. It does not claim complete protocol safety beyond the campaign inputs, run budget, and retained artifacts.",
-    ""
-  );
+  if (warnings.length > 0) {
+    lines.push("", "### Warnings", "");
+    for (const warning of warnings) {
+      lines.push(`- ${warning}`);
+    }
+  }
+  lines.push("", "### Evidence Boundaries", "");
+  lines.push("- This review validates campaign-retained evidence and rerun recipes.");
+  lines.push("- It does not claim complete protocol safety beyond the campaign inputs, run budget, and retained artifacts.");
+  lines.push("");
   return lines.join("\n");
 }
 
@@ -1116,24 +1186,296 @@ function renderRetainedCaseReviewMarkdown(
   caseRecord: JsonRecord,
   validationResults: ValidationResult[]
 ): string {
-  const lines = [
+  const label = stringValue(caseRecord.label) ?? path.basename(caseRoot);
+  const runId = stringValue(caseRecord.run_id) ?? "unknown";
+  const campaignId = stringValue(caseRecord.campaign_id) ?? "unknown";
+  const riskResult = retainedRiskDisplay(caseRecord);
+  const rerunCommand = stringValue(caseRecord.rerun_command) ?? `sh ${shellQuotePath(path.join(caseRoot, "rerun.sh"))}`;
+  const sampledParameters = objectValue(caseRecord.sampled_parameters);
+  const riskSignals = objectValue(caseRecord.risk_signals) ?? {};
+  const invariantNames = Array.isArray(riskSignals.invariant_names)
+    ? riskSignals.invariant_names.filter((value): value is string => typeof value === "string")
+    : [];
+  const semanticSignals = Array.isArray(riskSignals.semantic_signal_names)
+    ? riskSignals.semantic_signal_names.filter((value): value is string => typeof value === "string")
+    : [];
+  const paths = objectValue(caseRecord.paths);
+  const sourceArtifact = sourceArtifactForRetainedCase(caseRecord);
+  const lines: string[] = [
     `# Retained Campaign Case: ${stringValue(caseRecord.label) ?? path.basename(caseRoot)}`,
     "",
-    `- Run: \`${stringValue(caseRecord.run_id) ?? ""}\``,
-    `- Campaign: \`${stringValue(caseRecord.campaign_id) ?? ""}\``,
-    `- Case digest: \`${stringValue(caseRecord.case_digest) ?? ""}\``,
-    `- Parameters: ${sampledParametersDisplay(objectValue(caseRecord.sampled_parameters))}`,
-    `- Risk result: ${retainedRiskDisplay(caseRecord)}`,
-    `- Rerun command: \`${stringValue(caseRecord.rerun_command) ?? ""}\``,
+    "## Executive Summary",
     "",
-    "## Validation",
-    ""
+    `${label} retains run \`${runId}\` from campaign \`${campaignId}\` for focused review. The retained risk result is ${riskResult}; use the rerun recipe and source artifact below before treating this case as explanatory evidence.`,
+    "",
+    `- **Outcome:** ${riskResult}`,
+    `- **Campaign ID:** \`${campaignId}\``,
+    `- **Run ID:** \`${runId}\``,
+    `- **Boundary:** Simulation evidence from one retained campaign case, not audit signoff or complete protocol safety.`,
+    "",
+    "## Outcome",
+    "",
+    "| Check | Result | Evidence |",
+    "|---|---|---|",
+    `| Retained case digest | pass | \`${stringValue(caseRecord.case_digest) ?? ""}\` |`,
+    `| Rerun recipe | pass | \`rerun.sh\` parses with \`sh -n\`; review did not execute it. |`,
+    `| Risk signals | ${invariantNames.length > 0 ? "fail" : semanticSignals.length > 0 ? "warn" : "pass"} | ${tableCell(riskResult)} |`,
+    "",
+    "## Risk Map",
+    "",
+    "| Signal | Observed | Reviewer meaning |",
+    "|---|---|---|",
+    `| Retention reason | ${tableCell(stringValue(caseRecord.reason) ?? "not recorded")} | Why this case was selected from the campaign frontier. |`,
+    `| Invariant names | ${invariantNames.length > 0 ? invariantNames.map((name) => `\`${name}\``).join(", ") : "none recorded"} | Error-severity invariant failures attached to the retained case. |`,
+    `| Semantic warning signals | ${semanticSignals.length > 0 ? semanticSignals.map((name) => `\`${name}\``).join(", ") : "none recorded"} | Non-fatal risk signals that still explain reviewer attention. |`,
+    `| Source artifact | \`${sourceArtifact}\` | Raw simulation evidence to inspect before changing assumptions. |`,
+    "",
+    "## Invariant Explanation",
+    "",
+    retainedCaseInvariantExplanation(invariantNames, semanticSignals),
+    "",
+    "## Scenario Parameters",
+    "",
+    "| Parameter | Value |",
+    "|---|---|"
   ];
+  const parameterEntries = sampledParameters ? Object.entries(sampledParameters).sort(([a], [b]) => a.localeCompare(b)) : [];
+  if (parameterEntries.length === 0) {
+    lines.push("| (none recorded) | - |");
+  } else {
+    for (const [name, value] of parameterEntries) {
+      lines.push(`| ${tableCell(name)} | ${tableCell(formatJsonValue(value))} |`);
+    }
+  }
+  lines.push(
+    "",
+    "## Relevant Events",
+    "",
+    "| Evidence | Path or command |",
+    "|---|---|",
+    `| Case manifest | \`${path.join(caseRoot, "case.json")}\` |`,
+    `| Rerun script | \`${path.join(caseRoot, "rerun.sh")}\` |`,
+    `| Simulation result | \`${stringValue(paths?.simulation_result) ?? sourceArtifact}\` |`,
+    `| Run config | \`${stringValue(paths?.run_config) ?? "not recorded"}\` |`,
+    "",
+    "## Rerun Command",
+    "",
+    "```sh",
+    rerunCommand,
+    "```",
+    "",
+    "The review command validated the retained case digest and `rerun.sh` shell syntax; it did not execute the rerun recipe.",
+    "",
+    "## Technical Appendix",
+    "",
+    "### Reproducibility",
+    "",
+    `- Case root: \`${caseRoot}\``,
+    `- Campaign digest: \`${stringValue(caseRecord.campaign_digest) ?? ""}\``,
+    `- Case digest: \`${stringValue(caseRecord.case_digest) ?? ""}\``,
+    `- Review command: \`${stringValue(caseRecord.review_command) ?? `riptide review ${shellQuotePath(caseRoot)}`}\``,
+    "",
+    "### Validation",
+    ""
+  );
   for (const result of validationResults) {
     lines.push(`- ${result.status}: ${result.message}`);
   }
+  lines.push("", "### Evidence Boundaries", "");
+  lines.push("- This review validates one retained campaign case and its rerun recipe.");
+  lines.push("- It does not claim complete protocol safety beyond the campaign inputs, run budget, and retained artifact.");
   lines.push("");
   return lines.join("\n");
+}
+
+function retainedCaseInvariantExplanation(
+  invariantNames: string[],
+  semanticSignals: string[]
+): string {
+  if (invariantNames.length > 0) {
+    return `The retained case records fired invariant names: ${invariantNames.map((name) => `\`${name}\``).join(", ")}. Inspect the source simulation result before deciding whether the failure reflects protocol behavior, scenario construction, or harness setup.`;
+  }
+  if (semanticSignals.length > 0) {
+    return `No error-severity invariant name was retained. Semantic warning signals still marked this case for review: ${semanticSignals.map((name) => `\`${name}\``).join(", ")}.`;
+  }
+  return "No invariant failure or semantic warning signal was recorded on this retained case.";
+}
+
+interface CampaignRiskRow {
+  signal: string;
+  observed: string;
+  meaning: string;
+}
+
+interface CampaignParameterRow {
+  name: string;
+  distribution: string;
+  samples: string;
+  range: string;
+}
+
+function campaignExecutiveSummary(input: {
+  summary: JsonRecord;
+  selected: JsonRecord[];
+}): string {
+  const campaign = objectValue(input.summary.campaign) ?? {};
+  const totals = objectValue(input.summary.totals) ?? {};
+  const name = stringValue(campaign.name) ?? "campaign";
+  const completed = numberDisplay(totals.completed_runs);
+  const requested = numberDisplay(totals.requested_runs);
+  const failed = numberValue(totals.invariant_failed_runs) ?? 0;
+  const setupErrors = numberValue(totals.setup_errors) ?? 0;
+  const retained = input.selected.length;
+  if (failed > 0) {
+    return `${name} completed ${completed} of ${requested} requested runs and retained ${retained} review case${retained === 1 ? "" : "s"}. ${failed} run${failed === 1 ? "" : "s"} recorded invariant failures; inspect the retained failure rows before changing scenario or protocol assumptions.`;
+  }
+  if (setupErrors > 0) {
+    return `${name} completed ${completed} of ${requested} requested runs but recorded ${setupErrors} setup error${setupErrors === 1 ? "" : "s"}. Treat setup errors as blockers before using this campaign as evidence.`;
+  }
+  return `${name} completed ${completed} of ${requested} requested runs with no invariant failures or setup errors observed. Retained cases still show the highest-risk frontier inside this bounded campaign, not complete protocol safety.`;
+}
+
+function campaignOutcomeLabel(totals: JsonRecord): string {
+  const failed = numberValue(totals.invariant_failed_runs) ?? 0;
+  const setupErrors = numberValue(totals.setup_errors) ?? 0;
+  if (setupErrors > 0) return `${setupErrors} setup error${setupErrors === 1 ? "" : "s"} observed`;
+  if (failed > 0) return `${failed} invariant-failed run${failed === 1 ? "" : "s"} observed`;
+  return "no invariant failures observed, no setup errors";
+}
+
+function campaignRiskRows(
+  summary: JsonRecord,
+  totals: JsonRecord,
+  selected: JsonRecord[]
+): CampaignRiskRow[] {
+  const rows: CampaignRiskRow[] = [
+    {
+      signal: "Invariant-failed runs",
+      observed: numberDisplay(totals.invariant_failed_runs) || "0",
+      meaning: "Runs where a declared invariant fired inside the campaign budget.",
+    },
+    {
+      signal: "Setup errors",
+      observed: numberDisplay(totals.setup_errors) || "0",
+      meaning: "Runs that failed before producing reviewable simulation evidence.",
+    },
+  ];
+  const lending = objectValue(summary.lending);
+  const badDebt = objectValue(lending?.total_bad_debt);
+  if (badDebt) {
+    rows.push({
+      signal: "Bad debt range",
+      observed: rangeDisplay(badDebt),
+      meaning: "Worst observed uncovered debt across completed campaign runs.",
+    });
+  }
+  const liquidations = objectValue(lending?.total_liquidations);
+  if (liquidations) {
+    rows.push({
+      signal: "Liquidation range",
+      observed: rangeDisplay(liquidations),
+      meaning: "Liquidation pressure observed across completed campaign runs.",
+    });
+  }
+  const stress = objectValue(lending?.liquidity_stress);
+  if (stress) {
+    const util = numberValue(stress.max_utilization_observed);
+    const tvl = numberValue(stress.min_tvl_observed);
+    rows.push({
+      signal: "Liquidity stress",
+      observed: `max_utilization=${util ?? "n/a"}, min_tvl=${tvl ?? "n/a"}`,
+      meaning: "Frontier of liquidity pressure among retained and completed cases.",
+    });
+  }
+  rows.push({
+    signal: "Retained evidence",
+    observed: `${selected.length} case${selected.length === 1 ? "" : "s"}`,
+    meaning: "Selected cases to rerun first when a reviewer wants source evidence.",
+  });
+  return rows;
+}
+
+function campaignInvariantExplanation(summary: JsonRecord, selected: JsonRecord[]): string {
+  const totals = objectValue(summary.totals) ?? {};
+  const failed = numberValue(totals.invariant_failed_runs) ?? 0;
+  const names = selected
+    .flatMap((entry) => {
+      const signals = objectValue(entry.risk_signals);
+      return Array.isArray(signals?.invariant_names)
+        ? signals.invariant_names.filter((value): value is string => typeof value === "string")
+        : [];
+    })
+    .filter((value, index, arr) => arr.indexOf(value) === index);
+  const warnSignals = selected
+    .flatMap((entry) => {
+      const signals = objectValue(entry.risk_signals);
+      return Array.isArray(signals?.semantic_signal_names)
+        ? signals.semantic_signal_names.filter((value): value is string => typeof value === "string")
+        : [];
+    })
+    .filter((value, index, arr) => arr.indexOf(value) === index);
+  if (failed > 0) {
+    return `Invariant failures were observed in ${failed} completed run${failed === 1 ? "" : "s"}. Fired invariant names: ${names.length > 0 ? names.map((name) => `\`${name}\``).join(", ") : "not retained in the summary"}.`;
+  }
+  if (warnSignals.length > 0) {
+    return `No error-severity invariant failure was retained. Semantic warning signals still marked the campaign frontier: ${warnSignals.map((name) => `\`${name}\``).join(", ")}.`;
+  }
+  return "No retained case reported an invariant failure or semantic warning signal.";
+}
+
+function campaignParameterRows(summary: JsonRecord): CampaignParameterRow[] {
+  const parameters = objectValue(summary.parameters);
+  if (!parameters) return [];
+  return Object.entries(parameters)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, raw]) => {
+      const row = objectValue(raw) ?? {};
+      return {
+        name,
+        distribution: stringValue(row.distribution) ?? "(unknown)",
+        samples: numberDisplay(row.sampled_count) || "0",
+        range: parameterRange(row),
+      };
+    });
+}
+
+function sourceArtifactForRetainedCase(entry: JsonRecord): string {
+  const paths = objectValue(entry.paths);
+  return stringValue(paths?.report) ??
+    stringValue(paths?.simulation_result) ??
+    stringValue(paths?.case_manifest) ??
+    "(unknown)";
+}
+
+function rangeDisplay(row: JsonRecord): string {
+  const min = numberValue(row.min);
+  const median = numberValue(row.median);
+  const max = numberValue(row.max);
+  return `min=${min ?? "n/a"}, median=${median ?? "n/a"}, max=${max ?? "n/a"}`;
+}
+
+function parameterRange(row: JsonRecord): string {
+  const min = numberValue(row.min);
+  const median = numberValue(row.median);
+  const max = numberValue(row.max);
+  const values = Array.isArray(row.values)
+    ? row.values.map((value) => String(value)).slice(0, 6)
+    : [];
+  const unit = stringValue(row.unit);
+  if (min !== null || median !== null || max !== null) {
+    const suffix = unit ? ` ${unit}` : "";
+    return `min=${min ?? "n/a"}${suffix}, median=${median ?? "n/a"}${suffix}, max=${max ?? "n/a"}${suffix}`;
+  }
+  if (values.length > 0) {
+    return values.join(", ");
+  }
+  return "-";
+}
+
+function relativizeIfInside(baseDir: string, value: string): string {
+  const rel = path.relative(path.resolve(baseDir), path.resolve(value));
+  if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) return value;
+  return rel;
 }
 
 async function readRequiredJsonObject(filePath: string, label: string): Promise<JsonRecord> {
@@ -1329,6 +1671,17 @@ function integerValue(value: unknown): number | null {
 function numberDisplay(value: unknown): string {
   const number = numberValue(value);
   return number === null ? "" : String(number);
+}
+
+function formatJsonValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value === null || value === undefined) return "-";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 function tableCell(value: string): string {

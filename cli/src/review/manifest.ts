@@ -43,7 +43,7 @@ export interface PackPathEntry {
   key: string;
   raw: string;
   resolved: string;
-  base: "pack_root" | "repo_root";
+  base: "pack_root" | "workspace_root" | "repo_root";
 }
 
 export interface LoadedPackManifest {
@@ -60,6 +60,10 @@ export interface LoadedPackManifest {
   validationResults: ValidationResult[];
 }
 
+export interface LoadPackManifestOptions {
+  workspaceRoot?: string | null;
+}
+
 export class ReviewValidationError extends Error {
   readonly exitCode = 2 as const;
 
@@ -69,9 +73,16 @@ export class ReviewValidationError extends Error {
   }
 }
 
-export async function loadPackManifest(packPath: string): Promise<LoadedPackManifest> {
+export async function loadPackManifest(
+  packPath: string,
+  options: LoadPackManifestOptions = {}
+): Promise<LoadedPackManifest> {
   const packRoot = path.resolve(packPath);
   const repoRoot = findRepoRoot(packRoot);
+  const workspaceRoots = compactUniqueRoots([
+    inferWorkspaceRootFromPackRoot(packRoot),
+    options.workspaceRoot ?? null,
+  ]);
   const validationResults: ValidationResult[] = [];
   const manifestPath = path.join(packRoot, "manifest.json");
 
@@ -124,10 +135,10 @@ export async function loadPackManifest(packPath: string): Promise<LoadedPackMani
 
   const resolvedPaths: PackPathEntry[] = [];
   for (const [key, raw] of flattenPathIndex("inputs", inputIndex)) {
-    resolvedPaths.push(resolveIndexedPath(packRoot, repoRoot, key, raw));
+    resolvedPaths.push(resolveIndexedPath(packRoot, workspaceRoots, repoRoot, key, raw));
   }
   for (const [key, raw] of flattenPathIndex("outputs", outputIndex)) {
-    resolvedPaths.push(resolveIndexedPath(packRoot, repoRoot, key, raw));
+    resolvedPaths.push(resolveIndexedPath(packRoot, workspaceRoots, repoRoot, key, raw));
   }
 
   validationResults.push({
@@ -143,6 +154,7 @@ export async function loadPackManifest(packPath: string): Promise<LoadedPackMani
   );
   const simulationResultPath = resolveIndexedPath(
     packRoot,
+    workspaceRoots,
     repoRoot,
     "outputs.simulation_result",
     simulationResultRaw ?? "outputs/simulation-result.json",
@@ -210,6 +222,7 @@ function flattenPathIndex(prefix: string, value: unknown): Array<[string, string
 
 function resolveIndexedPath(
   packRoot: string,
+  workspaceRoots: readonly string[],
   repoRoot: string | null,
   key: string,
   raw: string
@@ -237,6 +250,25 @@ function resolveIndexedPath(
     });
   }
 
+  const workspaceCandidates: Array<{ root: string; resolved: string }> = [];
+  for (const workspaceRoot of workspaceRoots) {
+    const workspaceResolved = path.resolve(workspaceRoot, raw);
+    workspaceCandidates.push({ root: workspaceRoot, resolved: workspaceResolved });
+    if (!existsSync(workspaceResolved)) continue;
+    if (!isWithinRoot(workspaceRoot, workspaceResolved)) {
+      throw new ReviewValidationError(
+        `indexed path escapes workspace root\n  field: ${key}\n  path: ${raw}\n  resolved: ${workspaceResolved}\n  workspace root: ${workspaceRoot}\n  next: keep workspace-relative pack indexes inside the Studio workspace`
+      );
+    }
+    return canonicalizeIndexedPath({
+      root: workspaceRoot,
+      resolved: workspaceResolved,
+      key,
+      raw,
+      base: "workspace_root"
+    });
+  }
+
   const repoResolved = repoRoot ? path.resolve(repoRoot, raw) : null;
   if (repoRoot && repoResolved && existsSync(repoResolved)) {
     if (!isWithinRoot(repoRoot, repoResolved)) {
@@ -256,6 +288,7 @@ function resolveIndexedPath(
   if (!existsSync(packResolved)) {
     throw new ReviewValidationError(
       `indexed path does not exist\n  field: ${key}\n  expected: ${packResolved}` +
+        workspaceCandidates.map((candidate) => `\n  workspace-relative candidate: ${candidate.resolved}`).join("") +
         (repoResolved ? `\n  repo-relative candidate: ${repoResolved}` : "") +
         `\n  next: ${missingIndexedPathNext(packRoot, key)}`
     );
@@ -307,6 +340,28 @@ function findRepoRoot(start: string): string | null {
   }
 }
 
+function inferWorkspaceRootFromPackRoot(packRoot: string): string | null {
+  const resolved = path.resolve(packRoot);
+  const parts = resolved.split(path.sep);
+  const marker = parts.lastIndexOf(".riptide");
+  if (marker <= 0 || parts[marker + 1] !== "pack") return null;
+  const root = parts.slice(0, marker).join(path.sep) || path.parse(resolved).root;
+  return root.length > 0 ? root : null;
+}
+
+function compactUniqueRoots(roots: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const root of roots) {
+    if (!root) continue;
+    const resolved = path.resolve(root);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    result.push(resolved);
+  }
+  return result;
+}
+
 function missingIndexedPathNext(packRoot: string, key: string): string {
   const indexPath = key.startsWith("inputs") ? "inputs/paths.json" : "outputs/paths.json";
   if (key.startsWith("outputs") && existsSync(path.join(packRoot, "config.json"))) {
@@ -318,7 +373,7 @@ function missingIndexedPathNext(packRoot: string, key: string): string {
       "config.json"
     )} --allow-invariant-violations\`${rerunHint}, then retry review`;
   }
-  return `check ${indexPath} and keep pack paths relative to the pack root or repo root`;
+  return `check ${indexPath} and keep pack paths relative to the pack root, Studio workspace root, or repo root`;
 }
 
 function firstString(

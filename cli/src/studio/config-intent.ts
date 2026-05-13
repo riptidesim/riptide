@@ -193,7 +193,10 @@ function renderHandoffPrompt(
     commandLines,
     "",
     "Constraints:",
+    "- Do not perform hidden execution. Describe every command before using it and report exact stdout/stderr when it matters.",
+    "- Do not use or expose a generic shell path; use specific Riptide commands and file edits only.",
     "- Do not push or publish anything.",
+    "- Do not perform live-mainnet writes, deploy programs, use private keys, or send transactions.",
     "- Do not modify files outside the listed targets without explicit confirmation.",
     "- Reuse existing personas/invariants where they fit. Prefer adapters that already pass `riptide lint`.",
     "- Land changes in a single feature branch and stop short of `git push` so a human reviews diffs."

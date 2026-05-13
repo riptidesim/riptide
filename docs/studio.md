@@ -34,9 +34,10 @@ Useful flags:
   guided-sim artifacts, readiness reports, scenarios, and adapters,
   with status/verdict/coverage/confidence/canonical-hash columns and
   filters.
-- **Report viewer** — Markdown reports rendered locally, with raw JSON
-  fallback for non-Markdown artifacts and an explicit dashboard drilldown
-  link for run, pack, and collection artifacts.
+- **Report viewer** — Reviewable artifacts render the current human report
+  sections locally, with raw JSON/TOML fallback for non-Markdown artifacts,
+  source-artifact links, and an explicit dashboard drilldown link for run,
+  pack, and collection artifacts.
 - **Simulation diagram** — adapter -> semantics -> personas/scenario/campaign
   -> invariants -> engine -> runs -> reports/packs flow rendered as a
   deterministic SVG layout. Click a node for source path + meaning.
@@ -46,9 +47,11 @@ Useful flags:
 - **Launch jobs** — preview the exact `argv` and `cwd` Studio would run,
   queue an allowlisted job, watch live `stdout`/`stderr`, and cancel
   while running. Job records persist under `.riptide/studio/jobs/`.
-- **Config handoff** — chat-like form that produces a structured
-  `config-intent.json` and a copyable `riptide-config` prompt. Studio
-  does not edit files for you.
+- **Agent chat handoff** — guided prompt flows for setup/configuration,
+  scenario design, invariant design, report explanation, scale campaign
+  planning, and reviewer packets. Each flow collects a short questionnaire
+  and fills the chat composer with files, constraints, and gates. Studio
+  does not edit files or launch an agent unless the user sends the prompt.
 
 ## Case-study walkthrough path
 
@@ -73,9 +76,9 @@ riptide studio --no-open --case-studies-root <path-to-case-studies>
 5. **Open Campaigns.** Pick a `*.campaign.toml`, click *Preview run*,
    and confirm Studio shows the allowlisted `argv`, `cwd`, expected
    artifact, and notes before any queue action.
-6. **Open Agent chat / config handoff.** Fill a handoff prompt for a
-   new repo and confirm Studio prepares the `riptide-config` prompt
-   without editing files or launching an agent unless the user sends it.
+6. **Open Agent chat.** Pick a guided prompt flow, fill the short
+   questionnaire, and confirm Studio prepares a bounded prompt without
+   editing files or launching an agent unless the user sends it.
 
 ## Allowlisted job kinds
 

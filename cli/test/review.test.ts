@@ -32,6 +32,13 @@ test("review validates the lending whale replay pack and emits markdown", async 
   assert.equal(stderr, "");
   assert.match(stdout, /# Pack: lending-whale-bad-debt/);
   assert.match(stdout, /\*\*Proof level 3 - Failure-shape replay\*\*/);
+  assert.match(stdout, /## Executive Summary/);
+  assert.match(stdout, /## Risk Map/);
+  assert.match(stdout, /## Invariant Explanation/);
+  assert.match(stdout, /## Scenario Parameters/);
+  assert.match(stdout, /## Relevant Events/);
+  assert.match(stdout, /## Rerun Command/);
+  assert.match(stdout, /## Technical Appendix/);
   assert.match(stdout, /Canonical hash: `6c59db5ebf916c8cc068c8fea8727d4edf26d244f288f6dadd7e9ae47d16c4a1`/);
   assert.match(stdout, new RegExp(`Raw output SHA256: \`${rawSha256}\``));
   assert.match(stdout, /no_bad_debt/);
@@ -130,6 +137,14 @@ test("review accepts a campaign root and maps retained cases to risk and rerun e
 
   assert.equal(stderr, "");
   assert.match(stdout, /# Campaign Review: campaign-review-fixture/);
+  assert.match(stdout, /## Executive Summary/);
+  assert.match(stdout, /## Risk Map/);
+  assert.match(stdout, /## Invariant Explanation/);
+  assert.match(stdout, /## Scenario Parameters/);
+  assert.match(stdout, /## Relevant Events/);
+  assert.match(stdout, /## Rerun Command/);
+  assert.match(stdout, /## Technical Appendix/);
+  assert.match(stdout, /no invariant failures observed, no setup errors/);
   assert.match(stdout, /worst_bad_debt/);
   assert.match(stdout, /bad_debt=2500/);
   assert.match(stdout, /warn_signals=collection_worst_health_factor/);
@@ -725,8 +740,9 @@ test("review derives What Broke from hash-covered evidence when summary.md is ta
   assert.match(stdout, /Hash verification: passed/);
   assert.match(
     stdout,
-    /## What Broke\s+no_bad_debt fired first at tick 4, indicating the declared proof condition was violated in this pack\./
+    /## Executive Summary\s+Failure observed in replay:lending-whale-bad-debt: `no_bad_debt` fired at tick 4/
   );
+  assert.match(stdout, /The rows below come from hash-covered simulation output, not from editable summary prose\./);
   assert.doesNotMatch(stdout, /No invariant fired; all checks stayed clean/);
 });
 

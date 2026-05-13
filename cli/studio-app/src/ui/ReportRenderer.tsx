@@ -263,12 +263,22 @@ function parseFirstTable(block: string): { headers: string[]; rows: string[][] }
     }
   }
   if (start === -1) return null;
-  const splitRow = (l: string) =>
-    l
-      .trim()
-      .replace(/^\||\|$/g, "")
-      .split("|")
-      .map((c) => c.trim());
+  const splitRow = (line: string) => {
+    const trimmed = line.trim().replace(/^\||\|$/g, "");
+    const cells: string[] = [];
+    let current = "";
+    for (let idx = 0; idx < trimmed.length; idx++) {
+      const ch = trimmed[idx];
+      if (ch === "|" && trimmed[idx - 1] !== "\\") {
+        cells.push(current.trim().replace(/\\\|/g, "|"));
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    cells.push(current.trim().replace(/\\\|/g, "|"));
+    return cells;
+  };
   const headers = splitRow(lines[start]);
   const rows: string[][] = [];
   for (let i = start + 2; i < lines.length; i++) {
@@ -430,8 +440,27 @@ export function parseRiptideReport(body: string): ParsedReport {
   }
 
   let headline: string | null = null;
+  const executiveSection = sections.find((s) => /^executive summary$/i.test(s.title));
+  if (executiveSection) {
+    const para = firstParagraph(executiveSection.body);
+    if (para) {
+      headline = para;
+      executiveSection.body = executiveSection.body.replace(para, "").trim();
+    }
+    const bullets = parseBullets(executiveSection.body.split("\n"));
+    for (const [k, v] of Object.entries(bullets)) {
+      if (!(k in metadata)) metadata[k] = v;
+    }
+    if (Object.keys(bullets).length > 0) {
+      executiveSection.body = executiveSection.body
+        .split("\n")
+        .filter((line) => !/^\s*[-*]\s+\*\*/.test(line))
+        .join("\n")
+        .trim();
+    }
+  }
   const outcomeSection = sections.find((s) => /^outcome$/i.test(s.title));
-  if (outcomeSection) {
+  if (!headline && outcomeSection) {
     const para = firstParagraph(outcomeSection.body);
     if (para) {
       headline = para;

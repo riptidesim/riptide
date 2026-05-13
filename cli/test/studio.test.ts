@@ -28,6 +28,10 @@ import {
   type JobValidationError
 } from "../src/studio/jobs.js";
 import { generateConfigIntent } from "../src/studio/config-intent.js";
+import { canonicalRetainedCaseDigestPayload } from "../src/campaign/aggregation.js";
+import { runReview } from "../src/commands/review.js";
+import { canonicalSimulationResultHash } from "../src/review/hash.js";
+import { canonicalJson, sha256Hex, type JsonValue } from "../src/state-pack/json.js";
 import { ChatStore } from "../src/studio/chat/store.js";
 import {
   createThreadChangesState,
@@ -143,7 +147,8 @@ async function seedWorkspace(root: string): Promise<void> {
   await mkdir(path.join(riptide, "campaigns", "campaign_aaa", "retained", "case-001"), {
     recursive: true
   });
-  await mkdir(path.join(riptide, "pack", "alpha"), { recursive: true });
+  await mkdir(path.join(riptide, "pack", "alpha", "inputs"), { recursive: true });
+  await mkdir(path.join(riptide, "pack", "alpha", "outputs"), { recursive: true });
   await mkdir(path.join(riptide, "sim", "artifacts", "run-001"), { recursive: true });
   await mkdir(path.join(riptide, "sims", "guided-one"), { recursive: true });
   await mkdir(path.join(riptide, "readiness"), { recursive: true });
@@ -212,9 +217,11 @@ async function seedWorkspace(root: string): Promise<void> {
   );
 
   // Passing scenario: no invariant fires.
+  const alphaResult = simulationResultFor("alpha");
+  const alphaResultJson = JSON.stringify(alphaResult, null, 2) + "\n";
   await writeFile(
     path.join(riptide, "runs", "alpha", "simulation-result.json"),
-    JSON.stringify(simulationResultFor("alpha"), null, 2) + "\n",
+    alphaResultJson,
     "utf8"
   );
   await writeFile(path.join(riptide, "runs", "alpha", "report.md"), "# alpha\n", "utf8");
@@ -242,6 +249,58 @@ async function seedWorkspace(root: string): Promise<void> {
     "utf8"
   );
 
+  const retainedCaseBase: Record<string, JsonValue> = {
+    schema_version: "campaign-retained-case.v1",
+    campaign_id: "campaign_aaa",
+    campaign_digest: "digest-aaa",
+    campaign_name: "studio-fixture-campaign",
+    class: "lending.v1",
+    risk_objective: "bad-debt",
+    label: "worst_bad_debt",
+    run_id: "run_000001_alpha",
+    run_index: 1,
+    scenario_family: "alpha",
+    sampled_parameters: { shock: "high", deposits: 2 },
+    reason: "highest retained bad debt",
+    tie_breaker: null,
+    score: 10,
+    risk_signals: {
+      status: "failed",
+      first_failure_tick: 1,
+      invariant_names: ["health"],
+      semantic_signal_names: ["collection_worst_health_factor"],
+      total_bad_debt: 10,
+      total_liquidations: 1,
+      max_utilization: 1,
+      min_tvl: 0,
+      min_available_liquidity: 0,
+      risk_score: 10
+    },
+    paths: {
+      simulation_result: ".riptide/runs/beta/simulation-result.json",
+      run_config: ".riptide/scenarios/alpha/run-config.json",
+      case_manifest: ".riptide/campaigns/campaign_aaa/retained/case-001/case.json",
+      rerun_sh: ".riptide/campaigns/campaign_aaa/retained/case-001/rerun.sh"
+    },
+    rerun_command: "riptide run .riptide/scenarios/alpha/run-config.json",
+    review_command: "riptide review .riptide/campaigns/campaign_aaa/retained/case-001"
+  };
+  const retainedCaseDigest = sha256Hex(
+    `riptide-campaign-retained-case-v1\n${canonicalJson(
+      canonicalRetainedCaseDigestPayload(retainedCaseBase)
+    )}`
+  );
+  await writeFile(
+    path.join(riptide, "campaigns", "campaign_aaa", "retained", "case-001", "case.json"),
+    canonicalJson({ ...retainedCaseBase, case_digest: retainedCaseDigest }),
+    "utf8"
+  );
+  await writeFile(
+    path.join(riptide, "campaigns", "campaign_aaa", "retained", "case-001", "rerun.sh"),
+    ["#!/usr/bin/env sh", "set -eu", "riptide run .riptide/scenarios/alpha/run-config.json", ""].join("\n"),
+    "utf8"
+  );
+
   await writeFile(
     path.join(riptide, "campaigns", "deposit-flow.campaign.toml"),
     "name = \"deposit-flow\"\n",
@@ -252,8 +311,14 @@ async function seedWorkspace(root: string): Promise<void> {
     path.join(riptide, "pack", "alpha", "manifest.json"),
     JSON.stringify(
       {
-        canonical_hash: "abc123",
+        canonical_hash: canonicalSimulationResultHash(alphaResultJson),
+        kind: "studio-fixture-pack",
         scenario: "alpha",
+        proof_level: 1,
+        proof_level_label: "Studio fixture",
+        inputs: {
+          config: ".riptide/scenarios/alpha/run-config.json"
+        },
         outputs: {
           simulation_result: ".riptide/runs/alpha/simulation-result.json"
         }
@@ -261,6 +326,26 @@ async function seedWorkspace(root: string): Promise<void> {
       null,
       2
     ) + "\n",
+    "utf8"
+  );
+  await writeFile(
+    path.join(riptide, "pack", "alpha", "inputs", "paths.json"),
+    JSON.stringify({ config: ".riptide/scenarios/alpha/run-config.json" }, null, 2) + "\n",
+    "utf8"
+  );
+  await writeFile(
+    path.join(riptide, "pack", "alpha", "outputs", "paths.json"),
+    JSON.stringify({ simulation_result: ".riptide/runs/alpha/simulation-result.json" }, null, 2) + "\n",
+    "utf8"
+  );
+  await writeFile(
+    path.join(riptide, "pack", "alpha", "summary.md"),
+    "# stale pack summary\n",
+    "utf8"
+  );
+  await writeFile(
+    path.join(riptide, "pack", "alpha", "rerun.sh"),
+    ["#!/usr/bin/env sh", "set -eu", "riptide run .riptide/scenarios/alpha/run-config.json", ""].join("\n"),
     "utf8"
   );
 
@@ -1139,16 +1224,106 @@ test("studio report route returns the markdown body for a run artifact", async (
       content_type: string;
       label: string;
       body: string;
+      source_links: Array<{ label: string; relative_path: string; kind: string }>;
     };
     assert.equal(payload.schema_version, "studio-report.v1");
     assert.equal(payload.content_type, "markdown");
     assert.equal(payload.label, "report.md");
     assert.match(payload.body, /alpha/);
+    assert.ok(
+      payload.source_links.some((link) => link.relative_path === ".riptide/runs/alpha/report.md" && link.kind === "report")
+    );
+    assert.ok(
+      payload.source_links.some((link) => link.relative_path === ".riptide/runs/alpha/simulation-result.json" && link.kind === "artifact")
+    );
 
     const missing = await fetch(
       `${handle.url}/api/studio/report?artifact=${encodeURIComponent("run:does-not-exist")}`
     );
     assert.equal(missing.status, 404);
+  });
+});
+
+test("studio report route renders retained campaign cases through riptide review", async () => {
+  const root = await tmpRoot("server-report-retained");
+  await seedWorkspace(root);
+
+  await withServer({ workspace: root }, async (handle) => {
+    const payload = (await getJson(
+      `${handle.url}/api/studio/report?artifact=${encodeURIComponent("retained:campaign_aaa/case-001")}`
+    )) as {
+      schema_version: string;
+      content_type: string;
+      label: string;
+      body: string;
+      source_links: Array<{ label: string; relative_path: string; kind: string }>;
+    };
+    assert.equal(payload.schema_version, "studio-report.v1");
+    assert.equal(payload.content_type, "markdown");
+    assert.equal(payload.label, "riptide review");
+    assert.match(payload.body, /# Retained Campaign Case: worst_bad_debt/);
+    assert.match(payload.body, /## Executive Summary/);
+    assert.match(payload.body, /## Risk Map/);
+    assert.match(payload.body, /## Rerun Command/);
+    assert.ok(
+      payload.source_links.some((link) =>
+        link.relative_path === ".riptide/campaigns/campaign_aaa/retained/case-001/case.json" &&
+        link.kind === "manifest"
+      )
+    );
+    assert.ok(
+      payload.source_links.some((link) =>
+        link.relative_path === ".riptide/runs/beta/simulation-result.json" &&
+        link.kind === "artifact"
+      )
+    );
+  });
+});
+
+test("studio report route renders nested-workspace packs through report v1 instead of stale summaries", async () => {
+  const outer = await tmpRoot("server-report-nested-pack-outer");
+  await mkdir(path.join(outer, ".git"));
+  const workspace = path.join(outer, "studio-workspaces", "scale-a");
+  await seedWorkspace(workspace);
+
+  let reviewStdout = "";
+  const reviewExit = await runReview(
+    path.join(workspace, ".riptide", "pack", "alpha"),
+    { quiet: true },
+    {
+      cwd: outer,
+      color: false,
+      stdoutWrite: (chunk) => {
+        reviewStdout += chunk;
+      },
+      stderrWrite: () => {}
+    }
+  );
+  assert.equal(reviewExit, 0);
+  assert.match(reviewStdout, /## Executive Summary/);
+
+  await withServer({ workspace }, async (handle) => {
+    const payload = (await getJson(
+      `${handle.url}/api/studio/report?artifact=${encodeURIComponent("pack:alpha")}`
+    )) as {
+      schema_version: string;
+      content_type: string;
+      label: string;
+      body: string;
+      source_links: Array<{ label: string; relative_path: string; kind: string }>;
+    };
+    assert.equal(payload.schema_version, "studio-report.v1");
+    assert.equal(payload.content_type, "markdown");
+    assert.equal(payload.label, "riptide review");
+    assert.match(payload.body, /# Pack: alpha/);
+    assert.match(payload.body, /## Executive Summary/);
+    assert.doesNotMatch(payload.body, /stale pack summary/);
+    assert.ok(
+      payload.source_links.some((link) =>
+        link.relative_path === ".riptide/runs/alpha/simulation-result.json" &&
+        link.kind === "artifact"
+      )
+    );
   });
 });
 
@@ -1792,6 +1967,10 @@ test("config intent generator returns prompt + proposed files for a complete pay
   assert.ok(result.handoff_prompt.includes("skill is unavailable"));
   assert.ok(result.handoff_prompt.includes("~/.codex/skills/riptide-config/SKILL.md"));
   assert.ok(result.handoff_prompt.includes("/abs/path/to/lending"));
+  assert.match(result.handoff_prompt, /Do not perform hidden execution/);
+  assert.match(result.handoff_prompt, /generic shell path/);
+  assert.match(result.handoff_prompt, /Do not push or publish/);
+  assert.match(result.handoff_prompt, /Do not perform live-mainnet writes/);
   assert.ok(!/already (?:edited|applied|wrote)/.test(result.handoff_prompt));
 });
 

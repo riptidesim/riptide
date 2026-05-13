@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../api";
-import type { StudioArtifactEntry, StudioArtifactKind, StudioReportPayload } from "../studioTypes";
+import type { StudioArtifactEntry, StudioArtifactKind, StudioReportPayload, StudioReportSourceLink } from "../studioTypes";
 import { Icon } from "../ui/Icon";
 import { JsonTree } from "../ui/JsonTree";
 import { EmptyState, Kicker, PageLabel, Pill, type PillKind } from "../ui/primitives";
 import { ReportRenderer } from "../ui/ReportRenderer";
+import { SourceBlock } from "../ui/SourceBlock";
 import { SyntaxBlock } from "../ui/SyntaxBlock";
 import { readStudioArtifact, writeStudioLocation } from "../shell/location";
 import type { PageId } from "../shell/types";
@@ -43,6 +44,7 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [report, setReport] = useState<StudioReportPayload | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [sourcePath, setSourcePath] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
@@ -66,6 +68,7 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
     setArtifacts([]);
     setReport(null);
     setReportError(null);
+    setSourcePath(null);
     const queryArtifact = readStudioArtifact();
     api.artifacts(workspaceId)
       .then((res) => {
@@ -101,6 +104,7 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
     let cancelled = false;
     setReport(null);
     setReportError(null);
+    setSourcePath(null);
     api.report({ workspaceId, artifactId: selectedId })
       .then((payload) => {
         if (!cancelled) setReport(payload);
@@ -293,6 +297,16 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
                       <div style={{ color: "var(--rt-fog-dim)", font: "400 13px Inter" }}>{reportError}</div>
                     </div>
                   )}
+                  {report && (
+                    <ReportSourceLinks
+                      links={report.source_links}
+                      selectedPath={sourcePath}
+                      onSelect={setSourcePath}
+                    />
+                  )}
+                  {sourcePath && (
+                    <SourceBlock workspaceId={workspaceId} sourcePath={sourcePath} title="SOURCE ARTIFACT" />
+                  )}
                   {report && report.content_type === "markdown" && <ReportRenderer body={report.body} />}
                   {report && report.content_type === "json" && <JsonTree body={report.body} />}
                   {report && report.content_type === "toml" && (
@@ -307,6 +321,63 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
       )}
     </div>
   );
+}
+
+function ReportSourceLinks({
+  links,
+  selectedPath,
+  onSelect
+}: {
+  links: StudioReportSourceLink[];
+  selectedPath: string | null;
+  onSelect: (path: string | null) => void;
+}) {
+  if (links.length === 0) return null;
+  return (
+    <div className="card" style={{ padding: 14, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+        <Kicker>SOURCE ARTIFACTS</Kicker>
+        {selectedPath && (
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => onSelect(null)}>
+            <Icon name="x" size={12} />
+            Close source
+          </button>
+        )}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {links.map((link) => {
+          const active = selectedPath === link.relative_path;
+          return (
+            <button
+              key={`${link.kind}:${link.relative_path}`}
+              type="button"
+              className={`btn btn--ghost btn--sm${active ? " is-active" : ""}`}
+              onClick={() => onSelect(active ? null : link.relative_path)}
+              title={link.relative_path}
+            >
+              <Icon name={iconForSourceKind(link.kind)} size={12} />
+              {link.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function iconForSourceKind(kind: StudioReportSourceLink["kind"]) {
+  switch (kind) {
+    case "rerun":
+      return "terminal";
+    case "config":
+      return "settings";
+    case "manifest":
+      return "shield";
+    case "report":
+      return "fileText";
+    default:
+      return "file";
+  }
 }
 
 function ReportsEmpty({ title, body, ctaLabel, onCta }: { title: string; body: string; ctaLabel?: string; onCta?: () => void }) {

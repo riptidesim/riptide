@@ -203,7 +203,14 @@ export interface StudioReportPayload {
   content_type: StudioReportContentType;
   label: string;
   relative_path: string;
+  source_links: StudioReportSourceLink[];
   body: string;
+}
+
+export interface StudioReportSourceLink {
+  label: string;
+  kind: "report" | "artifact" | "config" | "rerun" | "manifest";
+  relative_path: string;
 }
 
 export interface ConfigIntentRequest {
