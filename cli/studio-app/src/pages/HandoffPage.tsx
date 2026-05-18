@@ -34,14 +34,23 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 import { labelForModel, modelOptionsFor, type AgentPreference } from "../agentMeta";
-import { buildHandoffPrompt, HANDOFF_FLOWS, type HandoffAnswers } from "../handoffFlows";
 import { Icon } from "../ui/Icon";
 import { EmptyState, Kicker, PageLabel } from "../ui/primitives";
 
 const PRESETS: { label: string; prompt: string }[] = [
   {
     label: "Configure my project",
-    prompt: "Use the riptide-config skill to configure this repo for Riptide end to end. If this session says the skill is unavailable, do not proceed from memory; read and follow the first existing local instructions file at .claude/skills/riptide-config/SKILL.md, .codex/skills/riptide-config/SKILL.md, ~/.codex/skills/riptide-config/SKILL.md, or ~/.claude/skills/riptide-config/SKILL.md. Detect the target program, repair or create the adapter, harness, starter scenarios, personas, and invariants, run the smallest smoke needed to prove the scaffold works, then add or validate a broad campaign plan with many agents, multiple personas, and multiple seeds. Do not stop at a 2-agent toy scenario unless the repo cannot support more; report campaign readiness with exact validation commands."
+    prompt: [
+      "I want to configure this repo for Riptide, but first plan the run with me — do not edit files, do not run commands, do not invoke the riptide-config skill yet.",
+      "",
+      "Briefly inspect the workspace to detect the protocol class, the target program or crate, and anything that looks like an existing Riptide setup. Then reply in plain prose with:",
+      "",
+      "1. A one-paragraph read of what you found.",
+      "2. A short list of planning questions for me to answer before you execute, including: how big the simulation campaign should be (smoke, medium, broad), how many agents per scenario, which agent types or personas to include, the protocol behavior I most want to stress, and any runtime or artifact ceiling.",
+      "3. A suggested default for each question so I can just say 'go with the defaults' if I want.",
+      "",
+      "Wait for my answers (or my 'go with the defaults' confirmation) before doing anything else. When I respond, then use the riptide-config skill to configure the adapter, harness, scenarios, personas, invariants, and campaign plan according to the agreed shape."
+    ].join("\n")
   },
   {
     label: "Add a campaign",
@@ -102,8 +111,6 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
   const [changesError, setChangesError] = useState<string | null>(null);
   const [changesWarnings, setChangesWarnings] = useState<string[]>([]);
   const [changesGitReady, setChangesGitReady] = useState(true);
-  const [activeFlowId, setActiveFlowId] = useState(HANDOFF_FLOWS[0]?.id ?? "");
-  const [flowAnswers, setFlowAnswers] = useState<HandoffAnswers>({});
 
   const activeAgent = agents.find((a) => a.id === pref?.agentId) ?? null;
   const agentLabel = activeAgent?.label ?? "agent";
@@ -248,17 +255,6 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
 
   function removeAttachment(idx: number) {
     setAttachments((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  function updateFlowAnswer(questionId: string, value: string) {
-    setFlowAnswers((prev) => ({ ...prev, [questionId]: value }));
-  }
-
-  function loadGuidedPrompt() {
-    const flow = HANDOFF_FLOWS.find((candidate) => candidate.id === activeFlowId) ?? HANDOFF_FLOWS[0];
-    if (!flow) return;
-    setDraft(buildHandoffPrompt(flow, flowAnswers, workspacePath));
-    textareaRef.current?.focus();
   }
 
   async function loadThread(id: string) {
@@ -633,14 +629,6 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
             )}
           </div>
           <div style={{ padding: "14px 18px 18px", borderTop: "1px solid var(--rt-slate-line)" }}>
-            <GuidedPromptPanel
-              activeFlowId={activeFlowId}
-              answers={flowAnswers}
-              disabled={runState !== null}
-              onFlowChange={setActiveFlowId}
-              onAnswerChange={updateFlowAnswer}
-              onUsePrompt={loadGuidedPrompt}
-            />
             <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
               {PRESETS.map((p) => (
                 <button
@@ -865,91 +853,6 @@ export function HandoffPage({ pref, setPref, agents, workspaceId, workspacePath 
         />
       )}
     </div>
-  );
-}
-
-function GuidedPromptPanel({
-  activeFlowId,
-  answers,
-  disabled,
-  onFlowChange,
-  onAnswerChange,
-  onUsePrompt
-}: {
-  activeFlowId: string;
-  answers: HandoffAnswers;
-  disabled: boolean;
-  onFlowChange: (id: string) => void;
-  onAnswerChange: (id: string, value: string) => void;
-  onUsePrompt: () => void;
-}) {
-  const flow = HANDOFF_FLOWS.find((candidate) => candidate.id === activeFlowId) ?? HANDOFF_FLOWS[0];
-  if (!flow) return null;
-  const answered = flow.questions.filter((q) => answers[q.id]?.trim()).length;
-  return (
-    <section className="handoff-guide" aria-label="Guided prompt builder">
-      <div className="handoff-guide__head">
-        <div>
-          <Kicker>GUIDED PROMPTS</Kicker>
-          <div className="handoff-guide__title">{flow.title}</div>
-        </div>
-        <button
-          type="button"
-          className="btn btn--primary btn--sm"
-          onClick={onUsePrompt}
-          disabled={disabled}
-        >
-          <Icon name="send" size={12} />
-          Use prompt
-        </button>
-      </div>
-      <div className="handoff-guide__flows" role="tablist" aria-label="Prompt flows">
-        {HANDOFF_FLOWS.map((candidate) => (
-          <button
-            key={candidate.id}
-            type="button"
-            role="tab"
-            aria-selected={candidate.id === flow.id}
-            className={`handoff-guide__flow${candidate.id === flow.id ? " is-active" : ""}`}
-            onClick={() => onFlowChange(candidate.id)}
-            disabled={disabled}
-            title={candidate.title}
-          >
-            {candidate.label}
-          </button>
-        ))}
-      </div>
-      <div className="handoff-guide__body">
-        <div className="handoff-guide__objective">{flow.objective}</div>
-        <div className="handoff-guide__questions">
-          {flow.questions.map((question) => (
-            <label key={question.id} className="handoff-guide__question">
-              <span>{question.label}</span>
-              {question.multiline ? (
-                <textarea
-                  value={answers[question.id] ?? ""}
-                  placeholder={question.placeholder}
-                  onChange={(e) => onAnswerChange(question.id, e.target.value)}
-                  disabled={disabled}
-                  rows={2}
-                />
-              ) : (
-                <input
-                  value={answers[question.id] ?? ""}
-                  placeholder={question.placeholder}
-                  onChange={(e) => onAnswerChange(question.id, e.target.value)}
-                  disabled={disabled}
-                />
-              )}
-            </label>
-          ))}
-        </div>
-        <div className="handoff-guide__footer">
-          <span>{answered} / {flow.questions.length} answered</span>
-          <span>No hidden execution · no push/publish · no live-mainnet writes</span>
-        </div>
-      </div>
-    </section>
   );
 }
 

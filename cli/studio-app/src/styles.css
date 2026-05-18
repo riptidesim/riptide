@@ -1116,101 +1116,6 @@ button { font-family: inherit; }
 }
 .handoff-preset:active { transform: translateY(1px); }
 
-.handoff-guide {
-  margin-bottom: 12px;
-  padding: 12px;
-  background: var(--rt-slate-panel);
-  border: 1px solid var(--rt-slate-line);
-  border-radius: 8px;
-}
-.handoff-guide__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-.handoff-guide__title {
-  margin-top: 4px;
-  color: var(--rt-off-white);
-  font: 500 13px/1.25 "IBM Plex Mono", monospace;
-}
-.handoff-guide__flows {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  margin-bottom: 10px;
-}
-.handoff-guide__flow {
-  flex: 0 0 auto;
-  min-width: 56px;
-  height: 28px;
-  padding: 0 9px;
-  border-radius: 6px;
-  border: 1px solid var(--rt-slate-line);
-  background: var(--rt-slate-2);
-  color: var(--rt-fog);
-  font: 500 11.5px/1 Inter, sans-serif;
-  cursor: pointer;
-}
-.handoff-guide__flow:hover {
-  color: var(--rt-off-white);
-  border-color: var(--rt-slate-strong);
-}
-.handoff-guide__flow.is-active {
-  color: var(--rt-teal);
-  border-color: rgba(20,184,182,0.55);
-  background: rgba(20,184,182,0.08);
-}
-.handoff-guide__body {
-  display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: 12px;
-}
-.handoff-guide__objective {
-  color: var(--rt-fog);
-  font: 400 12.5px/1.45 Inter, sans-serif;
-}
-.handoff-guide__questions {
-  display: grid;
-  gap: 8px;
-}
-.handoff-guide__question {
-  display: grid;
-  gap: 4px;
-}
-.handoff-guide__question span {
-  color: var(--rt-fog-dim);
-  font: 500 10.5px/1 "IBM Plex Mono", monospace;
-  text-transform: uppercase;
-}
-.handoff-guide__question input,
-.handoff-guide__question textarea {
-  width: 100%;
-  min-width: 0;
-  border: 1px solid var(--rt-slate-line);
-  border-radius: 6px;
-  background: var(--rt-slate-2);
-  color: var(--rt-off-white);
-  font: 400 12.5px/1.35 Inter, sans-serif;
-  padding: 7px 9px;
-  outline: none;
-  resize: vertical;
-}
-.handoff-guide__question input:focus,
-.handoff-guide__question textarea:focus {
-  border-color: rgba(20,184,182,0.7);
-}
-.handoff-guide__footer {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--rt-fog-dim);
-  font: 400 11px/1.35 "IBM Plex Mono", monospace;
-}
-
 /* Model dropdown */
 .handoff-model-menu {
   position: absolute;
@@ -1948,12 +1853,6 @@ button { font-family: inherit; }
   }
   .handoff-shell__threads,
   .handoff-shell__changes { display: none !important; }
-  .handoff-guide__body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .handoff-guide__footer {
-    flex-direction: column;
-  }
 
   /* Horizontal-scroll the busy bits */
   .ad-tabs { overflow-x: auto; max-width: 100%; }
