@@ -5,10 +5,9 @@
 > dashboard, queue allowlisted jobs, and produce a `riptide-config`
 > handoff prompt — without typing the underlying CLI command.
 
-Studio is a CLI-bundled React + Vite app served by a Node HTTP server
-that reads only from the local filesystem. It is **localhost-only** by
-default, has **no generic shell endpoint**, never silently runs an
-agent, and never publishes or pushes anything.
+Studio is a CLI-bundled React + Vite app served by a Node HTTP server.
+It is **localhost-only** by default, has **no generic shell endpoint**,
+never silently runs an agent, and never publishes or pushes anything.
 
 ## Start it
 
@@ -52,6 +51,9 @@ Useful flags:
   planning, and reviewer packets. Each flow collects a short questionnaire
   and fills the chat composer with files, constraints, and gates. Studio
   does not edit files or launch an agent unless the user sends the prompt.
+  When it does launch Claude Code or Codex, Studio uses the agent CLI's
+  non-interactive approval-bypass flag so browser-based runs do not get
+  stuck waiting for per-tool permission prompts.
 
 ## Case-study walkthrough path
 
@@ -110,13 +112,18 @@ Per-param validation:
 
 - Bind defaults to `127.0.0.1`. `0.0.0.0` and friends are refused at
   startup.
-- The only `POST` endpoints are `/api/studio/jobs`,
-  `/api/studio/jobs/plan`, `/api/studio/jobs/:id/cancel`, and
-  `/api/studio/config/intent`. Everything else is `GET`-only.
+- Mutating `POST` endpoints are purpose-built: job queue/plan/cancel,
+  config intent, workspace init, project registry, native folder picking,
+  and agent chat thread/run/abort. Studio does not expose a generic shell
+  request body.
 - The job launcher uses `child_process.spawn(node, ["dist/src/index.js", ...argv])`
   with `shell: false` — no shell ever interprets the command.
 - The config-intent endpoint never writes files. It returns JSON +
   prompt + proposed targets only.
+- Agent chat endpoints spawn the selected local coding agent only after
+  the user sends a prompt. The spawned agent can edit the active workspace
+  and run local commands according to that prompt; Studio records the
+  thread-scoped workspace diff after the turn.
 - No external network calls are required for core Studio operation.
 
 ## Persistence

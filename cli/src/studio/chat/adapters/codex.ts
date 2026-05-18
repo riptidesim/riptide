@@ -2,8 +2,8 @@
 //
 // Invocation:
 //   codex exec --json --skip-git-repo-check --sandbox danger-full-access
-//        [--model <id>] [-c model_reasoning_effort="..."]
-//        [--dangerously-bypass-approvals-and-sandbox] [resume <id> -] | -
+//        --dangerously-bypass-approvals-and-sandbox [--model <id>]
+//        [-c model_reasoning_effort="..."] [resume <id> -] | -
 //
 // The trailing "-" tells codex to read the prompt from stdin. When
 // resuming, the positional pair `resume <id>` precedes the dash.
@@ -46,7 +46,14 @@ interface CodexStreamState {
 }
 
 function buildArgvInternal(input: { model: string | null; resumeSessionId: string | null }): string[] {
-  const args = ["exec", "--json", "--skip-git-repo-check", "--sandbox", "danger-full-access"];
+  const args = [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "--sandbox",
+    "danger-full-access",
+    "--dangerously-bypass-approvals-and-sandbox"
+  ];
   if (input.model && input.model !== "default" && VALID_MODEL_RE.test(input.model)) {
     args.push("--model", input.model);
   }

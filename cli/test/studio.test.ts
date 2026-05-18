@@ -28,6 +28,7 @@ import {
   type JobValidationError
 } from "../src/studio/jobs.js";
 import { generateConfigIntent } from "../src/studio/config-intent.js";
+import { getAdapter } from "../src/studio/chat/adapters/index.js";
 import { canonicalRetainedCaseDigestPayload } from "../src/campaign/aggregation.js";
 import { runReview } from "../src/commands/review.js";
 import { canonicalSimulationResultHash } from "../src/review/hash.js";
@@ -807,6 +808,57 @@ test("studio thread changes ignore preexisting workspace dirt and studio backups
     assert.ok(!paths.some((p) => p.startsWith(".riptide.bak")));
     assert.ok(!paths.includes("unrelated-before.txt"));
   });
+});
+
+test("studio chat adapters bypass interactive permission prompts", () => {
+  const claude = getAdapter("claude-code");
+  const codex = getAdapter("codex");
+  assert.ok(claude);
+  assert.ok(codex);
+
+  assert.deepEqual(claude.buildArgv({ model: "default", resumeSessionId: null }), [
+    "--print",
+    "-",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--dangerously-skip-permissions"
+  ]);
+  assert.deepEqual(codex.buildArgv({ model: "default", resumeSessionId: null }), [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "--sandbox",
+    "danger-full-access",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "-"
+  ]);
+
+  assert.deepEqual(claude.buildArgv({ model: "claude-opus-4-7", resumeSessionId: "session_123" }), [
+    "--print",
+    "-",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--dangerously-skip-permissions",
+    "--resume",
+    "session_123",
+    "--model",
+    "claude-opus-4-7"
+  ]);
+  assert.deepEqual(codex.buildArgv({ model: "gpt-5", resumeSessionId: "thread_123" }), [
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "--sandbox",
+    "danger-full-access",
+    "--dangerously-bypass-approvals-and-sandbox",
+    "--model",
+    "gpt-5",
+    "resume",
+    "thread_123",
+    "-"
+  ]);
 });
 
 test("studio does not auto-save discovered riptide workspaces in the user registry", async () => {

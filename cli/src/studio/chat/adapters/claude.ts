@@ -1,8 +1,8 @@
 // Claude Code adapter.
 //
 // Invocation:
-//   claude --print - --output-format stream-json --verbose [--resume <id>]
-//          [--model <id>] [--max-turns N] [--dangerously-skip-permissions]
+//   claude --print - --output-format stream-json --verbose
+//          --dangerously-skip-permissions [--resume <id>] [--model <id>]
 //
 // Prompt is delivered via stdin (the `-` positional). Output is parsed
 // line-by-line as the documented stream-json events: system/init,
@@ -42,7 +42,14 @@ interface ClaudeStreamState {
 const VALID_MODEL_RE = /^[A-Za-z0-9._-]+$/;
 
 function buildArgvInternal(input: { model: string | null; resumeSessionId: string | null }): string[] {
-  const args = ["--print", "-", "--output-format", "stream-json", "--verbose"];
+  const args = [
+    "--print",
+    "-",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--dangerously-skip-permissions"
+  ];
   if (input.resumeSessionId) {
     args.push("--resume", input.resumeSessionId);
   }
