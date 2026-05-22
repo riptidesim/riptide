@@ -54,6 +54,12 @@ Useful flags:
   When it does launch Claude Code or Codex, Studio uses the agent CLI's
   non-interactive approval-bypass flag so browser-based runs do not get
   stuck waiting for per-tool permission prompts.
+- **Risk Plan-first configuration** — the Configure handoff asks for
+  intent and evidence profile before raw agent/tick/seed knobs, then the
+  agent translates that Risk Plan into adapter, harness, campaign,
+  scenario, run, invariant, and guided-sim recommendations. See
+  [Campaign Runner](campaigns.md) and [guided simulations](guided-sim.md)
+  for the execution paths.
 
 ## Case-study walkthrough path
 

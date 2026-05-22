@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile as execFileCb } from "node:child_process";
-import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -42,6 +42,7 @@ import {
 import type { SimulationResult } from "../src/compiler/schema.js";
 
 const execFile = promisify(execFileCb);
+const REPO_ROOT = path.resolve(process.cwd(), "..");
 
 async function tmpRoot(label: string): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), `riptide-studio-${label}-`));
@@ -2009,6 +2010,36 @@ test("studio jobs HTTP list scopes rows to the selected workspace", async () => 
 // Sprint 31 / T10 — chat-like config handoff
 // ---------------------------------------------------------------------------
 
+test("studio configure preset is Risk Plan-first and preserves confirmation boundaries", async () => {
+  const source = await readFile(
+    path.join(REPO_ROOT, "cli", "studio-app", "src", "pages", "HandoffPage.tsx"),
+    "utf8"
+  );
+
+  assert.match(source, /label:\s+"Configure my project"/);
+  assert.match(source, /Risk Plan/);
+  for (const profile of [
+    "calibration",
+    "ci-regression",
+    "pre-audit",
+    "mainnet-scale",
+    "overnight-search"
+  ]) {
+    assert.match(source, new RegExp(profile));
+  }
+
+  assert.match(source, /read-only inspection commands/);
+  for (const allowed of ["pwd", "ls", "rg --files", "rg -n", "sed -n", "file reads"]) {
+    assert.match(source, new RegExp(allowed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+
+  assert.match(source, /do not edit files/);
+  assert.match(source, /do not run builds\/tests\/simulations/);
+  assert.match(source, /do not invoke the riptide-config skill until I confirm/);
+  assert.match(source, /Wait for my confirmation/);
+  assert.match(source, /Do not ask me for raw agent, tick, or seed numbers/);
+});
+
 test("config intent generator returns prompt + proposed files for a complete payload", () => {
   const result = generateConfigIntent({
     workspace_id: "lending",
@@ -2029,6 +2060,7 @@ test("config intent generator returns prompt + proposed files for a complete pay
   assert.ok(result.proposed_files.some((f: { path: string }) => f.path.includes("whale-shock")));
   assert.ok(result.validation_commands.includes("riptide doctor"));
   assert.ok(result.handoff_prompt.includes("riptide-config"));
+  assert.ok(result.handoff_prompt.includes("confirmed Risk Plan/profile"));
   assert.ok(result.handoff_prompt.includes("skill is unavailable"));
   assert.ok(result.handoff_prompt.includes("~/.codex/skills/riptide-config/SKILL.md"));
   assert.ok(result.handoff_prompt.includes("/abs/path/to/lending"));
@@ -2036,6 +2068,10 @@ test("config intent generator returns prompt + proposed files for a complete pay
   assert.match(result.handoff_prompt, /generic shell path/);
   assert.match(result.handoff_prompt, /Do not push or publish/);
   assert.match(result.handoff_prompt, /Do not perform live-mainnet writes/);
+  assert.equal(
+    result.notes[0],
+    "Studio did not edit files. Run the prompt through the riptide-config skill to apply the confirmed Risk Plan/profile."
+  );
   assert.ok(!/already (?:edited|applied|wrote)/.test(result.handoff_prompt));
 });
 
@@ -2082,8 +2118,13 @@ test("config intent HTTP endpoint returns the prompt and never claims it edited 
       notes: string[];
     };
     assert.match(body.handoff_prompt, /riptide-config/);
+    assert.match(body.handoff_prompt, /skill is unavailable/);
     assert.ok(body.proposed_files.some((f) => f.path.includes("amm")));
-    assert.ok(body.notes.some((n) => /did not edit/i.test(n)));
+    assert.ok(
+      body.notes.includes(
+        "Studio did not edit files. Run the prompt through the riptide-config skill to apply the confirmed Risk Plan/profile."
+      )
+    );
 
     const bad = await fetch(`${handle.url}/api/studio/config/intent`, {
       method: "POST",

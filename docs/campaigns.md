@@ -4,6 +4,38 @@ Campaign Runner expands one Campaign TOML into a deterministic set of scenario r
 
 Use campaigns when you want more than one scenario smoke test: a campaign can sweep shock profiles, oracle lag, whale concentration, seeds, and retention labels while keeping the inputs and artifacts stable on disk.
 
+## Risk Plan mental model
+
+Riptide starts from developer intent before it asks for low-level run
+knobs:
+
+- **Risk Plan** - the human-readable evidence plan for a protocol:
+  protocol class, critical flows, likely failure modes, recommended
+  evidence profile, calibration slice, campaign shape, guided-sim
+  boundaries, invariants, and expected coverage limits.
+- **Campaign** - one coherent risk objective, such as liquidation
+  safety or oracle-lag resilience, expanded from Campaign TOML into
+  deterministic runs.
+- **Scenario** - one behavior or failure-mode shape inside a campaign,
+  such as baseline usage, whale stress, depeg pressure, or oracle lag.
+- **Run** - one deterministic execution with fixed inputs, seed policy,
+  artifacts, retained evidence, and review commands.
+- **Guided sim** - a Rust-owned path for dynamic flows that adapter
+  campaigns cannot express, such as multi-instruction transactions,
+  computed `remaining_accounts`, or project-owned local services. See
+  [Guided simulations](guided-sim.md) for that path.
+
+Developers choose intent and an evidence profile; Riptide translates that
+into adapter, harness, scenario, campaign, seed, runtime, artifact, and
+review knobs. A Risk Plan can recommend both Campaign Runner and guided
+simulations, but `riptide campaign run` schedules adapter/scenario
+campaign runs today. Guided sims are run and reviewed through the
+separate `riptide sim ...` path.
+
+The result is simulation evidence, not audit signoff. Treat a green run
+or campaign as evidence for the declared local inputs and invariants, not
+as complete protocol safety or coverage proof.
+
 Agent-assisted repo setup is intentionally one flow:
 
 ```text
