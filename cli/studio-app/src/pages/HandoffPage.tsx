@@ -41,15 +41,18 @@ const PRESETS: { label: string; prompt: string }[] = [
   {
     label: "Configure my project",
     prompt: [
-      "I want to configure this repo for Riptide, but first plan the run with me — do not edit files, do not run commands, do not invoke the riptide-config skill yet.",
+      "I want to configure this repo for Riptide, but first produce a Risk Plan with me. Hard boundary: do not edit files, do not run builds/tests/simulations, and do not invoke the riptide-config skill until I confirm the plan and profile.",
       "",
-      "Briefly inspect the workspace to detect the protocol class, the target program or crate, and anything that looks like an existing Riptide setup. Then reply in plain prose with:",
+      "You may run narrow read-only inspection commands such as pwd, ls, rg --files, rg -n, sed -n, and file reads. Use read-only inspection only to detect the protocol class, target program or crate, existing Riptide setup, likely readiness, and obvious guided-sim boundaries. If inspection is blocked or inconclusive, say exactly what blocked it and continue with planning defaults.",
       "",
-      "1. A one-paragraph read of what you found.",
-      "2. A short list of planning questions for me to answer before you execute, including: how big the simulation campaign should be (smoke, medium, broad), how many agents per scenario, which agent types or personas to include, the protocol behavior I most want to stress, and any runtime or artifact ceiling.",
-      "3. A suggested default for each question so I can just say 'go with the defaults' if I want.",
+      "First reply in plain prose with:",
       "",
-      "Wait for my answers (or my 'go with the defaults' confirmation) before doing anything else. When I respond, then use the riptide-config skill to configure the adapter, harness, scenarios, personas, invariants, and campaign plan according to the agreed shape."
+      "1. A one-paragraph protocol/readiness read of what you found.",
+      "2. A proposed Risk Plan with sections for protocol class, critical flows, likely failure modes, recommended campaigns, guided-sim recommendations when needed, initial calibration run, main evidence run profile, suggested invariants, and expected coverage boundaries.",
+      "3. An evidence profile recommendation from: calibration (prove setup works), ci-regression (cheap deterministic safety gate), pre-audit (stronger economic stress), mainnet-scale (1000+ agent incident rehearsal when budget allows), or overnight-search (broader seeds/parameters with an artifact cap).",
+      "4. The few planning questions you truly need answered before execution, focused on intent, unacceptable failures, runtime/artifact budget, and whether I accept the recommended profile.",
+      "",
+      "Do not ask me for raw agent, tick, or seed numbers unless there is a real tradeoff I need to choose. Wait for my confirmation (or my 'go with the defaults' confirmation) before doing anything else. When I confirm, use the riptide-config skill to configure the adapter, harness, scenarios, personas, invariants, campaign plan, and separate guided-sim recommendations according to the confirmed Risk Plan/profile."
     ].join("\n")
   },
   {

@@ -56,6 +56,40 @@ ambiguous. Do not leave required harness setup as comments when the
 account bytes, PDA seeds, owners, or local service state are derivable
 from source, IDL, tests, dependencies, constants, or existing fixtures.
 
+## Risk Plan Inputs
+
+When the user or Studio provides a confirmed Risk Plan and selected
+profile, treat it as source-of-truth input for campaign shape, personas,
+scenarios, guided-sim recommendations, runtime ceilings, artifact
+ceilings, and evidence boundaries. Do not replace the confirmed plan with
+raw agent/tick/seed knobs unless validation proves the plan impossible;
+when that happens, report the exact blocker and ask for the smallest
+scope decision needed.
+
+Use product-facing profiles before raw knobs:
+
+- `calibration` — prove setup works with the smallest meaningful slice:
+  lint, harness build when needed, one deterministic seed, short run,
+  exact blocker capture, and no broad campaign execution.
+- `ci-regression` — cheap repeatable safety gate: deterministic seeds,
+  modest agents, strong invariants, low artifacts, and commands suitable
+  for a recurring local or CI check after calibration passes.
+- `pre-audit` — stronger economic stress: multiple scenario families,
+  stricter invariants, medium/high agents, retained failures/outliers,
+  and human-readable review commands.
+- `mainnet-scale` — incident rehearsal: use 1000+ agents for main stress
+  scenarios when runtime and artifact budgets allow, keep outliers, and
+  state any reduced-size fallback as a budget cut.
+- `overnight-search` — broad exploration: wider seeds/parameters,
+  explicit artifact cap, retained failures/outliers, and a next-day
+  review path instead of interactive tuning.
+
+Keep calibration first even when the confirmed profile is larger:
+adapter lint, harness build when required, and one deterministic smoke
+must prove the setup before campaign expansion. Preserve
+guided-sim required surfaces as coverage boundaries instead of forcing
+dynamic flows into generic adapter campaigns.
+
 ## Detection
 
 1. Establish the repo root from `.riptide/`, `Anchor.toml`,
@@ -100,6 +134,12 @@ scaffolding:
 - Use `--seeds 1 --seed-root 1337` only for bounded smoke gates. Do not
   rewrite the scenario's stored `seeds` value just because the smoke used
   a one-seed override.
+
+When both wizard choices and a confirmed Risk Plan are present, preserve
+both unless they conflict. If they conflict, the confirmed Risk Plan is
+the newer source-of-truth for evidence profile, campaign shape, runtime
+ceiling, artifact ceiling, and guided-sim recommendations; record any
+changed wizard sizing in the final report.
 
 For any existing user-authored `.riptide` file, preserve the user's
 content unless validation proves it is invalid. If you change an existing
@@ -314,9 +354,19 @@ Create or repair one starter Campaign TOML under:
 .riptide/campaigns/<risk>.campaign.toml
 ```
 
-Point it at repo-local adapter and scenario paths. Keep the first
-campaign small enough to run quickly, with fixed seed policy and
-retained rerun cases.
+Point it at repo-local adapter and scenario paths. Shape campaign size
+from the confirmed Risk Plan/profile when present. Keep `calibration`
+as the first executed slice, then prepare the main evidence campaign:
+cheap deterministic coverage for `ci-regression`, stronger economic
+stress for `pre-audit`, 1000+ agents in main stress scenarios for
+`mainnet-scale` when budget allows, and broader seed/parameter search
+with an artifact cap for `overnight-search`.
+
+Keep the first campaign small enough to run quickly, with fixed seed
+policy and retained rerun cases, unless the confirmed profile explicitly
+asks for a larger prepared campaign. Planning a large campaign is allowed
+after calibration, but broad execution remains a separate user-approved
+command.
 
 Validate and plan it:
 

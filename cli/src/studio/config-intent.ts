@@ -111,7 +111,7 @@ export function generateConfigIntent(
   const handoffPrompt = renderHandoffPrompt(intent, proposedFiles, validationCommands);
 
   const noteLines: string[] = [
-    "Studio did not edit any files. Run the prompt through the riptide-config skill to apply.",
+    "Studio did not edit files. Run the prompt through the riptide-config skill to apply the confirmed Risk Plan/profile.",
     "Validation commands are suggestions; review them before pasting into a terminal."
   ];
 
@@ -175,7 +175,9 @@ function renderHandoffPrompt(
     ? `\nOperator notes:\n${intent.notes}\n`
     : "";
   return [
-    "Use the riptide-config skill to apply the following Studio handoff in the target repo.",
+    "Use the riptide-config skill to apply the confirmed Risk Plan/profile from the following Studio handoff in the target repo.",
+    "If the Operator notes include a confirmed Risk Plan or profile, treat it as source-of-truth input for adapter, harness, personas, scenarios, invariants, campaign shape, guided-sim recommendations, and runtime ceilings. Do not invent a replacement plan silently; ask before changing the confirmed plan.",
+    "If no Risk Plan is confirmed yet, draft a Risk Plan first and wait for confirmation before editing files, running builds/tests/simulations, or applying riptide-config changes.",
     "If this session says the skill is unavailable, do not proceed from memory; read and follow the first existing local instructions file at .claude/skills/riptide-config/SKILL.md, .codex/skills/riptide-config/SKILL.md, ~/.codex/skills/riptide-config/SKILL.md, or ~/.claude/skills/riptide-config/SKILL.md.",
     "",
     `- Repository: ${intent.repo_path}`,
@@ -199,6 +201,7 @@ function renderHandoffPrompt(
     "- Do not perform live-mainnet writes, deploy programs, use private keys, or send transactions.",
     "- Do not modify files outside the listed targets without explicit confirmation.",
     "- Reuse existing personas/invariants where they fit. Prefer adapters that already pass `riptide lint`.",
+    "- Keep guided simulations as a separate evidence path today; do not describe `riptide campaign run` as scheduling guided Rust sims.",
     "- Land changes in a single feature branch and stop short of `git push` so a human reviews diffs."
   ]
     .filter((line) => line.trim().length > 0 || line === "")
