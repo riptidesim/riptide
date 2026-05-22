@@ -10,6 +10,11 @@ riptide review .riptide/campaigns/campaign_<id>
 
 The campaign review reads `campaign-summary.json`, `retention-manifest.json`, and retained `case.json` files, then maps retained labels to run IDs, sampled parameters, risk results, and rerun commands. See [Campaign Runner](campaigns.md) for the full campaign artifact map.
 
+After command-level validation, use
+[Protocol assessment workflow](protocol-assessment.md) when you need to combine
+campaign and guided-sim artifacts into a protocol-level coverage matrix or
+assessment report.
+
 For a single evidence pack, `riptide review <pack-path>` reads the pack manifest, resolves the input and output path indexes, verifies the canonical hash from the indexed `simulation_result`, checks that `rerun.sh` is POSIX-sh parseable with `sh -n`, and emits a reviewer-facing markdown summary.
 
 ```sh

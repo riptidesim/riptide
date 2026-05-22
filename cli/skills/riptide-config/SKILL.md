@@ -21,6 +21,9 @@ placeholder, artifact path hints when available, and
 `.riptide/GETTING-STARTED.md`. The same agent session owns adapter TOML,
 Rust harness, personas, scenarios, invariants, campaign readiness,
 validation, repair loops, and the final readiness report.
+For protocol configuration work, the final report also carries a
+protocol-assessment coverage matrix and send/readiness verdict that can
+feed `docs/templates/protocol-assessment-report.md`.
 
 There is no second LLM call, no endpoint config, and no API key. Use
 normal shell commands and edit normal files.
@@ -44,6 +47,11 @@ genuinely ambiguous. Work until one final state is true:
   harness compile, or smoke output names a fixable blocker.
 - `unsupported = <boundary>` — the program depends on a protocol
   surface Riptide cannot currently model without new engine support.
+
+Configuration readiness and send readiness are separate. Keep reporting
+the setup state above, then also report a protocol assessment verdict
+using exactly one of: `ready_to_send`, `needs_guided_sim`,
+`needs_campaign_tuning`, `blocked`, or `unsupported`.
 
 Do not stop at "lint PASS" if `riptide run --harness` cannot load the
 adapter. Do not hand adapter-side blockers to a separate harness skill.
@@ -89,6 +97,12 @@ adapter lint, harness build when required, and one deterministic smoke
 must prove the setup before campaign expansion. Preserve
 guided-sim required surfaces as coverage boundaries instead of forcing
 dynamic flows into generic adapter campaigns.
+
+When the Risk Plan names P0/P1 economic flows, carry them into a final
+coverage matrix. Every P0 flow must be classified as `covered`,
+`covered by guided sim`, `blocked`, `out of scope`, or `not assessed`;
+P1 flows named in the plan should be classified the same way when the
+configuration report discusses them.
 
 ## Detection
 
@@ -420,12 +434,54 @@ Restart validation from lint after adapter changes, from harness build
 after harness changes, and from one-seed scenario smoke after scenario
 changes.
 
+## Protocol Assessment Output
+
+Use `docs/protocol-assessment.md` and
+`docs/templates/protocol-assessment-report.md` as the handoff contract
+for protocol-level configuration results.
+
+The final configuration report must include:
+
+- a P0 coverage matrix row for every P0 flow in the Risk Plan, with
+  status `covered`, `covered by guided sim`, `blocked`, `out of scope`,
+  or `not assessed`
+- a send/readiness verdict using exactly one of `ready_to_send`,
+  `needs_guided_sim`, `needs_campaign_tuning`, `blocked`, or
+  `unsupported`
+- exact commands, artifact paths, and hashes when emitted for every
+  headline evidence claim
+- bounded claim language when only a narrow campaign or guided sim is
+  runnable; do not describe unassessed authority, oracle, withdrawal,
+  liquidation, or payout paths as covered
+
+Verdict meanings:
+
+- `ready_to_send` — every P0 row is classified, at least one P0 claim
+  has focused campaign, adversarial campaign, or guided-sim evidence,
+  headline claims cite exact commands/artifacts/hashes, and blocked or
+  out-of-scope surfaces are visible.
+- `needs_guided_sim` — a P0 flow depends on dynamic accounts,
+  multi-instruction ordering, project-owned services, or other guided
+  Rust logic before the claim is reviewable.
+- `needs_campaign_tuning` — the adapter/harness can run, but the
+  campaign does not yet cover the target P0 flow, stress range,
+  invariant, negative control, or retained evidence shape.
+- `blocked` — missing local inputs, build artifacts, deterministic
+  account facts, dependency state, private protocol context, or command
+  failures prevent a reviewable assessment.
+- `unsupported` — the requested protocol claim is outside Riptide's
+  current simulation evidence model or requires new engine support.
+
 ## Final Report
 
 Report:
 
 - final state: `campaign_ready = yes`, `bounded_ready = yes`,
   `blocked = ...`, or `unsupported = ...`
+- protocol assessment verdict: `ready_to_send`, `needs_guided_sim`,
+  `needs_campaign_tuning`, `blocked`, or `unsupported`
+- P0 coverage matrix with status, evidence tier, exact commands,
+  artifact paths, hashes when emitted, and claim limits for each row
 - adapter path and whether runtime is bundled or Generic SBF/IDL
 - harness path and smoke command/result, if used
 - scenario paths written or repaired

@@ -5,6 +5,12 @@ review, external pilot, audit-prep discussion, or security-minded
 engineering review. The goal is to make the ask concrete: rerun this,
 falsify it, or explain what blocks trust.
 
+For protocol-team outreach that spans multiple campaigns, guided sims, blocked
+surfaces, or non-findings, first assemble a
+[Protocol assessment workflow](protocol-assessment.md) coverage matrix and fill
+the [protocol assessment report template](templates/protocol-assessment-report.md).
+Then attach that report alongside the reviewer packet below.
+
 ## Launch and review checklist
 
 1. **Pick the evidence path.** Start with the flagship
@@ -23,8 +29,8 @@ falsify it, or explain what blocks trust.
 
 3. **Attach the expected evidence.** Include the pack directory or
    artifact, rerun stdout, review stdout, canonical hash, commit SHA,
-   toolchain notes, and any Studio screenshots or report links used in
-   the review.
+   toolchain notes, any completed assessment report, and any Studio
+   screenshots or report links used in the review.
 4. **Write reviewer notes.** State what was reproduced, what did not
    reproduce, which assumptions were inspected, and which claim remains
    untrusted.

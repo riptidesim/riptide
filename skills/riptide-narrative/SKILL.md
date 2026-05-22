@@ -26,6 +26,14 @@ program is safe, broken, or even interesting outside the parameter
 point the run sampled. The narrative names mechanism and cites
 evidence; the reader draws the conclusion.
 
+Keep this skill single-run. Multi-run assessment, protocol-level
+coverage, send/readiness verdicts, and claims about broader protocol
+safety belong in `docs/templates/protocol-assessment-report.md`, using
+the workflow in `docs/protocol-assessment.md`. A `report-narrative.md`
+can be attached as an appendix or supporting evidence inside that
+assessment report, but it is not audit signoff and must not become the
+protocol assessment itself.
+
 Copy the voice of `docs/case-studies/lending.md`. That file is
 the canonical tone reference: causal, mechanical, modest about
 what the run proves, specific about what it observed. Do **not**

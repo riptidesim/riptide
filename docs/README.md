@@ -8,6 +8,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 | --- | --- |
 | [Install](install.md) | Hosted installer, repository build path, Docker, manual rebuilds, and upgrade notes. |
 | [Campaign Runner](campaigns.md) | Run deterministic campaign sweeps with retained evidence and review handoff. |
+| [Protocol Assessment](protocol-assessment.md) | Turn Risk Plans, campaigns, guided sims, blockers, and non-findings into a send/readiness report. |
 | [Architecture](architecture.md) | Understand the adapter/persona/scenario stack, LiteSVM runtime, determinism, and dashboard artifacts. |
 | [Scenario family catalog](scenario-catalog.md) | Browse the generated 25-family protocol-class matrix, claim levels, fixture paths, and result hashes. |
 | [Case-study corpus readiness](case-study-corpus.md) | Read the local case-study matrix, executed evidence, claim boundaries, and next actions. |
@@ -30,6 +31,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 | [QA benchmarks](qa-benchmarks.md) | Run the reusable stress/dev-UX benchmark harness and interpret its outputs. |
 | [CI handoff](ci-handoff.md) | Pin a replay proof in GitHub Actions with a canonical hash. |
 | [Audit handoff packet](audit-handoff.md) | Use the launch/review checklist, reviewer ask, and follow-up issue template. |
+| [Protocol assessment report template](templates/protocol-assessment-report.md) | Fill a coverage matrix, evidence list, claim boundary, and reviewer checklist for protocol-team handoff. |
 | [Adapter lineage](adapter-lineage.md) | Record and inspect adapter provenance, inferred assumptions, unsupported fields, and JSON IDL lint coverage. |
 
 ## Supporting Material

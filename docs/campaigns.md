@@ -32,6 +32,12 @@ simulations, but `riptide campaign run` schedules adapter/scenario
 campaign runs today. Guided sims are run and reviewed through the
 separate `riptide sim ...` path.
 
+When the goal is a protocol-team handoff, use
+[Protocol assessment workflow](protocol-assessment.md) after the Risk Plan to
+assemble campaign and guided-sim evidence into a coverage matrix and assessment
+report. Keep the Risk Plan hierarchy here as the planning model; the assessment
+workflow is the send/readiness layer.
+
 The result is simulation evidence, not audit signoff. Treat a green run
 or campaign as evidence for the declared local inputs and invariants, not
 as complete protocol safety or coverage proof.
@@ -165,6 +171,11 @@ By default, a repo-local campaign writes under
 A campaign result proves that Riptide executed the declared local inputs, sampled the listed coordinates, and observed the reported metrics or invariant signals within that run budget.
 
 It does not prove complete protocol safety, production solvency, or historical mainnet behavior. A no-failure campaign means no declared invariant fired inside those inputs. A failing campaign means at least one reproducible point in the declared experiment produced the reported signal.
+
+For multi-run or protocol-level reporting, move the reviewed campaign and
+guided-sim artifacts into the coverage matrix in
+[Protocol assessment workflow](protocol-assessment.md) and the reusable
+[protocol assessment report template](templates/protocol-assessment-report.md).
 
 ## Troubleshooting
 
