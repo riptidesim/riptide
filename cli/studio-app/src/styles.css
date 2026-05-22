@@ -1338,6 +1338,38 @@ button { font-family: inherit; }
   color: var(--rt-off-white);
 }
 
+.rrep__charts { display: flex; flex-direction: column; gap: 10px; }
+.rrep__charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+.rrep__chart {
+  background: var(--rt-slate-panel);
+  border: 1px solid var(--rt-slate-line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  min-width: 0;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.rrep__chart--wide { grid-column: 1 / -1; }
+.rrep__chart-title {
+  font: 500 12px/1 'Inter', sans-serif;
+  color: var(--rt-off-white);
+}
+.rrep__chart-legend {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  font: 400 11px/1 'IBM Plex Mono', monospace;
+  color: var(--rt-fog-dim);
+}
+.rrep__chart-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  margin-right: 6px;
+  border-radius: 1px;
+  vertical-align: baseline;
+}
+
 .rrep__metrics { display: flex; flex-direction: column; gap: 10px; }
 .rrep__metrics-toggle {
   align-self: flex-start;

@@ -3,6 +3,7 @@ import { marked } from "marked";
 
 import { Icon } from "./Icon";
 import { Kicker, Pill, type PillKind } from "./primitives";
+import { ReportCharts } from "./reportCharts";
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -512,9 +513,11 @@ function renderMarkdown(body: string): string {
 
 interface ReportRendererProps {
   body: string;
+  /** Optional sibling structured JSON; when it is a recognised summary, charts are derived from it. */
+  summary?: unknown;
 }
 
-export function ReportRenderer({ body }: ReportRendererProps) {
+export function ReportRenderer({ body, summary }: ReportRendererProps) {
   const parsed = useMemo(() => parseRiptideReport(body), [body]);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [activeAnchor, setActiveAnchor] = useState<string | null>(parsed.sections[0]?.anchor ?? null);
@@ -608,6 +611,8 @@ export function ReportRenderer({ body }: ReportRendererProps) {
           <p className="rrep__glance-line">{parsed.narrative}</p>
         </div>
       )}
+
+      <ReportCharts summary={summary} />
 
       {parsed.kpis.length > 0 && (
         <MetricsBlock

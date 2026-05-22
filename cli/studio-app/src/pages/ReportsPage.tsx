@@ -43,6 +43,7 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
   const [artifacts, setArtifacts] = useState<StudioArtifactEntry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [report, setReport] = useState<StudioReportPayload | null>(null);
+  const [reportSummary, setReportSummary] = useState<unknown>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const [sourcePath, setSourcePath] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,6 +68,7 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
     setError(null);
     setArtifacts([]);
     setReport(null);
+    setReportSummary(null);
     setReportError(null);
     setSourcePath(null);
     const queryArtifact = readStudioArtifact();
@@ -103,11 +105,15 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
     }
     let cancelled = false;
     setReport(null);
+    setReportSummary(null);
     setReportError(null);
     setSourcePath(null);
     api.report({ workspaceId, artifactId: selectedId })
-      .then((payload) => {
-        if (!cancelled) setReport(payload);
+      .then(async (payload) => {
+        if (cancelled) return;
+        setReport(payload);
+        const summary = await loadReportSummary(workspaceId, payload);
+        if (!cancelled) setReportSummary(summary);
       })
       .catch((err) => {
         if (!cancelled) setReportError((err as Error).message);
@@ -307,7 +313,9 @@ export function ReportsPage({ workspaceId, onNavigate, pendingArtifact }: Report
                   {sourcePath && (
                     <SourceBlock workspaceId={workspaceId} sourcePath={sourcePath} title="SOURCE ARTIFACT" />
                   )}
-                  {report && report.content_type === "markdown" && <ReportRenderer body={report.body} />}
+                  {report && report.content_type === "markdown" && (
+                    <ReportRenderer body={report.body} summary={reportSummary} />
+                  )}
                   {report && report.content_type === "json" && <JsonTree body={report.body} />}
                   {report && report.content_type === "toml" && (
                     <SyntaxBlock content={report.body} language="toml" ariaLabel={`${report.relative_path} TOML`} />
@@ -447,6 +455,24 @@ function ArtifactMeta({ artifact }: { artifact: StudioArtifactEntry }) {
       )}
     </div>
   );
+}
+
+/**
+ * Resolve a markdown report's sibling structured JSON so the renderer can
+ * derive charts from it. Returns null when there is no campaign summary to
+ * read, or when it cannot be fetched/parsed — charts are a progressive
+ * enhancement, never a hard dependency of the report view.
+ */
+async function loadReportSummary(workspaceId: string, report: StudioReportPayload): Promise<unknown> {
+  if (report.content_type !== "markdown") return null;
+  const link = report.source_links.find((entry) => entry.relative_path.endsWith("campaign-summary.json"));
+  if (!link) return null;
+  try {
+    const source = await api.source({ workspaceId, path: link.relative_path });
+    return JSON.parse(source.content);
+  } catch {
+    return null;
+  }
 }
 
 function groupArtifacts(artifacts: StudioArtifactEntry[]): Array<{ kind: StudioArtifactKind; items: StudioArtifactEntry[] }> {
