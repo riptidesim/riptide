@@ -77,7 +77,8 @@ test("campaign retention aggregation: writes summaries and selects retained labe
     runs_jsonl: "runs.jsonl",
     parameters_csv: "parameters.csv",
     retention_manifest: "retention-manifest.json",
-    markdown_summary: "campaign-summary.md"
+    markdown_summary: "campaign-summary.md",
+    risk_surface: "risk-surface.json"
   });
   assert.equal(summary.first_failure_ticks.min, 2);
   assert.equal(summary.lending?.total_bad_debt.max, 1200);
@@ -85,6 +86,7 @@ test("campaign retention aggregation: writes summaries and selects retained labe
   const manifest = JSON.parse(
     await readFile(result.artifactPaths.retentionManifestPath, "utf8")
   ) as {
+    artifacts: { risk_surface: string };
     entries: Array<{
       label: string;
       status: "selected" | "warning";
@@ -97,6 +99,7 @@ test("campaign retention aggregation: writes summaries and selects retained labe
       warning?: string;
     }>;
   };
+  assert.deepEqual(manifest.artifacts, { risk_surface: "risk-surface.json" });
   const byLabel = new Map(manifest.entries.map((entry) => [entry.label, entry]));
   assert.equal(byLabel.get("first_failure")?.run_index, 1);
   assert.equal(byLabel.get("worst_bad_debt")?.run_index, 0, "bad-debt ties use lower run index");

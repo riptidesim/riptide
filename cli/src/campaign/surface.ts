@@ -1,4 +1,6 @@
-import type { JsonScalar } from "./schema.js";
+import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
+
+import type { JsonScalar, ParameterDistribution } from "./schema.js";
 
 /**
  * risk-surface.v1 — quantitative risk-surface contract (Phase 1: types only).
@@ -16,8 +18,8 @@ import type { JsonScalar } from "./schema.js";
  *
  * `risk-surface.json` is a NEW, purely-additive artifact. It does NOT alter
  * `campaign-summary.v1`, `simulation-result.json`, the retention manifest, or
- * any retained-case bytes. The summary/manifest gain only an additive *path
- * reference* to it (added in T02), never a reordering of existing fields.
+ * any retained-case bytes. The summary/manifest gain only additive *path
+ * references* to it (added in T02), never a reordering of existing fields.
  *
  * ## Emission path (R1.5 — no new CLI command)
  *
@@ -369,4 +371,578 @@ export interface RiskSurfaceBinRange {
   upper: number | null;
   /** The bin indices spanned, ascending. */
   bin_indices: number[];
+}
+
+// ---------------------------------------------------------------------------
+// Producer (T02) — turn enriched campaign runs into a risk-surface document.
+// ---------------------------------------------------------------------------
+
+/**
+ * The bounded-claim string emitted on every surface (R4.4). Mirrors the
+ * campaign-summary boundary: simulation evidence over a declared, fixed-seed
+ * parameter region, never protocol safety or a mainnet prediction.
+ */
+export const RISK_SURFACE_CLAIM_BOUNDARY =
+  "This surface reports invariant-failure rates and metric percentiles observed " +
+  "within this campaign's declared, fixed-seed parameter region and run budget. " +
+  "It is evidence over that region only, not a proof of protocol safety or a " +
+  "prediction of mainnet behavior.";
+
+/**
+ * One enriched run reduced to exactly what the surface needs: its axis
+ * coordinates ({@link sampledParameters}) and outcome. The producer is
+ * decoupled from `aggregation.ts`'s `EnrichedRun` so `surface.ts` has no import
+ * cycle; the call site maps `EnrichedRun` → this shape.
+ */
+export interface RiskSurfaceRunInput {
+  /** Deterministic run index; only used for stable ordering of diagnostics. */
+  runIndex: number;
+  /** Run status; a cell's failures are the runs whose status is `"fail"`. */
+  status: "pass" | "fail" | "error" | "skipped";
+  /** The sampled axis coordinates for this run. */
+  sampledParameters: Record<string, JsonScalar>;
+  /** Lending bad-debt metric (`EnrichedRun.metrics.totalBadDebt`). */
+  badDebt: number | null;
+  /** Lending utilization metric (`EnrichedRun.metrics.maxUtilization`). */
+  utilization: number | null;
+  /** Lending TVL floor metric (`EnrichedRun.metrics.minTvl`). */
+  tvl: number | null;
+  /** Lending available-liquidity floor (`EnrichedRun.metrics.minAvailableLiquidity`). */
+  availableLiquidity: number | null;
+  /** Deterministic risk score (`EnrichedRun.metrics.riskScore`); generic-class metric. */
+  riskScore: number;
+}
+
+/** Optional overrides for the surface-config thresholds; each defaults to its constant. */
+export interface RiskSurfaceConfigOverrides {
+  safeRegionFailureRateThreshold?: number;
+  minCellRunCount?: number;
+  defaultContinuousBinCount?: number;
+}
+
+/** Everything the producer needs to build a {@link RiskSurfaceDocument}. */
+export interface BuildRiskSurfaceInput {
+  campaign: {
+    campaignId: string;
+    campaignDigest: string;
+    name: string;
+    semanticClass: string;
+    riskObjective: string;
+    seedPolicyDisplay: string;
+    runBudget: number;
+    requestedRuns: number;
+  };
+  /** The campaign's declared parameter distributions (axes are derived from these). */
+  parameters: Record<string, ParameterDistribution>;
+  runs: RiskSurfaceRunInput[];
+  config?: RiskSurfaceConfigOverrides;
+}
+
+/**
+ * Build the canonical risk-surface document from enriched runs. Pure and
+ * deterministic: every ordering and numeric choice is fixed (see the
+ * determinism contract at the top of this file). Serialize with
+ * {@link serializeRiskSurface}.
+ */
+export function buildRiskSurfaceDocument(input: BuildRiskSurfaceInput): RiskSurfaceDocument {
+  const config = resolveConfig(input.config);
+  const isLending = input.campaign.semanticClass === "lending.v1";
+  const metrics: RiskSurfaceMetricKey[] = isLending
+    ? [...LENDING_SURFACE_METRICS]
+    : [...GENERIC_SURFACE_METRICS];
+
+  const axes = buildAxes(input.parameters, config.default_continuous_bin_count);
+  const warnings: string[] = [];
+
+  // Place each run onto the grid. Runs missing a swept-axis coordinate cannot
+  // be positioned and are excluded (never silently — a warning is emitted).
+  const placements = new Map<string, RiskSurfaceRunInput[]>();
+  let unplaceable = 0;
+  for (const run of input.runs) {
+    const coord = placeRun(run, axes);
+    if (!coord) {
+      unplaceable += 1;
+      continue;
+    }
+    const key = coord.join(",");
+    const bucket = placements.get(key);
+    if (bucket) bucket.push(run);
+    else placements.set(key, [run]);
+  }
+  if (unplaceable > 0) {
+    warnings.push(
+      `${unplaceable} run(s) omitted from the surface grid: missing a sampled value for one or more swept axes`
+    );
+  }
+
+  // Emit a complete grid: every coordinate combination becomes a cell, even
+  // when empty, so positions are stable across runs (R2.4: never drop cells).
+  const cells: RiskSurfaceCell[] = [];
+  let sparsePopulated = 0;
+  let emptyCells = 0;
+  for (const coord of cartesianBinIndices(axes)) {
+    const key = coord.join(",");
+    const runs = placements.get(key) ?? [];
+    const runCount = runs.length;
+    const failed = runs.filter((run) => run.status === "fail").length;
+    const sparse = runCount < config.min_cell_run_count;
+    if (runCount === 0) emptyCells += 1;
+    else if (sparse) sparsePopulated += 1;
+    cells.push({
+      coords: axes.map((axis, position) => ({ axis: axis.name, bin_index: coord[position]! })),
+      run_count: runCount,
+      invariant_failure_rate: runCount === 0 ? 0 : roundNumber(failed / runCount),
+      metrics: cellMetricPercentiles(metrics, runs),
+      sparse
+    });
+  }
+  if (sparsePopulated > 0) {
+    warnings.push(
+      `${sparsePopulated} populated cell(s) have fewer than ${config.min_cell_run_count} run(s); ` +
+        "treat their failure rates and percentiles as low-confidence."
+    );
+  }
+  if (emptyCells > 0) {
+    warnings.push(`${emptyCells} grid cell(s) received no runs in this campaign's budget.`);
+  }
+  if (axes.length === 0) {
+    warnings.push(
+      "Campaign declared no varying parameters; the surface is a single aggregate cell over all runs."
+    );
+  }
+
+  const sensitivity = buildSensitivity(axes, input.runs);
+  const safeRegion = buildSafeRegion(axes, cells, config.safe_region_failure_rate_threshold);
+
+  const document: Omit<RiskSurfaceDocument, "surface_digest"> = {
+    schema_version: RISK_SURFACE_SCHEMA_VERSION,
+    campaign: {
+      campaign_id: input.campaign.campaignId,
+      campaign_digest: input.campaign.campaignDigest,
+      name: input.campaign.name,
+      class: input.campaign.semanticClass,
+      risk_objective: input.campaign.riskObjective,
+      seed_policy: input.campaign.seedPolicyDisplay,
+      run_budget: input.campaign.runBudget,
+      requested_runs: input.campaign.requestedRuns
+    },
+    config,
+    metrics,
+    axes,
+    cells,
+    sensitivity,
+    safe_region: safeRegion,
+    warnings,
+    claim_boundary: RISK_SURFACE_CLAIM_BOUNDARY
+  };
+
+  const surfaceDigest = sha256Hex(
+    `${RISK_SURFACE_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
+  );
+  return { ...document, surface_digest: surfaceDigest };
+}
+
+/** Serialize a surface document to its canonical, byte-stable on-disk form. */
+export function serializeRiskSurface(document: RiskSurfaceDocument): string {
+  return canonicalJson(document as unknown as JsonValue);
+}
+
+function resolveConfig(overrides: RiskSurfaceConfigOverrides | undefined): RiskSurfaceConfig {
+  return {
+    safe_region_failure_rate_threshold:
+      overrides?.safeRegionFailureRateThreshold ?? DEFAULT_SAFE_REGION_THRESHOLD,
+    min_cell_run_count: overrides?.minCellRunCount ?? DEFAULT_MIN_CELL_RUN_COUNT,
+    default_continuous_bin_count:
+      overrides?.defaultContinuousBinCount ?? DEFAULT_CONTINUOUS_BIN_COUNT,
+    percentile_interpolation: "linear"
+  };
+}
+
+// --- Axes & binning --------------------------------------------------------
+
+/**
+ * Derive the swept axes from the declared parameters. A parameter becomes an
+ * axis only when it yields ≥ 2 bins (i.e. it actually varies); `fixed` values
+ * and single-value `discrete` distributions collapse to one bin and carry no
+ * surface information, so they are not axes. Sorted ascending by name to match
+ * `campaign-summary.v1`'s parameter ordering.
+ */
+function buildAxes(
+  parameters: Record<string, ParameterDistribution>,
+  defaultContinuousBinCount: number
+): RiskSurfaceAxis[] {
+  const axes: RiskSurfaceAxis[] = [];
+  for (const name of Object.keys(parameters).sort((a, b) => a.localeCompare(b))) {
+    const distribution = parameters[name]!;
+    const axis = buildAxis(name, distribution, defaultContinuousBinCount);
+    if (axis && axis.bins.length >= 2) axes.push(axis);
+  }
+  return axes;
+}
+
+function buildAxis(
+  name: string,
+  distribution: ParameterDistribution,
+  defaultContinuousBinCount: number
+): RiskSurfaceAxis | null {
+  const base = {
+    name,
+    distribution: distributionLabel(distribution),
+    ...(distribution.unit !== undefined ? { unit: distribution.unit } : {})
+  };
+  if (distribution.distribution === "fixed" || distribution.distribution === "discrete") {
+    const values = distribution.distribution === "fixed"
+      ? [distribution.value]
+      : uniqueScalars(distribution.values);
+    const bins: RiskSurfaceBin[] = values.map((value, index) => ({
+      index,
+      label: scalarDisplay(value),
+      value
+    }));
+    return { ...base, kind: "discrete", binning: { method: "value" }, bins };
+  }
+
+  // Continuous (uniform / log-uniform): fixed-width edges over [min, max].
+  if (!(distribution.max > distribution.min)) {
+    // Degenerate range collapses to a single point → one bin, not a swept axis.
+    const lower = roundNumber(distribution.min);
+    return {
+      ...base,
+      kind: "continuous",
+      binning: { method: "fixed-width", edges: [lower, lower] },
+      bins: [{ index: 0, label: `[${lower}, ${lower}]`, lower, upper: lower }]
+    };
+  }
+  const edges = continuousEdges(distribution.min, distribution.max, defaultContinuousBinCount);
+  const bins: RiskSurfaceBin[] = [];
+  for (let index = 0; index < edges.length - 1; index += 1) {
+    const lower = edges[index]!;
+    const upper = edges[index + 1]!;
+    const isLast = index === edges.length - 2;
+    bins.push({
+      index,
+      label: `[${lower}, ${upper}${isLast ? "]" : ")"}`,
+      lower,
+      upper
+    });
+  }
+  return { ...base, kind: "continuous", binning: { method: "fixed-width", edges }, bins };
+}
+
+function continuousEdges(min: number, max: number, binCount: number): number[] {
+  const edges: number[] = [];
+  for (let index = 0; index <= binCount; index += 1) {
+    edges.push(roundNumber(min + ((max - min) * index) / binCount));
+  }
+  // Pin the endpoints exactly so rounding cannot drift the declared range.
+  edges[0] = roundNumber(min);
+  edges[binCount] = roundNumber(max);
+  return edges;
+}
+
+/** Cartesian product of every axis's bin indices, in lexicographic order (first axis most significant). */
+function cartesianBinIndices(axes: RiskSurfaceAxis[]): number[][] {
+  let combos: number[][] = [[]];
+  for (const axis of axes) {
+    const next: number[][] = [];
+    for (const combo of combos) {
+      for (const bin of axis.bins) next.push([...combo, bin.index]);
+    }
+    combos = next;
+  }
+  return combos;
+}
+
+/** Coordinate (one bin index per axis) for a run, or `null` if it cannot be placed. */
+function placeRun(run: RiskSurfaceRunInput, axes: RiskSurfaceAxis[]): number[] | null {
+  const coord: number[] = [];
+  for (const axis of axes) {
+    const value = run.sampledParameters[axis.name];
+    if (value === undefined) return null;
+    const index = axis.kind === "discrete"
+      ? placeDiscrete(axis, value)
+      : placeContinuous(axis, value);
+    if (index < 0) return null;
+    coord.push(index);
+  }
+  return coord;
+}
+
+function placeDiscrete(axis: RiskSurfaceAxis, value: JsonScalar): number {
+  const key = JSON.stringify(value);
+  for (const bin of axis.bins) {
+    if (JSON.stringify(bin.value ?? null) === key) return bin.index;
+  }
+  return -1;
+}
+
+function placeContinuous(axis: RiskSurfaceAxis, value: JsonScalar): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return -1;
+  const binning = axis.binning;
+  if (binning.method !== "fixed-width") return -1;
+  const edges = binning.edges;
+  const lastBin = edges.length - 2;
+  if (lastBin < 0) return -1;
+  if (value <= edges[0]!) return 0;
+  if (value >= edges[edges.length - 1]!) return lastBin;
+  for (let index = 0; index < edges.length - 1; index += 1) {
+    if (value >= edges[index]! && value < edges[index + 1]!) return index;
+  }
+  return lastBin;
+}
+
+// --- Per-cell metric percentiles -------------------------------------------
+
+function cellMetricPercentiles(
+  metrics: RiskSurfaceMetricKey[],
+  runs: RiskSurfaceRunInput[]
+): Record<string, RiskSurfaceMetricPercentiles> {
+  const out: Record<string, RiskSurfaceMetricPercentiles> = {};
+  for (const metric of metrics) {
+    const samples = runs
+      .map((run) => metricValue(run, metric))
+      .filter((value): value is number => value !== null)
+      .sort((a, b) => a - b);
+    out[metric] = {
+      count: samples.length,
+      p10: percentile(samples, 0.1),
+      p50: percentile(samples, 0.5),
+      p90: percentile(samples, 0.9)
+    };
+  }
+  return out;
+}
+
+function metricValue(run: RiskSurfaceRunInput, metric: RiskSurfaceMetricKey): number | null {
+  switch (metric) {
+    case "bad_debt":
+      return run.badDebt;
+    case "utilization":
+      return run.utilization;
+    case "tvl":
+      return run.tvl;
+    case "available_liquidity":
+      return run.availableLiquidity;
+    case "risk_score":
+      return run.riskScore;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Fixed linear ("type-7" / NumPy-default) percentile over ascending samples.
+ * `n === 0` → null; `n === 1` → the single sample. Result rounded to 6 decimals.
+ */
+function percentile(sortedAscending: number[], q: number): number | null {
+  const n = sortedAscending.length;
+  if (n === 0) return null;
+  if (n === 1) return roundNumber(sortedAscending[0]!);
+  const h = (n - 1) * q;
+  const lower = Math.floor(h);
+  const upper = Math.ceil(h);
+  const value = sortedAscending[lower]! + (h - lower) * (sortedAscending[upper]! - sortedAscending[lower]!);
+  return roundNumber(value);
+}
+
+// --- Sensitivity (baseline; refined in the ranking step) -------------------
+
+const SENSITIVITY_METHOD =
+  "Per-axis marginal invariant-failure-rate spread: for each axis, the failure " +
+  "rate is computed per bin by marginalizing over the other axes (failed runs / " +
+  "runs in that bin), and the spread is max − min across that axis's populated " +
+  "bins. Axes are ranked by spread descending, ties broken by axis name ascending. " +
+  "The monotonic note compares consecutive populated bins by increasing bin index.";
+
+function buildSensitivity(
+  axes: RiskSurfaceAxis[],
+  runs: RiskSurfaceRunInput[]
+): RiskSurfaceSensitivity {
+  const entries = axes.map((axis) => axisSensitivity(axis, runs));
+  entries.sort(
+    (a, b) =>
+      compareNumbersDesc(a.failure_rate_spread, b.failure_rate_spread) ||
+      a.axis.localeCompare(b.axis)
+  );
+  const ranking = entries.map((entry, index) => ({ ...entry, rank: index + 1 }));
+  return { method: SENSITIVITY_METHOD, ranking };
+}
+
+function axisSensitivity(
+  axis: RiskSurfaceAxis,
+  runs: RiskSurfaceRunInput[]
+): Omit<RiskSurfaceAxisSensitivity, "rank"> {
+  const perBinRate: Array<number | null> = axis.bins.map(() => null);
+  const perBinTotal: number[] = axis.bins.map(() => 0);
+  const perBinFailed: number[] = axis.bins.map(() => 0);
+  for (const run of runs) {
+    const value = run.sampledParameters[axis.name];
+    if (value === undefined) continue;
+    const index = axis.kind === "discrete" ? placeDiscrete(axis, value) : placeContinuous(axis, value);
+    if (index < 0) continue;
+    perBinTotal[index]! += 1;
+    if (run.status === "fail") perBinFailed[index]! += 1;
+  }
+  const populated: number[] = [];
+  for (let index = 0; index < axis.bins.length; index += 1) {
+    if (perBinTotal[index]! > 0) {
+      const rate = roundNumber(perBinFailed[index]! / perBinTotal[index]!);
+      perBinRate[index] = rate;
+      populated.push(rate);
+    }
+  }
+  const min = populated.length > 0 ? Math.min(...populated) : 0;
+  const max = populated.length > 0 ? Math.max(...populated) : 0;
+  return {
+    axis: axis.name,
+    failure_rate_spread: roundNumber(max - min),
+    min_bin_failure_rate: roundNumber(min),
+    max_bin_failure_rate: roundNumber(max),
+    monotonic: monotonicityOf(perBinRate)
+  };
+}
+
+function monotonicityOf(perBinRate: Array<number | null>): RiskSurfaceMonotonicity | null {
+  const sequence = perBinRate.filter((rate): rate is number => rate !== null);
+  if (sequence.length < 2) return null;
+  let increasing = false;
+  let decreasing = false;
+  for (let index = 1; index < sequence.length; index += 1) {
+    const delta = sequence[index]! - sequence[index - 1]!;
+    if (delta > 0) increasing = true;
+    else if (delta < 0) decreasing = true;
+  }
+  if (increasing && decreasing) return "non-monotonic";
+  if (increasing) return "increasing";
+  if (decreasing) return "decreasing";
+  return "flat";
+}
+
+// --- Safe region (baseline per-axis bounds; refined in the extraction step) ---
+
+function buildSafeRegion(
+  axes: RiskSurfaceAxis[],
+  cells: RiskSurfaceCell[],
+  threshold: number
+): RiskSurfaceSafeRegion {
+  const populated = cells.filter((cell) => cell.run_count > 0);
+  if (populated.length === 0) {
+    return {
+      threshold,
+      status: "none",
+      message:
+        "No populated cells were available, so no safe region within this declared parameter region could be identified.",
+      bounds: [],
+      worst_case_failure_rate: null
+    };
+  }
+  const safe = populated.filter((cell) => cell.invariant_failure_rate <= threshold);
+  if (safe.length === 0) {
+    return {
+      threshold,
+      status: "none",
+      message:
+        `No cell stayed at or under the ${formatRate(threshold)} failure-rate threshold within ` +
+        "this declared, fixed-seed parameter region.",
+      bounds: [],
+      worst_case_failure_rate: null
+    };
+  }
+  const worst = roundNumber(Math.max(...safe.map((cell) => cell.invariant_failure_rate)));
+  const bounds = axes.map((axis, position) => axisBound(axis, position, safe));
+  if (safe.length === populated.length) {
+    return {
+      threshold,
+      status: "entire-region",
+      message:
+        `Every populated cell stayed at or under the ${formatRate(threshold)} failure-rate threshold ` +
+        "within this declared, fixed-seed parameter region.",
+      bounds,
+      worst_case_failure_rate: worst
+    };
+  }
+  return {
+    threshold,
+    status: "found",
+    message:
+      `Recommended bounds are the per-axis envelope of the cells that stayed at or under the ` +
+      `${formatRate(threshold)} failure-rate threshold within this declared, fixed-seed parameter region.`,
+    bounds,
+    worst_case_failure_rate: worst
+  };
+}
+
+function axisBound(
+  axis: RiskSurfaceAxis,
+  position: number,
+  safeCells: RiskSurfaceCell[]
+): RiskSurfaceAxisBound {
+  const safeBinIndices = new Set<number>();
+  for (const cell of safeCells) {
+    const index = cell.coords[position]?.bin_index;
+    if (index !== undefined) safeBinIndices.add(index);
+  }
+  if (axis.kind === "discrete") {
+    const allowed = axis.bins
+      .filter((bin) => safeBinIndices.has(bin.index))
+      .map((bin) => bin.value ?? null);
+    return { axis: axis.name, kind: "discrete", allowed_values: allowed };
+  }
+  const indices = [...safeBinIndices].sort((a, b) => a - b);
+  const minIndex = indices[0]!;
+  const maxIndex = indices[indices.length - 1]!;
+  const span: number[] = [];
+  for (let index = minIndex; index <= maxIndex; index += 1) span.push(index);
+  const lowerBin = axis.bins[minIndex];
+  const upperBin = axis.bins[maxIndex];
+  return {
+    axis: axis.name,
+    kind: "continuous",
+    bin_range: {
+      lower: lowerBin?.lower ?? null,
+      upper: upperBin?.upper ?? null,
+      bin_indices: span
+    }
+  };
+}
+
+// --- Shared deterministic helpers (kept local to avoid an aggregation cycle) ---
+
+function distributionLabel(distribution: ParameterDistribution): string {
+  if (distribution.distribution === "fixed") {
+    return `fixed(${scalarDisplay(distribution.value)})`;
+  }
+  if (distribution.distribution === "discrete") {
+    return `discrete(${distribution.values.map(scalarDisplay).join("|")})`;
+  }
+  return `${distribution.distribution}(${distribution.min}..${distribution.max}${distribution.integer ? ", integer" : ""})`;
+}
+
+function scalarDisplay(value: JsonScalar): string {
+  return value === null ? "null" : String(value);
+}
+
+function uniqueScalars(values: JsonScalar[]): JsonScalar[] {
+  const seen = new Set<string>();
+  const out: JsonScalar[] = [];
+  for (const value of values) {
+    const key = JSON.stringify(value);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+function formatRate(rate: number): string {
+  return `${roundNumber(rate * 100)}%`;
+}
+
+function compareNumbersDesc(a: number, b: number): number {
+  return a < b ? 1 : a > b ? -1 : 0;
+}
+
+function roundNumber(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 1_000_000) / 1_000_000;
 }

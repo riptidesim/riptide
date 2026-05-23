@@ -8,6 +8,12 @@ import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js"
 import type { CampaignExpansionPlan, CampaignRunPlan } from "./expansion.js";
 import type { CampaignRunRecord } from "./execution.js";
 import {
+  buildRiskSurfaceDocument,
+  serializeRiskSurface,
+  type RiskSurfaceDocument,
+  type RiskSurfaceRunInput
+} from "./surface.js";
+import {
   RETENTION_LABELS,
   type CampaignSpec,
   type JsonScalar,
@@ -22,12 +28,20 @@ export interface CampaignArtifactPaths {
   summaryMarkdownPath: string;
   parametersCsvPath: string;
   retentionManifestPath: string;
+  /**
+   * Additive (T02): the standalone, canonical-hashed `risk-surface.json`. It is
+   * a NEW file. Summary/manifest JSON gain additive path references to it while
+   * existing artifact fields keep their names and ordering.
+   */
+  riskSurfaceJsonPath: string;
 }
 
 export interface CampaignArtifactsResult {
   paths: CampaignArtifactPaths;
   summary: CampaignSummaryJson;
   retentionManifest: CampaignRetentionManifest;
+  /** The emitted risk-surface document (additive, T02). */
+  riskSurface: RiskSurfaceDocument;
 }
 
 export interface CampaignSummaryJson {
@@ -50,6 +64,7 @@ export interface CampaignSummaryJson {
     parameters_csv: string;
     retention_manifest: string;
     markdown_summary: string;
+    risk_surface: string;
   };
   totals: {
     requested_runs: number;
@@ -133,6 +148,9 @@ export interface CampaignRetentionManifest {
   class: string;
   risk_objective: string;
   requested_labels: RetentionLabel[];
+  artifacts: {
+    risk_surface: string;
+  };
   entries: CampaignRetentionEntry[];
   warnings: string[];
 }
@@ -236,20 +254,22 @@ export async function writeCampaignArtifacts(
 ): Promise<CampaignArtifactsResult> {
   await mkdir(input.plan.campaignRoot, { recursive: true });
   const enriched = await enrichRuns(input);
-  const retentionManifest = buildRetentionManifest({
-    spec: input.spec,
-    plan: input.plan,
-    enriched,
-    cwd: input.cwd,
-    harnessPath: input.harnessPath
-  });
   const paths: CampaignArtifactPaths = {
     runsJsonlPath: input.runsJsonlPath,
     summaryJsonPath: path.join(input.plan.campaignRoot, "campaign-summary.json"),
     summaryMarkdownPath: path.join(input.plan.campaignRoot, "campaign-summary.md"),
     parametersCsvPath: path.join(input.plan.campaignRoot, "parameters.csv"),
-    retentionManifestPath: path.join(input.plan.campaignRoot, "retention-manifest.json")
+    retentionManifestPath: path.join(input.plan.campaignRoot, "retention-manifest.json"),
+    riskSurfaceJsonPath: path.join(input.plan.campaignRoot, "risk-surface.json")
   };
+  const retentionManifest = buildRetentionManifest({
+    spec: input.spec,
+    plan: input.plan,
+    enriched,
+    paths,
+    cwd: input.cwd,
+    harnessPath: input.harnessPath
+  });
   await writeRetainedCaseArtifacts({
     spec: input.spec,
     plan: input.plan,
@@ -264,6 +284,21 @@ export async function writeCampaignArtifacts(
     retentionManifest,
     paths,
     cwd: input.cwd
+  });
+
+  const riskSurface = buildRiskSurfaceDocument({
+    campaign: {
+      campaignId: input.plan.campaignId,
+      campaignDigest: input.plan.campaignDigest,
+      name: input.spec.name,
+      semanticClass: input.spec.semanticClass,
+      riskObjective: input.spec.riskObjective,
+      seedPolicyDisplay: seedPolicyDisplay(input.spec.seedPolicy),
+      runBudget: input.spec.runBudget,
+      requestedRuns: input.plan.runs.length
+    },
+    parameters: input.spec.parameters,
+    runs: enriched.map(surfaceRunInput)
   });
 
   await writeFile(paths.parametersCsvPath, renderParametersCsv(input.spec, enriched), "utf8");
@@ -282,8 +317,22 @@ export async function writeCampaignArtifacts(
     renderCampaignSummaryMarkdown(summary, retentionManifest),
     "utf8"
   );
+  await writeFile(paths.riskSurfaceJsonPath, serializeRiskSurface(riskSurface), "utf8");
 
-  return { paths, summary, retentionManifest };
+  return { paths, summary, retentionManifest, riskSurface };
+}
+
+function surfaceRunInput(run: EnrichedRun): RiskSurfaceRunInput {
+  return {
+    runIndex: run.plan.runIndex,
+    status: run.record.status,
+    sampledParameters: run.plan.sampledParameters,
+    badDebt: run.metrics.totalBadDebt,
+    utilization: run.metrics.maxUtilization,
+    tvl: run.metrics.minTvl,
+    availableLiquidity: run.metrics.minAvailableLiquidity,
+    riskScore: run.metrics.riskScore
+  };
 }
 
 async function enrichRuns(input: WriteCampaignArtifactsInput): Promise<EnrichedRun[]> {
@@ -508,6 +557,7 @@ function buildRetentionManifest(input: {
   spec: CampaignSpec;
   plan: CampaignExpansionPlan;
   enriched: EnrichedRun[];
+  paths: CampaignArtifactPaths;
   cwd: string;
   harnessPath?: string;
 }): CampaignRetentionManifest {
@@ -526,6 +576,9 @@ function buildRetentionManifest(input: {
     class: input.spec.semanticClass,
     risk_objective: input.spec.riskObjective,
     requested_labels: requested,
+    artifacts: {
+      risk_surface: relativizeIfInside(input.plan.campaignRoot, input.paths.riskSurfaceJsonPath)
+    },
     entries,
     warnings
   };
@@ -915,7 +968,8 @@ function buildCampaignSummary(input: {
       runs_jsonl: relativizeIfInside(input.plan.campaignRoot, input.paths.runsJsonlPath),
       parameters_csv: relativizeIfInside(input.plan.campaignRoot, input.paths.parametersCsvPath),
       retention_manifest: relativizeIfInside(input.plan.campaignRoot, input.paths.retentionManifestPath),
-      markdown_summary: relativizeIfInside(input.plan.campaignRoot, input.paths.summaryMarkdownPath)
+      markdown_summary: relativizeIfInside(input.plan.campaignRoot, input.paths.summaryMarkdownPath),
+      risk_surface: relativizeIfInside(input.plan.campaignRoot, input.paths.riskSurfaceJsonPath)
     },
     totals: {
       requested_runs: input.plan.runs.length,
@@ -1247,6 +1301,7 @@ function renderCampaignSummaryMarkdown(
     `- \`parameters.csv\``,
     `- \`runs.jsonl\``,
     `- \`retention-manifest.json\``,
+    `- \`risk-surface.json\``,
     `- \`retained/<label>-<run-id>/case.json\``,
     `- \`retained/<label>-<run-id>/rerun.sh\``,
     "",
