@@ -317,10 +317,21 @@ export interface RiskSurfaceAxisSensitivity {
   min_bin_failure_rate: number;
   max_bin_failure_rate: number;
   /**
-   * Monotonicity note over the axis's bins by increasing bin index (R3.1,
-   * cuttable). `null` when undefined (fewer than two populated bins).
+   * Monotonicity note over the axis's bins by increasing bin index (R3.1).
+   * `null` when undefined (fewer than two populated bins).
    */
   monotonic: RiskSurfaceMonotonicity | null;
+  /**
+   * Elasticity note (R3.1): the signed average failure-rate change per bin
+   * step, measured from the first populated bin to the last populated bin —
+   * `(rate_last − rate_first) / (index_last − index_first)`, rounded to 6
+   * decimals. Complements the unsigned {@link failure_rate_spread} (how much
+   * the axis moves risk) and the categorical {@link monotonic} note (the shape)
+   * with a direction + per-step magnitude. Positive means failure rate tends to
+   * rise with the axis; negative means it falls. `null` when fewer than two
+   * populated bins make it undefined.
+   */
+  elasticity: number | null;
 }
 
 export type RiskSurfaceMonotonicity =
@@ -752,7 +763,10 @@ const SENSITIVITY_METHOD =
   "rate is computed per bin by marginalizing over the other axes (failed runs / " +
   "runs in that bin), and the spread is max − min across that axis's populated " +
   "bins. Axes are ranked by spread descending, ties broken by axis name ascending. " +
-  "The monotonic note compares consecutive populated bins by increasing bin index.";
+  "The monotonic note compares consecutive populated bins by increasing bin index. " +
+  "The elasticity note is the signed average failure-rate change per bin step from " +
+  "the first to the last populated bin: (rate_last − rate_first) / (index_last − " +
+  "index_first); positive means risk rises with the axis.";
 
 function buildSensitivity(
   axes: RiskSurfaceAxis[],
@@ -798,8 +812,28 @@ function axisSensitivity(
     failure_rate_spread: roundNumber(max - min),
     min_bin_failure_rate: roundNumber(min),
     max_bin_failure_rate: roundNumber(max),
-    monotonic: monotonicityOf(perBinRate)
+    monotonic: monotonicityOf(perBinRate),
+    elasticity: elasticityOf(perBinRate)
   };
+}
+
+/**
+ * Signed average failure-rate change per bin step from the first populated bin
+ * to the last populated bin. `null` when fewer than two bins are populated (the
+ * slope is undefined). Deterministic: bin indices are fixed and rounding is the
+ * shared 6-decimal convention.
+ */
+function elasticityOf(perBinRate: Array<number | null>): number | null {
+  let firstIndex = -1;
+  let lastIndex = -1;
+  for (let index = 0; index < perBinRate.length; index += 1) {
+    if (perBinRate[index] === null) continue;
+    if (firstIndex < 0) firstIndex = index;
+    lastIndex = index;
+  }
+  if (firstIndex < 0 || firstIndex === lastIndex) return null;
+  const rise = perBinRate[lastIndex]! - perBinRate[firstIndex]!;
+  return roundNumber(rise / (lastIndex - firstIndex));
 }
 
 function monotonicityOf(perBinRate: Array<number | null>): RiskSurfaceMonotonicity | null {
@@ -818,7 +852,7 @@ function monotonicityOf(perBinRate: Array<number | null>): RiskSurfaceMonotonici
   return "flat";
 }
 
-// --- Safe region (baseline per-axis bounds; refined in the extraction step) ---
+// --- Safe region ------------------------------------------------------------
 
 function buildSafeRegion(
   axes: RiskSurfaceAxis[],
@@ -848,9 +882,9 @@ function buildSafeRegion(
       worst_case_failure_rate: null
     };
   }
-  const worst = roundNumber(Math.max(...safe.map((cell) => cell.invariant_failure_rate)));
-  const bounds = axes.map((axis, position) => axisBound(axis, position, safe));
   if (safe.length === populated.length) {
+    const worst = roundNumber(Math.max(...safe.map((cell) => cell.invariant_failure_rate)));
+    const bounds = axes.map((axis, position) => axisBoundFromCells(axis, position, safe));
     return {
       threshold,
       status: "entire-region",
@@ -861,18 +895,120 @@ function buildSafeRegion(
       worst_case_failure_rate: worst
     };
   }
+  const region = selectSafeRegion(axes, populated, threshold);
+  if (!region) {
+    return {
+      threshold,
+      status: "none",
+      message:
+        `No representable region stayed at or under the ${formatRate(threshold)} failure-rate threshold ` +
+        "within this declared, fixed-seed parameter region.",
+      bounds: [],
+      worst_case_failure_rate: null
+    };
+  }
   return {
     threshold,
     status: "found",
     message:
-      `Recommended bounds are the per-axis envelope of the cells that stayed at or under the ` +
+      `Recommended bounds are a single representable region whose populated cells stayed at or under the ` +
       `${formatRate(threshold)} failure-rate threshold within this declared, fixed-seed parameter region.`,
-    bounds,
-    worst_case_failure_rate: worst
+    bounds: axes.map((axis, position) => axisBoundForIndices(axis, region.intervals[position]?.indices ?? [])),
+    worst_case_failure_rate: region.worst
   };
 }
 
-function axisBound(
+interface SafeRegionInterval {
+  lower: number;
+  upper: number;
+  indices: number[];
+}
+
+interface SafeRegionCandidate {
+  intervals: SafeRegionInterval[];
+  cells: RiskSurfaceCell[];
+  coveredRuns: number;
+  volume: number;
+  worst: number;
+  key: string;
+}
+
+function selectSafeRegion(
+  axes: RiskSurfaceAxis[],
+  populatedCells: RiskSurfaceCell[],
+  threshold: number
+): SafeRegionCandidate | null {
+  const safeCells = populatedCells.filter((cell) => cell.invariant_failure_rate <= threshold);
+  const intervalsByAxis = axes.map((_axis, position) => candidateIntervalsForAxis(safeCells, position));
+  let best: SafeRegionCandidate | null = null;
+  for (const intervals of cartesianIntervals(intervalsByAxis)) {
+    const regionCells = populatedCells.filter((cell) => cellInRegion(cell, intervals));
+    if (regionCells.length === 0) continue;
+    if (regionCells.some((cell) => cell.invariant_failure_rate > threshold)) continue;
+    const candidate = regionCandidate(intervals, regionCells);
+    if (isBetterRegion(candidate, best)) best = candidate;
+  }
+  return best;
+}
+
+function candidateIntervalsForAxis(
+  safeCells: RiskSurfaceCell[],
+  position: number
+): SafeRegionInterval[] {
+  const safeIndices = [...new Set(safeCells.map((cell) => cell.coords[position]?.bin_index))]
+    .filter((index): index is number => index !== undefined)
+    .sort((a, b) => a - b);
+  const intervals: SafeRegionInterval[] = [];
+  for (let start = 0; start < safeIndices.length; start += 1) {
+    for (let end = start; end < safeIndices.length; end += 1) {
+      const lower = safeIndices[start]!;
+      const upper = safeIndices[end]!;
+      intervals.push({ lower, upper, indices: binIndexRange(lower, upper) });
+    }
+  }
+  return intervals;
+}
+
+function cartesianIntervals(intervalsByAxis: SafeRegionInterval[][]): SafeRegionInterval[][] {
+  let combos: SafeRegionInterval[][] = [[]];
+  for (const intervals of intervalsByAxis) {
+    const next: SafeRegionInterval[][] = [];
+    for (const combo of combos) {
+      for (const interval of intervals) next.push([...combo, interval]);
+    }
+    combos = next;
+  }
+  return combos;
+}
+
+function cellInRegion(cell: RiskSurfaceCell, intervals: SafeRegionInterval[]): boolean {
+  return intervals.every((interval, position) => {
+    const index = cell.coords[position]?.bin_index;
+    return index !== undefined && index >= interval.lower && index <= interval.upper;
+  });
+}
+
+function regionCandidate(
+  intervals: SafeRegionInterval[],
+  cells: RiskSurfaceCell[]
+): SafeRegionCandidate {
+  const coveredRuns = cells.reduce((sum, cell) => sum + cell.run_count, 0);
+  const volume = intervals.reduce((product, interval) => product * interval.indices.length, 1);
+  const worst = roundNumber(Math.max(...cells.map((cell) => cell.invariant_failure_rate)));
+  const key = intervals.map((interval) => `${interval.lower}-${interval.upper}`).join("|");
+  return { intervals, cells, coveredRuns, volume, worst, key };
+}
+
+function isBetterRegion(candidate: SafeRegionCandidate, best: SafeRegionCandidate | null): boolean {
+  if (!best) return true;
+  if (candidate.coveredRuns !== best.coveredRuns) return candidate.coveredRuns > best.coveredRuns;
+  if (candidate.cells.length !== best.cells.length) return candidate.cells.length > best.cells.length;
+  if (candidate.worst !== best.worst) return candidate.worst < best.worst;
+  if (candidate.volume !== best.volume) return candidate.volume < best.volume;
+  return candidate.key < best.key;
+}
+
+function axisBoundFromCells(
   axis: RiskSurfaceAxis,
   position: number,
   safeCells: RiskSurfaceCell[]
@@ -882,17 +1018,22 @@ function axisBound(
     const index = cell.coords[position]?.bin_index;
     if (index !== undefined) safeBinIndices.add(index);
   }
+  return axisBoundForIndices(axis, [...safeBinIndices]);
+}
+
+function axisBoundForIndices(
+  axis: RiskSurfaceAxis,
+  binIndices: number[]
+): RiskSurfaceAxisBound {
+  const indices = [...new Set(binIndices)].sort((a, b) => a - b);
   if (axis.kind === "discrete") {
     const allowed = axis.bins
-      .filter((bin) => safeBinIndices.has(bin.index))
+      .filter((bin) => indices.includes(bin.index))
       .map((bin) => bin.value ?? null);
     return { axis: axis.name, kind: "discrete", allowed_values: allowed };
   }
-  const indices = [...safeBinIndices].sort((a, b) => a - b);
   const minIndex = indices[0]!;
   const maxIndex = indices[indices.length - 1]!;
-  const span: number[] = [];
-  for (let index = minIndex; index <= maxIndex; index += 1) span.push(index);
   const lowerBin = axis.bins[minIndex];
   const upperBin = axis.bins[maxIndex];
   return {
@@ -901,9 +1042,15 @@ function axisBound(
     bin_range: {
       lower: lowerBin?.lower ?? null,
       upper: upperBin?.upper ?? null,
-      bin_indices: span
+      bin_indices: binIndexRange(minIndex, maxIndex)
     }
   };
+}
+
+function binIndexRange(lower: number, upper: number): number[] {
+  const out: number[] = [];
+  for (let index = lower; index <= upper; index += 1) out.push(index);
+  return out;
 }
 
 // --- Shared deterministic helpers (kept local to avoid an aggregation cycle) ---

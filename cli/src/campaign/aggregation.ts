@@ -2,6 +2,7 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { SimulationResult } from "../compiler/schema.js";
+import { renderRiskSurfaceNarrative } from "../report/surface-narrative.js";
 import type { RunSummary } from "../run/loop.js";
 import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
 
@@ -314,7 +315,7 @@ export async function writeCampaignArtifacts(
   );
   await writeFile(
     paths.summaryMarkdownPath,
-    renderCampaignSummaryMarkdown(summary, retentionManifest),
+    renderCampaignSummaryMarkdown(summary, retentionManifest, riskSurface),
     "utf8"
   );
   await writeFile(paths.riskSurfaceJsonPath, serializeRiskSurface(riskSurface), "utf8");
@@ -1174,7 +1175,8 @@ function renderParametersCsv(spec: CampaignSpec, enriched: EnrichedRun[]): strin
 
 function renderCampaignSummaryMarkdown(
   summary: CampaignSummaryJson,
-  retentionManifest: CampaignRetentionManifest
+  retentionManifest: CampaignRetentionManifest,
+  riskSurface: RiskSurfaceDocument
 ): string {
   const lines: string[] = [
     `# Campaign Summary: ${summary.campaign.name}`,
@@ -1292,6 +1294,8 @@ function renderCampaignSummaryMarkdown(
     for (const warning of summary.warnings) lines.push(`- ${warning}`);
     lines.push("");
   }
+
+  lines.push(renderRiskSurfaceNarrative(riskSurface), "");
 
   lines.push(
     "## Artifact Index",

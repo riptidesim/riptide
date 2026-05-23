@@ -128,6 +128,116 @@ test("campaign-surface producer: sensitivity ranks by failure-rate spread with d
   assert.match(doc.sensitivity.method, /marginal/i);
 });
 
+test("campaign-surface sensitivity: elasticity is the signed per-bin-step slope, null when one bin populated", () => {
+  const doc = buildRiskSurfaceDocument({
+    campaign: LENDING_CAMPAIGN,
+    parameters: {
+      whale_share_bps: discrete([2500, 5000, 7500]),
+      // A second varying axis keeps whale_share_bps a genuine swept axis while
+      // only its first bin is populated, exercising the null-elasticity path.
+      shock_profile: discrete(["calm", "storm"])
+    },
+    runs: [
+      // whale_share_bps marginal across its 3 bins: 0% -> 50% -> 100% (slope +0.5/step).
+      run(0, "pass", { whale_share_bps: 2500, shock_profile: "calm" }),
+      run(1, "pass", { whale_share_bps: 2500, shock_profile: "storm" }),
+      run(2, "pass", { whale_share_bps: 5000, shock_profile: "calm" }),
+      run(3, "fail", { whale_share_bps: 5000, shock_profile: "storm" }),
+      run(4, "fail", { whale_share_bps: 7500, shock_profile: "calm" }),
+      run(5, "fail", { whale_share_bps: 7500, shock_profile: "storm" })
+    ]
+  });
+
+  const whale = doc.sensitivity.ranking.find((entry) => entry.axis === "whale_share_bps")!;
+  assert.equal(whale.elasticity, 0.5, "first->last populated bin: (1.0 - 0.0) / (2 - 0) = 0.5");
+  assert.equal(whale.monotonic, "increasing");
+
+  // shock_profile: calm bins 1/3 fail, storm 2/3 fail -> two populated bins one
+  // index apart, so elasticity is the rise across that single step, computed from
+  // the already-6-decimal-rounded per-bin rates (0.666667 - 0.333333).
+  const shock = doc.sensitivity.ranking.find((entry) => entry.axis === "shock_profile")!;
+  assert.equal(shock.elasticity, roundTo6(0.666667 - 0.333333));
+});
+
+test("campaign-surface safe-region: no cell under threshold yields an explicit none status, never a silent empty", () => {
+  const doc = buildRiskSurfaceDocument({
+    campaign: LENDING_CAMPAIGN,
+    parameters: { whale_share_bps: discrete([2500, 7500]) },
+    runs: [
+      run(0, "fail", { whale_share_bps: 2500 }),
+      run(1, "fail", { whale_share_bps: 2500 }),
+      run(2, "fail", { whale_share_bps: 7500 }),
+      run(3, "fail", { whale_share_bps: 7500 })
+    ]
+  });
+
+  assert.equal(doc.safe_region.status, "none");
+  assert.deepEqual(doc.safe_region.bounds, []);
+  assert.equal(doc.safe_region.worst_case_failure_rate, null);
+  assert.match(doc.safe_region.message, /No cell stayed at or under/);
+  assert.doesNotMatch(doc.safe_region.message, /production/i);
+});
+
+test("campaign-surface safe-region: bounds do not envelope unsafe diagonal cells", () => {
+  const doc = buildRiskSurfaceDocument({
+    campaign: LENDING_CAMPAIGN,
+    parameters: {
+      axis_a: discrete(["low", "high"]),
+      axis_b: discrete([1, 2])
+    },
+    runs: [
+      run(0, "pass", { axis_a: "low", axis_b: 1 }),
+      run(1, "fail", { axis_a: "low", axis_b: 2 }),
+      run(2, "fail", { axis_a: "high", axis_b: 1 }),
+      run(3, "pass", { axis_a: "high", axis_b: 2 })
+    ]
+  });
+
+  assert.equal(doc.safe_region.status, "found");
+  assert.equal(doc.safe_region.worst_case_failure_rate, 0);
+  assert.match(doc.safe_region.message, /single representable region/);
+  const axisA = doc.safe_region.bounds.find((bound) => bound.axis === "axis_a")!;
+  const axisB = doc.safe_region.bounds.find((bound) => bound.axis === "axis_b")!;
+  assert.deepEqual(axisA.allowed_values, ["low"]);
+  assert.deepEqual(axisB.allowed_values, [1]);
+});
+
+test("campaign-surface safe-region: the threshold is a config field that widens the safe region", () => {
+  const input: BuildRiskSurfaceInput = {
+    campaign: LENDING_CAMPAIGN,
+    parameters: { whale_share_bps: discrete([2500, 7500]) },
+    runs: [
+      run(0, "pass", { whale_share_bps: 2500 }),
+      run(1, "pass", { whale_share_bps: 2500 }),
+      // 7500 bin sits at a 50% failure rate.
+      run(2, "pass", { whale_share_bps: 7500 }),
+      run(3, "fail", { whale_share_bps: 7500 })
+    ]
+  };
+
+  // Default 5% threshold: only the all-pass 2500 bin qualifies.
+  const strict = buildRiskSurfaceDocument(input);
+  assert.equal(strict.config.safe_region_failure_rate_threshold, 0.05);
+  assert.equal(strict.safe_region.status, "found");
+  assert.deepEqual(
+    strict.safe_region.bounds.find((bound) => bound.axis === "whale_share_bps")!.allowed_values,
+    [2500]
+  );
+
+  // A 50% threshold admits the 7500 bin too: the whole populated region is safe.
+  const relaxed = buildRiskSurfaceDocument({
+    ...input,
+    config: { safeRegionFailureRateThreshold: 0.5 }
+  });
+  assert.equal(relaxed.config.safe_region_failure_rate_threshold, 0.5);
+  assert.equal(relaxed.safe_region.status, "entire-region");
+  assert.equal(relaxed.safe_region.worst_case_failure_rate, 0.5);
+});
+
+function roundTo6(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
+
 test("campaign-surface producer: safe region reports per-axis bounds under the threshold", () => {
   const doc = buildRiskSurfaceDocument({
     campaign: LENDING_CAMPAIGN,
