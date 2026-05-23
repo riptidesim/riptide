@@ -1,0 +1,74 @@
+# Whale × shock risk-cartography sweep for the local lending fixture.
+#
+# Dedicated flagship cartography campaign: it exists to exercise the
+# risk-surface producer over a clean 2-axis grid, NOT to replay a protocol.
+# This is not a Solend mainnet replay and does not claim protocol safety.
+#
+# Design notes (why this fixture is shaped the way it is):
+#
+#   * Single scenario family. The surface producer can only place a run on the
+#     grid when that run carries a sampled value for *every* swept axis. The
+#     shipped `solend-shape-liquidation-safety` campaign mixes three families
+#     that each sample a different parameter subset, so no run carries both
+#     axes and its grid is empty. Sweeping one family that samples exactly the
+#     two declared axes keeps every run placeable.
+#
+#   * Two focused axes: `whale_share_bps` × `shock_profile`. Whale share sets
+#     how many of the fixed 20 agents are whales (more whales → more leverage →
+#     larger liquidation cascade → more realized bad debt); the shock profile
+#     selects the stress trajectory. Both push the same lending bad-debt
+#     failure shape the replays demonstrate, so the surface gradient is
+#     interpretable.
+#
+#   * Run budget 80 over a 4×2 grid (4 fixed-width whale bins × 2 shock values)
+#     preserves the price-shock emphasis while giving the lower-weight bank-run
+#     cells enough samples to avoid sparse flagship cells.
+#
+#   * Cartography adapter. Points at `lending-cartography.toml`, a variant that
+#     adds an error-severity `bad_debt_ceiling` field invariant. The shipped
+#     lending adapter's invariants are all `severity = "warn"` and never mark a
+#     run failed, so with the bare adapter the failure surface is a flat 0%.
+#     The variant is the only thing that gives this sweep a real gradient, and
+#     it is scoped here so no shipped determinism pin moves.
+
+[campaign]
+name = "whale-shock-cartography"
+adapter = "../../../adapters/lending-cartography.toml"
+class = "lending.v1"
+risk_objective = "liquidation-safety"
+run_budget = 80
+seed_policy = "fixed:20260523"
+replay_retention = [
+  "first_failure",
+  "worst_bad_debt",
+  "worst_liquidity",
+  "median",
+  "surprising_outlier",
+]
+
+[campaign.scenarios]
+selection = "weighted"
+families = [
+  "whale_shock_grid",
+]
+
+[campaign.scenarios.whale_shock_grid]
+source = "../../../scenarios/lending/whale-shock-grid"
+weight = 1
+parameters = ["shock_profile", "whale_share_bps"]
+
+[campaign.personas]
+base = "../../../personas"
+families = []
+
+[campaign.parameters.shock_profile]
+distribution = "discrete"
+values = ["price-shock", "bank-run"]
+weights = [3, 1]
+
+[campaign.parameters.whale_share_bps]
+distribution = "uniform"
+min = 500
+max = 3000
+integer = true
+unit = "bps"
