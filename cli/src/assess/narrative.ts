@@ -2,11 +2,13 @@ import type { RiskSurfaceAxisBound } from "../campaign/surface.js";
 
 import {
   ASSESSMENT_NARRATIVE_SCHEMA,
+  requireCartographyModel,
   type AssessmentFinding,
   type AssessmentModel,
   type AssessmentNarrative,
   type AssessmentNonFinding,
   type AssessmentRecommendation,
+  type CartographyAssessmentModel,
   type NarrativeProvider
 } from "./model.js";
 
@@ -47,7 +49,11 @@ import {
  * and a fixed percentage format, so two runs over the same model produce
  * byte-identical narrative blocks (the byte-stability the renderer relies on).
  */
-export const generateAssessmentNarrative: NarrativeProvider = (model) => {
+export const generateAssessmentNarrative: NarrativeProvider = (rawModel) => {
+  // This generator is the cartography (risk-surface-led) narrative; the
+  // surface-less correctness narrative lands in a later phase. Narrow up front so
+  // the surface + highlights are guaranteed present below.
+  const model = requireCartographyModel(rawModel);
   const recommendation = buildRecommendation(model);
   const findings = buildFindings(model, recommendation);
   const nonFindings = buildNonFindings(model);
@@ -68,7 +74,7 @@ export const generateAssessmentNarrative: NarrativeProvider = (model) => {
 // ---------------------------------------------------------------------------
 
 function buildExecutiveSummary(
-  model: AssessmentModel,
+  model: CartographyAssessmentModel,
   recommendation: AssessmentRecommendation
 ): string[] {
   const totals = model.totals;
@@ -103,7 +109,7 @@ function buildExecutiveSummary(
 // ---------------------------------------------------------------------------
 
 function buildFindings(
-  model: AssessmentModel,
+  model: CartographyAssessmentModel,
   recommendation: AssessmentRecommendation
 ): AssessmentFinding[] {
   const failed = model.totals.invariant_failed_runs;
@@ -152,7 +158,7 @@ function buildFindings(
 // Non-findings (R3.2) — tested, no declared invariant fired under the inputs
 // ---------------------------------------------------------------------------
 
-function buildNonFindings(model: AssessmentModel): AssessmentNonFinding[] {
+function buildNonFindings(model: CartographyAssessmentModel): AssessmentNonFinding[] {
   const evidence = `risk-surface.json sha256 ${model.reproduction.hashes.surface_sha256}`;
   const limit = "Evidence is bounded to the declared, fixed-seed parameter region and run budget.";
 
@@ -197,7 +203,7 @@ function buildNonFindings(model: AssessmentModel): AssessmentNonFinding[] {
 // Recommendation (R3.1 / R3.3) — cites threshold + fixed-seed region
 // ---------------------------------------------------------------------------
 
-function buildRecommendation(model: AssessmentModel): AssessmentRecommendation {
+function buildRecommendation(model: CartographyAssessmentModel): AssessmentRecommendation {
   const highlights = model.surface_highlights;
   const threshold = highlights.safe_region_threshold;
   const thresholdText = formatRate(threshold);
@@ -273,7 +279,7 @@ function buildMainLimit(model: AssessmentModel): string {
 // Deterministic formatting + phrasing helpers
 // ---------------------------------------------------------------------------
 
-function sweptAxes(model: AssessmentModel): string[] {
+function sweptAxes(model: CartographyAssessmentModel): string[] {
   return model.surface.axes.map((axis) => axis.name);
 }
 

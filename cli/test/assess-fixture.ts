@@ -13,7 +13,7 @@ import {
   type RiskSurfaceDocument
 } from "../src/campaign/surface.js";
 import type { ParameterDistribution } from "../src/campaign/schema.js";
-import { buildAssessmentModel, type AssessmentModel } from "../src/assess/model.js";
+import { buildAssessmentModel, type CartographyAssessmentModel } from "../src/assess/model.js";
 
 /**
  * Shared assessment-model fixtures for the T02 (renderer) and T03 (narrative)
@@ -32,7 +32,7 @@ const FLAGSHIP_SURFACE_PATH = path.resolve(
 );
 
 /** The flagship lending cartography model: real Sprint 39 surface, failures present, bounded safe region. */
-export async function loadFlagshipModel(): Promise<AssessmentModel> {
+export async function loadFlagshipModel(): Promise<CartographyAssessmentModel> {
   const surfaceRaw = await readFile(FLAGSHIP_SURFACE_PATH, "utf8");
   const surface = JSON.parse(surfaceRaw) as RiskSurfaceDocument;
   return buildAssessmentModel({
@@ -88,7 +88,7 @@ function run(
  * narrative must read as a non-finding ("no declared invariant fired"), never a
  * finding. Identity fields line up across summary / surface / manifest.
  */
-export function buildCleanModel(): AssessmentModel {
+export function buildCleanModel(): CartographyAssessmentModel {
   const campaign: BuildRiskSurfaceInput["campaign"] = {
     campaignId: "campaign_clean0000",
     campaignDigest: "clean-digest",
@@ -127,7 +127,7 @@ export function buildCleanModel(): AssessmentModel {
  * non-zero invariant-failure rate, so the narrative must not call it a
  * non-finding.
  */
-export function buildThresholdNonZeroSafeRegionModel(): AssessmentModel {
+export function buildThresholdNonZeroSafeRegionModel(): CartographyAssessmentModel {
   const campaign: BuildRiskSurfaceInput["campaign"] = {
     campaignId: "campaign_thresholdsafe",
     campaignDigest: "threshold-safe-digest",

@@ -46,8 +46,9 @@ export function renderAssessmentHtml(
   const title = options.title ?? `Protocol assessment — ${model.protocol.name}`;
   let body = markdownToHtml(markdown);
 
-  // Swap the markdown glyph heatmap for a visual one built from the model.
-  const heatmap = renderHeatmapHtml(model.surface);
+  // Swap the markdown glyph heatmap for a visual one built from the model. The
+  // surface-less correctness shape has no heatmap to swap, so skip it.
+  const heatmap = model.surface ? renderHeatmapHtml(model.surface) : null;
   const marker = '<h3 class="rt-h3">Failure-rate heatmap</h3>';
   if (heatmap) {
     body = replaceFailureHeatmapSection(body, marker, heatmap);

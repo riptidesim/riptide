@@ -174,6 +174,9 @@ function renderCoverageMatrix(model: AssessmentModel, lines: string[]): void {
 // ---------------------------------------------------------------------------
 
 function renderSurfaceSection(model: AssessmentModel, lines: string[]): void {
+  // The cartography path always carries a surface; the surface-less correctness
+  // path renders its honest no-heatmap note through a later phase, so skip here.
+  if (!model.surface) return;
   lines.push(renderRiskSurfaceNarrative(model.surface).trimEnd(), "");
 }
 
@@ -368,9 +371,11 @@ function renderRecommendedNextWork(
 function renderToolchain(model: AssessmentModel, lines: string[]): void {
   lines.push("## Toolchain", "");
   lines.push(`- **Riptide:** ${orPlaceholder(model.protocol.riptide_version)}`);
-  lines.push(`- **Adapter:** ${model.campaign.adapter}`);
-  lines.push(`- **Campaign class:** ${model.campaign.class}`);
-  lines.push(`- **Seed policy:** ${model.campaign.seed_policy}`);
+  if (model.campaign) {
+    lines.push(`- **Adapter:** ${model.campaign.adapter}`);
+    lines.push(`- **Campaign class:** ${model.campaign.class}`);
+    lines.push(`- **Seed policy:** ${model.campaign.seed_policy}`);
+  }
   lines.push(
     "- **Environment notes:** Assessment is generated from existing campaign artifacts " +
       "(ingest-only); it does not run the engine."

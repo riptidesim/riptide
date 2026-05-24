@@ -114,6 +114,25 @@ export const ASSESSMENT_VERDICTS = [
 
 export type AssessmentVerdict = (typeof ASSESSMENT_VERDICTS)[number];
 
+/**
+ * Assessment **shape** discriminator (R1.1). A `cartography` assessment is the
+ * Sprint 39/40 parameter-swept, risk-surface-led shape (failure gradient over a
+ * declared region). A `correctness` assessment is the surface-less, binary-risk
+ * shape (accounting drift / double-payment / wrong-recipient / unauthorized
+ * control) whose evidence is guided-sim rejection + invariant holds, not a
+ * heatmap.
+ *
+ * Byte-stability note: the field is deliberately *optional* on
+ * {@link AssessmentModel}. The cartography builder NEVER sets it, so the
+ * canonical bytes (and the Sprint 40 lending flagship pins) are untouched; a
+ * `cartography` model is recognized by `surface !== null`. Only the correctness
+ * builder stamps `shape: "correctness"`. Use {@link assessmentShape} to read the
+ * effective shape from any model.
+ */
+export const ASSESSMENT_SHAPES = ["cartography", "correctness"] as const;
+
+export type AssessmentShape = (typeof ASSESSMENT_SHAPES)[number];
+
 // ---------------------------------------------------------------------------
 // Model root
 // ---------------------------------------------------------------------------
@@ -121,9 +140,18 @@ export type AssessmentVerdict = (typeof ASSESSMENT_VERDICTS)[number];
 /** Top-level `assessment.json` document — the canonical, self-digested model. */
 export interface AssessmentModel {
   schema_version: typeof ASSESSMENT_SCHEMA_VERSION;
+  /**
+   * Assessment shape (R1.1). **Optional and absent on cartography models** so
+   * their canonical bytes stay byte-identical to the Sprint 40 pins; present and
+   * set to `"correctness"` only on surface-less models. Read via
+   * {@link assessmentShape}.
+   */
+  shape?: AssessmentShape;
   protocol: AssessmentProtocolIdentity;
-  campaign: AssessmentCampaignReference;
-  totals: AssessmentCampaignTotals;
+  /** Campaign identity, or `null` on a correctness assessment with no campaign. */
+  campaign: AssessmentCampaignReference | null;
+  /** Run totals, or `null` on a correctness assessment with no campaign. */
+  totals: AssessmentCampaignTotals | null;
   verdict: AssessmentVerdictBlock;
   risk_plan: AssessmentRiskPlan;
   scope: AssessmentScope;
@@ -131,10 +159,20 @@ export interface AssessmentModel {
   coverage_matrix: AssessmentCoverageRow[];
   /** Simulation evidence rows; the ingested campaign plus any attached evidence. */
   simulations: AssessmentSimulation[];
-  /** The full, verbatim risk-surface document (already canonical + self-digested). */
-  surface: RiskSurfaceDocument;
-  /** Deterministic distillation of the surface for verdict + narrative use. */
-  surface_highlights: AssessmentSurfaceHighlights;
+  /**
+   * The full, verbatim risk-surface document (already canonical + self-digested),
+   * or `null` on a correctness assessment. When `null` it serializes
+   * deterministically as `"surface":null` (R1.3 — no field churn).
+   */
+  surface: RiskSurfaceDocument | null;
+  /** Deterministic distillation of the surface for verdict + narrative use; `null` when there is no surface. */
+  surface_highlights: AssessmentSurfaceHighlights | null;
+  /**
+   * Correctness-shape evidence (guided-sim + run/pack), **optional and absent on
+   * cartography models** so their bytes are untouched; present on correctness
+   * models. The surface-less analogue of {@link AssessmentModel.surface}.
+   */
+  correctness?: AssessmentCorrectnessEvidence;
   /** Retained evidence, in the manifest's declared label order. */
   retained_evidence: AssessmentRetainedEvidence[];
   /** Optional attached run/pack evidence (ingest-only references). */
@@ -146,6 +184,21 @@ export interface AssessmentModel {
    * without this field)}`)`.
    */
   assessment_digest: string;
+}
+
+/**
+ * A cartography assessment narrowed so the surface, its highlights, and the
+ * campaign identity/totals are guaranteed present. {@link buildAssessmentModel}
+ * and {@link ingestAssessment} return this; the existing renderer + narrative
+ * (the cartography path) operate on it so the Sprint 40 flagship path keeps its
+ * non-null guarantees with no churn. Use {@link requireCartographyModel} to
+ * narrow an arbitrary {@link AssessmentModel}.
+ */
+export interface CartographyAssessmentModel extends AssessmentModel {
+  campaign: AssessmentCampaignReference;
+  totals: AssessmentCampaignTotals;
+  surface: RiskSurfaceDocument;
+  surface_highlights: AssessmentSurfaceHighlights;
 }
 
 /** Protocol identity (Sprint 38 executive-summary header). */
@@ -298,10 +351,122 @@ export interface AssessmentArtifactRef {
 }
 
 export interface AssessmentReproductionHashes {
-  campaign_digest: string;
-  surface_digest: string;
-  /** `sha256sum risk-surface.json` of the on-disk bytes. */
-  surface_sha256: string;
+  /** `null` on a correctness assessment with no campaign. */
+  campaign_digest: string | null;
+  /** `null` on a correctness assessment with no risk surface. */
+  surface_digest: string | null;
+  /** `sha256sum risk-surface.json` of the on-disk bytes; `null` when there is no surface. */
+  surface_sha256: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Correctness-shape evidence (R1.2) — guided-sim + run/pack ingestion types
+// ---------------------------------------------------------------------------
+
+/**
+ * The on-disk `guided-sim-run.json` schema emitted by `riptide sim run` (guided
+ * mode): per-run totals plus per-iteration `flow_counts` and status. Only the
+ * fields the assessment consumes are typed; extra fields are ignored. The
+ * correctness shape's primary evidence (R1.2).
+ */
+export interface GuidedSimRunDocument {
+  schema_version: number;
+  status: string;
+  iterations_requested: number;
+  flows_per_iteration: number;
+  base_seed: string;
+  retained_failing_seed: string | null;
+  totals: GuidedSimRunTotals;
+  iterations: GuidedSimRunIteration[];
+}
+
+/** Aggregate totals across all guided-sim iterations. */
+export interface GuidedSimRunTotals {
+  iterations: number;
+  flows: number;
+  tx_success: number;
+  /** Negative-control rejections that were *expected* (correctness evidence, not failures). */
+  expected_errors: number;
+  /** Rejections/errors that were *not* expected — each is a candidate finding. */
+  unexpected_errors: number;
+  compute_units: number;
+  service_ticks: number;
+  errors: number;
+  panics: number;
+}
+
+/** One guided-sim iteration's status + per-family flow dispatch counts. */
+export interface GuidedSimRunIteration {
+  iteration: number;
+  seed: string;
+  status: string;
+  dispatched_flows: number;
+  /** Flows dispatched per scenario family in this iteration. */
+  flow_counts: Record<string, number>;
+  service_ticks: number;
+  error: string | null;
+  panic: boolean;
+}
+
+/** A flow family and how many flows it dispatched, aggregated across iterations. */
+export interface AssessmentGuidedSimFlowCount {
+  flow: string;
+  count: number;
+}
+
+/**
+ * The deterministic distillation of a {@link GuidedSimRunDocument} embedded in a
+ * correctness assessment: scalar totals + per-family flow counts sorted by flow
+ * name (so the assessment hash is byte-stable regardless of iteration order).
+ */
+export interface AssessmentGuidedSimEvidence {
+  label: string;
+  status: string;
+  iterations: number;
+  flows: number;
+  tx_success: number;
+  expected_errors: number;
+  unexpected_errors: number;
+  errors: number;
+  panics: number;
+  /** Sorted by `flow`. */
+  flow_counts: AssessmentGuidedSimFlowCount[];
+  /** Workspace-relative path to `guided-sim-run.json`. */
+  path: string;
+  sha256: string | null;
+}
+
+/** A run-collection evidence reference (ingest-only). */
+export interface AssessmentRunEvidence {
+  label: string;
+  /** Workspace-relative path to the run / run collection. */
+  path: string;
+  status: string | null;
+  sha256: string | null;
+  notes: string | null;
+}
+
+/** A pack evidence reference (ingest-only). */
+export interface AssessmentPackEvidence {
+  label: string;
+  /** Workspace-relative path to the pack. */
+  path: string;
+  sha256: string | null;
+  notes: string | null;
+}
+
+/**
+ * The correctness shape's evidence bundle — the surface-less analogue of the
+ * embedded {@link RiskSurfaceDocument}. Guided-sim is the primary signal; runs
+ * and packs are supporting evidence references. Embedded verbatim in the model
+ * so the assessment hash transitively covers it.
+ */
+export interface AssessmentCorrectnessEvidence {
+  guided_sim: AssessmentGuidedSimEvidence | null;
+  /** Sorted by `label`. */
+  runs: AssessmentRunEvidence[];
+  /** Sorted by `label`. */
+  packs: AssessmentPackEvidence[];
 }
 
 // ---------------------------------------------------------------------------
@@ -435,7 +600,7 @@ const RETENTION_MANIFEST_FILE = "retention-manifest.json";
  * {@link AssessmentIngestError} with a message-first explanation when an artifact
  * is missing or malformed.
  */
-export async function ingestAssessment(options: IngestAssessmentOptions): Promise<AssessmentModel> {
+export async function ingestAssessment(options: IngestAssessmentOptions): Promise<CartographyAssessmentModel> {
   const root = path.resolve(options.campaignRoot);
   const summary = await readArtifact<CampaignSummaryJson>(
     path.join(root, CAMPAIGN_SUMMARY_FILE),
@@ -476,7 +641,7 @@ export async function ingestAssessment(options: IngestAssessmentOptions): Promis
  * Build the canonical assessment model from already-read artifacts + inputs.
  * Pure and deterministic; serialize with {@link serializeAssessment}.
  */
-export function buildAssessmentModel(input: BuildAssessmentInput): AssessmentModel {
+export function buildAssessmentModel(input: BuildAssessmentInput): CartographyAssessmentModel {
   const { summary, surface, retentionManifest } = input;
   const inputs = input.inputs ?? {};
 
@@ -503,7 +668,10 @@ export function buildAssessmentModel(input: BuildAssessmentInput): AssessmentMod
     inputs.reproductionCommands
   );
 
-  const document: Omit<AssessmentModel, "assessment_digest"> = {
+  // NOTE: this literal must NOT gain a `shape` or `correctness` key — the
+  // cartography canonical bytes (and the Sprint 40 lending flagship pins) are
+  // byte-frozen. The correctness shape is built by buildCorrectnessAssessmentModel.
+  const document: Omit<CartographyAssessmentModel, "assessment_digest"> = {
     schema_version: ASSESSMENT_SCHEMA_VERSION,
     protocol,
     campaign,
@@ -525,6 +693,309 @@ export function buildAssessmentModel(input: BuildAssessmentInput): AssessmentMod
     `${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
   );
   return { ...document, assessment_digest: digest };
+}
+
+/**
+ * Read the effective {@link AssessmentShape} of any model. A `cartography` model
+ * carries no `shape` field (to keep its bytes frozen) and is identified by a
+ * present `surface`; a `correctness` model stamps `shape: "correctness"`.
+ */
+export function assessmentShape(model: AssessmentModel): AssessmentShape {
+  return model.shape ?? (model.surface === null ? "correctness" : "cartography");
+}
+
+/**
+ * Narrow an {@link AssessmentModel} to a {@link CartographyAssessmentModel},
+ * asserting the surface + campaign are present. The cartography renderer and
+ * narrative use this so they keep their non-null guarantees; a correctness model
+ * routed here throws rather than rendering an empty heatmap.
+ */
+export function requireCartographyModel(model: AssessmentModel): CartographyAssessmentModel {
+  if (
+    model.surface === null ||
+    model.surface_highlights === null ||
+    model.campaign === null ||
+    model.totals === null
+  ) {
+    throw new Error(
+      "expected a cartography assessment model with an embedded risk surface; " +
+        "correctness-shape (surface-less) models render through the correctness path."
+    );
+  }
+  return model as CartographyAssessmentModel;
+}
+
+// ---------------------------------------------------------------------------
+// Correctness-shape model construction (R1.2 / R1.4)
+// ---------------------------------------------------------------------------
+
+/** Everything {@link buildCorrectnessAssessmentModel} needs from the caller + ingested evidence. */
+export interface BuildCorrectnessAssessmentInput {
+  /** Reviewer-facing workspace/campaign root label used in commands + artifact refs. */
+  campaignRootLabel: string;
+  /** Protocol display name (e.g. the case-study name). */
+  protocolName: string;
+  /** The ingested correctness evidence bundle (guided-sim + run/pack). */
+  evidence: AssessmentCorrectnessEvidence;
+  inputs?: AssessmentInputs;
+}
+
+/**
+ * Distill an on-disk {@link GuidedSimRunDocument} into the deterministic
+ * {@link AssessmentGuidedSimEvidence} embedded in a correctness assessment.
+ * Aggregates per-iteration `flow_counts` and sorts by flow name so the bytes are
+ * stable regardless of iteration ordering.
+ */
+export function summarizeGuidedSimRun(
+  doc: GuidedSimRunDocument,
+  ref: { label: string; path: string; sha256?: string | null }
+): AssessmentGuidedSimEvidence {
+  const counts = new Map<string, number>();
+  for (const iteration of doc.iterations ?? []) {
+    for (const [flow, count] of Object.entries(iteration.flow_counts ?? {})) {
+      if (typeof count !== "number" || !Number.isFinite(count)) continue;
+      counts.set(flow, (counts.get(flow) ?? 0) + count);
+    }
+  }
+  const flowCounts: AssessmentGuidedSimFlowCount[] = [...counts.entries()]
+    .map(([flow, count]) => ({ flow, count }))
+    .sort((a, b) => a.flow.localeCompare(b.flow));
+  const totals = doc.totals;
+  return {
+    label: ref.label,
+    status: doc.status,
+    iterations: totals.iterations,
+    flows: totals.flows,
+    tx_success: totals.tx_success,
+    expected_errors: totals.expected_errors,
+    unexpected_errors: totals.unexpected_errors,
+    errors: totals.errors,
+    panics: totals.panics,
+    flow_counts: flowCounts,
+    path: ref.path,
+    sha256: ref.sha256 ?? null
+  };
+}
+
+/**
+ * Build the canonical, surface-less correctness {@link AssessmentModel} from an
+ * evidence bundle + caller inputs. Pure + deterministic; serialize with
+ * {@link serializeAssessment}. Coverage rows + the full findings/non-findings
+ * mapping are folded in by the caller (T04) via {@link AssessmentInputs}; this
+ * builder owns the shape, the bounded verdict (R1.4), and the byte-stable
+ * null-surface serialization (R1.3).
+ */
+export function buildCorrectnessAssessmentModel(
+  input: BuildCorrectnessAssessmentInput
+): AssessmentModel {
+  const inputs = input.inputs ?? {};
+  const evidence = normalizeCorrectnessEvidence(input.evidence);
+  const protocol = resolveCorrectnessProtocol(input.protocolName, inputs.protocol);
+  const verdict = resolveCorrectnessVerdict(evidence, inputs.verdict);
+  const riskPlan = resolveCorrectnessRiskPlan(evidence, inputs.riskPlan);
+  const scope = resolveCorrectnessScope(evidence, riskPlan);
+  const coverage = inputs.coverage ? sortCoverageRows(inputs.coverage) : [];
+  const simulations = inputs.simulations ?? deriveCorrectnessSimulations(evidence);
+  const reproduction = resolveCorrectnessReproduction(
+    input.campaignRootLabel,
+    evidence,
+    inputs.reproductionCommands
+  );
+
+  const document: Omit<AssessmentModel, "assessment_digest"> = {
+    schema_version: ASSESSMENT_SCHEMA_VERSION,
+    shape: "correctness",
+    protocol,
+    campaign: null,
+    totals: null,
+    verdict,
+    risk_plan: riskPlan,
+    scope,
+    coverage_matrix: coverage,
+    simulations,
+    surface: null,
+    surface_highlights: null,
+    correctness: evidence,
+    retained_evidence: [],
+    external_evidence: [...(inputs.externalEvidence ?? [])],
+    reproduction,
+    claim_boundary: ASSESSMENT_CLAIM_BOUNDARY
+  };
+
+  const digest = sha256Hex(
+    `${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
+  );
+  return { ...document, assessment_digest: digest };
+}
+
+/** Sort the run/pack arrays so the embedded evidence is byte-stable. */
+function normalizeCorrectnessEvidence(
+  evidence: AssessmentCorrectnessEvidence
+): AssessmentCorrectnessEvidence {
+  return {
+    guided_sim: evidence.guided_sim,
+    runs: [...evidence.runs].sort((a, b) => a.label.localeCompare(b.label)),
+    packs: [...evidence.packs].sort((a, b) => a.label.localeCompare(b.label))
+  };
+}
+
+function resolveCorrectnessProtocol(
+  name: string,
+  overrides: AssessmentInputs["protocol"]
+): AssessmentProtocolIdentity {
+  return {
+    name: nonEmpty(overrides?.name) ?? name,
+    repository: nonEmpty(overrides?.repository ?? undefined) ?? null,
+    commit: nonEmpty(overrides?.commit ?? undefined) ?? null,
+    riptide_version: nonEmpty(overrides?.riptide_version ?? undefined) ?? null,
+    assessment_date: nonEmpty(overrides?.assessment_date ?? undefined) ?? null
+  };
+}
+
+/**
+ * Bounded, flow-scoped verdict for a surface-less assessment (R1.4). A clean
+ * guided-sim run (no unexpected error, no panic, status passed) is send-ready
+ * *for the assessed flows only* — never a claim of complete protocol safety. An
+ * unexpected error or panic is a finding that blocks; absent guided-sim evidence
+ * is unsupported.
+ */
+function resolveCorrectnessVerdict(
+  evidence: AssessmentCorrectnessEvidence,
+  declared: AssessmentVerdict | undefined
+): AssessmentVerdictBlock {
+  if (declared) {
+    return { value: declared, source: "declared", rationale: declaredRationale(declared) };
+  }
+  const gs = evidence.guided_sim;
+  if (!gs) {
+    return {
+      value: "unsupported",
+      source: "derived",
+      rationale:
+        "No guided-sim evidence was ingested, so there is no correctness evidence over declared flows to assess."
+    };
+  }
+  if (gs.unexpected_errors > 0 || gs.panics > 0) {
+    return {
+      value: "blocked",
+      source: "derived",
+      rationale:
+        `${gs.unexpected_errors} unexpected error(s) and ${gs.panics} panic(s) were observed across the ` +
+        `${gs.flows} guided-sim flow(s); resolve them before this can be sent.`
+    };
+  }
+  if (gs.status !== "passed") {
+    return {
+      value: "blocked",
+      source: "derived",
+      rationale:
+        `The guided-sim run did not pass (status \`${gs.status}\`); resolve the failure before this can be sent.`
+    };
+  }
+  return {
+    value: "ready_to_send",
+    source: "derived",
+    rationale:
+      `No unexpected error or panic was observed across the ${gs.flows} guided-sim flow(s); ` +
+      `${gs.expected_errors} negative-control action(s) were rejected as expected. ` +
+      "Evidence is bounded to the assessed flows and declared inputs."
+  };
+}
+
+function resolveCorrectnessRiskPlan(
+  evidence: AssessmentCorrectnessEvidence,
+  overrides: AssessmentInputs["riskPlan"]
+): AssessmentRiskPlan {
+  const gs = evidence.guided_sim;
+  const flows = gs ? gs.flow_counts.map((fc) => `guided-sim flow \`${fc.flow}\``) : [];
+  const defaultTarget =
+    "Bounded correctness claim: no unexpected error, panic, or accounting-invariant breach was observed " +
+    "across the assessed guided-sim flows under the declared, fixed-seed inputs.";
+  return {
+    protocol_class: nonEmpty(overrides?.protocol_class) ?? "correctness",
+    target_claim: nonEmpty(overrides?.target_claim) ?? defaultTarget,
+    evidence_profile: dedupeSorted(overrides?.evidence_profile ?? ["guided sim"]),
+    p0_flows: overrides?.p0_flows ?? flows,
+    p1_flows: overrides?.p1_flows ?? [],
+    expected_failure_modes:
+      overrides?.expected_failure_modes ??
+      ["accounting drift", "double-payment", "wrong-recipient settlement", "unauthorized control"],
+    guided_sim_boundaries: overrides?.guided_sim_boundaries ?? [],
+    known_coverage_limits:
+      overrides?.known_coverage_limits ??
+      [
+        "Evidence is bounded to the guided-sim flows exercised under a fixed seed.",
+        "Flows outside the coverage matrix are not assessed."
+      ]
+  };
+}
+
+function resolveCorrectnessScope(
+  evidence: AssessmentCorrectnessEvidence,
+  riskPlan: AssessmentRiskPlan
+): AssessmentScope {
+  const gs = evidence.guided_sim;
+  const inScope = dedupeStable([
+    ...(gs ? [`guided-sim run \`${gs.label}\` (${gs.flows} flow(s), status ${gs.status})`] : []),
+    ...(gs ? gs.flow_counts.map((fc) => `guided-sim flow \`${fc.flow}\` (${fc.count} dispatched)`) : [])
+  ]);
+  const outOfScope = [
+    "Mainnet behavior, historical replay, and live monitoring.",
+    "Audit signoff, formal verification, and complete protocol safety.",
+    "Flows, inputs, and seeds outside the assessed guided-sim evidence.",
+    ...riskPlan.guided_sim_boundaries.map((boundary) => `Guided-sim boundary: ${boundary}`)
+  ];
+  return {
+    in_scope: inScope,
+    out_of_scope: outOfScope,
+    claim_boundary: ASSESSMENT_CLAIM_BOUNDARY
+  };
+}
+
+function deriveCorrectnessSimulations(evidence: AssessmentCorrectnessEvidence): AssessmentSimulation[] {
+  const gs = evidence.guided_sim;
+  if (!gs) return [];
+  const result =
+    gs.unexpected_errors > 0 || gs.panics > 0
+      ? `${gs.unexpected_errors} unexpected error(s), ${gs.panics} panic(s) across ${gs.flows} flow(s)`
+      : `${gs.flows} flow(s) dispatched, ${gs.tx_success} tx success, ${gs.expected_errors} expected ` +
+        "rejection(s), 0 unexpected errors, 0 panics";
+  return [
+    {
+      kind: "guided sim",
+      objective:
+        "Exercise happy-path settlement and negative-control rejection without unexpected error, panic, or accounting drift.",
+      command: `riptide sim run (guided) — evidence at ${gs.path}`,
+      result,
+      retained_evidence: gs.path,
+      hashes: gs.sha256 ? [`guided-sim-run.json sha256 ${gs.sha256}`] : [],
+      notes: `Status ${gs.status} over ${gs.iterations} iteration(s).`
+    }
+  ];
+}
+
+function resolveCorrectnessReproduction(
+  campaignRootLabel: string,
+  evidence: AssessmentCorrectnessEvidence,
+  commandOverride: string[] | undefined
+): AssessmentReproduction {
+  const commands = commandOverride ?? [`riptide assess ${shellQuote(campaignRootLabel)}`];
+  const artifacts: AssessmentArtifactRef[] = [];
+  if (evidence.guided_sim) {
+    artifacts.push({ path: evidence.guided_sim.path, hash: evidence.guided_sim.sha256 });
+  }
+  for (const runEvidence of evidence.runs) {
+    artifacts.push({ path: runEvidence.path, hash: runEvidence.sha256 });
+  }
+  for (const packEvidence of evidence.packs) {
+    artifacts.push({ path: packEvidence.path, hash: packEvidence.sha256 });
+  }
+  return {
+    campaign_root: campaignRootLabel,
+    commands,
+    artifacts,
+    hashes: { campaign_digest: null, surface_digest: null, surface_sha256: null }
+  };
 }
 
 /** Serialize an assessment model to its canonical, byte-stable on-disk form. */
@@ -894,7 +1365,8 @@ function resolveReproduction(
  * non-findings and uses bounded language, but is intentionally terse; T03 owns
  * the full prose.
  */
-export const stubNarrative: NarrativeProvider = (model) => {
+export const stubNarrative: NarrativeProvider = (rawModel) => {
+  const model = requireCartographyModel(rawModel);
   const failed = model.totals.invariant_failed_runs;
   const top = model.surface_highlights.most_sensitive_axis;
   const recommendation = recommendationFromModel(model);
@@ -940,7 +1412,7 @@ export const stubNarrative: NarrativeProvider = (model) => {
   };
 };
 
-function recommendationFromModel(model: AssessmentModel): AssessmentRecommendation {
+function recommendationFromModel(model: CartographyAssessmentModel): AssessmentRecommendation {
   const highlights = model.surface_highlights;
   const threshold = highlights.safe_region_threshold;
   if (highlights.safe_region_status === "none") {

@@ -19,7 +19,8 @@ import {
   serializeAssessment,
   type AssessmentInputs,
   type AssessmentModel,
-  type AssessmentVerdict
+  type AssessmentVerdict,
+  type CartographyAssessmentModel
 } from "../assess/model.js";
 import { generateAssessmentNarrative } from "../assess/narrative.js";
 import { renderAssessmentHtml } from "../assess/render-html.js";
@@ -373,7 +374,7 @@ interface SummaryArtifacts {
 }
 
 function renderAssessSummary(
-  model: AssessmentModel,
+  model: CartographyAssessmentModel,
   artifacts: SummaryArtifacts,
   cwd: string,
   deps: AssessCommandDeps
@@ -423,7 +424,7 @@ function renderAssessSummary(
   return lines.join("\n") + "\n";
 }
 
-function safeRegionLine(model: AssessmentModel): string {
+function safeRegionLine(model: CartographyAssessmentModel): string {
   const highlights = model.surface_highlights;
   const threshold = formatRate(highlights.safe_region_threshold);
   switch (highlights.safe_region_status) {

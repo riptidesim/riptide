@@ -6,7 +6,7 @@ import { canonicalJson, sha256Hex, type JsonValue } from "../src/state-pack/json
 import {
   ASSESSMENT_HASH_PREFIX,
   serializeAssessment,
-  type AssessmentModel
+  type CartographyAssessmentModel
 } from "../src/assess/model.js";
 import { generateAssessmentNarrative } from "../src/assess/narrative.js";
 import { renderAssessmentMarkdown } from "../src/assess/render-markdown.js";
@@ -57,7 +57,7 @@ const BOUNDARY_LINES = new Set<string>([
   "- [ ] The report says this is simulation evidence, not audit signoff or complete protocol safety."
 ]);
 
-async function renderFlagship(): Promise<{ model: AssessmentModel; markdown: string; json: string }> {
+async function renderFlagship(): Promise<{ model: CartographyAssessmentModel; markdown: string; json: string }> {
   const model = await loadFlagshipModel();
   const narrative = generateAssessmentNarrative(model);
   const markdown = renderAssessmentMarkdown(model, narrative);
@@ -95,7 +95,7 @@ test("flagship assessment: assessment.json is canonical with a verifiable self-d
 
   // The embedded assessment_digest is the domain-prefixed self-hash over the
   // model minus that field; recompute and verify it.
-  const { assessment_digest, ...rest } = model as AssessmentModel & Record<string, unknown>;
+  const { assessment_digest, ...rest } = model as CartographyAssessmentModel & Record<string, unknown>;
   const expected = sha256Hex(`${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(rest as unknown as JsonValue)}`);
   assert.equal(assessment_digest, expected, "embedded assessment_digest does not verify");
 });
