@@ -10,6 +10,31 @@ signoff. A ready report does not certify the protocol, prove complete
 protocol safety, or replace manual review, formal methods, monitoring, or an
 independent audit.
 
+## Two assessment shapes
+
+Not every protocol yields a risk-surface heatmap, and the assessment should
+not pretend otherwise. The shape follows the kind of risk the protocol
+carries:
+
+- **Cartography (parameter-tunable protocols — lending, AMM, perps).** Risk is
+  a gradient over swept parameters: as inputs move, a declared invariant's
+  failure rate rises or falls. The assessment leads with a risk-surface
+  heatmap (the swept cells and their failure rates) plus the safe-region
+  bounds, backed by a campaign sweep.
+- **Correctness (correctness-dominated protocols — accounting, payments,
+  authority).** Risk is binary: accounting drift, double-payment,
+  wrong-recipient settlement, or unauthorized control either happens or it
+  does not. A parameter sweep would not produce a meaningful failure surface,
+  so the assessment leads with the coverage matrix and findings/non-findings,
+  with the evidence coming from guided-sim happy-path settlement plus
+  negative-control rejections. The risk-surface section degrades to an
+  explicit, bounded note rather than a forced or all-zero heatmap.
+
+`riptide assess` produces both shapes from an existing run root and picks the
+shape from the evidence present (see [Generating the report](#generating-the-report)).
+A correctness-shape assessment is no weaker than a cartography one — it is the
+honest form for a protocol whose risk is not a parameter gradient.
+
 ## Assessment route
 
 Move through the assessment in this order.
@@ -181,3 +206,37 @@ protocol handoff. The report must include:
 - reproduction commands;
 - recommended next work; and
 - reviewer checklist for hashes, commands, artifacts, and toolchain notes.
+
+## Generating the report
+
+Once a run root exists, do not hand-write the coverage matrix and verdict.
+Generate the report:
+
+```bash
+riptide assess <run-root>
+```
+
+`riptide assess` is ingest-only: it reads an existing root and writes
+`assessment.json` plus a byte-deterministic `assessment.md` into it (add
+`--html`/`--pdf` for presentation exports, which are out of the byte-hash
+gate). It does not run the engine — run the campaign or guided sim first,
+then assess its root. Two runs over the same root produce byte-identical
+`assessment.json` + `assessment.md`, so a reviewer can reproduce the exact
+bytes.
+
+It selects the assessment shape from the evidence in the root
+(see [Two assessment shapes](#two-assessment-shapes)):
+
+- a `campaign-summary.json` + `risk-surface.json` root produces the
+  **cartography** assessment, led by the risk-surface heatmap;
+- a root with guided-sim evidence
+  (`sim/artifacts/<run>/guided-sim-run.json`), a run-collection, and packs
+  but no `risk-surface.json` produces the **correctness** assessment, led by
+  the coverage matrix + findings/non-findings, with the risk-surface section
+  rendered as an explicit bounded note instead of a heatmap.
+
+Pass `--input <json-file>` to fold a Risk Plan, coverage rows, verdict, and
+protocol identity over the derived defaults, or `--verdict` to assert one
+explicitly. Whichever shape is produced, the generated report keeps the same
+claim boundary: simulation evidence over the assessed region or flows, not
+audit signoff or complete protocol safety.

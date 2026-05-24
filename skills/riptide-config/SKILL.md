@@ -479,19 +479,42 @@ the coverage matrix and verdict above. Run:
 riptide assess <campaign-root>
 ```
 
-`riptide assess` is ingest-only: it reads an existing campaign root
-(`campaign-summary.json`, `risk-surface.json`, `retention-manifest.json`)
-and emits `assessment.json` plus a byte-deterministic `assessment.md`
-into that root, then prints the assessment digest. It does not run the
-engine or campaign — run the campaign first, then assess its root. The
-generated `assessment.md` carries the coverage matrix (with the status
-values above), the send/readiness verdict, the risk-surface section,
-findings vs non-findings, and reproduction commands, so this section's
-output becomes generated rather than authored by hand. Pass
+`riptide assess` is ingest-only: it reads an existing campaign root and
+emits `assessment.json` plus a byte-deterministic `assessment.md` into
+that root, then prints the assessment digest. It does not run the engine
+or campaign — run the campaign (or guided sim) first, then assess its
+root.
+
+Not every protocol yields a risk-surface heatmap, so `riptide assess`
+handles two assessment shapes and picks the right one from the evidence
+in the root:
+
+- **Cartography shape** — parameter-tunable protocols (lending, AMM,
+  perps). When the root holds `campaign-summary.json` +
+  `risk-surface.json` (+ `retention-manifest.json`), the assessment
+  leads with the risk-surface heatmap: a parameter sweep whose cells
+  show where a declared invariant's failure rate moves, plus the
+  safe-region bounds.
+- **Correctness shape** — correctness-dominated protocols (accounting,
+  payments, authority). When the root holds guided-sim evidence
+  (`sim/artifacts/<run>/guided-sim-run.json`), a run-collection, and
+  packs but no `risk-surface.json`, the assessment leads with the
+  coverage matrix + findings/non-findings. The risks tested are binary
+  (accounting drift, double-payment, wrong-recipient settlement,
+  unauthorized control), not a parameter-failure gradient, so a sweep
+  would not produce a meaningful surface; the risk-surface section
+  degrades to an explicit bounded note instead of a forced or all-zero
+  heatmap.
+
+Either way the generated `assessment.md` carries the coverage matrix
+(with the status values above), the send/readiness verdict, findings vs
+non-findings, and reproduction commands, so this section's output
+becomes generated rather than authored by hand. Pass
 `--input <json-file>` to feed the Risk Plan / coverage / verdict inputs,
 or `--verdict` to assert one explicitly. Assess records simulation
-evidence over the declared, fixed-seed region the campaign covered; it
-does not extend the claim beyond that region.
+evidence over the declared, fixed-seed region (or the guided-sim flows)
+the run covered; it does not extend the claim beyond that region, and it
+is not audit signoff or complete protocol safety.
 
 ## Final Report
 
