@@ -61,6 +61,14 @@ export function renderAssessmentHtml(
     body = replaceFailureHeatmapSection(body, marker, heatmap);
   }
 
+  // The correctness (surface-less) shape explains *why* there is no heatmap in
+  // the Risk Surface section. Lift that explanation out of the body prose into a
+  // clean callout so a reader sees it as a deliberate note, not a buried
+  // paragraph (R3.3). Cartography reports keep the real heatmap figure untouched.
+  if (!model.surface) {
+    body = calloutRiskSurfaceNote(body);
+  }
+
   return [
     "<!DOCTYPE html>",
     '<html lang="en">',
@@ -230,6 +238,34 @@ function buildCoverArtSvg(): string {
 
 /** Precomputed once; deterministic, so the cover art is identical every render. */
 const COVER_ART_SVG = buildCoverArtSvg();
+
+/**
+ * Wrap the body of the correctness "Risk Surface" section (the prose explaining
+ * that a correctness-dominated assessment has no parameter-failure gradient, so
+ * there is no heatmap) in a design-system callout (R3.3). Presentation only: the
+ * paragraph HTML is moved verbatim into the callout body, the markdown is never
+ * touched, and the section heading stays in place. No-op if the section or its
+ * paragraphs are absent, so it is safe across template shapes.
+ */
+function calloutRiskSurfaceNote(body: string): string {
+  const marker = '<h2 class="rt-h2">Risk Surface</h2>';
+  const start = body.indexOf(marker);
+  if (start < 0) return body;
+
+  const contentStart = start + marker.length;
+  const nextH2 = body.indexOf('<h2 class="rt-h2">', contentStart);
+  const end = nextH2 < 0 ? body.length : nextH2;
+  const inner = body.slice(contentStart, end).trim();
+  if (!inner.startsWith('<p class="rt-body">')) return body;
+
+  const callout = [
+    '<aside class="rt-callout">',
+    '<p class="rt-callout-title">No risk-surface heatmap</p>',
+    `<div class="rt-callout-body">\n${inner}\n</div>`,
+    "</aside>"
+  ].join("\n");
+  return `${body.slice(0, contentStart)}\n${callout}\n${body.slice(end)}`;
+}
 
 function replaceFailureHeatmapSection(body: string, marker: string, heatmap: string): string {
   const start = body.indexOf(marker);
@@ -542,6 +578,9 @@ const STYLES = `
   --rt-pass:#22C55E;--rt-fail:#EF4444;--rt-warn:#F5B041;--rt-orange:#F97316;
   --rt-font-sans:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;
   --rt-font-mono:'IBM Plex Mono',ui-monospace,'JetBrains Mono','SF Mono',Menlo,monospace;
+  /* Comfortable prose measure (R3.1): body text + lists cap here for a readable
+     line length, while section headers, tables, and figures stay full width. */
+  --rt-measure:42em;
 }
 *{box-sizing:border-box;}
 body.rt-bg{margin:0;background:var(--rt-ink);color:var(--rt-fog);font-family:var(--rt-font-sans);
@@ -575,11 +614,18 @@ dl.rt-cover-meta .rt-cover-cell{margin:0;}
 dl.rt-cover-meta dt{font-family:var(--rt-font-mono);font-size:10px;letter-spacing:0.16em;text-transform:uppercase;
   color:var(--rt-fog-dim);margin:0 0 4px;}
 dl.rt-cover-meta dd{margin:0;font-size:14px;font-weight:600;color:var(--rt-off-white);}
-h2.rt-h2{font-size:26px;line-height:1.15;font-weight:600;color:var(--rt-off-white);letter-spacing:-0.01em;
-  margin:48px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--rt-slate-line);}
-h3.rt-h3{font-size:19px;font-weight:600;color:var(--rt-off-white);margin:28px 0 12px;}
-h4.rt-subhead{font-size:16px;font-weight:600;color:var(--rt-fog);margin:20px 0 10px;}
-p.rt-body{margin:0 0 14px;}
+/* Section rhythm (R3.2): a short teal accent rides the left of the H2 rule and a
+   teal tick leads each H3, giving the document a consistent on-palette cadence
+   across pages without a heavy divider system. */
+h2.rt-h2{position:relative;font-size:26px;line-height:1.15;font-weight:600;color:var(--rt-off-white);
+  letter-spacing:-0.01em;margin:52px 0 18px;padding-bottom:9px;border-bottom:1px solid var(--rt-slate-line);}
+h2.rt-h2::after{content:"";position:absolute;left:0;bottom:-1px;width:46px;height:2px;background:var(--rt-teal);}
+h3.rt-h3{position:relative;font-size:19px;font-weight:600;color:var(--rt-off-white);
+  margin:30px 0 12px;padding-left:15px;}
+h3.rt-h3::before{content:"";position:absolute;left:0;top:0.16em;width:3px;height:0.92em;
+  background:var(--rt-teal);border-radius:2px;}
+h4.rt-subhead{font-size:16px;font-weight:600;color:var(--rt-fog);margin:22px 0 10px;}
+p.rt-body{margin:0 0 15px;max-width:var(--rt-measure);}
 strong{color:var(--rt-off-white);font-weight:600;}
 code.rt-ic{font-family:var(--rt-font-mono);font-size:0.88em;color:var(--rt-signal-cyan);
   background:var(--rt-slate-2);border:1px solid var(--rt-slate-line);border-radius:4px;padding:1px 5px;}
@@ -591,10 +637,23 @@ pre.rt-code code{font-family:inherit;}
    reproduction commands copied from the PDF stay copy-correct (R1.4). */
 code.rt-ic,pre.rt-code,pre.rt-code code{font-variant-ligatures:none;
   font-feature-settings:"liga" 0,"clig" 0,"calt" 0;}
-ul.rt-list{margin:0 0 16px;padding-left:22px;}
-ul.rt-list li{margin:4px 0;}
-li.rt-check{list-style:none;margin-left:-22px;}
+/* List density (R3.1): give the Scope / Risk Plan bullet walls breathing room —
+   more row spacing and a comfortable measure — without restructuring them. */
+ul.rt-list{margin:0 0 18px;padding-left:22px;max-width:var(--rt-measure);}
+ul.rt-list li{margin:7px 0;padding-left:3px;}
+li.rt-check{list-style:none;margin-left:-22px;padding-left:0;}
 li.rt-check .rt-box{color:var(--rt-teal);font-size:1.05em;}
+/* Correctness "no heatmap" note as a clean callout (R3.3): a slate panel with a
+   teal left accent + dot title, on-palette with the design-system tokens. */
+aside.rt-callout{max-width:var(--rt-measure);margin:0 0 22px;padding:15px 18px;
+  background:var(--rt-slate-panel);border:1px solid var(--rt-slate-line);
+  border-left:3px solid var(--rt-teal);border-radius:10px;}
+.rt-callout-title{display:flex;align-items:center;gap:9px;margin:0 0 9px;
+  font-size:13px;font-weight:600;letter-spacing:0.01em;color:var(--rt-off-white);}
+.rt-callout-title::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;
+  background:var(--rt-teal);}
+.rt-callout-body p.rt-body{max-width:none;}
+.rt-callout-body p.rt-body:last-child{margin-bottom:0;}
 /* Fixed layout shares the page width across columns so a wide table (the
    7-column Coverage Matrix) never overflows or clips at the right edge; cells
    wrap long path/command tokens instead of forcing the column wider (R1.1–R1.3). */
@@ -631,13 +690,16 @@ table.rt-hm-grid{border-collapse:separate;border-spacing:4px;width:100%;}
 /* Deterministic print geometry: explicit page margins give tables a predictable
    width to fit into (independent of the browser's default print margin). */
 @page{size:letter;margin:15mm 13mm 17mm;}
-@media print{.rt-doc{max-width:none;padding:0 0 24px;}h2.rt-h2{page-break-after:avoid;}
+@media print{.rt-doc{max-width:none;padding:0 0 24px;}
+  /* No section header orphaned at a page bottom: keep every heading with the
+     content that follows it (R3.5). */
+  h2.rt-h2,h3.rt-h3,h4.rt-subhead{page-break-after:avoid;break-after:avoid;}
   /* The cover fills the first page (content box ≈ 247mm tall at the @page
      margins) and breaks to the body on page 2 (R2.3). */
   .rt-cover{min-height:246mm;margin:0;border:none;border-radius:0;
     break-after:page;page-break-after:always;}
   table.rt-table{font-size:11px;}
-  figure.rt-heatmap,pre.rt-code{page-break-inside:avoid;}
+  figure.rt-heatmap,pre.rt-code,aside.rt-callout{page-break-inside:avoid;break-inside:avoid;}
   /* A wide table may span pages, but never split a row across the page break. */
-  table.rt-table tr{page-break-inside:avoid;}}
+  table.rt-table tr{page-break-inside:avoid;break-inside:avoid;}}
 `.trim();

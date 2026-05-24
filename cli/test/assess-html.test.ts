@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { renderAssessmentHtml, markdownToHtml } from "../src/assess/render-html.js";
 import { renderAssessmentMarkdown } from "../src/assess/render-markdown.js";
 import { generateAssessmentNarrative } from "../src/assess/narrative.js";
-import { buildCleanModel, loadFlagshipModel } from "./assess-fixture.js";
+import { buildCleanCorrectnessModel, buildCleanModel, loadFlagshipModel } from "./assess-fixture.js";
 
 const OVERCLAIM = /guarantee|proven safe|certified|audit replacement|audit signoff|complete protocol safety/i;
 
@@ -86,6 +86,26 @@ test("assess html: renders the failure-rate heatmap visually from the model", as
   assert.match(html, /<span class="rt-hm-n">n=/);
   // A legend rides along.
   assert.match(html, /rt-hm-legend/);
+});
+
+test("assess html: correctness 'no heatmap' note renders as a clean callout (R3.3)", () => {
+  const model = buildCleanCorrectnessModel();
+  const md = renderAssessmentMarkdown(model, generateAssessmentNarrative(model));
+  const html = renderAssessmentHtml(md, model);
+  // The Risk Surface heading stays, and its explanation is lifted into a callout.
+  assert.match(html, /<h2 class="rt-h2">Risk Surface<\/h2>\n<aside class="rt-callout">/);
+  assert.match(html, /<p class="rt-callout-title">No risk-surface heatmap<\/p>/);
+  // The note text is preserved verbatim inside the callout body, not duplicated.
+  assert.match(html, /<div class="rt-callout-body">\s*<p class="rt-body">This is a correctness-dominated assessment/);
+  assert.equal(html.match(/correctness-dominated assessment/g)?.length, 1);
+});
+
+test("assess html: cartography heatmap is not wrapped in the no-heatmap callout (R3.3)", async () => {
+  const html = await flagshipHtml();
+  // The surface-bearing shape keeps its real heatmap figure and grows no callout
+  // element (the callout CSS class is defined in <style> regardless).
+  assert.doesNotMatch(html, /<aside class="rt-callout">/);
+  assert.match(html, /<figure class="rt-heatmap">/);
 });
 
 test("assess html: deterministic for a fixed model + markdown", async () => {
