@@ -28,11 +28,15 @@ evidence; the reader draws the conclusion.
 
 Keep this skill single-run. Multi-run assessment, protocol-level
 coverage, send/readiness verdicts, and claims about broader protocol
-safety belong in `docs/templates/protocol-assessment-report.md`, using
-the workflow in `docs/protocol-assessment.md`. A `report-narrative.md`
-can be attached as an appendix or supporting evidence inside that
-assessment report, but it is not audit signoff and must not become the
-protocol assessment itself.
+behaviour do not get hand-written here — generate them by running
+`riptide assess <campaign-root>` against a run campaign root, which
+emits `assessment.json` plus a byte-deterministic `assessment.md`
+(coverage matrix, send/readiness verdict, risk-surface section,
+findings vs non-findings, reproduction commands). A `report-narrative.md`
+produced by this skill attaches as an appendix or supporting evidence
+inside that generated assessment; it is not audit signoff and must not
+become the protocol assessment itself. Assess records simulation
+evidence over the declared, fixed-seed region the campaign covered.
 
 Copy the voice of `docs/case-studies/lending.md`. That file is
 the canonical tone reference: causal, mechanical, modest about

@@ -3,6 +3,7 @@
 import { Command } from "commander";
 
 import { createAdaptCommand } from "./commands/adapt.js";
+import { createAssessCommand } from "./commands/assess.js";
 import { createCampaignCommand } from "./commands/campaign.js";
 import { createDoctorCommand } from "./commands/doctor.js";
 import { createExplainCommand } from "./commands/explain.js";
@@ -38,6 +39,7 @@ addRootCommand(createReadinessCommand(), "Inspect local protocol evidence readin
 addRootCommand(createCampaignCommand(), "Validate, plan, and run campaign sweeps", "Start here:");
 addRootCommand(createRunCommand(), "Run scenarios or a single run-config", "Start here:");
 addRootCommand(createReviewCommand(), "Review an evidence pack or campaign root", "Start here:");
+addRootCommand(createAssessCommand(), "Generate a protocol assessment from a campaign root", "Start here:");
 addRootCommand(createStudioCommand(), "Open Riptide Studio (local visual control plane)", "Start here:");
 addRootCommand(createDoctorCommand(), "Check toolchain, engine, and adapters", "Start here:");
 
@@ -67,6 +69,7 @@ program.addHelpText(
     "  riptide campaign plan .riptide/campaigns/<risk>.campaign.toml",
     "  riptide campaign run .riptide/campaigns/<risk>.campaign.toml",
     "  riptide review <campaign-root>",
+    "  riptide assess <campaign-root>",
     "  riptide studio --no-open",
     "",
     "Run `riptide <command> --help` for command-specific options.",

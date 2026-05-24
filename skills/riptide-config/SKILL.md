@@ -472,6 +472,27 @@ Verdict meanings:
 - `unsupported` — the requested protocol claim is outside Riptide's
   current simulation evidence model or requires new engine support.
 
+Once the campaign has run and produced a campaign root, do not hand-write
+the coverage matrix and verdict above. Run:
+
+```bash
+riptide assess <campaign-root>
+```
+
+`riptide assess` is ingest-only: it reads an existing campaign root
+(`campaign-summary.json`, `risk-surface.json`, `retention-manifest.json`)
+and emits `assessment.json` plus a byte-deterministic `assessment.md`
+into that root, then prints the assessment digest. It does not run the
+engine or campaign — run the campaign first, then assess its root. The
+generated `assessment.md` carries the coverage matrix (with the status
+values above), the send/readiness verdict, the risk-surface section,
+findings vs non-findings, and reproduction commands, so this section's
+output becomes generated rather than authored by hand. Pass
+`--input <json-file>` to feed the Risk Plan / coverage / verdict inputs,
+or `--verdict` to assert one explicitly. Assess records simulation
+evidence over the declared, fixed-seed region the campaign covered; it
+does not extend the claim beyond that region.
+
 ## Final Report
 
 Report:
@@ -504,6 +525,9 @@ Report:
   2. the exact `riptide review <campaign-root>` command, or tell the
      user to review the campaign root printed by `campaign run` when
      the final root is not known yet
-  3. the retained-case paths to inspect after review
-  4. the scope decision: accept the current evidence boundary or expand
+  3. the exact `riptide assess <campaign-root>` command to generate the
+     coverage matrix + verdict (`assessment.json` + `assessment.md`)
+     from the run campaign root
+  4. the retained-case paths to inspect after review
+  5. the scope decision: accept the current evidence boundary or expand
      scope by addressing listed unsupported fields
