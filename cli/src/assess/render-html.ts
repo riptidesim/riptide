@@ -469,16 +469,25 @@ pre.rt-code{font-family:var(--rt-font-mono);font-size:12px;line-height:1.5;color
   background:var(--rt-slate-2);border:1px solid var(--rt-slate-line);border-radius:8px;
   padding:14px 16px;overflow-x:auto;margin:0 0 16px;}
 pre.rt-code code{font-family:inherit;}
+/* Kill mono ligatures so '--flag' renders as two hyphens, not an en-dash glyph —
+   reproduction commands copied from the PDF stay copy-correct (R1.4). */
+code.rt-ic,pre.rt-code,pre.rt-code code{font-variant-ligatures:none;
+  font-feature-settings:"liga" 0,"clig" 0,"calt" 0;}
 ul.rt-list{margin:0 0 16px;padding-left:22px;}
 ul.rt-list li{margin:4px 0;}
 li.rt-check{list-style:none;margin-left:-22px;}
 li.rt-check .rt-box{color:var(--rt-teal);font-size:1.05em;}
-.rt-table-wrap{overflow-x:auto;margin:0 0 18px;}
-table.rt-table{border-collapse:collapse;width:100%;font-size:13px;}
+/* Fixed layout shares the page width across columns so a wide table (the
+   7-column Coverage Matrix) never overflows or clips at the right edge; cells
+   wrap long path/command tokens instead of forcing the column wider (R1.1–R1.3). */
+.rt-table-wrap{margin:0 0 18px;}
+table.rt-table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:12px;}
 table.rt-table th{text-align:left;font-weight:600;color:var(--rt-off-white);background:var(--rt-deep-ocean);
-  border:1px solid var(--rt-slate-line);padding:8px 10px;}
+  border:1px solid var(--rt-slate-line);padding:8px 10px;overflow-wrap:anywhere;word-break:break-word;}
 table.rt-table td{border:1px solid var(--rt-slate-line);padding:8px 10px;vertical-align:top;
-  color:var(--rt-fog);}
+  color:var(--rt-fog);overflow-wrap:anywhere;word-break:break-word;}
+/* Inline code in a cell wraps with its column rather than overflowing the page. */
+table.rt-table code.rt-ic{overflow-wrap:anywhere;word-break:break-word;}
 table.rt-table tbody tr:nth-child(even){background:rgba(18,26,36,0.5);}
 .rt-label{font-family:var(--rt-font-mono);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;
   color:var(--rt-fog-dim);}
@@ -501,6 +510,12 @@ table.rt-hm-grid{border-collapse:separate;border-spacing:4px;width:100%;}
 .rt-hm-empty{background:var(--rt-slate-2);color:var(--rt-fog-dim);}
 .rt-hm-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;}
 .rt-hm-key{font-family:var(--rt-font-mono);font-size:10px;padding:3px 8px;border-radius:999px;}
+/* Deterministic print geometry: explicit page margins give tables a predictable
+   width to fit into (independent of the browser's default print margin). */
+@page{size:letter;margin:15mm 13mm 17mm;}
 @media print{.rt-doc{max-width:none;padding:0 0 24px;}h2.rt-h2{page-break-after:avoid;}
-  figure.rt-heatmap,pre.rt-code,table.rt-table{page-break-inside:avoid;}}
+  table.rt-table{font-size:11px;}
+  figure.rt-heatmap,pre.rt-code{page-break-inside:avoid;}
+  /* A wide table may span pages, but never split a row across the page break. */
+  table.rt-table tr{page-break-inside:avoid;}}
 `.trim();
