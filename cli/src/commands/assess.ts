@@ -15,7 +15,9 @@ import {
   ASSESSMENT_VERDICTS,
   AssessmentIngestError,
   COVERAGE_STATUSES,
-  ingestAssessment,
+  assessmentShape,
+  ingestAssessmentWorkspace,
+  requireCartographyModel,
   serializeAssessment,
   type AssessmentInputs,
   type AssessmentModel,
@@ -124,7 +126,7 @@ export async function runAssess(
     const root = path.resolve(cwd, campaignRoot);
     const inputs = await resolveInputs(cwd, options);
 
-    const model = await ingestAssessment({ campaignRoot: root, inputs });
+    const model = await ingestAssessmentWorkspace({ campaignRoot: root, inputs });
     const narrative = generateAssessmentNarrative(model);
     const markdown = renderAssessmentMarkdown(model, narrative);
     const json = serializeAssessment(model);
@@ -156,18 +158,28 @@ export async function runAssess(
               ...(exports.pdfPath ? { assessment_pdf: exports.pdfPath } : {})
             },
             ...(exports.pdfSkipped ? { pdf_skipped: exports.pdfSkipped } : {}),
-            campaign: {
-              campaign_id: model.campaign.campaign_id,
-              campaign_digest: model.campaign.campaign_digest,
-              surface_sha256: model.reproduction.hashes.surface_sha256
-            }
+            shape: assessmentShape(model),
+            ...(model.campaign
+              ? {
+                  campaign: {
+                    campaign_id: model.campaign.campaign_id,
+                    campaign_digest: model.campaign.campaign_digest,
+                    surface_sha256: model.reproduction.hashes.surface_sha256
+                  }
+                }
+              : {})
           },
           null,
           2
         ) + "\n"
       );
     } else {
-      stdout(renderAssessSummary(model, { jsonPath, mdPath, campaignRootPath: root, ...exports }, cwd, deps));
+      const summaryArtifacts: SummaryArtifacts = { jsonPath, mdPath, campaignRootPath: root, ...exports };
+      stdout(
+        assessmentShape(model) === "correctness"
+          ? renderCorrectnessSummary(model, summaryArtifacts, cwd, deps)
+          : renderAssessSummary(requireCartographyModel(model), summaryArtifacts, cwd, deps)
+      );
     }
     return 0;
   } catch (error) {
@@ -435,6 +447,54 @@ function safeRegionLine(model: CartographyAssessmentModel): string {
     default:
       return `bounded region at or under ${threshold}`;
   }
+}
+
+/** Cold-read summary for the surface-less correctness shape (no heatmap to report). */
+function renderCorrectnessSummary(
+  model: AssessmentModel,
+  artifacts: SummaryArtifacts,
+  cwd: string,
+  deps: AssessCommandDeps
+): string {
+  const c: Colorizer = pickColorizer(deps.color ?? shouldUseColor(process.env, Boolean(process.stdout.isTTY)));
+  const gs = model.correctness?.guided_sim ?? null;
+  const guidedSimLine = gs
+    ? `${gs.flows} flow(s), ${gs.tx_success} tx success, ${gs.expected_errors} expected rejection(s), ` +
+      `${gs.unexpected_errors} unexpected, ${gs.panics} panic(s) (status ${gs.status})`
+    : "no guided-sim evidence ingested";
+  const coveredRows = model.coverage_matrix.filter((row) => row.status === "covered by guided sim").length;
+
+  const lines = [
+    `${c.bold("Assessment generated")}: ${c.cyan(model.protocol.name)} ${c.dim("(correctness shape)")}`,
+    "",
+    c.bold("Result"),
+    `  Verdict: ${model.verdict.value} (${model.verdict.source})`,
+    `  Guided sim: ${guidedSimLine}`,
+    `  Coverage: ${coveredRows} flow(s) covered by guided sim`,
+    `  Risk surface: ${c.dim("none — correctness-dominated (no parameter-failure gradient)")}`,
+    "",
+    c.bold("Artifacts"),
+    `  Assessment: ${c.cyan(relativizePath(artifacts.jsonPath, cwd))}`,
+    `  Report: ${c.cyan(relativizePath(artifacts.mdPath, cwd))}`,
+    ...(artifacts.htmlPath ? [`  HTML: ${c.cyan(relativizePath(artifacts.htmlPath, cwd))}`] : []),
+    ...(artifacts.pdfPath ? [`  PDF: ${c.cyan(relativizePath(artifacts.pdfPath, cwd))}`] : []),
+    ...(artifacts.pdfSkipped ? [`  PDF: ${c.yellow(`skipped — ${artifacts.pdfSkipped}`)}`] : []),
+    "",
+    c.bold("Hashes"),
+    `  Assessment digest: ${c.cyan(model.assessment_digest)}`,
+    c.dim(`  guided-sim-run.json sha256: ${gs?.sha256 ?? "not emitted"}`),
+    "",
+    c.bold("Next"),
+    `  ${c.cyan(`riptide assess ${shellQuote(relativizePath(artifacts.campaignRootPath, cwd))}`)}`,
+    "",
+    c.bold("Boundary"),
+    c.dim(
+      "  Simulation evidence bounded to the assessed guided-sim flows under a fixed seed — not audit signoff, " +
+        "formal verification, complete protocol safety, or a mainnet prediction."
+    ),
+    ""
+  ];
+  return lines.join("\n") + "\n";
 }
 
 // ---------------------------------------------------------------------------

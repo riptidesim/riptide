@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import type { Dirent } from "node:fs";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
 import type {
@@ -637,6 +638,247 @@ export async function ingestAssessment(options: IngestAssessmentOptions): Promis
   });
 }
 
+const GUIDED_SIM_FILE = "guided-sim-run.json";
+const RUN_COLLECTION_FILE = "run-collection.json";
+const SIM_ARTIFACTS_DIR = path.join("sim", "artifacts");
+const PACK_DIR = "pack";
+const PACK_MANIFEST_FILE = "manifest.json";
+
+/** A run-collection scenario row; only the fields the assessment references are typed. */
+interface RunCollectionScenario {
+  name?: unknown;
+  status?: unknown;
+  artifacts_dir?: unknown;
+  simulation_result_path?: unknown;
+  interpretation?: { summary?: unknown } | null;
+}
+
+interface RunCollectionDocument {
+  scenarios?: RunCollectionScenario[];
+}
+
+/**
+ * Ingest an assessment from a workspace or campaign root, branching on shape
+ * (R2.1/R2.2). A `campaign-summary.json` marks the Sprint 39/40 parameter-swept
+ * (cartography) root and delegates to {@link ingestAssessment} unchanged (R2.4).
+ * Otherwise the root is treated as a surface-less correctness workspace: its
+ * guided-sim, run-collection, and pack evidence are read and folded into a
+ * correctness model. A truly empty root (no evidence of either shape) is a
+ * message-first failure. Ingest-only — no engine, no campaign execution (R2.3).
+ */
+export async function ingestAssessmentWorkspace(
+  options: IngestAssessmentOptions
+): Promise<AssessmentModel> {
+  const root = path.resolve(options.campaignRoot);
+  if (await fileExists(path.join(root, CAMPAIGN_SUMMARY_FILE))) {
+    return ingestAssessment(options);
+  }
+
+  const evidence = await ingestCorrectnessEvidence(root);
+  if (!evidence.guided_sim && evidence.runs.length === 0 && evidence.packs.length === 0) {
+    throw new AssessmentIngestError(
+      `no assessable evidence was found under ${root}.`,
+      "Point `riptide assess` at a campaign root (campaign-summary.json + risk-surface.json) or a workspace " +
+        "with guided-sim evidence (sim/artifacts/<run>/guided-sim-run.json), a run-collection.json, or packs."
+    );
+  }
+
+  return buildCorrectnessAssessmentModel({
+    campaignRootLabel: options.campaignRootLabel ?? options.campaignRoot,
+    protocolName: deriveWorkspaceProtocolName(root),
+    evidence,
+    inputs: options.inputs
+  });
+}
+
+/**
+ * Read the correctness evidence bundle from a workspace root: the guided-sim run
+ * (the primary signal), the run-collection (supporting run references), and the
+ * packs. Pure I/O over already-written artifacts; missing pieces are simply
+ * absent, not errors (the caller decides whether the bundle is empty).
+ */
+async function ingestCorrectnessEvidence(root: string): Promise<AssessmentCorrectnessEvidence> {
+  const [guided_sim, runs, packs] = await Promise.all([
+    ingestGuidedSimEvidence(root),
+    ingestRunEvidence(root),
+    ingestPackEvidence(root)
+  ]);
+  return { guided_sim, runs, packs };
+}
+
+/**
+ * Select and distill the guided-sim run. When a workspace holds several runs
+ * (e.g. a smoke run plus the main run), the one with the most flows wins, with a
+ * label tie-break, so the choice — and the resulting hash — is deterministic.
+ */
+async function ingestGuidedSimEvidence(root: string): Promise<AssessmentGuidedSimEvidence | null> {
+  const artifactsDir = path.join(root, SIM_ARTIFACTS_DIR);
+  let entries: Dirent[];
+  try {
+    entries = await readdir(artifactsDir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  const candidates: Array<{ label: string; relPath: string; doc: GuidedSimRunDocument; sha256: string }> = [];
+  for (const entry of [...entries].sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!entry.isDirectory()) continue;
+    const filePath = path.join(artifactsDir, entry.name, GUIDED_SIM_FILE);
+    let raw: string;
+    try {
+      raw = await readFile(filePath, "utf8");
+    } catch {
+      continue;
+    }
+    const doc = parseJson<GuidedSimRunDocument>(raw, GUIDED_SIM_FILE);
+    validateGuidedSimRun(doc, entry.name);
+    candidates.push({
+      label: entry.name,
+      relPath: toPosixRelative(root, filePath),
+      doc,
+      sha256: sha256Hex(raw)
+    });
+  }
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => b.doc.totals.flows - a.doc.totals.flows || a.label.localeCompare(b.label));
+  const chosen = candidates[0]!;
+  return summarizeGuidedSimRun(chosen.doc, {
+    label: chosen.label,
+    path: chosen.relPath,
+    sha256: chosen.sha256
+  });
+}
+
+/** Read run-collection.json (if present) into one run-evidence row per scenario. */
+async function ingestRunEvidence(root: string): Promise<AssessmentRunEvidence[]> {
+  const filePath = path.join(root, RUN_COLLECTION_FILE);
+  let raw: string;
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch {
+    return [];
+  }
+  const doc = parseJson<RunCollectionDocument>(raw, RUN_COLLECTION_FILE);
+  const scenarios = Array.isArray(doc.scenarios) ? doc.scenarios : [];
+  const rows: AssessmentRunEvidence[] = [];
+  for (const scenario of scenarios) {
+    const label = typeof scenario.name === "string" ? scenario.name : null;
+    if (!label) continue;
+    const rawRefPath =
+      (typeof scenario.artifacts_dir === "string" && scenario.artifacts_dir) ||
+      (typeof scenario.simulation_result_path === "string" && scenario.simulation_result_path) ||
+      RUN_COLLECTION_FILE;
+    rows.push({
+      label,
+      path: normalizeWorkspaceArtifactRef(root, rawRefPath),
+      status: typeof scenario.status === "string" ? scenario.status : null,
+      sha256: null,
+      notes:
+        scenario.interpretation && typeof scenario.interpretation.summary === "string"
+          ? scenario.interpretation.summary
+          : null
+    });
+  }
+  return rows;
+}
+
+/** Read pack manifests (if present) into pack-evidence rows. */
+async function ingestPackEvidence(root: string): Promise<AssessmentPackEvidence[]> {
+  const packRoot = path.join(root, PACK_DIR);
+  let entries: Dirent[];
+  try {
+    entries = await readdir(packRoot, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const rows: AssessmentPackEvidence[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const manifestPath = path.join(packRoot, entry.name, PACK_MANIFEST_FILE);
+    let raw: string;
+    try {
+      raw = await readFile(manifestPath, "utf8");
+    } catch {
+      continue;
+    }
+    let canonicalHash: string | null = null;
+    try {
+      const manifest = JSON.parse(raw) as { canonical_hash?: unknown };
+      if (typeof manifest.canonical_hash === "string") canonicalHash = manifest.canonical_hash;
+    } catch {
+      // A malformed pack manifest is a soft skip: packs are supporting evidence.
+    }
+    rows.push({
+      label: entry.name,
+      path: toPosixRelative(root, path.join(packRoot, entry.name)),
+      sha256: null,
+      notes: canonicalHash ? `canonical hash ${canonicalHash}` : null
+    });
+  }
+  return rows;
+}
+
+/** Light structural validation of a `guided-sim-run.json` before it is trusted. */
+function validateGuidedSimRun(doc: GuidedSimRunDocument, label: string): void {
+  const file = `${SIM_ARTIFACTS_DIR}/${label}/${GUIDED_SIM_FILE}`;
+  const root = requireObject(doc, file, "document");
+  requireString(root, file, "status");
+  const totals = requireObject(root.totals, file, "totals");
+  for (const key of ["flows", "tx_success", "expected_errors", "unexpected_errors", "errors", "panics"]) {
+    requireNumber(totals, file, `totals.${key}`);
+  }
+}
+
+/**
+ * Derive a protocol display name from the workspace root. A `.riptide` root is
+ * named for its parent (the case-study/project directory); otherwise the root's
+ * own basename is used. The caller can always override with `--protocol-name`.
+ */
+function deriveWorkspaceProtocolName(root: string): string {
+  const base = path.basename(root);
+  if (base === ".riptide") return path.basename(path.dirname(root)) || base;
+  return base;
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await readFile(filePath, "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Workspace-relative path with POSIX separators, for portable, deterministic artifact refs. */
+function toPosixRelative(root: string, filePath: string): string {
+  return path.relative(root, filePath).split(path.sep).join("/");
+}
+
+/**
+ * Normalize supporting evidence paths to the assessed workspace root. Older
+ * run-collection files may store paths from the project root (`.riptide/...`);
+ * correctness assessments are rooted at the `.riptide` workspace, so strip that
+ * prefix before later rendering every artifact under the same campaign root.
+ */
+function normalizeWorkspaceArtifactRef(root: string, artifactPath: string): string {
+  let normalized = artifactPath.trim().split(path.sep).join("/");
+  while (normalized.startsWith("./")) normalized = normalized.slice(2);
+
+  if (path.isAbsolute(artifactPath)) {
+    const relative = path.relative(root, artifactPath);
+    if (!relative.startsWith("..") && !path.isAbsolute(relative)) {
+      return relative.split(path.sep).join("/");
+    }
+    return normalized;
+  }
+
+  const rootBase = path.basename(root);
+  if (rootBase && normalized === rootBase) return ".";
+  if (rootBase && normalized.startsWith(`${rootBase}/`)) {
+    return normalized.slice(rootBase.length + 1);
+  }
+  return normalized;
+}
+
 /**
  * Build the canonical assessment model from already-read artifacts + inputs.
  * Pure and deterministic; serialize with {@link serializeAssessment}.
@@ -794,8 +1036,10 @@ export function buildCorrectnessAssessmentModel(
   const verdict = resolveCorrectnessVerdict(evidence, inputs.verdict);
   const riskPlan = resolveCorrectnessRiskPlan(evidence, inputs.riskPlan);
   const scope = resolveCorrectnessScope(evidence, riskPlan);
-  const coverage = inputs.coverage ? sortCoverageRows(inputs.coverage) : [];
-  const simulations = inputs.simulations ?? deriveCorrectnessSimulations(evidence);
+  const coverage = inputs.coverage
+    ? sortCoverageRows(inputs.coverage)
+    : deriveCorrectnessCoverageRows(input.campaignRootLabel, evidence, riskPlan);
+  const simulations = inputs.simulations ?? deriveCorrectnessSimulations(input.campaignRootLabel, evidence);
   const reproduction = resolveCorrectnessReproduction(
     input.campaignRootLabel,
     evidence,
@@ -952,9 +1196,13 @@ function resolveCorrectnessScope(
   };
 }
 
-function deriveCorrectnessSimulations(evidence: AssessmentCorrectnessEvidence): AssessmentSimulation[] {
+function deriveCorrectnessSimulations(
+  campaignRootLabel: string,
+  evidence: AssessmentCorrectnessEvidence
+): AssessmentSimulation[] {
   const gs = evidence.guided_sim;
   if (!gs) return [];
+  const guidedSimPath = rootedArtifactPath(campaignRootLabel, gs.path);
   const result =
     gs.unexpected_errors > 0 || gs.panics > 0
       ? `${gs.unexpected_errors} unexpected error(s), ${gs.panics} panic(s) across ${gs.flows} flow(s)`
@@ -965,13 +1213,71 @@ function deriveCorrectnessSimulations(evidence: AssessmentCorrectnessEvidence): 
       kind: "guided sim",
       objective:
         "Exercise happy-path settlement and negative-control rejection without unexpected error, panic, or accounting drift.",
-      command: `riptide sim run (guided) — evidence at ${gs.path}`,
+      command: `riptide sim run (guided) — evidence at ${guidedSimPath}`,
       result,
-      retained_evidence: gs.path,
+      retained_evidence: guidedSimPath,
       hashes: gs.sha256 ? [`guided-sim-run.json sha256 ${gs.sha256}`] : [],
       notes: `Status ${gs.status} over ${gs.iterations} iteration(s).`
     }
   ];
+}
+
+/**
+ * Map guided-sim `flow_counts` to coverage rows (R4.1), deterministically. Each
+ * exercised flow family becomes a `covered by guided sim` row; negative-control
+ * families are tagged as rejection evidence; any declared P0 flow the guided sim
+ * never exercised becomes a `not assessed` row. Rows are sorted by
+ * `(priority rank, flow)` so the embedded matrix is byte-stable regardless of the
+ * flow-count map's key order.
+ */
+function deriveCorrectnessCoverageRows(
+  campaignRootLabel: string,
+  evidence: AssessmentCorrectnessEvidence,
+  riskPlan: AssessmentRiskPlan
+): AssessmentCoverageRow[] {
+  const gs = evidence.guided_sim;
+  const rows: AssessmentCoverageRow[] = [];
+  const coveredFlows = new Set<string>();
+  if (gs) {
+    const guidedSimPath = rootedArtifactPath(campaignRootLabel, gs.path);
+    const command = `riptide sim run (guided) — evidence at ${guidedSimPath}`;
+    const artifacts = [guidedSimPath];
+    for (const fc of gs.flow_counts) {
+      const flowLabel = `guided-sim flow \`${fc.flow}\``;
+      coveredFlows.add(flowLabel);
+      const negative = isNegativeControlFlow(fc.flow);
+      rows.push({
+        priority: "P0",
+        flow: flowLabel,
+        status: "covered by guided sim",
+        evidence_tier: negative ? "guided sim (negative control)" : "guided sim",
+        commands: [command],
+        artifacts,
+        notes: negative
+          ? `${fc.count} negative-control flow(s) dispatched; invalid actions were rejected as expected ` +
+            `(${gs.expected_errors} expected rejection(s) across the run, ${gs.unexpected_errors} unexpected).`
+          : `${fc.count} flow(s) dispatched; ${gs.unexpected_errors} unexpected error(s), ${gs.panics} panic(s) observed.`
+      });
+    }
+  }
+  for (const flow of riskPlan.p0_flows) {
+    if (coveredFlows.has(flow)) continue;
+    rows.push({
+      priority: "P0",
+      flow,
+      status: "not assessed",
+      evidence_tier: "none",
+      commands: [],
+      artifacts: [],
+      notes: "Declared P0 flow not exercised by the ingested guided-sim evidence."
+    });
+  }
+  return sortCoverageRows(rows);
+}
+
+/** A flow family is a negative control when its name marks invalid-action rejection. */
+function isNegativeControlFlow(flow: string): boolean {
+  return /negative|reject|invalid|control/i.test(flow);
 }
 
 function resolveCorrectnessReproduction(
@@ -982,13 +1288,16 @@ function resolveCorrectnessReproduction(
   const commands = commandOverride ?? [`riptide assess ${shellQuote(campaignRootLabel)}`];
   const artifacts: AssessmentArtifactRef[] = [];
   if (evidence.guided_sim) {
-    artifacts.push({ path: evidence.guided_sim.path, hash: evidence.guided_sim.sha256 });
+    artifacts.push({
+      path: rootedArtifactPath(campaignRootLabel, evidence.guided_sim.path),
+      hash: evidence.guided_sim.sha256
+    });
   }
   for (const runEvidence of evidence.runs) {
-    artifacts.push({ path: runEvidence.path, hash: runEvidence.sha256 });
+    artifacts.push({ path: rootedArtifactPath(campaignRootLabel, runEvidence.path), hash: runEvidence.sha256 });
   }
   for (const packEvidence of evidence.packs) {
-    artifacts.push({ path: packEvidence.path, hash: packEvidence.sha256 });
+    artifacts.push({ path: rootedArtifactPath(campaignRootLabel, packEvidence.path), hash: packEvidence.sha256 });
   }
   return {
     campaign_root: campaignRootLabel,
@@ -996,6 +1305,15 @@ function resolveCorrectnessReproduction(
     artifacts,
     hashes: { campaign_digest: null, surface_digest: null, surface_sha256: null }
   };
+}
+
+function rootedArtifactPath(rootLabel: string, artifactPath: string): string {
+  const normalized = artifactPath.trim().split(path.sep).join("/");
+  if (path.isAbsolute(artifactPath) || normalized.startsWith("/")) return normalized;
+  if (normalized === "." || normalized.length === 0) return rootLabel;
+  const cleanRoot = rootLabel.replace(/\/+$/, "");
+  const cleanArtifact = normalized.replace(/^\.?\//, "");
+  return `${cleanRoot}/${cleanArtifact}`;
 }
 
 /** Serialize an assessment model to its canonical, byte-stable on-disk form. */

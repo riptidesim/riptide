@@ -3,8 +3,11 @@ import assert from "node:assert/strict";
 
 import { renderAssessmentMarkdown } from "../src/assess/render-markdown.js";
 import { generateAssessmentNarrative } from "../src/assess/narrative.js";
+import { renderAssessmentHtml } from "../src/assess/render-html.js";
 import {
+  buildCleanCorrectnessModel,
   buildCleanModel,
+  buildFindingCorrectnessModel,
   buildThresholdNonZeroSafeRegionModel,
   loadFlagshipModel
 } from "./assess-fixture.js";
@@ -113,6 +116,52 @@ test("assess render: byte-deterministic across two renders and two builds of the
   const second = renderAssessmentMarkdown(modelB, generateAssessmentNarrative(modelB));
   assert.equal(first, second);
   assert.ok(first.endsWith("\n"));
+});
+
+test("assess render: correctness shape degrades to a bounded note, not a heatmap (R3.1/R3.2)", () => {
+  const model = buildCleanCorrectnessModel();
+  const md = renderAssessmentMarkdown(model, generateAssessmentNarrative(model));
+
+  // The Risk Surface section is present but renders the honest no-heatmap note.
+  assert.match(md, /## Risk Surface/);
+  assert.match(md, /correctness-dominated assessment, so there is no risk-surface heatmap/);
+  // No heatmap glyph table / sensitivity / safe-region machinery.
+  assert.doesNotMatch(md, /### Failure-rate heatmap/);
+  assert.doesNotMatch(md, /### Parameter sensitivity/);
+  // Coverage + a bounded non-finding carry the report.
+  assert.match(md, /covered by guided sim/);
+  assert.match(md, /No accounting drift, double-payment/);
+  // Reproduction anchors on the guided-sim hash, not surface/campaign digests.
+  assert.match(md, /\*\*`guided-sim-run\.json` sha256:\*\* `a{64}`/);
+  assert.doesNotMatch(md, /Surface digest:|Campaign digest:/);
+});
+
+test("assess render: correctness shape with a finding renders it and no non-finding", () => {
+  const model = buildFindingCorrectnessModel();
+  const md = renderAssessmentMarkdown(model, generateAssessmentNarrative(model));
+
+  assert.match(md, /### Finding 1: Unexpected error or panic/);
+  assert.match(md, /No non-findings were recorded for this assessment\./);
+});
+
+test("assess render: correctness markdown is byte-deterministic across two renders", () => {
+  const modelA = buildCleanCorrectnessModel();
+  const modelB = buildCleanCorrectnessModel();
+  const first = renderAssessmentMarkdown(modelA, generateAssessmentNarrative(modelA));
+  const second = renderAssessmentMarkdown(modelB, generateAssessmentNarrative(modelB));
+  assert.equal(first, second);
+  assert.ok(first.endsWith("\n"));
+});
+
+test("assess render: correctness HTML mirrors the degrade — no heatmap widget, note present (R3.3)", () => {
+  const model = buildCleanCorrectnessModel();
+  const md = renderAssessmentMarkdown(model, generateAssessmentNarrative(model));
+  const html = renderAssessmentHtml(md, model);
+
+  // The note renders; no heatmap <figure> is built (the surface-less shape has none).
+  assert.match(html, /correctness-dominated assessment/);
+  assert.doesNotMatch(html, /<figure class="rt-heatmap">/);
+  assert.doesNotMatch(html, /Failure-rate heatmap<\/h3>/);
 });
 
 test("assess render: rendered markdown is overclaim-grep clean outside the claim boundary", async () => {

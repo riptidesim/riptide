@@ -2,7 +2,9 @@ import type { RiskSurfaceAxisBound } from "../campaign/surface.js";
 
 import {
   ASSESSMENT_NARRATIVE_SCHEMA,
+  assessmentShape,
   requireCartographyModel,
+  type AssessmentCorrectnessEvidence,
   type AssessmentFinding,
   type AssessmentModel,
   type AssessmentNarrative,
@@ -50,9 +52,12 @@ import {
  * byte-identical narrative blocks (the byte-stability the renderer relies on).
  */
 export const generateAssessmentNarrative: NarrativeProvider = (rawModel) => {
-  // This generator is the cartography (risk-surface-led) narrative; the
-  // surface-less correctness narrative lands in a later phase. Narrow up front so
-  // the surface + highlights are guaranteed present below.
+  // Branch on shape: the surface-less correctness assessment (Defunds-shaped)
+  // gets its own guided-sim-led narrative; the cartography (risk-surface-led)
+  // path is unchanged below.
+  if (assessmentShape(rawModel) === "correctness") {
+    return generateCorrectnessNarrative(rawModel);
+  }
   const model = requireCartographyModel(rawModel);
   const recommendation = buildRecommendation(model);
   const findings = buildFindings(model, recommendation);
@@ -68,6 +73,107 @@ export const generateAssessmentNarrative: NarrativeProvider = (rawModel) => {
     recommendation
   };
 };
+
+// ---------------------------------------------------------------------------
+// Correctness narrative (R4.2/R4.3) — guided-sim-led, surface-less
+// ---------------------------------------------------------------------------
+
+/**
+ * The surface-less correctness narrative. Findings vs non-findings are derived
+ * from the guided-sim totals (R4.2): a run with zero unexpected errors and zero
+ * panics whose negative controls were all rejected is a single bounded
+ * non-finding; any unexpected error or panic is a finding. Language is
+ * flow-scoped and bounded — never "proven safe" (R4.3). There is no parameter
+ * region, so the recommendation is the `none` kind (no safe-region bounds).
+ */
+function generateCorrectnessNarrative(model: AssessmentModel): AssessmentNarrative {
+  const gs = model.correctness?.guided_sim ?? null;
+  const findings = buildCorrectnessFindings(model, gs);
+  const nonFindings = buildCorrectnessNonFindings(gs);
+  return {
+    schema: ASSESSMENT_NARRATIVE_SCHEMA,
+    executive_summary: buildCorrectnessExecutiveSummary(model, gs),
+    headline_claim: model.risk_plan.target_claim,
+    main_finding: findings.length > 0 ? findings[0]!.title : "No finding under the declared inputs.",
+    main_limit: buildMainLimit(model),
+    findings,
+    non_findings: nonFindings,
+    recommendation: buildCorrectnessRecommendation(gs)
+  };
+}
+
+type GuidedSim = NonNullable<AssessmentCorrectnessEvidence["guided_sim"]>;
+
+function buildCorrectnessExecutiveSummary(model: AssessmentModel, gs: GuidedSim | null): string[] {
+  const verdict = `Verdict — ${humanVerdict(model.verdict.value)}: ${model.verdict.rationale}`;
+  if (!gs) {
+    return [
+      `${model.protocol.name} was assessed for correctness, but no guided-sim evidence was ingested.`,
+      verdict,
+      model.claim_boundary
+    ];
+  }
+  const whatRan =
+    `${model.protocol.name} was assessed against guided-simulation evidence: ${gs.flows} flow(s) dispatched ` +
+    `across ${gs.iterations} iteration(s) (${gs.tx_success} transaction success(es), ${gs.expected_errors} ` +
+    `expected rejection(s)), with ${gs.unexpected_errors} unexpected error(s) and ${gs.panics} panic(s).`;
+  const clean = gs.unexpected_errors === 0 && gs.panics === 0;
+  const evidence = clean
+    ? "No unexpected error or panic was observed across the assessed flows, and the negative-control actions were " +
+      "rejected as expected. This is correctness evidence over the declared flows — binary accounting and authority " +
+      "properties — not a parameter-failure gradient, so the report leads with the coverage matrix rather than a heatmap."
+    : `${gs.unexpected_errors} unexpected error(s) and ${gs.panics} panic(s) were observed across the assessed flows; ` +
+      "see the finding below.";
+  return [whatRan, verdict, evidence, model.claim_boundary];
+}
+
+function buildCorrectnessFindings(model: AssessmentModel, gs: GuidedSim | null): AssessmentFinding[] {
+  if (!gs || (gs.unexpected_errors === 0 && gs.panics === 0)) return [];
+  return [
+    {
+      title: "Unexpected error or panic in the guided-sim run",
+      severity: "P0",
+      affected_flow: gs.flow_counts[0] ? `guided-sim flow \`${gs.flow_counts[0].flow}\`` : "assessed guided-sim flows",
+      evidence_tier: "guided sim",
+      observed:
+        `${gs.unexpected_errors} unexpected error(s) and ${gs.panics} panic(s) were observed across the ${gs.flows} ` +
+        `assessed guided-sim flow(s) (run status \`${gs.status}\`).`,
+      why_it_matters:
+        "An unexpected error or panic under the declared inputs is a correctness defect in an assessed flow, not an " +
+        "expected negative-control rejection; it must be resolved before this evidence can support sending.",
+      recommended: "Resolve the unexpected error or panic, then re-run the guided sim and reassess.",
+      reproduction_command: model.reproduction.commands[0] ?? null,
+      artifacts: [gs.path],
+      hashes: gs.sha256 ? [`guided-sim-run.json sha256 ${gs.sha256}`] : []
+    }
+  ];
+}
+
+function buildCorrectnessNonFindings(gs: GuidedSim | null): AssessmentNonFinding[] {
+  if (!gs || gs.unexpected_errors > 0 || gs.panics > 0) return [];
+  const evidence = gs.sha256 ? `guided-sim-run.json sha256 ${gs.sha256}` : `guided-sim run \`${gs.label}\``;
+  return [
+    {
+      flow: "assessed guided-sim flows",
+      evidence,
+      statement:
+        "No accounting drift, double-payment, wrong-recipient settlement, or unauthorized-control success was " +
+        "observed under the declared inputs; all negative-control actions were rejected as expected.",
+      limit:
+        "Evidence is bounded to the guided-sim flows exercised under a fixed seed; flows outside the coverage matrix " +
+        "are not assessed."
+    }
+  ];
+}
+
+function buildCorrectnessRecommendation(gs: GuidedSim | null): AssessmentRecommendation {
+  const statement =
+    gs && (gs.unexpected_errors > 0 || gs.panics > 0)
+      ? "Resolve the unexpected error or panic observed in the guided-sim run, then re-run the guided sim and reassess."
+      : "Extend the guided-sim flow set (and its negative controls) to cover flows outside the current coverage matrix " +
+        "before relying on this evidence beyond the assessed scope.";
+  return { kind: "none", primary_axis: null, statement, threshold: 0, bounds: [] };
+}
 
 // ---------------------------------------------------------------------------
 // Executive summary (R3.1)

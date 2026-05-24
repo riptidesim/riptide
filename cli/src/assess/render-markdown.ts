@@ -174,10 +174,26 @@ function renderCoverageMatrix(model: AssessmentModel, lines: string[]): void {
 // ---------------------------------------------------------------------------
 
 function renderSurfaceSection(model: AssessmentModel, lines: string[]): void {
-  // The cartography path always carries a surface; the surface-less correctness
-  // path renders its honest no-heatmap note through a later phase, so skip here.
-  if (!model.surface) return;
-  lines.push(renderRiskSurfaceNarrative(model.surface).trimEnd(), "");
+  if (model.surface) {
+    lines.push(renderRiskSurfaceNarrative(model.surface).trimEnd(), "");
+    return;
+  }
+  // Surface-less (correctness) shape: degrade honestly (R3.1). State why there is
+  // no heatmap rather than rendering an empty widget; the coverage matrix and
+  // findings/non-findings below carry the report.
+  lines.push("## Risk Surface", "");
+  lines.push(
+    "This is a correctness-dominated assessment, so there is no risk-surface heatmap. The risks tested are binary " +
+      "accounting and authority properties — accounting drift, double-payment, wrong-recipient settlement, and " +
+      "unauthorized control — not a parameter-failure gradient, so a parameter sweep would not produce a meaningful " +
+      "failure surface.",
+    ""
+  );
+  lines.push(
+    "The evidence is invalid-action rejection plus accounting-invariant holds, exercised by guided simulation. The " +
+      "Coverage Matrix, Findings/Non-Findings, and Reproduction sections carry this report in place of a heatmap.",
+    ""
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -338,9 +354,15 @@ function renderReproduction(model: AssessmentModel, lines: string[]): void {
   }
   lines.push("");
   lines.push("Canonical hashes:", "");
-  lines.push(`- **Campaign digest:** \`${repro.hashes.campaign_digest}\``);
-  lines.push(`- **Surface digest:** \`${repro.hashes.surface_digest}\``);
-  lines.push(`- **\`risk-surface.json\` sha256:** \`${repro.hashes.surface_sha256}\``);
+  if (model.surface) {
+    lines.push(`- **Campaign digest:** \`${repro.hashes.campaign_digest}\``);
+    lines.push(`- **Surface digest:** \`${repro.hashes.surface_digest}\``);
+    lines.push(`- **\`risk-surface.json\` sha256:** \`${repro.hashes.surface_sha256}\``);
+  } else {
+    // Correctness shape: no campaign/surface digests; anchor on the guided-sim hash.
+    const guidedSimSha256 = model.correctness?.guided_sim?.sha256 ?? null;
+    lines.push(`- **\`guided-sim-run.json\` sha256:** \`${guidedSimSha256 ?? "not emitted"}\``);
+  }
   lines.push("");
 }
 

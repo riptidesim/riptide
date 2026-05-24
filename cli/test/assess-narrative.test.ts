@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import { generateAssessmentNarrative } from "../src/assess/narrative.js";
 import type { AssessmentNarrative } from "../src/assess/model.js";
 import {
+  buildCleanCorrectnessModel,
   buildCleanModel,
+  buildFindingCorrectnessModel,
   buildThresholdNonZeroSafeRegionModel,
   loadFlagshipModel
 } from "./assess-fixture.js";
@@ -66,7 +68,12 @@ test("assess narrative: deterministic across two generations of a fixed model", 
 });
 
 test("assess narrative: generated prose is overclaim-grep clean outside the claim boundary", async () => {
-  for (const model of [await loadFlagshipModel(), buildCleanModel()]) {
+  for (const model of [
+    await loadFlagshipModel(),
+    buildCleanModel(),
+    buildCleanCorrectnessModel(),
+    buildFindingCorrectnessModel()
+  ]) {
     const narrative = generateAssessmentNarrative(model);
     for (const fragment of generatedProse(narrative, model.claim_boundary)) {
       assert.doesNotMatch(
@@ -76,6 +83,49 @@ test("assess narrative: generated prose is overclaim-grep clean outside the clai
       );
     }
   }
+});
+
+test("assess narrative: clean correctness model yields a bounded non-finding, no finding", () => {
+  const model = buildCleanCorrectnessModel();
+  const narrative = generateAssessmentNarrative(model);
+
+  assert.equal(narrative.findings.length, 0);
+  assert.equal(narrative.main_finding, "No finding under the declared inputs.");
+  assert.equal(narrative.non_findings.length, 1);
+  assert.match(
+    narrative.non_findings[0]!.statement,
+    /No accounting drift, double-payment, wrong-recipient settlement, or unauthorized-control success/
+  );
+  // Bounded, flow-scoped — never "proven safe" (R4.3); recommendation has no parameter region.
+  assert.doesNotMatch(narrative.non_findings[0]!.statement, /proven safe|guarantee|certified/i);
+  assert.equal(narrative.recommendation.kind, "none");
+  assert.equal(narrative.recommendation.bounds.length, 0);
+});
+
+test("assess narrative: an unexpected error/panic in the guided sim is a finding (R4.2)", () => {
+  const model = buildFindingCorrectnessModel();
+  const narrative = generateAssessmentNarrative(model);
+
+  assert.equal(model.verdict.value, "blocked");
+  assert.equal(narrative.findings.length, 1);
+  assert.equal(narrative.non_findings.length, 0);
+  assert.match(narrative.findings[0]!.title, /Unexpected error or panic/);
+  assert.match(narrative.findings[0]!.observed, /2 unexpected error\(s\) and 1 panic\(s\)/);
+});
+
+test("assess narrative: correctness coverage rows derive from flow_counts, deterministically (R4.1/R4.4)", () => {
+  const model = buildCleanCorrectnessModel();
+  // One row per flow family, sorted by flow; negative-control families are tagged as rejection evidence.
+  const flows = model.coverage_matrix.map((row) => row.flow);
+  assert.deepEqual(flows, [...flows].sort((a, b) => a.localeCompare(b)));
+  assert.ok(model.coverage_matrix.every((row) => row.status === "covered by guided sim"));
+  const negative = model.coverage_matrix.find((row) => row.flow.includes("negative_controls"));
+  assert.equal(negative?.evidence_tier, "guided sim (negative control)");
+});
+
+test("assess narrative: correctness narrative is deterministic across two generations", () => {
+  const model = buildCleanCorrectnessModel();
+  assert.deepEqual(generateAssessmentNarrative(model), generateAssessmentNarrative(model));
 });
 
 /** Every generated string except the (negated) claim boundary, which is allowed boundary wording. */

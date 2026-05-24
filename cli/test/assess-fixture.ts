@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -13,7 +13,14 @@ import {
   type RiskSurfaceDocument
 } from "../src/campaign/surface.js";
 import type { ParameterDistribution } from "../src/campaign/schema.js";
-import { buildAssessmentModel, type CartographyAssessmentModel } from "../src/assess/model.js";
+import {
+  buildAssessmentModel,
+  buildCorrectnessAssessmentModel,
+  summarizeGuidedSimRun,
+  type AssessmentModel,
+  type CartographyAssessmentModel,
+  type GuidedSimRunDocument
+} from "../src/assess/model.js";
 
 /**
  * Shared assessment-model fixtures for the T02 (renderer) and T03 (narrative)
@@ -395,4 +402,148 @@ function passingFamily(completedRuns: number): CampaignSummaryJson["scenario_fam
     max_utilization_observed: 8.8,
     min_tvl_observed: 2000
   };
+}
+
+// --- correctness-shape (surface-less) fixtures ------------------------------
+
+/**
+ * A guided-sim-run.json document with Defunds-shaped families (happy + negative
+ * controls). `unexpected`/`panics`/`status` are overridable so suites can build
+ * both the clean (non-finding) and dirty (finding) cases. `flows` scales the
+ * total so the deterministic "most flows wins" selection can be exercised.
+ */
+function guidedSimDoc(
+  options: { flows?: number; unexpected?: number; panics?: number; status?: string } = {}
+): GuidedSimRunDocument {
+  const unexpected = options.unexpected ?? 0;
+  const panics = options.panics ?? 0;
+  const flowCounts = {
+    payout_session_happy_path: 6,
+    payout_session_negative_controls: 8,
+    withdrawal_finalize_token_happy_path: 6
+  };
+  const iteration = (index: number): GuidedSimRunDocument["iterations"][number] => ({
+    iteration: index,
+    seed: `seed-${index}`,
+    status: "passed",
+    dispatched_flows: 20,
+    flow_counts: flowCounts,
+    service_ticks: 0,
+    error: null,
+    panic: false
+  });
+  return {
+    schema_version: 1,
+    status: options.status ?? "passed",
+    iterations_requested: 2,
+    flows_per_iteration: 20,
+    base_seed: "1337",
+    retained_failing_seed: null,
+    totals: {
+      iterations: 2,
+      flows: options.flows ?? 40,
+      tx_success: 24,
+      expected_errors: 16,
+      unexpected_errors: unexpected,
+      compute_units: 0,
+      service_ticks: 0,
+      errors: unexpected,
+      panics
+    },
+    iterations: [iteration(0), iteration(1)]
+  };
+}
+
+/** A clean correctness model: guided sim with 0 unexpected / 0 panics → a bounded non-finding. */
+export function buildCleanCorrectnessModel(): AssessmentModel {
+  const evidence = {
+    guided_sim: summarizeGuidedSimRun(guidedSimDoc({}), {
+      label: "defunds-guided-main",
+      path: "sim/artifacts/defunds-guided-main/guided-sim-run.json",
+      sha256: "a".repeat(64)
+    }),
+    runs: [],
+    packs: []
+  };
+  return buildCorrectnessAssessmentModel({
+    campaignRootLabel: "case-study/.riptide",
+    protocolName: "defunds-fixture",
+    evidence
+  });
+}
+
+/** A correctness model with an unexpected error + panic → a finding, blocked verdict. */
+export function buildFindingCorrectnessModel(): AssessmentModel {
+  const evidence = {
+    guided_sim: summarizeGuidedSimRun(guidedSimDoc({ unexpected: 2, panics: 1, status: "failed" }), {
+      label: "defunds-guided-main",
+      path: "sim/artifacts/defunds-guided-main/guided-sim-run.json",
+      sha256: "b".repeat(64)
+    }),
+    runs: [],
+    packs: []
+  };
+  return buildCorrectnessAssessmentModel({
+    campaignRootLabel: "case-study/.riptide",
+    protocolName: "defunds-fixture",
+    evidence
+  });
+}
+
+/**
+ * Write a Defunds-shaped, surface-less workspace to a temp dir: a smoke guided
+ * sim (fewer flows) plus a main guided sim (more flows) so the deterministic
+ * "most flows wins" selection is exercised, a run-collection, and a pack.
+ */
+export async function writeCorrectnessWorkspace(
+  options: { dotRiptideRoot?: boolean; runArtifactsDir?: string } = {}
+): Promise<{ root: string; cleanupRoot: string }> {
+  const cleanupRoot = await mkdtemp(path.join(os.tmpdir(), "riptide-assess-correctness-"));
+  const root = options.dotRiptideRoot ? path.join(cleanupRoot, ".riptide") : cleanupRoot;
+  await mkdir(root, { recursive: true });
+
+  const smokeDir = path.join(root, "sim", "artifacts", "defunds-guided-smoke");
+  const mainDir = path.join(root, "sim", "artifacts", "defunds-guided-main");
+  await mkdir(smokeDir, { recursive: true });
+  await mkdir(mainDir, { recursive: true });
+  await writeFile(
+    path.join(smokeDir, "guided-sim-run.json"),
+    JSON.stringify(guidedSimDoc({ flows: 20 }), null, 2) + "\n",
+    "utf8"
+  );
+  await writeFile(
+    path.join(mainDir, "guided-sim-run.json"),
+    JSON.stringify(guidedSimDoc({ flows: 80 }), null, 2) + "\n",
+    "utf8"
+  );
+
+  await writeFile(
+    path.join(root, "run-collection.json"),
+    JSON.stringify(
+      {
+        schema_version: 1,
+        scenarios: [
+          {
+            name: "deposit-delegated-accounting",
+            status: "pass",
+            artifacts_dir: options.runArtifactsDir ?? "runs/deposit-delegated-accounting",
+            interpretation: { summary: "No failure observed in this run." }
+          }
+        ]
+      },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
+
+  const packDir = path.join(root, "pack", "deposit-delegated-accounting");
+  await mkdir(packDir, { recursive: true });
+  await writeFile(
+    path.join(packDir, "manifest.json"),
+    JSON.stringify({ schema_version: 1, kind: "simulation-run", canonical_hash: "c".repeat(64) }, null, 2) + "\n",
+    "utf8"
+  );
+
+  return { root, cleanupRoot };
 }

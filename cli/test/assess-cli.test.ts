@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { runAssess, type AssessCommandDeps } from "../src/commands/assess.js";
-import { writeFlagshipRoot } from "./assess-fixture.js";
+import { writeCorrectnessWorkspace, writeFlagshipRoot } from "./assess-fixture.js";
 
 const OVERCLAIM = /guarantee|proven safe|certified|audit replacement|audit signoff|complete protocol safety/i;
 
@@ -170,14 +170,17 @@ test("assess cli: --json emits a machine-readable result", async () => {
   }
 });
 
-test("assess cli: missing campaign-summary.json is a message-first failure", async () => {
+test("assess cli: a workspace with no evidence at all is a message-first failure", async () => {
   const empty = await mkdtemp(path.join(os.tmpdir(), "riptide-assess-empty-"));
   try {
     const { exitCode, stderr } = await assess(empty, {});
     assert.equal(exitCode, 1);
     assert.match(stderr, /riptide:/);
-    assert.match(stderr, /campaign-summary\.json not found/);
-    assert.match(stderr, /riptide campaign run/);
+    // R2.2: a truly-empty root (neither cartography nor correctness evidence)
+    // is the only message-first failure; the hint names both shapes' inputs.
+    assert.match(stderr, /no assessable evidence was found/);
+    assert.match(stderr, /campaign-summary\.json \+ risk-surface\.json/);
+    assert.match(stderr, /guided-sim-run\.json/);
   } finally {
     await rm(empty, { recursive: true, force: true });
   }
@@ -203,6 +206,102 @@ test("assess cli: an unknown --verdict is rejected before ingestion", async () =
     assert.match(stderr, /unknown verdict "looks_great"/);
     assert.match(stderr, /ready_to_send/);
     await assert.rejects(readFile(path.join(root, "assessment.json"), "utf8"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("assess cli: accepts a no-surface correctness workspace and writes artifacts (R2.1)", async () => {
+  const { root } = await writeCorrectnessWorkspace();
+  try {
+    const { exitCode, stdout } = await assess(root, {});
+    assert.equal(exitCode, 0);
+
+    const model = JSON.parse(await readFile(path.join(root, "assessment.json"), "utf8")) as {
+      schema_version: string;
+      shape?: string;
+      surface: unknown;
+      verdict: { value: string };
+      correctness?: { guided_sim?: { label: string; flows: number } };
+    };
+    assert.equal(model.schema_version, "assessment.v1");
+    assert.equal(model.shape, "correctness");
+    assert.equal(model.surface, null);
+    assert.equal(model.verdict.value, "ready_to_send");
+    // Deterministic selection: the main run (80 flows) beats the smoke run (20 flows).
+    assert.equal(model.correctness?.guided_sim?.label, "defunds-guided-main");
+    assert.equal(model.correctness?.guided_sim?.flows, 80);
+
+    const md = await readFile(path.join(root, "assessment.md"), "utf8");
+    assert.match(md, /# Protocol assessment —/);
+    assert.match(md, /correctness-dominated assessment, so there is no risk-surface heatmap/);
+    assert.match(
+      md,
+      new RegExp(`${escapeRegExp(root)}\\/sim\\/artifacts\\/defunds-guided-main\\/guided-sim-run\\.json`)
+    );
+    assert.match(md, new RegExp(`${escapeRegExp(root)}\\/runs\\/deposit-delegated-accounting`));
+    assert.match(md, new RegExp(`${escapeRegExp(root)}\\/pack\\/deposit-delegated-accounting`));
+    assert.ok(md.endsWith("\n"));
+
+    assert.match(stdout, /correctness shape/);
+    assert.match(stdout, /Verdict: ready_to_send \(derived\)/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("assess cli: correctness reproduction artifact paths share the assessed workspace root", async () => {
+  const { root, cleanupRoot } = await writeCorrectnessWorkspace({
+    dotRiptideRoot: true,
+    runArtifactsDir: ".riptide/runs/deposit-delegated-accounting"
+  });
+  try {
+    const { exitCode } = await assess(root, {});
+    assert.equal(exitCode, 0);
+
+    const md = await readFile(path.join(root, "assessment.md"), "utf8");
+    assert.match(
+      md,
+      new RegExp(`${escapeRegExp(root)}\\/sim\\/artifacts\\/defunds-guided-main\\/guided-sim-run\\.json`)
+    );
+    assert.match(md, new RegExp(`${escapeRegExp(root)}\\/runs\\/deposit-delegated-accounting`));
+    assert.match(md, new RegExp(`${escapeRegExp(root)}\\/pack\\/deposit-delegated-accounting`));
+    assert.doesNotMatch(
+      md,
+      new RegExp(`${escapeRegExp(root)}\\/\\.riptide\\/runs\\/deposit-delegated-accounting`)
+    );
+    assert.doesNotMatch(md, /\| sim\/artifacts\/defunds-guided-main\/guided-sim-run\.json \|/);
+  } finally {
+    await rm(cleanupRoot, { recursive: true, force: true });
+  }
+});
+
+test("assess cli: correctness assessment is byte-identical across two runs", async () => {
+  const { root } = await writeCorrectnessWorkspace();
+  try {
+    await assess(root, {});
+    const json1 = await readFile(path.join(root, "assessment.json"), "utf8");
+    const md1 = await readFile(path.join(root, "assessment.md"), "utf8");
+    await assess(root, {});
+    const json2 = await readFile(path.join(root, "assessment.json"), "utf8");
+    const md2 = await readFile(path.join(root, "assessment.md"), "utf8");
+    assert.equal(json1, json2);
+    assert.equal(md1, md2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("assess cli: correctness assessment.md is overclaim-grep clean", async () => {
+  const { root } = await writeCorrectnessWorkspace();
+  try {
+    await assess(root, {});
+    const md = await readFile(path.join(root, "assessment.md"), "utf8");
+    for (const line of md.split("\n")) {
+      if (!OVERCLAIM.test(line)) continue;
+      const allowed = /\bnot\b/i.test(line) || line.startsWith("- Audit signoff,");
+      assert.ok(allowed, `overclaim phrase outside boundary wording: ${JSON.stringify(line)}`);
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
