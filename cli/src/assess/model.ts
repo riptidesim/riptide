@@ -1,0 +1,1324 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
+import type {
+  CampaignRetentionManifest,
+  CampaignRetentionRiskSignals,
+  CampaignSummaryJson
+} from "../campaign/aggregation.js";
+import type {
+  RiskSurfaceAxisBound,
+  RiskSurfaceDocument,
+  RiskSurfaceSafeRegionStatus
+} from "../campaign/surface.js";
+import { RISK_SURFACE_HASH_PREFIX } from "../campaign/surface.js";
+import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
+
+/**
+ * assessment.v1 — the deterministic protocol-assessment model + ingestion.
+ *
+ * ## What this is (R1.2)
+ *
+ * Sprint 39 produced the quantitative substrate: a campaign root holding
+ * `campaign-summary.json` (identity + totals + lending observations), a
+ * canonical-hashed `risk-surface.json` ({@link RiskSurfaceDocument}: per-cell
+ * failure rate, sensitivity ranking, safe-region recommendation), and a
+ * retention manifest. This module fuses those existing artifacts — plus
+ * optional run/pack evidence and the Sprint 38 Risk Plan / coverage / verdict
+ * vocabulary — into a single `assessment.v1` model that the markdown renderer
+ * (T02) and auto-narrative generator (T03) consume.
+ *
+ * ## Ingest-only (R1.5)
+ *
+ * Ingestion is pure I/O over already-written artifacts: it reads the three JSON
+ * files from a campaign root and folds caller-supplied scoping inputs over
+ * them. It NEVER runs the engine or a campaign. You run `riptide campaign run`
+ * first, then `riptide assess <campaign-root>`.
+ *
+ * ## Determinism contract (load-bearing, mirrors `surface.ts`)
+ *
+ * `assessment.json` must be byte-stable for fixed inputs so a reviewer can
+ * rerun `riptide assess` and `sha256sum assessment.json` to an identical value
+ * (the R6.4 gate). Every ordering and numeric choice is fixed and derived only
+ * from the ingested artifacts + declared inputs — never from wall-clock, file
+ * order, or `Map`/`Object` insertion order:
+ *
+ * 1. **No wall-clock.** `assessment_date` / `riptide_version` default to `null`;
+ *    a caller may pass explicit values, but nothing is sampled from the
+ *    environment at build time.
+ * 2. **Row ordering.** Coverage rows sort by `(priority rank, flow name)`;
+ *    retained-evidence rows follow the manifest's already-deterministic label
+ *    order; simulation rows follow their declared order then objective.
+ * 3. **Number formatting.** Rates are rounded to 6 decimals with the shared
+ *    {@link roundNumber} convention (the same one `aggregation.ts`/`surface.ts`
+ *    use) so floating-point tails cannot perturb the bytes.
+ * 4. **Embedded surface.** The full {@link RiskSurfaceDocument} is embedded
+ *    verbatim (it is already canonical + self-digested) so the assessment hash
+ *    transitively covers the surface, and T02 can render the heatmap from the
+ *    model alone.
+ * 5. **Canonical JSON + self-digest.** Serialized via `canonicalJson`; the
+ *    embedded {@link AssessmentModel.assessment_digest} uses the same
+ *    domain-prefixed self-hash pattern as the surface + retained-case manifest.
+ *
+ * ## Narrative seam (R2.5 / R3 — defined here so T02 + T03 parallelize)
+ *
+ * The hashed model is *facts only*. Prose (executive summary, findings,
+ * non-findings, the safe-region recommendation) is a separate deterministic
+ * projection over the model: {@link AssessmentNarrative}, produced by a
+ * {@link NarrativeProvider}. T03 implements the real generator in
+ * `narrative.ts`; this module ships {@link stubNarrative} so T02 can render and
+ * the build compiles before T03 lands. Keeping prose out of `assessment.json`
+ * avoids a circular hash (narrative derived from a model that contains it) and
+ * keeps the canonical artifact stable while the narrative generator evolves.
+ */
+export const ASSESSMENT_SCHEMA_VERSION = "assessment.v1" as const;
+
+/** Domain-separation prefix for the embedded {@link AssessmentModel.assessment_digest}. */
+export const ASSESSMENT_HASH_PREFIX = "riptide-assessment-v1" as const;
+
+/**
+ * The bounded-claim string stamped on every assessment (R3.3 / Sprint 38
+ * boundary). Simulation evidence over a declared, fixed-seed region — never
+ * audit signoff, formal verification, complete protocol safety, or a mainnet
+ * prediction.
+ */
+export const ASSESSMENT_CLAIM_BOUNDARY =
+  "This assessment records simulation evidence observed within the campaign's " +
+  "declared, fixed-seed parameter region and run budget. It is evidence over " +
+  "that region only — not audit signoff, formal verification, complete " +
+  "protocol safety, or a prediction of mainnet behavior.";
+
+// ---------------------------------------------------------------------------
+// Vocabulary (R1.3)
+// ---------------------------------------------------------------------------
+
+/** Sprint 38 coverage-matrix status values. */
+export const COVERAGE_STATUSES = [
+  "covered",
+  "covered by guided sim",
+  "blocked",
+  "out of scope",
+  "not assessed"
+] as const;
+
+export type CoverageStatus = (typeof COVERAGE_STATUSES)[number];
+
+/** Send/readiness verdict vocabulary. */
+export const ASSESSMENT_VERDICTS = [
+  "ready_to_send",
+  "needs_guided_sim",
+  "needs_campaign_tuning",
+  "blocked",
+  "unsupported"
+] as const;
+
+export type AssessmentVerdict = (typeof ASSESSMENT_VERDICTS)[number];
+
+// ---------------------------------------------------------------------------
+// Model root
+// ---------------------------------------------------------------------------
+
+/** Top-level `assessment.json` document — the canonical, self-digested model. */
+export interface AssessmentModel {
+  schema_version: typeof ASSESSMENT_SCHEMA_VERSION;
+  protocol: AssessmentProtocolIdentity;
+  campaign: AssessmentCampaignReference;
+  totals: AssessmentCampaignTotals;
+  verdict: AssessmentVerdictBlock;
+  risk_plan: AssessmentRiskPlan;
+  scope: AssessmentScope;
+  /** Sorted by `(priority rank, flow)`. */
+  coverage_matrix: AssessmentCoverageRow[];
+  /** Simulation evidence rows; the ingested campaign plus any attached evidence. */
+  simulations: AssessmentSimulation[];
+  /** The full, verbatim risk-surface document (already canonical + self-digested). */
+  surface: RiskSurfaceDocument;
+  /** Deterministic distillation of the surface for verdict + narrative use. */
+  surface_highlights: AssessmentSurfaceHighlights;
+  /** Retained evidence, in the manifest's declared label order. */
+  retained_evidence: AssessmentRetainedEvidence[];
+  /** Optional attached run/pack evidence (ingest-only references). */
+  external_evidence: AssessmentExternalEvidence[];
+  reproduction: AssessmentReproduction;
+  claim_boundary: string;
+  /**
+   * Self-digest: `sha256Hex(`${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(model
+   * without this field)}`)`.
+   */
+  assessment_digest: string;
+}
+
+/** Protocol identity (Sprint 38 executive-summary header). */
+export interface AssessmentProtocolIdentity {
+  name: string;
+  repository: string | null;
+  commit: string | null;
+  /** Riptide version/commit; `null` unless the caller passes it (determinism). */
+  riptide_version: string | null;
+  /** ISO date string; `null` unless the caller passes it (no wall-clock default). */
+  assessment_date: string | null;
+}
+
+/** Campaign identity mirrored from `campaign-summary.v1` (no absolute paths). */
+export interface AssessmentCampaignReference {
+  campaign_id: string;
+  campaign_digest: string;
+  name: string;
+  class: string;
+  risk_objective: string;
+  seed_policy: string;
+  run_budget: number;
+  requested_runs: number;
+  adapter: string;
+}
+
+/** Run totals copied from `campaign-summary.v1`. */
+export interface AssessmentCampaignTotals {
+  requested_runs: number;
+  completed_runs: number;
+  passed_runs: number;
+  invariant_failed_runs: number;
+  setup_errors: number;
+  skipped_runs: number;
+  invariant_failure_rate: number;
+}
+
+/** The send/readiness verdict + how it was reached. */
+export interface AssessmentVerdictBlock {
+  value: AssessmentVerdict;
+  /** `declared` when the caller set it; `derived` when computed from the campaign. */
+  source: "declared" | "derived";
+  /** Deterministic, bounded one-line rationale. */
+  rationale: string;
+}
+
+/** Sprint 38 Risk Plan vocabulary. */
+export interface AssessmentRiskPlan {
+  protocol_class: string;
+  target_claim: string;
+  evidence_profile: string[];
+  p0_flows: string[];
+  p1_flows: string[];
+  expected_failure_modes: string[];
+  guided_sim_boundaries: string[];
+  known_coverage_limits: string[];
+}
+
+/** In/out scope + the claim boundary. */
+export interface AssessmentScope {
+  in_scope: string[];
+  out_of_scope: string[];
+  claim_boundary: string;
+}
+
+/** One coverage-matrix row. */
+export interface AssessmentCoverageRow {
+  priority: string;
+  flow: string;
+  status: CoverageStatus;
+  evidence_tier: string;
+  commands: string[];
+  artifacts: string[];
+  notes: string;
+}
+
+/** One simulation-evidence row (the ingested campaign, or attached evidence). */
+export interface AssessmentSimulation {
+  kind: "focused campaign" | "adversarial campaign" | "calibration" | "guided sim" | "negative control";
+  objective: string;
+  command: string;
+  result: string;
+  retained_evidence: string | null;
+  hashes: string[];
+  notes: string;
+}
+
+/** Deterministic distillation of the embedded surface. */
+export interface AssessmentSurfaceHighlights {
+  populated_cells: number;
+  total_cells: number;
+  worst_cell_failure_rate: number;
+  most_sensitive_axis: string | null;
+  most_sensitive_spread: number | null;
+  safe_region_status: RiskSurfaceSafeRegionStatus;
+  safe_region_threshold: number;
+  /** The recommended bounds verbatim from the surface, for the narrative + report. */
+  safe_region_bounds: RiskSurfaceAxisBound[];
+}
+
+/** One retained-evidence entry distilled from the retention manifest. */
+export interface AssessmentRetainedEvidence {
+  label: string;
+  status: "selected" | "warning";
+  run_id: string | null;
+  case_digest: string | null;
+  score: number | null;
+  reason: string | null;
+  rerun_command: string | null;
+  risk_signals: AssessmentRetainedRiskSignals | null;
+  warning: string | null;
+}
+
+/** The numeric risk signals carried on a selected retained case. */
+export interface AssessmentRetainedRiskSignals {
+  status: string;
+  first_failure_tick: number | null;
+  invariant_names: string[];
+  total_bad_debt: number | null;
+  total_liquidations: number | null;
+  max_utilization: number | null;
+  min_tvl: number | null;
+  risk_score: number;
+}
+
+/** An optional attached run/pack evidence reference (ingest-only). */
+export interface AssessmentExternalEvidence {
+  kind: "run" | "pack" | "guided sim" | "retained case";
+  label: string;
+  /** Campaign-root-relative or repo-relative path, as supplied by the caller. */
+  path: string;
+  sha256: string | null;
+  notes: string | null;
+}
+
+/** Reproduction block: exact rerun commands, artifact paths, and hashes (R2.3). */
+export interface AssessmentReproduction {
+  /** A stable label for the campaign root (its basename), never an absolute path. */
+  campaign_root: string;
+  commands: string[];
+  artifacts: AssessmentArtifactRef[];
+  hashes: AssessmentReproductionHashes;
+}
+
+export interface AssessmentArtifactRef {
+  /** Campaign-root-relative path. */
+  path: string;
+  /** A canonical hash or self-digest, or `null` when none is emitted. */
+  hash: string | null;
+}
+
+export interface AssessmentReproductionHashes {
+  campaign_digest: string;
+  surface_digest: string;
+  /** `sha256sum risk-surface.json` of the on-disk bytes. */
+  surface_sha256: string;
+}
+
+// ---------------------------------------------------------------------------
+// Narrative seam (R2.5 / R3) — interface only; T03 implements the real one
+// ---------------------------------------------------------------------------
+
+export const ASSESSMENT_NARRATIVE_SCHEMA = "assessment-narrative.v1" as const;
+
+/**
+ * The narrative blocks T02 renders into prose and T03 generates from the model.
+ * Defined here so the renderer and the narrative generator can be built in
+ * parallel against a fixed contract. Deterministic by construction (no prose
+ * may read wall-clock or randomness).
+ */
+export interface AssessmentNarrative {
+  schema: typeof ASSESSMENT_NARRATIVE_SCHEMA;
+  /** Executive-summary paragraphs (rendered in order). */
+  executive_summary: string[];
+  /** One narrow claim tied to the Risk Plan + evidence. */
+  headline_claim: string;
+  /** Main finding, or "No finding under the declared inputs." */
+  main_finding: string;
+  /** Largest blocked / out-of-scope / not-assessed surface. */
+  main_limit: string;
+  findings: AssessmentFinding[];
+  non_findings: AssessmentNonFinding[];
+  recommendation: AssessmentRecommendation;
+}
+
+/** A reproducible finding (R3.1). */
+export interface AssessmentFinding {
+  title: string;
+  severity: string;
+  affected_flow: string;
+  evidence_tier: string;
+  observed: string;
+  why_it_matters: string;
+  recommended: string;
+  reproduction_command: string | null;
+  artifacts: string[];
+  hashes: string[];
+}
+
+/** A non-finding: tested, no declared invariant fired under the listed inputs (R3.2). */
+export interface AssessmentNonFinding {
+  flow: string;
+  evidence: string;
+  /** Bounded statement, e.g. "No declared invariant fired under these inputs." */
+  statement: string;
+  limit: string;
+}
+
+/** The safe-region recommendation (R3.1 / R3.3). */
+export interface AssessmentRecommendation {
+  kind: "bounded" | "entire-region" | "none";
+  /** The most-sensitive axis the recommendation centers on, or `null`. */
+  primary_axis: string | null;
+  /** Bounded statement, e.g. "keep whale_share_bps within [500, 1750]". */
+  statement: string;
+  /** The declared failure-rate threshold this recommendation cites. */
+  threshold: number;
+  /** The recommended bounds verbatim from the surface. */
+  bounds: RiskSurfaceAxisBound[];
+}
+
+/** A pure function from the hashed model to narrative blocks. T03 supplies the real one. */
+export type NarrativeProvider = (model: AssessmentModel) => AssessmentNarrative;
+
+// ---------------------------------------------------------------------------
+// Caller-supplied inputs (Risk Plan / coverage / verdict / protocol) — R1.2/R4.2
+// ---------------------------------------------------------------------------
+
+/** Optional scoping inputs folded over the ingested campaign. Each defaults sensibly. */
+export interface AssessmentInputs {
+  protocol?: Partial<AssessmentProtocolIdentity> & { name?: string };
+  riskPlan?: Partial<AssessmentRiskPlan>;
+  /** Explicit coverage rows; when omitted, defaults are derived from the campaign. */
+  coverage?: AssessmentCoverageRow[];
+  /** Declared verdict; when omitted, derived deterministically from the campaign. */
+  verdict?: AssessmentVerdict;
+  /** Attached run/pack evidence references (ingest-only). */
+  externalEvidence?: AssessmentExternalEvidence[];
+  /** Override the reproduction command list; defaults to the campaign rerun command. */
+  reproductionCommands?: string[];
+  /** Override simulation-evidence rows; defaults to a single focused-campaign row. */
+  simulations?: AssessmentSimulation[];
+}
+
+/** Everything {@link buildAssessmentModel} needs from disk + the caller. */
+export interface BuildAssessmentInput {
+  campaignRootLabel: string;
+  summary: CampaignSummaryJson;
+  surface: RiskSurfaceDocument;
+  /** Raw on-disk bytes of `risk-surface.json`, hashed for the reproduction block. */
+  surfaceRawBytes: string;
+  retentionManifest: CampaignRetentionManifest;
+  inputs?: AssessmentInputs;
+}
+
+export interface IngestAssessmentOptions {
+  /** Path to a campaign root produced by `riptide campaign run`. */
+  campaignRoot: string;
+  inputs?: AssessmentInputs;
+}
+
+/** Thrown when a required campaign artifact is missing or malformed (R4.4). */
+export class AssessmentIngestError extends Error {
+  /** A short, actionable next step rendered after the message. */
+  readonly hint: string | undefined;
+  constructor(message: string, hint?: string) {
+    super(message);
+    this.name = "AssessmentIngestError";
+    this.hint = hint;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Ingestion (R1.2 / R1.5) — read the campaign root, fold inputs, build the model
+// ---------------------------------------------------------------------------
+
+const CAMPAIGN_SUMMARY_FILE = "campaign-summary.json";
+const RISK_SURFACE_FILE = "risk-surface.json";
+const RETENTION_MANIFEST_FILE = "retention-manifest.json";
+
+/**
+ * Read a campaign root and build the canonical {@link AssessmentModel}. Pure I/O
+ * over existing artifacts — no engine, no campaign execution (R1.5). Throws
+ * {@link AssessmentIngestError} with a message-first explanation when an artifact
+ * is missing or malformed.
+ */
+export async function ingestAssessment(options: IngestAssessmentOptions): Promise<AssessmentModel> {
+  const root = path.resolve(options.campaignRoot);
+  const summary = await readArtifact<CampaignSummaryJson>(
+    path.join(root, CAMPAIGN_SUMMARY_FILE),
+    CAMPAIGN_SUMMARY_FILE,
+    "campaign-summary.v1",
+    "Run `riptide campaign run <campaign.toml>` first, then assess the campaign root it writes."
+  );
+  if (summary.schema_version !== "campaign-summary.v1") {
+    throw new AssessmentIngestError(
+      `${CAMPAIGN_SUMMARY_FILE} is schema ${JSON.stringify(summary.schema_version)}, not "campaign-summary.v1".`,
+      "assessment.v1 ingests campaign-summary.v1 artifacts; regenerate the campaign with the current CLI."
+    );
+  }
+  const surfaceRawBytes = await readRaw(
+    path.join(root, RISK_SURFACE_FILE),
+    RISK_SURFACE_FILE,
+    "The risk surface is the quantitative core of the assessment; rerun the campaign to emit it."
+  );
+  const surface = parseJson<RiskSurfaceDocument>(surfaceRawBytes, RISK_SURFACE_FILE);
+  const retentionManifest = await readArtifact<CampaignRetentionManifest>(
+    path.join(root, RETENTION_MANIFEST_FILE),
+    RETENTION_MANIFEST_FILE,
+    "campaign-retention-manifest.v1",
+    "The retention manifest names the retained evidence; rerun the campaign to emit it."
+  );
+
+  return buildAssessmentModel({
+    campaignRootLabel: path.basename(root),
+    summary,
+    surface,
+    surfaceRawBytes,
+    retentionManifest,
+    inputs: options.inputs
+  });
+}
+
+/**
+ * Build the canonical assessment model from already-read artifacts + inputs.
+ * Pure and deterministic; serialize with {@link serializeAssessment}.
+ */
+export function buildAssessmentModel(input: BuildAssessmentInput): AssessmentModel {
+  const { summary, surface, retentionManifest } = input;
+  const inputs = input.inputs ?? {};
+
+  validateAssessmentArtifacts(summary, surface, retentionManifest);
+
+  const protocol = resolveProtocol(summary, inputs.protocol);
+  const campaign = resolveCampaignReference(summary);
+  const totals = resolveTotals(summary);
+  const highlights = surfaceHighlights(surface);
+  const verdict = resolveVerdict(summary, surface, highlights, inputs.verdict);
+  const riskPlan = resolveRiskPlan(summary, inputs.riskPlan);
+  const scope = resolveScope(summary, surface, riskPlan);
+  const coverage = inputs.coverage
+    ? sortCoverageRows(inputs.coverage)
+    : deriveCoverageRows(summary, riskPlan, input.campaignRootLabel);
+  const surfaceSha256 = sha256Hex(input.surfaceRawBytes);
+  const simulations = inputs.simulations ?? deriveSimulations(summary, surfaceSha256, input.campaignRootLabel);
+  const retainedEvidence = resolveRetainedEvidence(retentionManifest);
+  const reproduction = resolveReproduction(
+    input.campaignRootLabel,
+    campaign,
+    surface,
+    surfaceSha256,
+    inputs.reproductionCommands
+  );
+
+  const document: Omit<AssessmentModel, "assessment_digest"> = {
+    schema_version: ASSESSMENT_SCHEMA_VERSION,
+    protocol,
+    campaign,
+    totals,
+    verdict,
+    risk_plan: riskPlan,
+    scope,
+    coverage_matrix: coverage,
+    simulations,
+    surface,
+    surface_highlights: highlights,
+    retained_evidence: retainedEvidence,
+    external_evidence: [...(inputs.externalEvidence ?? [])],
+    reproduction,
+    claim_boundary: ASSESSMENT_CLAIM_BOUNDARY
+  };
+
+  const digest = sha256Hex(
+    `${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
+  );
+  return { ...document, assessment_digest: digest };
+}
+
+/** Serialize an assessment model to its canonical, byte-stable on-disk form. */
+export function serializeAssessment(model: AssessmentModel): string {
+  return canonicalJson(model as unknown as JsonValue);
+}
+
+// ---------------------------------------------------------------------------
+// Derivations (all deterministic)
+// ---------------------------------------------------------------------------
+
+function resolveProtocol(
+  summary: CampaignSummaryJson,
+  overrides: AssessmentInputs["protocol"]
+): AssessmentProtocolIdentity {
+  return {
+    name: nonEmpty(overrides?.name) ?? summary.campaign.name,
+    repository: nonEmpty(overrides?.repository ?? undefined) ?? null,
+    commit: nonEmpty(overrides?.commit ?? undefined) ?? null,
+    riptide_version: nonEmpty(overrides?.riptide_version ?? undefined) ?? null,
+    assessment_date: nonEmpty(overrides?.assessment_date ?? undefined) ?? null
+  };
+}
+
+function resolveCampaignReference(summary: CampaignSummaryJson): AssessmentCampaignReference {
+  const c = summary.campaign;
+  return {
+    campaign_id: c.campaign_id,
+    campaign_digest: c.campaign_digest,
+    name: c.name,
+    class: c.class,
+    risk_objective: c.risk_objective,
+    seed_policy: c.seed_policy,
+    run_budget: c.run_budget,
+    requested_runs: c.requested_runs,
+    adapter: c.adapter
+  };
+}
+
+function resolveTotals(summary: CampaignSummaryJson): AssessmentCampaignTotals {
+  const t = summary.totals;
+  return {
+    requested_runs: t.requested_runs,
+    completed_runs: t.completed_runs,
+    passed_runs: t.passed_runs,
+    invariant_failed_runs: t.invariant_failed_runs,
+    setup_errors: t.setup_errors,
+    skipped_runs: t.skipped_runs,
+    invariant_failure_rate: roundNumber(t.invariant_failure_rate)
+  };
+}
+
+function surfaceHighlights(surface: RiskSurfaceDocument): AssessmentSurfaceHighlights {
+  const populated = surface.cells.filter((cell) => cell.run_count > 0);
+  const worst = populated.length === 0
+    ? 0
+    : roundNumber(Math.max(...populated.map((cell) => cell.invariant_failure_rate)));
+  const top = surface.sensitivity.ranking[0] ?? null;
+  return {
+    populated_cells: populated.length,
+    total_cells: surface.cells.length,
+    worst_cell_failure_rate: worst,
+    most_sensitive_axis: top ? top.axis : null,
+    most_sensitive_spread: top ? roundNumber(top.failure_rate_spread) : null,
+    safe_region_status: surface.safe_region.status,
+    safe_region_threshold: roundNumber(surface.safe_region.threshold),
+    safe_region_bounds: surface.safe_region.bounds
+  };
+}
+
+/**
+ * Deterministic verdict derivation when the caller does not declare one. The
+ * mapping is conservative and bounded: incomplete evidence blocks; failures
+ * with a representable safe region invite tuning; a clean surface over real
+ * runs is send-ready *for the declared region only*. `needs_guided_sim` is
+ * reserved for coverage-declared use (defaults never silently emit it).
+ */
+function resolveVerdict(
+  summary: CampaignSummaryJson,
+  surface: RiskSurfaceDocument,
+  highlights: AssessmentSurfaceHighlights,
+  declared: AssessmentVerdict | undefined
+): AssessmentVerdictBlock {
+  if (declared) {
+    return { value: declared, source: "declared", rationale: declaredRationale(declared) };
+  }
+  if (highlights.populated_cells === 0) {
+    return {
+      value: "unsupported",
+      source: "derived",
+      rationale:
+        "No campaign runs were placed on the risk surface, so there is no simulation evidence over a declared region to assess."
+    };
+  }
+  if (summary.totals.setup_errors > 0) {
+    return {
+      value: "blocked",
+      source: "derived",
+      rationale:
+        `${summary.totals.setup_errors} setup error(s) left the campaign evidence incomplete; resolve them before this can be sent.`
+    };
+  }
+  if (summary.totals.invariant_failed_runs > 0) {
+    const rate = formatRate(summary.totals.invariant_failure_rate);
+    if (surface.safe_region.status === "none") {
+      return {
+        value: "needs_campaign_tuning",
+        source: "derived",
+        rationale:
+          `An invariant fired in ${rate} of completed runs and no region stayed under the ` +
+          `${formatRate(surface.safe_region.threshold)} threshold within the declared region; tune the campaign before sending.`
+      };
+    }
+    return {
+      value: "needs_campaign_tuning",
+      source: "derived",
+      rationale:
+        `An invariant fired in ${rate} of completed runs; a bounded region stayed under the ` +
+        `${formatRate(surface.safe_region.threshold)} threshold, so tune parameters into it before sending.`
+    };
+  }
+  return {
+    value: "ready_to_send",
+    source: "derived",
+    rationale:
+      "No declared invariant fired across the completed runs within the declared, fixed-seed parameter region."
+  };
+}
+
+function declaredRationale(verdict: AssessmentVerdict): string {
+  switch (verdict) {
+    case "ready_to_send":
+      return "Declared ready to send for the declared, fixed-seed simulation region.";
+    case "needs_guided_sim":
+      return "Declared as needing guided simulation to cover a dynamic flow before sending.";
+    case "needs_campaign_tuning":
+      return "Declared as needing campaign tuning into a safer parameter region before sending.";
+    case "blocked":
+      return "Declared blocked: required evidence is missing or a coverage flow is blocked.";
+    case "unsupported":
+      return "Declared unsupported for this assessment in the current scope.";
+  }
+}
+
+function resolveRiskPlan(
+  summary: CampaignSummaryJson,
+  overrides: AssessmentInputs["riskPlan"]
+): AssessmentRiskPlan {
+  const sweptAxes = Object.entries(summary.parameters)
+    .filter(([name, parameter]) => name !== "fixed_one" && parameter.values.length > 1)
+    .map(([name]) => name)
+    .sort((a, b) => a.localeCompare(b));
+  const families = Object.keys(summary.scenario_families).sort((a, b) => a.localeCompare(b));
+  const invariantNames = summary.lending?.liquidation_safety_failures.invariant_names ?? [];
+
+  const defaultP0 = families.map((family) => `scenario family \`${family}\``);
+  const defaultEvidence = ["focused campaign"];
+  const defaultFailureModes = invariantNames.length > 0
+    ? invariantNames.map((name) => `invariant \`${name}\` firing`)
+    : ["invariant firing under the swept parameter region"];
+  const defaultTarget =
+    `Bounded simulation-evidence claim for ${summary.campaign.name} (${summary.campaign.class}) over the ` +
+    `declared ${summary.campaign.run_budget}-run, ${summary.campaign.seed_policy} parameter region: ${summary.campaign.risk_objective}.`;
+
+  return {
+    protocol_class: nonEmpty(overrides?.protocol_class) ?? summary.campaign.class,
+    target_claim: nonEmpty(overrides?.target_claim) ?? defaultTarget,
+    evidence_profile: dedupeSorted(overrides?.evidence_profile ?? defaultEvidence),
+    p0_flows: overrides?.p0_flows ?? defaultP0,
+    p1_flows: overrides?.p1_flows ?? [],
+    expected_failure_modes: overrides?.expected_failure_modes ?? defaultFailureModes,
+    guided_sim_boundaries: overrides?.guided_sim_boundaries ?? [],
+    known_coverage_limits:
+      overrides?.known_coverage_limits ??
+      [
+        `Evidence is bounded to the swept axes ${sweptAxes.length > 0 ? sweptAxes.map((a) => `\`${a}\``).join(", ") : "(none varied)"} over a fixed seed.`,
+        "Flows outside the coverage matrix are not assessed."
+      ]
+  };
+}
+
+function resolveScope(
+  summary: CampaignSummaryJson,
+  surface: RiskSurfaceDocument,
+  riskPlan: AssessmentRiskPlan
+): AssessmentScope {
+  const axes = surface.axes.map((axis) => `parameter axis \`${axis.name}\` (${axis.distribution})`);
+  const families = Object.keys(summary.scenario_families)
+    .sort((a, b) => a.localeCompare(b))
+    .map((family) => `scenario family \`${family}\``);
+  const inScope = dedupeStable([
+    ...families,
+    ...axes,
+    `risk objective \`${summary.campaign.risk_objective}\` over the ${summary.campaign.seed_policy} seed policy`
+  ]);
+  const outOfScope = [
+    "Mainnet behavior, historical replay, and live monitoring.",
+    "Audit signoff, formal verification, and complete protocol safety.",
+    "Flows, parameters, and seeds outside this campaign's declared region.",
+    ...riskPlan.guided_sim_boundaries.map((boundary) => `Guided-sim boundary: ${boundary}`)
+  ];
+  return {
+    in_scope: inScope,
+    out_of_scope: outOfScope,
+    claim_boundary: ASSESSMENT_CLAIM_BOUNDARY
+  };
+}
+
+const PRIORITY_RANK: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
+
+function sortCoverageRows(rows: AssessmentCoverageRow[]): AssessmentCoverageRow[] {
+  return [...rows].sort(
+    (a, b) =>
+      (PRIORITY_RANK[a.priority] ?? 9) - (PRIORITY_RANK[b.priority] ?? 9) ||
+      a.priority.localeCompare(b.priority) ||
+      a.flow.localeCompare(b.flow)
+  );
+}
+
+function deriveCoverageRows(
+  summary: CampaignSummaryJson,
+  riskPlan: AssessmentRiskPlan,
+  campaignRootLabel: string
+): AssessmentCoverageRow[] {
+  const command = `riptide campaign run <campaign.toml> --out <dir>`;
+  const artifacts = [`${campaignRootLabel}/risk-surface.json`];
+  const rows: AssessmentCoverageRow[] = [];
+  for (const [family, row] of Object.entries(summary.scenario_families).sort(([a], [b]) =>
+    a.localeCompare(b)
+  )) {
+    const failed = row.invariant_failed_runs;
+    const status: CoverageStatus = row.completed_runs > 0 ? "covered" : "not assessed";
+    rows.push({
+      priority: "P0",
+      flow: `scenario family \`${family}\``,
+      status,
+      evidence_tier: "focused campaign",
+      commands: [command],
+      artifacts,
+      notes:
+        row.completed_runs > 0
+          ? `${row.completed_runs} completed run(s), ${failed} with an invariant failure.`
+          : "No completed run landed in this family within the budget."
+    });
+  }
+  // Each declared expected failure mode that maps to an observed invariant.
+  for (const mode of riskPlan.expected_failure_modes) {
+    rows.push({
+      priority: "P0",
+      flow: mode,
+      status: summary.totals.invariant_failed_runs > 0 ? "covered" : "not assessed",
+      evidence_tier: "adversarial campaign",
+      commands: [command],
+      artifacts,
+      notes:
+        summary.totals.invariant_failed_runs > 0
+          ? `Observed in ${formatRate(summary.totals.invariant_failure_rate)} of completed runs.`
+          : "Not exercised to failure within this campaign's budget."
+    });
+  }
+  return sortCoverageRows(rows);
+}
+
+function deriveSimulations(
+  summary: CampaignSummaryJson,
+  surfaceSha256: string,
+  campaignRootLabel: string
+): AssessmentSimulation[] {
+  const objective = summary.campaign.risk_objective;
+  const result =
+    summary.totals.setup_errors > 0
+      ? `${summary.totals.setup_errors} setup error(s)`
+      : summary.totals.invariant_failed_runs > 0
+        ? `${summary.totals.invariant_failed_runs} of ${summary.totals.completed_runs} runs fired an invariant`
+        : `${summary.totals.completed_runs} runs completed with no invariant failure`;
+  return [
+    {
+      kind: "focused campaign",
+      objective,
+      command: `riptide campaign run <campaign.toml> --out <dir>`,
+      result,
+      retained_evidence: `${campaignRootLabel}/retention-manifest.json`,
+      hashes: [
+        `campaign-digest ${summary.campaign.campaign_digest}`,
+        `risk-surface.json sha256 ${surfaceSha256}`
+      ],
+      notes:
+        `Failure rate ${formatRate(summary.totals.invariant_failure_rate)} over the declared ` +
+        `${summary.campaign.seed_policy} region.`
+    }
+  ];
+}
+
+function resolveRetainedEvidence(manifest: CampaignRetentionManifest): AssessmentRetainedEvidence[] {
+  return manifest.entries.map((entry) => {
+    if (entry.status === "selected") {
+      return {
+        label: entry.label,
+        status: "selected",
+        run_id: entry.run_id,
+        case_digest: entry.case_digest ?? null,
+        score: entry.score,
+        reason: entry.reason,
+        rerun_command: entry.rerun_command,
+        risk_signals: distillRiskSignals(entry.risk_signals),
+        warning: null
+      };
+    }
+    return {
+      label: entry.label,
+      status: "warning",
+      run_id: null,
+      case_digest: null,
+      score: null,
+      reason: null,
+      rerun_command: null,
+      risk_signals: null,
+      warning: entry.warning
+    };
+  });
+}
+
+function distillRiskSignals(signals: CampaignRetentionRiskSignals): AssessmentRetainedRiskSignals {
+  return {
+    status: signals.status,
+    first_failure_tick: signals.first_failure_tick,
+    invariant_names: [...signals.invariant_names].sort((a, b) => a.localeCompare(b)),
+    total_bad_debt: signals.total_bad_debt,
+    total_liquidations: signals.total_liquidations,
+    max_utilization: signals.max_utilization,
+    min_tvl: signals.min_tvl,
+    risk_score: signals.risk_score
+  };
+}
+
+function resolveReproduction(
+  campaignRootLabel: string,
+  campaign: AssessmentCampaignReference,
+  surface: RiskSurfaceDocument,
+  surfaceSha256: string,
+  commandOverride: string[] | undefined
+): AssessmentReproduction {
+  const commands = commandOverride ?? [
+    `riptide campaign run <campaign.toml> --out <dir>`,
+    `riptide assess ${campaignRootLabel}`
+  ];
+  return {
+    campaign_root: campaignRootLabel,
+    commands,
+    artifacts: [
+      { path: `${campaignRootLabel}/campaign-summary.json`, hash: null },
+      { path: `${campaignRootLabel}/risk-surface.json`, hash: surfaceSha256 },
+      { path: `${campaignRootLabel}/retention-manifest.json`, hash: null }
+    ],
+    hashes: {
+      campaign_digest: campaign.campaign_digest,
+      surface_digest: surface.surface_digest,
+      surface_sha256: surfaceSha256
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Stub narrative (T03 replaces this in narrative.ts) — keeps T02 buildable
+// ---------------------------------------------------------------------------
+
+/**
+ * A minimal, deterministic narrative so the renderer (T02) compiles and renders
+ * before the real generator (T03) lands. It separates findings from
+ * non-findings and uses bounded language, but is intentionally terse; T03 owns
+ * the full prose.
+ */
+export const stubNarrative: NarrativeProvider = (model) => {
+  const failed = model.totals.invariant_failed_runs;
+  const top = model.surface_highlights.most_sensitive_axis;
+  const recommendation = recommendationFromModel(model);
+  const findings: AssessmentFinding[] = failed > 0
+    ? [
+        {
+          title: `Invariant failures concentrated on \`${top ?? "the swept region"}\``,
+          severity: "P0",
+          affected_flow: model.risk_plan.p0_flows[0] ?? "swept parameter region",
+          evidence_tier: "focused campaign",
+          observed: `${failed} of ${model.totals.completed_runs} completed runs fired an invariant.`,
+          why_it_matters:
+            "Failures cluster in part of the declared region, so a parameter bound is recommended over the whole region.",
+          recommended: recommendation.statement,
+          reproduction_command: model.reproduction.commands[0] ?? null,
+          artifacts: [`${model.reproduction.campaign_root}/risk-surface.json`],
+          hashes: [`surface sha256 ${model.reproduction.hashes.surface_sha256}`]
+        }
+      ]
+    : [];
+  const nonFindings: AssessmentNonFinding[] = failed === 0
+    ? [
+        {
+          flow: model.risk_plan.p0_flows[0] ?? "swept parameter region",
+          evidence: `risk-surface.json sha256 ${model.reproduction.hashes.surface_sha256}`,
+          statement: "No declared invariant fired under these inputs.",
+          limit: "Evidence is bounded to the declared, fixed-seed parameter region."
+        }
+      ]
+    : [];
+  return {
+    schema: ASSESSMENT_NARRATIVE_SCHEMA,
+    executive_summary: [
+      `${model.protocol.name}: ${model.verdict.rationale}`,
+      model.claim_boundary
+    ],
+    headline_claim: model.risk_plan.target_claim,
+    main_finding: failed > 0 ? (findings[0]?.title ?? "") : "No finding under the declared inputs.",
+    main_limit: "Flows, parameters, and seeds outside this campaign's declared region are not assessed.",
+    findings,
+    non_findings: nonFindings,
+    recommendation
+  };
+};
+
+function recommendationFromModel(model: AssessmentModel): AssessmentRecommendation {
+  const highlights = model.surface_highlights;
+  const threshold = highlights.safe_region_threshold;
+  if (highlights.safe_region_status === "none") {
+    return {
+      kind: "none",
+      primary_axis: highlights.most_sensitive_axis,
+      statement:
+        `No parameter region stayed at or under the ${formatRate(threshold)} failure-rate threshold within the declared region.`,
+      threshold,
+      bounds: highlights.safe_region_bounds
+    };
+  }
+  const primary = highlights.most_sensitive_axis;
+  const bound = highlights.safe_region_bounds.find((b) => b.axis === primary) ?? highlights.safe_region_bounds[0];
+  const boundText = bound ? describeBound(bound) : "the declared region";
+  return {
+    kind: highlights.safe_region_status === "entire-region" ? "entire-region" : "bounded",
+    primary_axis: primary,
+    statement:
+      highlights.safe_region_status === "entire-region"
+        ? `Every populated cell stayed at or under the ${formatRate(threshold)} threshold; keep parameters within the declared region.`
+        : `Keep ${primary ? `\`${primary}\`` : "parameters"} within ${boundText} to stay at or under the ${formatRate(threshold)} failure-rate threshold.`,
+    threshold,
+    bounds: highlights.safe_region_bounds
+  };
+}
+
+function describeBound(bound: RiskSurfaceAxisBound): string {
+  if (bound.kind === "discrete") {
+    const values = bound.allowed_values ?? [];
+    if (values.length === 0) return "no value that stays under threshold";
+    return `{${values.map((value) => (value === null ? "null" : String(value))).join(", ")}}`;
+  }
+  const range = bound.bin_range;
+  if (!range) return "no range that stays under threshold";
+  const lower = range.lower === null ? "(open)" : String(range.lower);
+  const upper = range.upper === null ? "(open)" : String(range.upper);
+  return `[${lower}, ${upper}]`;
+}
+
+// ---------------------------------------------------------------------------
+// I/O + shared deterministic helpers
+// ---------------------------------------------------------------------------
+
+function validateAssessmentArtifacts(
+  summary: CampaignSummaryJson,
+  surface: RiskSurfaceDocument,
+  retentionManifest: CampaignRetentionManifest
+): void {
+  validateCampaignSummary(summary);
+  validateRiskSurface(surface);
+  validateRetentionManifest(retentionManifest);
+  validateArtifactIdentity(summary, surface, retentionManifest);
+  validateSurfaceDigest(surface);
+}
+
+function validateCampaignSummary(summary: CampaignSummaryJson): void {
+  const root = requireObject(summary, CAMPAIGN_SUMMARY_FILE, "document");
+  const schema = requireString(root, CAMPAIGN_SUMMARY_FILE, "schema_version");
+  if (schema !== "campaign-summary.v1") {
+    throw new AssessmentIngestError(
+      `${CAMPAIGN_SUMMARY_FILE} is schema ${JSON.stringify(schema)}, not "campaign-summary.v1".`,
+      "assessment.v1 ingests campaign-summary.v1 artifacts; regenerate the campaign with the current CLI."
+    );
+  }
+  const campaign = requireObject(root.campaign, CAMPAIGN_SUMMARY_FILE, "campaign");
+  requireString(campaign, CAMPAIGN_SUMMARY_FILE, "campaign.campaign_id");
+  requireString(campaign, CAMPAIGN_SUMMARY_FILE, "campaign.campaign_digest");
+  requireString(campaign, CAMPAIGN_SUMMARY_FILE, "campaign.name");
+  requireString(campaign, CAMPAIGN_SUMMARY_FILE, "campaign.class");
+  requireString(campaign, CAMPAIGN_SUMMARY_FILE, "campaign.risk_objective");
+  requireString(campaign, CAMPAIGN_SUMMARY_FILE, "campaign.seed_policy");
+  requireString(campaign, CAMPAIGN_SUMMARY_FILE, "campaign.adapter");
+  requireNumber(campaign, CAMPAIGN_SUMMARY_FILE, "campaign.run_budget");
+  requireNumber(campaign, CAMPAIGN_SUMMARY_FILE, "campaign.requested_runs");
+  requireObject(root.totals, CAMPAIGN_SUMMARY_FILE, "totals");
+  requireObject(root.scenario_families, CAMPAIGN_SUMMARY_FILE, "scenario_families");
+  requireObject(root.parameters, CAMPAIGN_SUMMARY_FILE, "parameters");
+}
+
+function validateRiskSurface(surface: RiskSurfaceDocument): void {
+  const root = requireObject(surface, RISK_SURFACE_FILE, "document");
+  const schema = requireString(root, RISK_SURFACE_FILE, "schema_version");
+  if (schema !== "risk-surface.v1") {
+    throw new AssessmentIngestError(
+      `${RISK_SURFACE_FILE} is schema ${JSON.stringify(schema)}, not "risk-surface.v1".`,
+      "assessment.v1 requires a Sprint 39 risk-surface.v1 artifact; rerun the campaign with the current CLI."
+    );
+  }
+  const campaign = requireObject(root.campaign, RISK_SURFACE_FILE, "campaign");
+  requireString(campaign, RISK_SURFACE_FILE, "campaign.campaign_id");
+  requireString(campaign, RISK_SURFACE_FILE, "campaign.campaign_digest");
+  requireString(campaign, RISK_SURFACE_FILE, "campaign.name");
+  requireString(campaign, RISK_SURFACE_FILE, "campaign.class");
+  requireString(campaign, RISK_SURFACE_FILE, "campaign.risk_objective");
+  requireArray(root.axes, RISK_SURFACE_FILE, "axes");
+  requireArray(root.cells, RISK_SURFACE_FILE, "cells");
+  requireArray(root.metrics, RISK_SURFACE_FILE, "metrics");
+  const sensitivity = requireObject(root.sensitivity, RISK_SURFACE_FILE, "sensitivity");
+  requireArray(sensitivity.ranking, RISK_SURFACE_FILE, "sensitivity.ranking");
+  const safeRegion = requireObject(root.safe_region, RISK_SURFACE_FILE, "safe_region");
+  const status = requireString(safeRegion, RISK_SURFACE_FILE, "safe_region.status");
+  if (!["found", "none", "entire-region"].includes(status)) {
+    throw malformedArtifact(
+      RISK_SURFACE_FILE,
+      `safe_region.status must be one of "found", "none", or "entire-region", got ${JSON.stringify(status)}`
+    );
+  }
+  requireNumber(safeRegion, RISK_SURFACE_FILE, "safe_region.threshold");
+  requireArray(safeRegion.bounds, RISK_SURFACE_FILE, "safe_region.bounds");
+  requireString(root, RISK_SURFACE_FILE, "surface_digest");
+}
+
+function validateRetentionManifest(manifest: CampaignRetentionManifest): void {
+  const root = requireObject(manifest, RETENTION_MANIFEST_FILE, "document");
+  const schema = requireString(root, RETENTION_MANIFEST_FILE, "schema_version");
+  if (schema !== "campaign-retention-manifest.v1") {
+    throw new AssessmentIngestError(
+      `${RETENTION_MANIFEST_FILE} is schema ${JSON.stringify(schema)}, not "campaign-retention-manifest.v1".`,
+      "assessment.v1 requires the campaign retention manifest emitted by the campaign runner; regenerate the campaign artifacts."
+    );
+  }
+  requireString(root, RETENTION_MANIFEST_FILE, "campaign_id");
+  requireString(root, RETENTION_MANIFEST_FILE, "campaign_digest");
+  requireString(root, RETENTION_MANIFEST_FILE, "class");
+  requireString(root, RETENTION_MANIFEST_FILE, "risk_objective");
+  const entries = requireArray(root.entries, RETENTION_MANIFEST_FILE, "entries");
+  for (let index = 0; index < entries.length; index += 1) {
+    validateRetentionEntry(entries[index], index);
+  }
+}
+
+function validateRetentionEntry(entry: unknown, index: number): void {
+  const record = requireObject(entry, RETENTION_MANIFEST_FILE, `entries[${index}]`);
+  const status = requireString(record, RETENTION_MANIFEST_FILE, `entries[${index}].status`);
+  if (status === "selected") {
+    requireString(record, RETENTION_MANIFEST_FILE, `entries[${index}].run_id`);
+    requireString(record, RETENTION_MANIFEST_FILE, `entries[${index}].reason`);
+    requireString(record, RETENTION_MANIFEST_FILE, `entries[${index}].rerun_command`);
+    const signals = requireObject(record.risk_signals, RETENTION_MANIFEST_FILE, `entries[${index}].risk_signals`);
+    requireString(signals, RETENTION_MANIFEST_FILE, `entries[${index}].risk_signals.status`);
+    requireArray(signals.invariant_names, RETENTION_MANIFEST_FILE, `entries[${index}].risk_signals.invariant_names`);
+    requireNumber(signals, RETENTION_MANIFEST_FILE, `entries[${index}].risk_signals.risk_score`);
+    return;
+  }
+  if (status === "warning") {
+    requireString(record, RETENTION_MANIFEST_FILE, `entries[${index}].warning`);
+    return;
+  }
+  throw malformedArtifact(
+    RETENTION_MANIFEST_FILE,
+    `entries[${index}].status must be "selected" or "warning", got ${JSON.stringify(status)}`
+  );
+}
+
+function validateArtifactIdentity(
+  summary: CampaignSummaryJson,
+  surface: RiskSurfaceDocument,
+  manifest: CampaignRetentionManifest
+): void {
+  const summaryCampaign = summary.campaign;
+  const surfaceCampaign = surface.campaign;
+  requireSameIdentity(
+    RISK_SURFACE_FILE,
+    "campaign.campaign_id",
+    surfaceCampaign.campaign_id,
+    CAMPAIGN_SUMMARY_FILE,
+    "campaign.campaign_id",
+    summaryCampaign.campaign_id
+  );
+  requireSameIdentity(
+    RISK_SURFACE_FILE,
+    "campaign.campaign_digest",
+    surfaceCampaign.campaign_digest,
+    CAMPAIGN_SUMMARY_FILE,
+    "campaign.campaign_digest",
+    summaryCampaign.campaign_digest
+  );
+  requireSameIdentity(
+    RETENTION_MANIFEST_FILE,
+    "campaign_id",
+    manifest.campaign_id,
+    CAMPAIGN_SUMMARY_FILE,
+    "campaign.campaign_id",
+    summaryCampaign.campaign_id
+  );
+  requireSameIdentity(
+    RETENTION_MANIFEST_FILE,
+    "campaign_digest",
+    manifest.campaign_digest,
+    CAMPAIGN_SUMMARY_FILE,
+    "campaign.campaign_digest",
+    summaryCampaign.campaign_digest
+  );
+  requireSameIdentity(
+    RISK_SURFACE_FILE,
+    "campaign.class",
+    surfaceCampaign.class,
+    CAMPAIGN_SUMMARY_FILE,
+    "campaign.class",
+    summaryCampaign.class
+  );
+  requireSameIdentity(
+    RETENTION_MANIFEST_FILE,
+    "class",
+    manifest.class,
+    CAMPAIGN_SUMMARY_FILE,
+    "campaign.class",
+    summaryCampaign.class
+  );
+  requireSameIdentity(
+    RISK_SURFACE_FILE,
+    "campaign.risk_objective",
+    surfaceCampaign.risk_objective,
+    CAMPAIGN_SUMMARY_FILE,
+    "campaign.risk_objective",
+    summaryCampaign.risk_objective
+  );
+  requireSameIdentity(
+    RETENTION_MANIFEST_FILE,
+    "risk_objective",
+    manifest.risk_objective,
+    CAMPAIGN_SUMMARY_FILE,
+    "campaign.risk_objective",
+    summaryCampaign.risk_objective
+  );
+}
+
+function validateSurfaceDigest(surface: RiskSurfaceDocument): void {
+  const { surface_digest: surfaceDigest, ...document } = surface as RiskSurfaceDocument & Record<string, unknown>;
+  const expected = sha256Hex(
+    `${RISK_SURFACE_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
+  );
+  if (surfaceDigest !== expected) {
+    throw new AssessmentIngestError(
+      `${RISK_SURFACE_FILE} surface_digest ${JSON.stringify(surfaceDigest)} does not match the document contents.`,
+      "Regenerate the campaign artifacts; assessment ingestion refuses a risk surface whose embedded digest does not verify."
+    );
+  }
+}
+
+function requireSameIdentity(
+  leftFile: string,
+  leftPath: string,
+  leftValue: string,
+  rightFile: string,
+  rightPath: string,
+  rightValue: string
+): void {
+  if (leftValue !== rightValue) {
+    throw new AssessmentIngestError(
+      `${leftFile} ${leftPath} ${JSON.stringify(leftValue)} does not match ` +
+        `${rightFile} ${rightPath} ${JSON.stringify(rightValue)}.`,
+      "Use artifacts from the same campaign root, or rerun the campaign so summary, surface, and retention manifest agree."
+    );
+  }
+}
+
+async function readRaw(filePath: string, fileLabel: string, hint: string): Promise<string> {
+  try {
+    return await readFile(filePath, "utf8");
+  } catch (err) {
+    if (isNotFound(err)) {
+      throw new AssessmentIngestError(`${fileLabel} not found at ${filePath}.`, hint);
+    }
+    throw new AssessmentIngestError(`could not read ${fileLabel} at ${filePath}: ${errMessage(err)}`, hint);
+  }
+}
+
+async function readArtifact<T>(
+  filePath: string,
+  fileLabel: string,
+  _schemaLabel: string,
+  hint: string
+): Promise<T> {
+  const raw = await readRaw(filePath, fileLabel, hint);
+  return parseJson<T>(raw, fileLabel);
+}
+
+function parseJson<T>(raw: string, fileLabel: string): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    throw new AssessmentIngestError(
+      `${fileLabel} is not valid JSON: ${errMessage(err)}.`,
+      "Regenerate the campaign artifacts; assessment ingestion does not repair malformed JSON."
+    );
+  }
+}
+
+function requireObject(value: unknown, fileLabel: string, pathLabel: string): Record<string, unknown> {
+  if (!isRecord(value)) {
+    throw malformedArtifact(fileLabel, `${pathLabel} must be a JSON object`);
+  }
+  return value;
+}
+
+function requireArray(value: unknown, fileLabel: string, pathLabel: string): unknown[] {
+  if (!Array.isArray(value)) {
+    throw malformedArtifact(fileLabel, `${pathLabel} must be an array`);
+  }
+  return value;
+}
+
+function requireString(
+  object: Record<string, unknown>,
+  fileLabel: string,
+  pathLabel: string
+): string {
+  const key = leafKey(pathLabel);
+  const value = object[key];
+  if (typeof value !== "string" || value.length === 0) {
+    throw malformedArtifact(fileLabel, `${pathLabel} must be a non-empty string`);
+  }
+  return value;
+}
+
+function requireNumber(
+  object: Record<string, unknown>,
+  fileLabel: string,
+  pathLabel: string
+): number {
+  const key = leafKey(pathLabel);
+  const value = object[key];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw malformedArtifact(fileLabel, `${pathLabel} must be a finite number`);
+  }
+  return value;
+}
+
+function leafKey(pathLabel: string): string {
+  const bracket = pathLabel.match(/\.?([^.[\]]+)$/);
+  return bracket ? bracket[1]! : pathLabel;
+}
+
+function malformedArtifact(fileLabel: string, detail: string): AssessmentIngestError {
+  return new AssessmentIngestError(
+    `${fileLabel} is malformed: ${detail}.`,
+    "Regenerate the campaign artifacts; assessment ingestion only accepts complete, current campaign artifacts."
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNotFound(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: string }).code === "ENOENT";
+}
+
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function nonEmpty(value: string | null | undefined): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function dedupeSorted(values: string[]): string[] {
+  return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+}
+
+function dedupeStable(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
+}
+
+function formatRate(rate: number): string {
+  return `${roundNumber(rate * 100)}%`;
+}
+
+function roundNumber(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
