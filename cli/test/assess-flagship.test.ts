@@ -44,10 +44,18 @@ import {
 // Recorded by re-rendering the flagship model. Path-independent (the synthetic
 // summary carries no retained-case absolute paths), so these regenerate
 // byte-identically in CI. A producer change that moves them must be intentional.
+// Sprint 42 format retune (presentation-only): the executive-summary identity
+// lines are now omitted when null instead of printed as "not specified" (T02),
+// and the assessment date is populated deterministically from the declared
+// fixed seed policy when no explicit input date is present. Superseded pins:
+//   Sprint 40 MD   3af5ef586ca27329705d7a32d9016e0e224c115e302c437e5ae9a34f371e95de
+//   Sprint 40 JSON 69744b3ee695ea18feee7d9c00971ff5d3dbf0737e2bd75a2b30824f5983252c
+//   Sprint 42 Phase-1 placeholder-cleanup MD
+//                  091b44c2e67d401ecc3baade760921814b10e32b02939dbc1cf97ecd60d08632
 const FLAGSHIP_MD_SHA256 =
-  "3af5ef586ca27329705d7a32d9016e0e224c115e302c437e5ae9a34f371e95de";
+  "d751233ac22161399a85d9e6f4477b9f1fe8057140a6438f4569a0e985487114";
 const FLAGSHIP_JSON_SHA256 =
-  "69744b3ee695ea18feee7d9c00971ff5d3dbf0737e2bd75a2b30824f5983252c";
+  "c3fd34d486a282b27c32bf8723c4095f62bfdf5669d70fa6b0f5dedc24a95ec9";
 
 const OVERCLAIM =
   /guarantee|proven safe|certified|audit replacement|audit signoff|complete protocol safety/i;
@@ -191,14 +199,22 @@ test("flagship assessment: overclaim grep is clean (boundary/negation wording on
  * Recorded by re-rendering the fixtures; path-independent. A producer change
  * that moves them must be intentional.
  */
+// Sprint 42 format retune (presentation-only): the derived guided-sim command no
+// longer embeds the evidence path (it lives in the Artifacts / Retained-evidence
+// column instead, T03), and null identity lines are omitted (T02). Both move the
+// correctness markdown + JSON bytes. Superseded pins —
+//   clean MD   f43b61f863ba0fc83713101cf1dc020fa34669c9a71c2d0b55383161c54c484e
+//   clean JSON 132b087e12984a6899a12ca57a3e42ad432052b8b729d4b23e9fd38501b97c22
+//   finding MD e9fb58bf6b6e3ebd1d38a16cd7dde018719273301f514b329900668f8cb12e3d
+//   find. JSON a4ba3048d822119e77a2ef8c1ff029d61c85ec1ae1d799fd9d1e4e3b2598e4d6
 const CLEAN_CORRECTNESS_MD_SHA256 =
-  "f43b61f863ba0fc83713101cf1dc020fa34669c9a71c2d0b55383161c54c484e";
+  "7c539515ac23542c4e7c25bc852bbbe12606b106ea865112a3e62eb45650e989";
 const CLEAN_CORRECTNESS_JSON_SHA256 =
-  "132b087e12984a6899a12ca57a3e42ad432052b8b729d4b23e9fd38501b97c22";
+  "49efbef13d86aba22e1da8b05d43d480d09b99577095b7ab0463a00bc4f9887b";
 const FINDING_CORRECTNESS_MD_SHA256 =
-  "e9fb58bf6b6e3ebd1d38a16cd7dde018719273301f514b329900668f8cb12e3d";
+  "ea88b5d7344a8d713f8b99c38d2493ad976ff185108ecfc9b6e17949e7eb9ba1";
 const FINDING_CORRECTNESS_JSON_SHA256 =
-  "a4ba3048d822119e77a2ef8c1ff029d61c85ec1ae1d799fd9d1e4e3b2598e4d6";
+  "700759d106b61fa9648abafc6710abed16ea981c977589c7ef9f8742b44a9212";
 
 function renderCorrectness(model: AssessmentModel): { markdown: string; json: string } {
   const narrative = generateAssessmentNarrative(model);

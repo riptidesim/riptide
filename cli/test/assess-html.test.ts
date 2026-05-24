@@ -29,6 +29,28 @@ test("assess html: emits a self-contained design-system document", async () => {
   assert.match(html, /<pre class="rt-code">/);
 });
 
+test("assess html: opens with a Riptide masthead carrying the title, protocol, and verdict (R4)", async () => {
+  const html = await flagshipHtml();
+  // The branded masthead leads the document, built on the design-system tokens.
+  assert.match(html, /<header class="rt-masthead">/);
+  assert.match(html, /<span class="rt-wordmark">RIPTIDE<\/span>/);
+  // The report title (the lifted rt-h1, teal rule intact) sits inside the cover…
+  assert.match(
+    html,
+    /<header class="rt-masthead">[\s\S]*<h1 class="rt-h1">Protocol assessment — whale-shock-cartography<\/h1>[\s\S]*<\/header>/
+  );
+  // …and is not duplicated in the body below the cover.
+  assert.equal(html.match(/<h1 class="rt-h1">/g)?.length, 1);
+  // The metadata strip carries the protocol, verdict, and deterministic date.
+  assert.match(html, /<dl class="rt-cover-meta">/);
+  assert.match(html, /<dt>Protocol<\/dt><dd>whale-shock-cartography<\/dd>/);
+  assert.match(html, /<dt>Verdict<\/dt><dd>needs_campaign_tuning<\/dd>/);
+  assert.match(html, /<dt>Date<\/dt><dd>2026-05-23<\/dd>/);
+  // No remote asset / CDN dependency was introduced by the cover (R4.3).
+  assert.doesNotMatch(html, /<link[^>]+stylesheet/);
+  assert.doesNotMatch(html, /fonts\.googleapis\.com|cdn\./);
+});
+
 test("assess html: renders the failure-rate heatmap visually from the model", async () => {
   const html = await flagshipHtml();
   assert.match(html, /<figure class="rt-heatmap">/);

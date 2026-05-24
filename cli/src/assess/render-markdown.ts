@@ -69,8 +69,6 @@ export function renderAssessmentMarkdown(
   return lines.join("\n").replace(/\s+$/, "") + "\n";
 }
 
-const PLACEHOLDER = "not specified";
-
 // ---------------------------------------------------------------------------
 // Header + disclaimer
 // ---------------------------------------------------------------------------
@@ -95,10 +93,12 @@ function renderExecutiveSummary(
 ): void {
   lines.push("## Executive summary", "");
   lines.push(`- **Protocol:** ${model.protocol.name}`);
-  lines.push(`- **Repository:** ${orPlaceholder(model.protocol.repository)}`);
-  lines.push(`- **Commit:** ${orPlaceholder(model.protocol.commit)}`);
-  lines.push(`- **Assessment date:** ${orPlaceholder(model.protocol.assessment_date)}`);
-  lines.push(`- **Riptide version or commit:** ${orPlaceholder(model.protocol.riptide_version)}`);
+  // Identity metadata is rendered only when populated (R2.1/R2.2): a null field
+  // is omitted cleanly rather than printed as "not specified" in the headline.
+  pushIfPresent("Repository", model.protocol.repository, lines);
+  pushIfPresent("Commit", model.protocol.commit, lines);
+  pushIfPresent("Assessment date", model.protocol.assessment_date, lines);
+  pushIfPresent("Riptide version or commit", model.protocol.riptide_version, lines);
   lines.push(`- **Verdict:** ${model.verdict.value}`);
   lines.push(`- **Headline claim:** ${narrative.headline_claim}`);
   lines.push(`- **Main finding:** ${narrative.main_finding}`);
@@ -392,7 +392,7 @@ function renderRecommendedNextWork(
 
 function renderToolchain(model: AssessmentModel, lines: string[]): void {
   lines.push("## Toolchain", "");
-  lines.push(`- **Riptide:** ${orPlaceholder(model.protocol.riptide_version)}`);
+  pushIfPresent("Riptide", model.protocol.riptide_version, lines);
   if (model.campaign) {
     lines.push(`- **Adapter:** ${model.campaign.adapter}`);
     lines.push(`- **Campaign class:** ${model.campaign.class}`);
@@ -435,8 +435,9 @@ function renderReviewerChecklist(lines: string[]): void {
 // Deterministic formatting helpers
 // ---------------------------------------------------------------------------
 
-function orPlaceholder(value: string | null): string {
-  return value && value.trim().length > 0 ? value : PLACEHOLDER;
+/** Push a `- **Label:** value` bullet only when the value is present (R2.2). */
+function pushIfPresent(label: string, value: string | null, lines: string[]): void {
+  if (value && value.trim().length > 0) lines.push(`- **${label}:** ${value}`);
 }
 
 function pushBullets(items: string[], emptyText: string, lines: string[]): void {

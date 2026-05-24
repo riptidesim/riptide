@@ -1,4 +1,5 @@
 import type { Dirent } from "node:fs";
+import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
@@ -44,8 +45,9 @@ import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js"
  * from the ingested artifacts + declared inputs — never from wall-clock, file
  * order, or `Map`/`Object` insertion order:
  *
- * 1. **No wall-clock.** `assessment_date` / `riptide_version` default to `null`;
- *    a caller may pass explicit values, but nothing is sampled from the
+ * 1. **No wall-clock.** `assessment_date` is explicit-input first, then derived
+ *    from deterministic evidence metadata (run-collection dates or declared
+ *    fixed seed dates). `riptide_version` defaults to `null`; nothing samples the
  *    environment at build time.
  * 2. **Row ordering.** Coverage rows sort by `(priority rank, flow name)`;
  *    retained-evidence rows follow the manifest's already-deterministic label
@@ -209,7 +211,7 @@ export interface AssessmentProtocolIdentity {
   commit: string | null;
   /** Riptide version/commit; `null` unless the caller passes it (determinism). */
   riptide_version: string | null;
-  /** ISO date string; `null` unless the caller passes it (no wall-clock default). */
+  /** ISO date string from explicit inputs or deterministic evidence metadata. */
   assessment_date: string | null;
 }
 
@@ -639,6 +641,7 @@ export async function ingestAssessment(options: IngestAssessmentOptions): Promis
 }
 
 const GUIDED_SIM_FILE = "guided-sim-run.json";
+const LAST_RUN_FILE = "last-run.json";
 const RUN_COLLECTION_FILE = "run-collection.json";
 const SIM_ARTIFACTS_DIR = path.join("sim", "artifacts");
 const PACK_DIR = "pack";
@@ -654,6 +657,8 @@ interface RunCollectionScenario {
 }
 
 interface RunCollectionDocument {
+  started_at?: unknown;
+  finished_at?: unknown;
   scenarios?: RunCollectionScenario[];
 }
 
@@ -686,6 +691,7 @@ export async function ingestAssessmentWorkspace(
   return buildCorrectnessAssessmentModel({
     campaignRootLabel: options.campaignRootLabel ?? options.campaignRoot,
     protocolName: deriveWorkspaceProtocolName(root),
+    assessmentDateFallback: await readCorrectnessAssessmentDate(root),
     evidence,
     inputs: options.inputs
   });
@@ -817,6 +823,67 @@ async function ingestPackEvidence(root: string): Promise<AssessmentPackEvidence[
   return rows;
 }
 
+/**
+ * Deterministic date fallback for correctness workspaces (T02). Prefer the run
+ * collection's recorded start/finish date, then last-run metadata, then a
+ * guided-sim base-seed date. These are all already-written inputs; no wall-clock
+ * is sampled during assessment rendering.
+ */
+async function readCorrectnessAssessmentDate(root: string): Promise<string | null> {
+  const runCollectionDate = await readAssessmentDateFromJsonFile(path.join(root, RUN_COLLECTION_FILE));
+  if (runCollectionDate) return runCollectionDate;
+
+  const lastRunDate = await readAssessmentDateFromJsonFile(path.join(root, LAST_RUN_FILE));
+  if (lastRunDate) return lastRunDate;
+
+  return readGuidedSimSeedDate(root);
+}
+
+async function readAssessmentDateFromJsonFile(filePath: string): Promise<string | null> {
+  let raw: string;
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch {
+    return null;
+  }
+  try {
+    const doc = JSON.parse(raw) as { started_at?: unknown; finished_at?: unknown };
+    return extractAssessmentDate(doc.started_at) ?? extractAssessmentDate(doc.finished_at);
+  } catch {
+    return null;
+  }
+}
+
+async function readGuidedSimSeedDate(root: string): Promise<string | null> {
+  const artifactsDir = path.join(root, SIM_ARTIFACTS_DIR);
+  let entries: Dirent[];
+  try {
+    entries = await readdir(artifactsDir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  const candidates: Array<{ label: string; flows: number; date: string }> = [];
+  for (const entry of [...entries].sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!entry.isDirectory()) continue;
+    let raw: string;
+    try {
+      raw = await readFile(path.join(artifactsDir, entry.name, GUIDED_SIM_FILE), "utf8");
+    } catch {
+      continue;
+    }
+    try {
+      const doc = JSON.parse(raw) as Partial<GuidedSimRunDocument>;
+      const date = extractAssessmentDate(doc.base_seed);
+      const flows = typeof doc.totals?.flows === "number" && Number.isFinite(doc.totals.flows) ? doc.totals.flows : 0;
+      if (date) candidates.push({ label: entry.name, flows, date });
+    } catch {
+      continue;
+    }
+  }
+  candidates.sort((a, b) => b.flows - a.flows || a.label.localeCompare(b.label));
+  return candidates[0]?.date ?? null;
+}
+
 /** Light structural validation of a `guided-sim-run.json` before it is trusted. */
 function validateGuidedSimRun(doc: GuidedSimRunDocument, label: string): void {
   const file = `${SIM_ARTIFACTS_DIR}/${label}/${GUIDED_SIM_FILE}`;
@@ -851,6 +918,44 @@ async function fileExists(filePath: string): Promise<boolean> {
 /** Workspace-relative path with POSIX separators, for portable, deterministic artifact refs. */
 function toPosixRelative(root: string, filePath: string): string {
   return path.relative(root, filePath).split(path.sep).join("/");
+}
+
+/**
+ * Reviewer-facing, repo/workspace-relative label for a campaign or workspace root
+ * (R1.1/R1.3/R1.4). Resolves `target` relative to the nearest enclosing
+ * repository root — the first ancestor (inclusive) holding a `.git` entry —
+ * falling back to `cwd`, then to the basename. The result is POSIX-separated and
+ * carries no absolute machine path, so a reviewer on a different checkout reads
+ * and reruns identical bytes (`riptide assess <label>` is runnable from the repo
+ * root). Pure path math over the detected root; never samples the wall-clock.
+ *
+ * This is the single relativizer every rendered path inherits: the label is the
+ * prefix {@link rootedArtifactPath} (and the reproduction/coverage/simulation
+ * derivations) stamp onto every artifact ref, so relativizing it here makes the
+ * whole assessment — `assessment.json`, `assessment.md`, and the HTML/PDF — free
+ * of absolute paths and stable across machines.
+ */
+export function workspaceRelative(target: string, cwd: string = process.cwd()): string {
+  const abs = path.resolve(target);
+  const base = findRepoRoot(abs) ?? path.resolve(cwd);
+  let rel = path.relative(base, abs);
+  if (rel === "" || rel === ".") rel = path.basename(abs);
+  // A target outside the detected base (different tree or drive) would relativize
+  // to a `../../…` ladder or an absolute path; fall back to the basename so the
+  // label stays a clean, portable token rather than leaking the layout above it.
+  if (rel.startsWith("..") || path.isAbsolute(rel)) rel = path.basename(abs);
+  return rel.split(path.sep).join("/");
+}
+
+/** Nearest ancestor (inclusive) of `start` that contains a `.git` entry, or `null`. */
+function findRepoRoot(start: string): string | null {
+  let dir = start;
+  for (;;) {
+    if (existsSync(path.join(dir, ".git"))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
 }
 
 /**
@@ -977,6 +1082,8 @@ export interface BuildCorrectnessAssessmentInput {
   campaignRootLabel: string;
   /** Protocol display name (e.g. the case-study name). */
   protocolName: string;
+  /** Deterministic fallback date from already-written evidence metadata. */
+  assessmentDateFallback?: string | null;
   /** The ingested correctness evidence bundle (guided-sim + run/pack). */
   evidence: AssessmentCorrectnessEvidence;
   inputs?: AssessmentInputs;
@@ -1032,7 +1139,7 @@ export function buildCorrectnessAssessmentModel(
 ): AssessmentModel {
   const inputs = input.inputs ?? {};
   const evidence = normalizeCorrectnessEvidence(input.evidence);
-  const protocol = resolveCorrectnessProtocol(input.protocolName, inputs.protocol);
+  const protocol = resolveCorrectnessProtocol(input.protocolName, inputs.protocol, input.assessmentDateFallback);
   const verdict = resolveCorrectnessVerdict(evidence, inputs.verdict);
   const riskPlan = resolveCorrectnessRiskPlan(evidence, inputs.riskPlan);
   const scope = resolveCorrectnessScope(evidence, riskPlan);
@@ -1085,14 +1192,15 @@ function normalizeCorrectnessEvidence(
 
 function resolveCorrectnessProtocol(
   name: string,
-  overrides: AssessmentInputs["protocol"]
+  overrides: AssessmentInputs["protocol"],
+  assessmentDateFallback: string | null | undefined
 ): AssessmentProtocolIdentity {
   return {
     name: nonEmpty(overrides?.name) ?? name,
     repository: nonEmpty(overrides?.repository ?? undefined) ?? null,
     commit: nonEmpty(overrides?.commit ?? undefined) ?? null,
     riptide_version: nonEmpty(overrides?.riptide_version ?? undefined) ?? null,
-    assessment_date: nonEmpty(overrides?.assessment_date ?? undefined) ?? null
+    assessment_date: nonEmpty(overrides?.assessment_date ?? undefined) ?? assessmentDateFallback ?? null
   };
 }
 
@@ -1213,7 +1321,9 @@ function deriveCorrectnessSimulations(
       kind: "guided sim",
       objective:
         "Exercise happy-path settlement and negative-control rejection without unexpected error, panic, or accounting drift.",
-      command: `riptide sim run (guided) — evidence at ${guidedSimPath}`,
+      // Concise command; the evidence path lives in the Retained-evidence column
+      // rather than being duplicated inline (R3.1/R3.2).
+      command: "riptide sim run (guided)",
       result,
       retained_evidence: guidedSimPath,
       hashes: gs.sha256 ? [`guided-sim-run.json sha256 ${gs.sha256}`] : [],
@@ -1240,7 +1350,9 @@ function deriveCorrectnessCoverageRows(
   const coveredFlows = new Set<string>();
   if (gs) {
     const guidedSimPath = rootedArtifactPath(campaignRootLabel, gs.path);
-    const command = `riptide sim run (guided) — evidence at ${guidedSimPath}`;
+    // Concise command; the evidence path lives in the Artifacts column rather
+    // than being duplicated inline in every coverage row (R3.1/R3.2).
+    const command = "riptide sim run (guided)";
     const artifacts = [guidedSimPath];
     for (const fc of gs.flow_counts) {
       const flowLabel = `guided-sim flow \`${fc.flow}\``;
@@ -1334,7 +1446,10 @@ function resolveProtocol(
     repository: nonEmpty(overrides?.repository ?? undefined) ?? null,
     commit: nonEmpty(overrides?.commit ?? undefined) ?? null,
     riptide_version: nonEmpty(overrides?.riptide_version ?? undefined) ?? null,
-    assessment_date: nonEmpty(overrides?.assessment_date ?? undefined) ?? null
+    assessment_date:
+      nonEmpty(overrides?.assessment_date ?? undefined) ??
+      assessmentDateFromSeedPolicy(summary.campaign.seed_policy) ??
+      null
   };
 }
 
@@ -2083,6 +2198,39 @@ function isNotFound(err: unknown): boolean {
 
 function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function assessmentDateFromSeedPolicy(seedPolicy: string): string | null {
+  const match = seedPolicy.trim().match(/^fixed:(\d{4})(\d{2})(\d{2})$/);
+  return match ? isoDateFromParts(match[1]!, match[2]!, match[3]!) : null;
+}
+
+function extractAssessmentDate(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:T|$)/);
+  if (iso) return isoDateFromParts(iso[1]!, iso[2]!, iso[3]!);
+
+  // Guided-sim base seeds often start with YYYYMMDD followed by deterministic
+  // seed material, e.g. 202605220000...
+  const compact = trimmed.match(/^(\d{4})(\d{2})(\d{2})/);
+  return compact ? isoDateFromParts(compact[1]!, compact[2]!, compact[3]!) : null;
+}
+
+function isoDateFromParts(yearText: string, monthText: string, dayText: string): string | null {
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return `${yearText}-${monthText}-${dayText}`;
 }
 
 function nonEmpty(value: string | null | undefined): string | null {

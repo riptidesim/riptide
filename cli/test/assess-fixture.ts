@@ -579,6 +579,8 @@ export async function writeCorrectnessWorkspace(
     JSON.stringify(
       {
         schema_version: 1,
+        started_at: "2026-05-22T04:07:35.578Z",
+        finished_at: "2026-05-22T04:10:31.495Z",
         scenarios: [
           {
             name: "deposit-delegated-accounting",

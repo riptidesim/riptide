@@ -49,8 +49,15 @@ test("assess cli: writes assessment.json + assessment.md into the campaign root"
     const md = await readFile(path.join(root, "assessment.md"), "utf8");
     assert.match(md, /# Protocol assessment — whale-shock-cartography/);
     assert.match(md, /## Risk Surface/);
-    assert.match(md, new RegExp(`riptide assess ${escapeRegExp(root)}`));
-    assert.match(md, new RegExp(`${escapeRegExp(root)}\\/risk-surface\\.json`));
+    assert.match(md, /- \*\*Assessment date:\*\* 2026-05-23/);
+    // Paths render through the repo/workspace-relative label, never the absolute
+    // campaign root (R1): the reproduction command + artifact refs carry the
+    // stable label and no `/home/` or `/tmp/` machine path leaks in.
+    const label = path.basename(root);
+    assert.match(md, new RegExp(`riptide assess ${escapeRegExp(label)}`));
+    assert.match(md, new RegExp(`${escapeRegExp(label)}\\/risk-surface\\.json`));
+    assert.doesNotMatch(md, new RegExp(escapeRegExp(root)));
+    assert.doesNotMatch(md, /\/home\/|\/tmp\//);
     assert.doesNotMatch(md, /<campaign\.toml>|<dir>/);
     assert.ok(md.endsWith("\n"));
 
@@ -235,12 +242,17 @@ test("assess cli: accepts a no-surface correctness workspace and writes artifact
     const md = await readFile(path.join(root, "assessment.md"), "utf8");
     assert.match(md, /# Protocol assessment —/);
     assert.match(md, /correctness-dominated assessment, so there is no risk-surface heatmap/);
+    assert.match(md, /- \*\*Assessment date:\*\* 2026-05-22/);
+    // Artifact refs render through the repo/workspace-relative label, never the
+    // absolute workspace root (R1).
+    const label = path.basename(root);
     assert.match(
       md,
-      new RegExp(`${escapeRegExp(root)}\\/sim\\/artifacts\\/defunds-guided-main\\/guided-sim-run\\.json`)
+      new RegExp(`${escapeRegExp(label)}\\/sim\\/artifacts\\/defunds-guided-main\\/guided-sim-run\\.json`)
     );
-    assert.match(md, new RegExp(`${escapeRegExp(root)}\\/runs\\/deposit-delegated-accounting`));
-    assert.match(md, new RegExp(`${escapeRegExp(root)}\\/pack\\/deposit-delegated-accounting`));
+    assert.match(md, new RegExp(`${escapeRegExp(label)}\\/runs\\/deposit-delegated-accounting`));
+    assert.match(md, new RegExp(`${escapeRegExp(label)}\\/pack\\/deposit-delegated-accounting`));
+    assert.doesNotMatch(md, /\/home\/|\/tmp\//);
     assert.ok(md.endsWith("\n"));
 
     assert.match(stdout, /correctness shape/);
@@ -260,17 +272,18 @@ test("assess cli: correctness reproduction artifact paths share the assessed wor
     assert.equal(exitCode, 0);
 
     const md = await readFile(path.join(root, "assessment.md"), "utf8");
+    // The `.riptide` workspace root relativizes to the `.riptide` label, and all
+    // evidence shares it: clean, runnable from the protocol repo root (R1).
     assert.match(
       md,
-      new RegExp(`${escapeRegExp(root)}\\/sim\\/artifacts\\/defunds-guided-main\\/guided-sim-run\\.json`)
+      /(?<![\w/])\.riptide\/sim\/artifacts\/defunds-guided-main\/guided-sim-run\.json/
     );
-    assert.match(md, new RegExp(`${escapeRegExp(root)}\\/runs\\/deposit-delegated-accounting`));
-    assert.match(md, new RegExp(`${escapeRegExp(root)}\\/pack\\/deposit-delegated-accounting`));
-    assert.doesNotMatch(
-      md,
-      new RegExp(`${escapeRegExp(root)}\\/\\.riptide\\/runs\\/deposit-delegated-accounting`)
-    );
-    assert.doesNotMatch(md, /\| sim\/artifacts\/defunds-guided-main\/guided-sim-run\.json \|/);
+    assert.match(md, /(?<![\w/])\.riptide\/runs\/deposit-delegated-accounting/);
+    assert.match(md, /(?<![\w/])\.riptide\/pack\/deposit-delegated-accounting/);
+    // No absolute machine path, and no doubled `.riptide/.riptide` segment.
+    assert.doesNotMatch(md, /\/home\/|\/tmp\//);
+    assert.doesNotMatch(md, new RegExp(escapeRegExp(root)));
+    assert.doesNotMatch(md, /\.riptide\/\.riptide\/runs\/deposit-delegated-accounting/);
   } finally {
     await rm(cleanupRoot, { recursive: true, force: true });
   }

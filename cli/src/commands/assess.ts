@@ -19,6 +19,7 @@ import {
   ingestAssessmentWorkspace,
   requireCartographyModel,
   serializeAssessment,
+  workspaceRelative,
   type AssessmentInputs,
   type AssessmentModel,
   type AssessmentVerdict,
@@ -126,7 +127,13 @@ export async function runAssess(
     const root = path.resolve(cwd, campaignRoot);
     const inputs = await resolveInputs(cwd, options);
 
-    const model = await ingestAssessmentWorkspace({ campaignRoot: root, inputs });
+    // The reviewer-facing root label is repo/workspace-relative (R1): it is the
+    // prefix every rendered artifact path inherits, so relativizing it here keeps
+    // the whole assessment free of absolute machine paths and byte-stable across
+    // checkouts. The on-disk artifacts still write to the absolute `root`.
+    const campaignRootLabel = workspaceRelative(root, cwd);
+
+    const model = await ingestAssessmentWorkspace({ campaignRoot: root, campaignRootLabel, inputs });
     const narrative = generateAssessmentNarrative(model);
     const markdown = renderAssessmentMarkdown(model, narrative);
     const json = serializeAssessment(model);

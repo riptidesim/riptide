@@ -46,6 +46,12 @@ export function renderAssessmentHtml(
   const title = options.title ?? `Protocol assessment — ${model.protocol.name}`;
   let body = markdownToHtml(markdown);
 
+  // Lift the report H1 out of the body and into the branded masthead (R4.1) so
+  // the document opens with the Riptide wordmark + report metadata, not a bare
+  // heading. The H1 keeps its `rt-h1` chrome (the teal rule) inside the cover.
+  const { masthead, body: bodyWithoutH1 } = liftMasthead(body, model);
+  body = bodyWithoutH1;
+
   // Swap the markdown glyph heatmap for a visual one built from the model. The
   // surface-less correctness shape has no heatmap to swap, so skip it.
   const heatmap = model.surface ? renderHeatmapHtml(model.surface) : null;
@@ -65,12 +71,57 @@ export function renderAssessmentHtml(
     "</head>",
     '<body class="rt-bg">',
     '<main class="rt-doc">',
+    masthead,
     body,
     "</main>",
     "</body>",
     "</html>",
     ""
   ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Masthead / cover (R4.1) — Riptide wordmark + report metadata, design-system
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the branded masthead from the model and remove the duplicate report H1
+ * from the body. The masthead opens the document with the Riptide wordmark, the
+ * report title (the `rt-h1` lifted from the body, teal rule intact), the
+ * protocol, and a metadata strip (verdict, date, commit) — deterministic, no
+ * remote assets (R4.3). Returns the masthead HTML plus the body with its leading
+ * H1 stripped so the title is not rendered twice.
+ */
+function liftMasthead(body: string, model: AssessmentModel): { masthead: string; body: string } {
+  const h1Match = body.match(/<h1 class="rt-h1">[\s\S]*?<\/h1>/);
+  const titleHtml = h1Match ? h1Match[0] : `<h1 class="rt-h1">${escapeHtml(`Protocol assessment — ${model.protocol.name}`)}</h1>`;
+  const strippedBody = h1Match ? body.replace(h1Match[0], "").replace(/^\n+/, "") : body;
+
+  const meta: string[] = [
+    metaItem("Protocol", model.protocol.name),
+    metaItem("Verdict", model.verdict.value)
+  ];
+  if (present(model.protocol.assessment_date)) meta.push(metaItem("Date", model.protocol.assessment_date!));
+  if (present(model.protocol.commit)) meta.push(metaItem("Commit", model.protocol.commit!));
+
+  const masthead = [
+    '<header class="rt-masthead">',
+    '<div class="rt-brand"><span class="rt-mark" aria-hidden="true">≈</span><span class="rt-wordmark">RIPTIDE</span><span class="rt-brand-kicker">Protocol assessment</span></div>',
+    titleHtml,
+    `<dl class="rt-cover-meta">${meta.join("")}</dl>`,
+    '<p class="rt-cover-boundary">Simulation evidence over a declared, fixed-seed region — not audit signoff, formal verification, complete protocol safety, or a mainnet prediction.</p>',
+    "</header>"
+  ].join("\n");
+
+  return { masthead, body: strippedBody };
+}
+
+function metaItem(label: string, value: string): string {
+  return `<div class="rt-cover-cell"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
+}
+
+function present(value: string | null): boolean {
+  return Boolean(value && value.trim().length > 0);
 }
 
 function replaceFailureHeatmapSection(body: string, marker: string, heatmap: string): string {
@@ -389,8 +440,23 @@ const STYLES = `
 body.rt-bg{margin:0;background:var(--rt-ink);color:var(--rt-fog);font-family:var(--rt-font-sans);
   font-size:15px;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .rt-doc{max-width:880px;margin:0 auto;padding:48px 40px 80px;}
+header.rt-masthead{margin:0 0 44px;}
+.rt-brand{display:flex;align-items:center;gap:10px;margin:0 0 22px;}
+.rt-brand .rt-mark{font-size:22px;color:var(--rt-signal-cyan);line-height:1;}
+.rt-brand .rt-wordmark{font-family:var(--rt-font-mono);font-weight:600;font-size:15px;letter-spacing:0.32em;
+  color:var(--rt-off-white);text-transform:uppercase;}
+.rt-brand .rt-brand-kicker{font-family:var(--rt-font-mono);font-size:11px;letter-spacing:0.18em;
+  text-transform:uppercase;color:var(--rt-fog-dim);margin-left:auto;}
 h1.rt-h1{font-size:38px;line-height:1.08;font-weight:600;color:var(--rt-off-white);letter-spacing:-0.01em;
   margin:0 0 24px;padding-bottom:16px;border-bottom:2px solid var(--rt-teal);}
+header.rt-masthead h1.rt-h1{margin-bottom:20px;}
+dl.rt-cover-meta{display:flex;flex-wrap:wrap;gap:10px 28px;margin:0 0 18px;}
+dl.rt-cover-meta .rt-cover-cell{margin:0;}
+dl.rt-cover-meta dt{font-family:var(--rt-font-mono);font-size:10px;letter-spacing:0.14em;text-transform:uppercase;
+  color:var(--rt-fog-dim);margin:0 0 3px;}
+dl.rt-cover-meta dd{margin:0;font-size:14px;font-weight:600;color:var(--rt-off-white);}
+p.rt-cover-boundary{margin:0;font-size:12px;line-height:1.5;color:var(--rt-fog-dim);
+  border-left:2px solid var(--rt-slate-strong);padding-left:12px;}
 h2.rt-h2{font-size:26px;line-height:1.15;font-weight:600;color:var(--rt-off-white);letter-spacing:-0.01em;
   margin:48px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--rt-slate-line);}
 h3.rt-h3{font-size:19px;font-weight:600;color:var(--rt-off-white);margin:28px 0 12px;}
