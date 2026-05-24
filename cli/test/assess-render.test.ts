@@ -5,6 +5,7 @@ import { renderAssessmentMarkdown } from "../src/assess/render-markdown.js";
 import { generateAssessmentNarrative } from "../src/assess/narrative.js";
 import { renderAssessmentHtml } from "../src/assess/render-html.js";
 import {
+  buildCorrectnessModelWithBlockedCoverage,
   buildCleanCorrectnessModel,
   buildCleanModel,
   buildFindingCorrectnessModel,
@@ -134,6 +135,31 @@ test("assess render: correctness shape degrades to a bounded note, not a heatmap
   // Reproduction anchors on the guided-sim hash, not surface/campaign digests.
   assert.match(md, /\*\*`guided-sim-run\.json` sha256:\*\* `a{64}`/);
   assert.doesNotMatch(md, /Surface digest:|Campaign digest:/);
+});
+
+test("assess render: correctness shape preserves blocked and not-assessed coverage rows", () => {
+  const model = buildCorrectnessModelWithBlockedCoverage();
+  const md = renderAssessmentMarkdown(model, generateAssessmentNarrative(model));
+
+  assert.match(
+    md,
+    /\| P0 \| Positive NAV, whitelist-admin, and fee-authority flows \| blocked \| blocked \|/
+  );
+  assert.match(md, /\| P1 \| Legacy pay_fund_investors path \| not assessed \| none \|/);
+  assert.match(md, /## Blocked and out-of-scope surfaces/);
+  assert.match(
+    md,
+    /\| Positive NAV, whitelist-admin, and fee-authority flows \| blocked \| Requires hard-coded Defunds NAV authority/
+  );
+  assert.match(
+    md,
+    /\| Legacy pay_fund_investors path \| not assessed \| New payout-session flow was prioritized/
+  );
+  assert.match(
+    md,
+    /- \*\*Main limit:\*\* Positive NAV, whitelist-admin, and fee-authority flows are blocked: Requires hard-coded Defunds NAV authority/
+  );
+  assert.doesNotMatch(md, /No blocked, out-of-scope, or not-assessed flows are recorded/);
 });
 
 test("assess render: correctness shape with a finding renders it and no non-finding", () => {

@@ -376,7 +376,8 @@ function buildMainLimit(model: AssessmentModel): string {
     );
   const top = candidates[0];
   if (top) {
-    return `${top.flow} is ${top.status}: ${top.notes}`;
+    const verb = /\b(paths|flows|controls|helpers|surfaces)\b/i.test(top.flow) ? "are" : "is";
+    return `${top.flow} ${verb} ${top.status}: ${top.notes}`;
   }
   return "Flows, parameters, and seeds outside this campaign's declared region are not assessed.";
 }

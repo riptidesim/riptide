@@ -472,6 +472,63 @@ export function buildCleanCorrectnessModel(): AssessmentModel {
   });
 }
 
+/** A correctness model with explicit blocked/not-assessed coverage rows folded in from inputs. */
+export function buildCorrectnessModelWithBlockedCoverage(): AssessmentModel {
+  const evidence = {
+    guided_sim: summarizeGuidedSimRun(guidedSimDoc({}), {
+      label: "defunds-guided-main",
+      path: "sim/artifacts/defunds-guided-main/guided-sim-run.json",
+      sha256: "a".repeat(64)
+    }),
+    runs: [],
+    packs: []
+  };
+  return buildCorrectnessAssessmentModel({
+    campaignRootLabel: "case-study/.riptide",
+    protocolName: "defunds-fixture",
+    evidence,
+    inputs: {
+      riskPlan: {
+        p0_flows: [
+          "Token withdrawal finalization",
+          "Positive NAV, whitelist-admin, and fee-authority flows"
+        ],
+        p1_flows: ["Legacy pay_fund_investors path"]
+      },
+      coverage: [
+        {
+          priority: "P0",
+          flow: "Token withdrawal finalization",
+          status: "covered by guided sim",
+          evidence_tier: "guided sim",
+          commands: ["riptide sim run .riptide/sim --out .riptide/sim/artifacts/defunds-guided-main"],
+          artifacts: [".riptide/sim/artifacts/defunds-guided-main/guided-sim-run.json"],
+          notes: "Finalize, burn shares, release claim ledger, debit vault, and pay investor."
+        },
+        {
+          priority: "P0",
+          flow: "Positive NAV, whitelist-admin, and fee-authority flows",
+          status: "blocked",
+          evidence_tier: "blocked",
+          commands: [],
+          artifacts: [],
+          notes:
+            "Requires hard-coded Defunds NAV authority or platform-authority signer material not available in this checkout."
+        },
+        {
+          priority: "P1",
+          flow: "Legacy pay_fund_investors path",
+          status: "not assessed",
+          evidence_tier: "none",
+          commands: [],
+          artifacts: [],
+          notes: "New payout-session flow was prioritized because it is the chunked payout path under review."
+        }
+      ]
+    }
+  });
+}
+
 /** A correctness model with an unexpected error + panic → a finding, blocked verdict. */
 export function buildFindingCorrectnessModel(): AssessmentModel {
   const evidence = {
