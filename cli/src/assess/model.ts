@@ -384,7 +384,7 @@ export interface AssessmentInputs {
   verdict?: AssessmentVerdict;
   /** Attached run/pack evidence references (ingest-only). */
   externalEvidence?: AssessmentExternalEvidence[];
-  /** Override the reproduction command list; defaults to the campaign rerun command. */
+  /** Override the reproduction command list; defaults to reassessing the exact campaign root. */
   reproductionCommands?: string[];
   /** Override simulation-evidence rows; defaults to a single focused-campaign row. */
   simulations?: AssessmentSimulation[];
@@ -392,6 +392,7 @@ export interface AssessmentInputs {
 
 /** Everything {@link buildAssessmentModel} needs from disk + the caller. */
 export interface BuildAssessmentInput {
+  /** Reviewer-facing campaign root path used in commands and artifact refs. */
   campaignRootLabel: string;
   summary: CampaignSummaryJson;
   surface: RiskSurfaceDocument;
@@ -404,6 +405,8 @@ export interface BuildAssessmentInput {
 export interface IngestAssessmentOptions {
   /** Path to a campaign root produced by `riptide campaign run`. */
   campaignRoot: string;
+  /** Override the reviewer-facing root path. Defaults to the exact resolved campaign root. */
+  campaignRootLabel?: string;
   inputs?: AssessmentInputs;
 }
 
@@ -460,7 +463,7 @@ export async function ingestAssessment(options: IngestAssessmentOptions): Promis
   );
 
   return buildAssessmentModel({
-    campaignRootLabel: path.basename(root),
+    campaignRootLabel: options.campaignRootLabel ?? root,
     summary,
     surface,
     surfaceRawBytes,
@@ -746,7 +749,7 @@ function deriveCoverageRows(
   riskPlan: AssessmentRiskPlan,
   campaignRootLabel: string
 ): AssessmentCoverageRow[] {
-  const command = `riptide campaign run <campaign.toml> --out <dir>`;
+  const command = "original campaign command not recorded in campaign artifacts";
   const artifacts = [`${campaignRootLabel}/risk-surface.json`];
   const rows: AssessmentCoverageRow[] = [];
   for (const [family, row] of Object.entries(summary.scenario_families).sort(([a], [b]) =>
@@ -801,7 +804,7 @@ function deriveSimulations(
     {
       kind: "focused campaign",
       objective,
-      command: `riptide campaign run <campaign.toml> --out <dir>`,
+      command: "original campaign command not recorded in campaign artifacts",
       result,
       retained_evidence: `${campaignRootLabel}/retention-manifest.json`,
       hashes: [
@@ -864,10 +867,7 @@ function resolveReproduction(
   surfaceSha256: string,
   commandOverride: string[] | undefined
 ): AssessmentReproduction {
-  const commands = commandOverride ?? [
-    `riptide campaign run <campaign.toml> --out <dir>`,
-    `riptide assess ${campaignRootLabel}`
-  ];
+  const commands = commandOverride ?? [`riptide assess ${shellQuote(campaignRootLabel)}`];
   return {
     campaign_root: campaignRootLabel,
     commands,
@@ -1316,6 +1316,10 @@ function dedupeStable(values: string[]): string[] {
 
 function formatRate(rate: number): string {
   return `${roundNumber(rate * 100)}%`;
+}
+
+function shellQuote(value: string): string {
+  return /[^A-Za-z0-9_./-]/.test(value) ? `'${value.replace(/'/g, "'\\''")}'` : value;
 }
 
 function roundNumber(value: number): number {

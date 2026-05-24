@@ -49,6 +49,9 @@ test("assess cli: writes assessment.json + assessment.md into the campaign root"
     const md = await readFile(path.join(root, "assessment.md"), "utf8");
     assert.match(md, /# Protocol assessment — whale-shock-cartography/);
     assert.match(md, /## Risk Surface/);
+    assert.match(md, new RegExp(`riptide assess ${escapeRegExp(root)}`));
+    assert.match(md, new RegExp(`${escapeRegExp(root)}\\/risk-surface\\.json`));
+    assert.doesNotMatch(md, /<campaign\.toml>|<dir>/);
     assert.ok(md.endsWith("\n"));
 
     // Cold-read stdout names both artifacts and the assessment digest.

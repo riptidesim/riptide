@@ -67,10 +67,10 @@ test("assess html: clean model surface still renders a visual heatmap", () => {
   assert.match(html, /rt-hm-b0/);
 });
 
-test("assess html: escapes angle brackets and is overclaim-grep clean outside the boundary", async () => {
+test("assess html: avoids reproduction placeholders and is overclaim-grep clean outside the boundary", async () => {
   const html = await flagshipHtml();
-  // The markdown's literal `<campaign.toml>` placeholders must be escaped, never raw tags.
-  assert.match(html, /&lt;campaign\.toml&gt;/);
+  assert.doesNotMatch(html, /&lt;campaign\.toml&gt;|&lt;dir&gt;/);
+  assert.match(html, /riptide assess tmp\/flagship-run\/campaign_40a5f239691a/);
   for (const line of html.split("\n")) {
     if (!OVERCLAIM.test(line)) continue;
     const allowed = /\bnot\b/i.test(line) || /Audit signoff,/.test(line);

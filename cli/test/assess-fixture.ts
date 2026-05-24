@@ -36,7 +36,7 @@ export async function loadFlagshipModel(): Promise<AssessmentModel> {
   const surfaceRaw = await readFile(FLAGSHIP_SURFACE_PATH, "utf8");
   const surface = JSON.parse(surfaceRaw) as RiskSurfaceDocument;
   return buildAssessmentModel({
-    campaignRootLabel: "whale-shock-cartography",
+    campaignRootLabel: "tmp/flagship-run/campaign_40a5f239691a",
     summary: flagshipSummary(surface),
     surface,
     surfaceRawBytes: surfaceRaw,

@@ -39,9 +39,9 @@ import { loadFlagshipModel } from "./assess-fixture.js";
 // summary carries no retained-case absolute paths), so these regenerate
 // byte-identically in CI. A producer change that moves them must be intentional.
 const FLAGSHIP_MD_SHA256 =
-  "aeffc8a27e34b897a074b01b69617c51a2a3b6d18025551ddb0bb5d006073ac0";
+  "3af5ef586ca27329705d7a32d9016e0e224c115e302c437e5ae9a34f371e95de";
 const FLAGSHIP_JSON_SHA256 =
-  "25a6e74abbc6a7be48af9598062a3ed38a183516feefa8ce39785e297cb78660";
+  "69744b3ee695ea18feee7d9c00971ff5d3dbf0737e2bd75a2b30824f5983252c";
 
 const OVERCLAIM =
   /guarantee|proven safe|certified|audit replacement|audit signoff|complete protocol safety/i;

@@ -99,8 +99,9 @@ test("assess render: reproduction block carries commands, artifact paths, and ca
   const model = await loadFlagshipModel();
   const md = renderAssessmentMarkdown(model, generateAssessmentNarrative(model));
 
-  assert.match(md, /riptide assess whale-shock-cartography/);
-  assert.match(md, /whale-shock-cartography\/risk-surface\.json/);
+  assert.match(md, /riptide assess tmp\/flagship-run\/campaign_40a5f239691a/);
+  assert.match(md, /tmp\/flagship-run\/campaign_40a5f239691a\/risk-surface\.json/);
+  assert.doesNotMatch(md, /<campaign\.toml>|<dir>/);
   assert.match(md, new RegExp(`\\*\\*Campaign digest:\\*\\* \`${model.reproduction.hashes.campaign_digest}\``));
   assert.match(md, new RegExp(`risk-surface\\.json\` sha256:\\*\\* \`${model.reproduction.hashes.surface_sha256}\``));
 });
