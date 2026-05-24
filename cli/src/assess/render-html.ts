@@ -46,10 +46,11 @@ export function renderAssessmentHtml(
   const title = options.title ?? `Protocol assessment — ${model.protocol.name}`;
   let body = markdownToHtml(markdown);
 
-  // Lift the report H1 out of the body and into the branded masthead (R4.1) so
-  // the document opens with the Riptide wordmark + report metadata, not a bare
-  // heading. The H1 keeps its `rt-h1` chrome (the teal rule) inside the cover.
-  const { masthead, body: bodyWithoutH1 } = liftMasthead(body, model);
+  // Lift the report H1 out of the body and into a dedicated cover page (R2) so
+  // the document opens with the Riptide mark + wordmark, the report title over
+  // on-brand cover art, and the metadata strip — then breaks to the body on the
+  // next page. The H1 is shown once, on the cover.
+  const { cover, body: bodyWithoutH1 } = buildCoverPage(body, model);
   body = bodyWithoutH1;
 
   // Swap the markdown glyph heatmap for a visual one built from the model. The
@@ -71,7 +72,7 @@ export function renderAssessmentHtml(
     "</head>",
     '<body class="rt-bg">',
     '<main class="rt-doc">',
-    masthead,
+    cover,
     body,
     "</main>",
     "</body>",
@@ -81,18 +82,21 @@ export function renderAssessmentHtml(
 }
 
 // ---------------------------------------------------------------------------
-// Masthead / cover (R4.1) — Riptide wordmark + report metadata, design-system
+// Cover page + cover art (R2) — Riptide mark/wordmark, title, metadata, motif
 // ---------------------------------------------------------------------------
 
 /**
- * Build the branded masthead from the model and remove the duplicate report H1
- * from the body. The masthead opens the document with the Riptide wordmark, the
- * report title (the `rt-h1` lifted from the body, teal rule intact), the
- * protocol, and a metadata strip (verdict, date, commit) — deterministic, no
- * remote assets (R4.3). Returns the masthead HTML plus the body with its leading
- * H1 stripped so the title is not rendered twice.
+ * Build the dedicated cover page from the model and remove the duplicate report
+ * H1 from the body. The cover fills the first print page (R2.3): the Riptide
+ * mark + wordmark, a teal rule, the report title (the `rt-h1` lifted from the
+ * body) over a self-contained, deterministic cover-art motif (R2.2), the
+ * one-line claim boundary, and a metadata strip carrying the protocol, verdict,
+ * date, and commit (R2.1). It is template-driven, so it renders for any protocol
+ * name/verdict and both assessment shapes (R2.4). Returns the cover HTML plus
+ * the body with its leading H1 stripped so the title is shown once, on the
+ * cover; the body starts on the next page via the `break-after` on `.rt-cover`.
  */
-function liftMasthead(body: string, model: AssessmentModel): { masthead: string; body: string } {
+function buildCoverPage(body: string, model: AssessmentModel): { cover: string; body: string } {
   const h1Match = body.match(/<h1 class="rt-h1">[\s\S]*?<\/h1>/);
   const titleHtml = h1Match ? h1Match[0] : `<h1 class="rt-h1">${escapeHtml(`Protocol assessment — ${model.protocol.name}`)}</h1>`;
   const strippedBody = h1Match ? body.replace(h1Match[0], "").replace(/^\n+/, "") : body;
@@ -102,18 +106,29 @@ function liftMasthead(body: string, model: AssessmentModel): { masthead: string;
     metaItem("Verdict", model.verdict.value)
   ];
   if (present(model.protocol.assessment_date)) meta.push(metaItem("Date", model.protocol.assessment_date!));
-  if (present(model.protocol.commit)) meta.push(metaItem("Commit", model.protocol.commit!));
+  meta.push(metaItem("Commit", present(model.protocol.commit) ? model.protocol.commit! : "not declared"));
 
-  const masthead = [
-    '<header class="rt-masthead">',
-    '<div class="rt-brand"><span class="rt-mark" aria-hidden="true">≈</span><span class="rt-wordmark">RIPTIDE</span><span class="rt-brand-kicker">Protocol assessment</span></div>',
+  const cover = [
+    '<section class="rt-cover">',
+    `<div class="rt-cover-art" aria-hidden="true">${COVER_ART_SVG}</div>`,
+    '<div class="rt-cover-inner">',
+    '<div class="rt-cover-head">',
+    `<div class="rt-brand"><span class="rt-mark" aria-hidden="true">${RIPTIDE_MARK_SVG}</span><span class="rt-wordmark">RIPTIDE</span></div>`,
+    '<hr class="rt-cover-rule">',
+    '<p class="rt-cover-kicker"><strong>Riptide</strong> Protocol Assessment</p>',
+    "</div>",
+    '<div class="rt-cover-mid">',
     titleHtml,
-    `<dl class="rt-cover-meta">${meta.join("")}</dl>`,
     '<p class="rt-cover-boundary">Simulation evidence over a declared, fixed-seed region — not audit signoff, formal verification, complete protocol safety, or a mainnet prediction.</p>',
-    "</header>"
+    "</div>",
+    '<div class="rt-cover-foot">',
+    `<dl class="rt-cover-meta">${meta.join("")}</dl>`,
+    "</div>",
+    "</div>",
+    "</section>"
   ].join("\n");
 
-  return { masthead, body: strippedBody };
+  return { cover, body: strippedBody };
 }
 
 function metaItem(label: string, value: string): string {
@@ -123,6 +138,98 @@ function metaItem(label: string, value: string): string {
 function present(value: string | null): boolean {
   return Boolean(value && value.trim().length > 0);
 }
+
+/**
+ * The Riptide mark: a rotated-square frame around a ring + center dot, echoing
+ * the wordmark logo. Inline, static SVG (no remote asset), drawn in the
+ * design-system teal / signal-cyan.
+ */
+const RIPTIDE_MARK_SVG = [
+  '<svg class="rt-mark-svg" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">',
+  '<rect x="6.5" y="6.5" width="19" height="19" rx="3" transform="rotate(45 16 16)" fill="none" stroke="#22F0E6" stroke-width="1.8"/>',
+  '<circle cx="16" cy="16" r="6" fill="none" stroke="#14B8B6" stroke-width="1.8"/>',
+  '<circle cx="16" cy="16" r="2" fill="#22F0E6"/>',
+  "</svg>"
+].join("");
+
+/**
+ * Build the on-brand cover-art motif (R2.2): a topographic contour field of
+ * concentric, harmonically-perturbed rings around a focal point, with node dots
+ * riding the contours — echoing the Riptide current/topographic mark. Every
+ * constant is fixed, so the path geometry is byte-identical on every render: no
+ * `Date.now()`, no RNG, no remote asset. The teal→signal-cyan radial gradient
+ * and the ink backdrop come straight from the design-system palette.
+ */
+function buildCoverArtSvg(): string {
+  const width = 850;
+  const height = 1100;
+  const focusX = 600;
+  const focusY = 360;
+  const ringCount = 32;
+  const samples = 132;
+  const squash = 0.92; // gentle vertical squash so the field reads as a current
+
+  // The contour radius as a function of angle for ring `k` — a base radius plus
+  // three fixed harmonics whose phase drifts with `k`, giving organic, nested,
+  // non-circular contours without any randomness.
+  const radiusAt = (k: number, t: number): number => {
+    const baseR = k * 20;
+    const amp = baseR * 0.16;
+    return (
+      baseR +
+      amp * Math.sin(3 * t + k * 0.35) +
+      amp * 0.5 * Math.sin(5 * t - k * 0.2) +
+      amp * 0.3 * Math.sin(2 * t + 1.3)
+    );
+  };
+
+  const rings: string[] = [];
+  const dots: string[] = [];
+  for (let k = 1; k <= ringCount; k += 1) {
+    const points: string[] = [];
+    for (let s = 0; s <= samples; s += 1) {
+      const t = (s / samples) * Math.PI * 2;
+      const r = radiusAt(k, t);
+      const x = focusX + r * Math.cos(t);
+      const y = focusY + r * Math.sin(t) * squash;
+      points.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+    }
+    const opacity = (0.32 - k * 0.0065).toFixed(3);
+    rings.push(
+      `<polyline points="${points.join(" ")}" fill="none" stroke="url(#rtFlow)" stroke-width="0.85" opacity="${opacity}"/>`
+    );
+
+    // Node dots ride every third ring at five fixed angles, dropped when they
+    // fall outside the canvas so the `slice` crop stays clean.
+    if (k % 3 === 0) {
+      for (let j = 0; j < 5; j += 1) {
+        const t = (j / 5) * Math.PI * 2 + k * 0.4;
+        const r = radiusAt(k, t);
+        const x = focusX + r * Math.cos(t);
+        const y = focusY + r * Math.sin(t) * squash;
+        if (x < -8 || x > width + 8 || y < -8 || y > height + 8) continue;
+        dots.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.7" fill="#22F0E6" opacity="0.55"/>`);
+      }
+    }
+  }
+
+  return [
+    `<svg class="rt-cover-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">`,
+    "<defs>",
+    '<radialGradient id="rtFlow" cx="62%" cy="33%" r="78%">',
+    '<stop offset="0%" stop-color="#22F0E6"/>',
+    '<stop offset="55%" stop-color="#14B8B6"/>',
+    '<stop offset="100%" stop-color="#0B6F6E"/>',
+    "</radialGradient>",
+    "</defs>",
+    rings.join(""),
+    dots.join(""),
+    "</svg>"
+  ].join("");
+}
+
+/** Precomputed once; deterministic, so the cover art is identical every render. */
+const COVER_ART_SVG = buildCoverArtSvg();
 
 function replaceFailureHeatmapSection(body: string, marker: string, heatmap: string): string {
   const start = body.indexOf(marker);
@@ -440,23 +547,34 @@ const STYLES = `
 body.rt-bg{margin:0;background:var(--rt-ink);color:var(--rt-fog);font-family:var(--rt-font-sans);
   font-size:15px;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .rt-doc{max-width:880px;margin:0 auto;padding:48px 40px 80px;}
-header.rt-masthead{margin:0 0 44px;}
-.rt-brand{display:flex;align-items:center;gap:10px;margin:0 0 22px;}
-.rt-brand .rt-mark{font-size:22px;color:var(--rt-signal-cyan);line-height:1;}
-.rt-brand .rt-wordmark{font-family:var(--rt-font-mono);font-weight:600;font-size:15px;letter-spacing:0.32em;
-  color:var(--rt-off-white);text-transform:uppercase;}
-.rt-brand .rt-brand-kicker{font-family:var(--rt-font-mono);font-size:11px;letter-spacing:0.18em;
-  text-transform:uppercase;color:var(--rt-fog-dim);margin-left:auto;}
 h1.rt-h1{font-size:38px;line-height:1.08;font-weight:600;color:var(--rt-off-white);letter-spacing:-0.01em;
   margin:0 0 24px;padding-bottom:16px;border-bottom:2px solid var(--rt-teal);}
-header.rt-masthead h1.rt-h1{margin-bottom:20px;}
-dl.rt-cover-meta{display:flex;flex-wrap:wrap;gap:10px 28px;margin:0 0 18px;}
+/* Cover page (R2): a dedicated first page carrying the brand, title over the
+   art motif, and the metadata strip; it breaks to the body on the next page. */
+.rt-cover{position:relative;overflow:hidden;display:flex;flex-direction:column;
+  min-height:980px;margin:0 0 44px;padding:46px 44px;
+  background:var(--rt-deep-ocean);border:1px solid var(--rt-slate-line);border-radius:16px;}
+.rt-cover-art{position:absolute;inset:0;z-index:0;pointer-events:none;}
+.rt-cover-svg{display:block;width:100%;height:100%;}
+.rt-cover-inner{position:relative;z-index:1;display:flex;flex-direction:column;flex:1 1 auto;}
+.rt-brand{display:flex;align-items:center;gap:13px;margin:0 0 20px;}
+.rt-brand .rt-mark{display:inline-flex;line-height:0;}
+.rt-mark-svg{display:block;width:34px;height:34px;}
+.rt-brand .rt-wordmark{font-family:var(--rt-font-mono);font-weight:600;font-size:19px;letter-spacing:0.36em;
+  color:var(--rt-off-white);text-transform:uppercase;}
+hr.rt-cover-rule{border:none;border-top:1.5px solid var(--rt-teal);margin:0 0 13px;width:60%;max-width:430px;}
+.rt-cover-kicker{margin:0;font-size:15px;letter-spacing:0.01em;color:var(--rt-fog);}
+.rt-cover-kicker strong{color:var(--rt-off-white);font-weight:600;}
+.rt-cover-mid{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;margin:40px 0;}
+.rt-cover h1.rt-h1{font-size:52px;line-height:1.04;margin:0 0 22px;padding-bottom:0;border-bottom:none;
+  max-width:78%;}
+p.rt-cover-boundary{margin:0;max-width:62%;font-size:14px;line-height:1.55;color:var(--rt-fog);}
+.rt-cover-foot{margin-top:auto;}
+dl.rt-cover-meta{display:flex;flex-wrap:wrap;gap:14px 36px;margin:0;}
 dl.rt-cover-meta .rt-cover-cell{margin:0;}
-dl.rt-cover-meta dt{font-family:var(--rt-font-mono);font-size:10px;letter-spacing:0.14em;text-transform:uppercase;
-  color:var(--rt-fog-dim);margin:0 0 3px;}
+dl.rt-cover-meta dt{font-family:var(--rt-font-mono);font-size:10px;letter-spacing:0.16em;text-transform:uppercase;
+  color:var(--rt-fog-dim);margin:0 0 4px;}
 dl.rt-cover-meta dd{margin:0;font-size:14px;font-weight:600;color:var(--rt-off-white);}
-p.rt-cover-boundary{margin:0;font-size:12px;line-height:1.5;color:var(--rt-fog-dim);
-  border-left:2px solid var(--rt-slate-strong);padding-left:12px;}
 h2.rt-h2{font-size:26px;line-height:1.15;font-weight:600;color:var(--rt-off-white);letter-spacing:-0.01em;
   margin:48px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--rt-slate-line);}
 h3.rt-h3{font-size:19px;font-weight:600;color:var(--rt-off-white);margin:28px 0 12px;}
@@ -514,6 +632,10 @@ table.rt-hm-grid{border-collapse:separate;border-spacing:4px;width:100%;}
    width to fit into (independent of the browser's default print margin). */
 @page{size:letter;margin:15mm 13mm 17mm;}
 @media print{.rt-doc{max-width:none;padding:0 0 24px;}h2.rt-h2{page-break-after:avoid;}
+  /* The cover fills the first page (content box ≈ 247mm tall at the @page
+     margins) and breaks to the body on page 2 (R2.3). */
+  .rt-cover{min-height:246mm;margin:0;border:none;border-radius:0;
+    break-after:page;page-break-after:always;}
   table.rt-table{font-size:11px;}
   figure.rt-heatmap,pre.rt-code{page-break-inside:avoid;}
   /* A wide table may span pages, but never split a row across the page break. */

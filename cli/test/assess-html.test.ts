@@ -29,26 +29,45 @@ test("assess html: emits a self-contained design-system document", async () => {
   assert.match(html, /<pre class="rt-code">/);
 });
 
-test("assess html: opens with a Riptide masthead carrying the title, protocol, and verdict (R4)", async () => {
+test("assess html: opens with a dedicated cover page carrying the brand, title, and metadata (R2)", async () => {
   const html = await flagshipHtml();
-  // The branded masthead leads the document, built on the design-system tokens.
-  assert.match(html, /<header class="rt-masthead">/);
+  // A dedicated cover section leads the document, built on the design-system tokens.
+  assert.match(html, /<section class="rt-cover">/);
   assert.match(html, /<span class="rt-wordmark">RIPTIDE<\/span>/);
-  // The report title (the lifted rt-h1, teal rule intact) sits inside the cover…
+  // The report title (the lifted rt-h1) sits inside the cover…
   assert.match(
     html,
-    /<header class="rt-masthead">[\s\S]*<h1 class="rt-h1">Protocol assessment — whale-shock-cartography<\/h1>[\s\S]*<\/header>/
+    /<section class="rt-cover">[\s\S]*<h1 class="rt-h1">Protocol assessment — whale-shock-cartography<\/h1>[\s\S]*<\/section>/
   );
   // …and is not duplicated in the body below the cover.
   assert.equal(html.match(/<h1 class="rt-h1">/g)?.length, 1);
-  // The metadata strip carries the protocol, verdict, and deterministic date.
+  // The metadata strip carries the protocol, verdict, deterministic date, commit, and the boundary.
   assert.match(html, /<dl class="rt-cover-meta">/);
   assert.match(html, /<dt>Protocol<\/dt><dd>whale-shock-cartography<\/dd>/);
   assert.match(html, /<dt>Verdict<\/dt><dd>needs_campaign_tuning<\/dd>/);
   assert.match(html, /<dt>Date<\/dt><dd>2026-05-23<\/dd>/);
-  // No remote asset / CDN dependency was introduced by the cover (R4.3).
+  assert.match(html, /<dt>Commit<\/dt><dd>not declared<\/dd>/);
+  assert.match(html, /class="rt-cover-boundary"/);
+  // The cover breaks to the body on the next page (R2.3).
+  assert.match(html, /\.rt-cover\{[^}]*break-after:page/);
+  // No remote asset / CDN dependency was introduced by the cover (R2.2).
   assert.doesNotMatch(html, /<link[^>]+stylesheet/);
   assert.doesNotMatch(html, /fonts\.googleapis\.com|cdn\./);
+});
+
+test("assess html: renders self-contained, deterministic on-brand cover art (R2.2)", async () => {
+  const html = await flagshipHtml();
+  // The cover art is an inline SVG motif (contours + node dots), no remote asset.
+  assert.match(html, /<div class="rt-cover-art" aria-hidden="true"><svg class="rt-cover-svg"/);
+  assert.match(html, /<polyline points="/);
+  assert.match(html, /<radialGradient id="rtFlow"/);
+  // On-palette only: teal + signal-cyan (the design-system tokens), no off-palette ink.
+  assert.match(html, /stop-color="#22F0E6"/);
+  assert.match(html, /stop-color="#14B8B6"/);
+  // The Riptide mark rides the wordmark as inline SVG (echoing the logo).
+  assert.match(html, /<svg class="rt-mark-svg"/);
+  // Deterministic: the art carries no wall-clock / RNG seed, and re-rendering is identical.
+  assert.doesNotMatch(html, /Date\.now|Math\.random/);
 });
 
 test("assess html: renders the failure-rate heatmap visually from the model", async () => {
