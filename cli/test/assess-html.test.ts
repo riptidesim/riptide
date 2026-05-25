@@ -139,6 +139,20 @@ test("assess html: reviewer checklist becomes checkbox list items", async () => 
   assert.match(html, /<li class="rt-check"><span class="rt-box">☐<\/span>/);
 });
 
+test("assess html: pages print full-bleed ink with no white @page gutter (R3)", async () => {
+  const html = await flagshipHtml();
+  // The page background itself paints the margin band in Chromium's PDF engine;
+  // a fixed body child does not reach the @page margin area.
+  assert.doesNotMatch(html, /rt-page-bleed/);
+  // The cover uses a zero-margin named page so its art bleeds edge-to-edge.
+  assert.match(html, /@page rt-cover-page\{margin:0;background:#070B11;\}/);
+  assert.match(html, /\.rt-cover\{page:rt-cover-page;[^}]*margin:0;/);
+  // The default page keeps a comfortable per-page text safe-area (so nothing
+  // sits flush to the paper edge), while the body container drops its own inset.
+  assert.match(html, /@page\{size:letter;margin:16mm 14mm 18mm;background:#070B11;\}/);
+  assert.match(html, /\.rt-doc\{max-width:none;padding:0;\}/);
+});
+
 test("assess html: clean model surface still renders a visual heatmap", () => {
   const model = buildCleanModel();
   const md = renderAssessmentMarkdown(model, generateAssessmentNarrative(model));

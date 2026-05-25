@@ -672,17 +672,23 @@ table.rt-hm-grid{border-collapse:separate;border-spacing:4px;width:100%;}
 .rt-hm-empty{background:var(--rt-slate-2);color:var(--rt-fog-dim);}
 .rt-hm-legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;}
 .rt-hm-key{font-family:var(--rt-font-mono);font-size:10px;padding:3px 8px;border-radius:999px;}
-/* Deterministic print geometry: explicit page margins give tables a predictable
-   width to fit into (independent of the browser's default print margin). */
-@page{size:letter;margin:15mm 13mm 17mm;}
-@media print{.rt-doc{max-width:none;padding:0 0 24px;}
+/* Full-bleed print geometry (R3): Chromium paints @page background into the
+   sheet margin band, so the default page can keep a real per-page text
+   safe-area while the paper still bleeds ink to every edge. Keep the color
+   literal here: custom properties are less portable in @page rules. The cover
+   uses a zero-margin named page so its topographic art bleeds edge-to-edge. */
+@page{size:letter;margin:16mm 14mm 18mm;background:#070B11;}
+@page rt-cover-page{margin:0;background:#070B11;}
+@media print{
+  .rt-doc{max-width:none;padding:0;}
   /* No section header orphaned at a page bottom: keep every heading with the
      content that follows it (R3.5). */
   h2.rt-h2,h3.rt-h3,h4.rt-subhead{page-break-after:avoid;break-after:avoid;}
-  /* The cover fills the first page (content box ≈ 247mm tall at the @page
-     margins) and breaks to the body on page 2 (R2.3). */
-  .rt-cover{min-height:246mm;margin:0;border:none;border-radius:0;
-    break-after:page;page-break-after:always;}
+  /* The cover fills its own zero-margin page (full sheet) so the art reaches all
+     four edges, then breaks to the body on page 2; its own padding keeps the
+     mark/title/metadata comfortably off the paper edge (R2.3, R3.2). */
+  .rt-cover{page:rt-cover-page;min-height:277mm;margin:0;padding:30mm 26mm;
+    border:none;border-radius:0;break-after:page;page-break-after:always;}
   table.rt-table{font-size:11px;}
   figure.rt-heatmap,pre.rt-code,aside.rt-callout{page-break-inside:avoid;break-inside:avoid;}
   /* A wide table may span pages, but never split a row across the page break. */
