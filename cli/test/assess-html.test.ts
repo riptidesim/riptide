@@ -33,7 +33,8 @@ test("assess html: opens with a dedicated cover page carrying the brand, title, 
   const html = await flagshipHtml();
   // A dedicated cover section leads the document, built on the design-system tokens.
   assert.match(html, /<section class="rt-cover">/);
-  assert.match(html, /<span class="rt-wordmark">RIPTIDE<\/span>/);
+  // The real Riptide logo lockup rides the cover (inline vector, aria-labelled).
+  assert.match(html, /<div class="rt-brand"><svg class="rt-logo"[^>]*aria-label="Riptide">/);
   // The report title (the lifted rt-h1) sits inside the cover…
   assert.match(
     html,
@@ -55,18 +56,19 @@ test("assess html: opens with a dedicated cover page carrying the brand, title, 
   assert.doesNotMatch(html, /fonts\.googleapis\.com|cdn\./);
 });
 
-test("assess html: renders self-contained, deterministic on-brand cover art (R2.2)", async () => {
+test("assess html: embeds the real brand assets inline, self-contained and deterministic (R1, R2.2)", async () => {
   const html = await flagshipHtml();
-  // The cover art is an inline SVG motif (contours + node dots), no remote asset.
-  assert.match(html, /<div class="rt-cover-art" aria-hidden="true"><svg class="rt-cover-svg"/);
-  assert.match(html, /<polyline points="/);
-  assert.match(html, /<radialGradient id="rtFlow"/);
-  // On-palette only: teal + signal-cyan (the design-system tokens), no off-palette ink.
-  assert.match(html, /stop-color="#22F0E6"/);
-  assert.match(html, /stop-color="#14B8B6"/);
-  // The Riptide mark rides the wordmark as inline SVG (echoing the logo).
-  assert.match(html, /<svg class="rt-mark-svg"/);
-  // Deterministic: the art carries no wall-clock / RNG seed, and re-rendering is identical.
+  // The original topographic cover art is embedded as an inline base64 PNG data URI (no remote asset).
+  assert.match(
+    html,
+    /<div class="rt-cover-art" aria-hidden="true"><img class="rt-cover-art-img" src="data:image\/png;base64,[A-Za-z0-9+/]+=*" alt="">/
+  );
+  // The real Riptide logo lockup is inlined as vector SVG (crisp, no remote fetch), with the ink backplate stripped.
+  assert.match(html, /<svg class="rt-logo"[^>]*aria-label="Riptide">/);
+  assert.doesNotMatch(html, /<rect width="1200" height="270" fill="#070b11"/);
+  // No remote image source anywhere — the brand assets are fully self-contained.
+  assert.doesNotMatch(html, /src="https?:/);
+  // Deterministic: the brand assets carry no wall-clock / RNG seed, and re-rendering is identical.
   assert.doesNotMatch(html, /Date\.now|Math\.random/);
 });
 
@@ -112,6 +114,24 @@ test("assess html: deterministic for a fixed model + markdown", async () => {
   const model = await loadFlagshipModel();
   const md = renderAssessmentMarkdown(model, generateAssessmentNarrative(model));
   assert.equal(renderAssessmentHtml(md, model), renderAssessmentHtml(md, model));
+});
+
+test("assess html: table command code keeps shell flags atomic while adding safe path breaks", () => {
+  const html = markdownToHtml(
+    [
+      "| Command | Artifact |",
+      "| --- | --- |",
+      "| `riptide sim run .riptide/sim --iterations 50 --flows 80 --seed 20260522 --out .riptide/sim/artifacts/defunds-guided-main` | .riptide/sim/artifacts/defunds-guided-main/guided-sim-run.json |"
+    ].join("\n")
+  );
+
+  assert.match(html, /\.riptide\/<wbr>sim/);
+  assert.match(html, /defunds-<wbr>guided-<wbr>main/);
+  assert.match(html, /<span class="rt-ic-flag">--iterations<\/span>/);
+  assert.match(html, /<span class="rt-ic-flag">--flows<\/span>/);
+  assert.match(html, /<span class="rt-ic-flag">--seed<\/span>/);
+  assert.match(html, /<span class="rt-ic-flag">--out<\/span>/);
+  assert.doesNotMatch(html, /-<wbr>-iterations|-<wbr>-flows|-<wbr>-seed|-<wbr>-out/);
 });
 
 test("assess html: reviewer checklist becomes checkbox list items", async () => {

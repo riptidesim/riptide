@@ -1,3 +1,7 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import type {
   RiskSurfaceAxis,
   RiskSurfaceCell,
@@ -90,14 +94,14 @@ export function renderAssessmentHtml(
 }
 
 // ---------------------------------------------------------------------------
-// Cover page + cover art (R2) — Riptide mark/wordmark, title, metadata, motif
+// Cover page + cover art (R2) — real Riptide logo, title, metadata, topo art
 // ---------------------------------------------------------------------------
 
 /**
  * Build the dedicated cover page from the model and remove the duplicate report
- * H1 from the body. The cover fills the first print page (R2.3): the Riptide
- * mark + wordmark, a teal rule, the report title (the `rt-h1` lifted from the
- * body) over a self-contained, deterministic cover-art motif (R2.2), the
+ * H1 from the body. The cover fills the first print page (R2.3): the real
+ * Riptide logo lockup, a teal rule, the report title (the `rt-h1` lifted from the
+ * body) over the original topographic cover art (R2.2), the
  * one-line claim boundary, and a metadata strip carrying the protocol, verdict,
  * date, and commit (R2.1). It is template-driven, so it renders for any protocol
  * name/verdict and both assessment shapes (R2.4). Returns the cover HTML plus
@@ -118,10 +122,10 @@ function buildCoverPage(body: string, model: AssessmentModel): { cover: string; 
 
   const cover = [
     '<section class="rt-cover">',
-    `<div class="rt-cover-art" aria-hidden="true">${COVER_ART_SVG}</div>`,
+    `<div class="rt-cover-art" aria-hidden="true"><img class="rt-cover-art-img" src="${RIPTIDE_COVER_ART}" alt=""></div>`,
     '<div class="rt-cover-inner">',
     '<div class="rt-cover-head">',
-    `<div class="rt-brand"><span class="rt-mark" aria-hidden="true">${RIPTIDE_MARK_SVG}</span><span class="rt-wordmark">RIPTIDE</span></div>`,
+    `<div class="rt-brand">${RIPTIDE_LOGO_SVG}</div>`,
     '<hr class="rt-cover-rule">',
     '<p class="rt-cover-kicker"><strong>Riptide</strong> Protocol Assessment</p>',
     "</div>",
@@ -148,96 +152,56 @@ function present(value: string | null): boolean {
 }
 
 /**
- * The Riptide mark: a rotated-square frame around a ring + center dot, echoing
- * the wordmark logo. Inline, static SVG (no remote asset), drawn in the
- * design-system teal / signal-cyan.
+ * Resolve a vendored brand asset (`cli/assets/brand/<file>`), probing the layouts
+ * the module runs from: the source tree (`cli/src/assess` → `../../assets`), the
+ * compiled+copied dist (`cli/dist/src/assess` → `../../assets` = `dist/assets`),
+ * and a one-up fallback. Mirrors the resolution used by the init catalogs.
  */
-const RIPTIDE_MARK_SVG = [
-  '<svg class="rt-mark-svg" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">',
-  '<rect x="6.5" y="6.5" width="19" height="19" rx="3" transform="rotate(45 16 16)" fill="none" stroke="#22F0E6" stroke-width="1.8"/>',
-  '<circle cx="16" cy="16" r="6" fill="none" stroke="#14B8B6" stroke-width="1.8"/>',
-  '<circle cx="16" cy="16" r="2" fill="#22F0E6"/>',
-  "</svg>"
-].join("");
-
-/**
- * Build the on-brand cover-art motif (R2.2): a topographic contour field of
- * concentric, harmonically-perturbed rings around a focal point, with node dots
- * riding the contours — echoing the Riptide current/topographic mark. Every
- * constant is fixed, so the path geometry is byte-identical on every render: no
- * `Date.now()`, no RNG, no remote asset. The teal→signal-cyan radial gradient
- * and the ink backdrop come straight from the design-system palette.
- */
-function buildCoverArtSvg(): string {
-  const width = 850;
-  const height = 1100;
-  const focusX = 600;
-  const focusY = 360;
-  const ringCount = 32;
-  const samples = 132;
-  const squash = 0.92; // gentle vertical squash so the field reads as a current
-
-  // The contour radius as a function of angle for ring `k` — a base radius plus
-  // three fixed harmonics whose phase drifts with `k`, giving organic, nested,
-  // non-circular contours without any randomness.
-  const radiusAt = (k: number, t: number): number => {
-    const baseR = k * 20;
-    const amp = baseR * 0.16;
-    return (
-      baseR +
-      amp * Math.sin(3 * t + k * 0.35) +
-      amp * 0.5 * Math.sin(5 * t - k * 0.2) +
-      amp * 0.3 * Math.sin(2 * t + 1.3)
-    );
-  };
-
-  const rings: string[] = [];
-  const dots: string[] = [];
-  for (let k = 1; k <= ringCount; k += 1) {
-    const points: string[] = [];
-    for (let s = 0; s <= samples; s += 1) {
-      const t = (s / samples) * Math.PI * 2;
-      const r = radiusAt(k, t);
-      const x = focusX + r * Math.cos(t);
-      const y = focusY + r * Math.sin(t) * squash;
-      points.push(`${x.toFixed(1)},${y.toFixed(1)}`);
-    }
-    const opacity = (0.32 - k * 0.0065).toFixed(3);
-    rings.push(
-      `<polyline points="${points.join(" ")}" fill="none" stroke="url(#rtFlow)" stroke-width="0.85" opacity="${opacity}"/>`
-    );
-
-    // Node dots ride every third ring at five fixed angles, dropped when they
-    // fall outside the canvas so the `slice` crop stays clean.
-    if (k % 3 === 0) {
-      for (let j = 0; j < 5; j += 1) {
-        const t = (j / 5) * Math.PI * 2 + k * 0.4;
-        const r = radiusAt(k, t);
-        const x = focusX + r * Math.cos(t);
-        const y = focusY + r * Math.sin(t) * squash;
-        if (x < -8 || x > width + 8 || y < -8 || y > height + 8) continue;
-        dots.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.7" fill="#22F0E6" opacity="0.55"/>`);
-      }
-    }
+function readBrandAsset(file: string): Buffer {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    path.resolve(here, "..", "..", "..", "assets", "brand", file),
+    path.resolve(here, "..", "..", "assets", "brand", file),
+    path.resolve(here, "..", "assets", "brand", file)
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return readFileSync(candidate);
   }
-
-  return [
-    `<svg class="rt-cover-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">`,
-    "<defs>",
-    '<radialGradient id="rtFlow" cx="62%" cy="33%" r="78%">',
-    '<stop offset="0%" stop-color="#22F0E6"/>',
-    '<stop offset="55%" stop-color="#14B8B6"/>',
-    '<stop offset="100%" stop-color="#0B6F6E"/>',
-    "</radialGradient>",
-    "</defs>",
-    rings.join(""),
-    dots.join(""),
-    "</svg>"
-  ].join("");
+  throw new Error(`brand asset not found: ${file} (looked in ${candidates.join(", ")})`);
 }
 
-/** Precomputed once; deterministic, so the cover art is identical every render. */
-const COVER_ART_SVG = buildCoverArtSvg();
+/**
+ * The real Riptide logo lockup (R1.1): the canonical vector lockup vendored at
+ * `cli/assets/brand/riptide-logo.svg`, inlined so it is self-contained and
+ * crisp at any size (no remote fetch, no raster). The opaque ink backplate is
+ * stripped so the mark + wordmark sit transparently over the cover art, and the
+ * fixed width/height are dropped so CSS controls the rendered size. Reading a
+ * fixed vendored file makes the inlined markup byte-identical on every render.
+ */
+function loadInlineLogoSvg(): string {
+  const raw = readBrandAsset("riptide-logo.svg").toString("utf8").trim();
+  return raw
+    .replace(/<rect width="1200" height="270" fill="#070b11"\/>\s*/, "")
+    .replace(
+      /<svg\b[^>]*>/,
+      '<svg class="rt-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 270" role="img" aria-label="Riptide">'
+    );
+}
+
+/**
+ * The original topographic cover art (R2.1): the teal particle/topographic swirl
+ * with the bright focal point, vendored at `cli/assets/brand/cover-art.png` and
+ * embedded inline as a deterministic base64 data URI — self-contained, no remote
+ * asset. Base64 of a fixed file is byte-identical on every render.
+ */
+function loadCoverArtDataUri(): string {
+  const base64 = readBrandAsset("cover-art.png").toString("base64");
+  return `data:image/png;base64,${base64}`;
+}
+
+/** Precomputed once; deterministic, so the cover brand assets are identical every render. */
+const RIPTIDE_LOGO_SVG = loadInlineLogoSvg();
+const RIPTIDE_COVER_ART = loadCoverArtDataUri();
 
 /**
  * Wrap the body of the correctness "Risk Surface" section (the prose explaining
@@ -554,9 +518,26 @@ function splitRow(row: string): string[] {
 function inline(text: string): string {
   let html = escapeHtml(text);
   // Inline code first so `**` inside a code span is not treated as bold.
-  html = html.replace(/`([^`]+)`/g, (_match, code: string) => `<code class="rt-ic">${code}</code>`);
+  html = html.replace(/`([^`]+)`/g, (_match, code: string) => `<code class="rt-ic">${inlineCode(code)}</code>`);
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   return html;
+}
+
+function inlineCode(escapedCode: string): string {
+  return escapedCode
+    .split(/(\s+)/)
+    .map((part) => {
+      if (/^\s+$/.test(part)) return part;
+      return inlineCodeToken(part);
+    })
+    .join("");
+}
+
+function inlineCodeToken(token: string): string {
+  if (/^--[A-Za-z0-9][A-Za-z0-9_-]*(=.*)?$/.test(token)) {
+    return `<span class="rt-ic-flag">${token}</span>`;
+  }
+  return token.replace(/\//g, "/<wbr>").replace(/(?<=[A-Za-z0-9])-(?=[A-Za-z0-9])/g, "-<wbr>");
 }
 
 function escapeHtml(text: string): string {
@@ -594,13 +575,16 @@ h1.rt-h1{font-size:38px;line-height:1.08;font-weight:600;color:var(--rt-off-whit
   min-height:980px;margin:0 0 44px;padding:46px 44px;
   background:var(--rt-deep-ocean);border:1px solid var(--rt-slate-line);border-radius:16px;}
 .rt-cover-art{position:absolute;inset:0;z-index:0;pointer-events:none;}
-.rt-cover-svg{display:block;width:100%;height:100%;}
+.rt-cover-art-img{display:block;width:100%;height:100%;object-fit:cover;object-position:center;}
+/* Scrim over the topographic art so the title / logo / metadata stay legible
+   (R2.3): darker at the top/bottom edges where the brand + metadata sit, lighter
+   through the middle so the bright focal point still reads. */
+.rt-cover-art::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(176deg,rgba(7,11,17,0.84) 0%,rgba(7,11,17,0.44) 24%,
+    rgba(7,11,17,0.34) 50%,rgba(7,11,17,0.62) 80%,rgba(7,11,17,0.9) 100%);}
 .rt-cover-inner{position:relative;z-index:1;display:flex;flex-direction:column;flex:1 1 auto;}
-.rt-brand{display:flex;align-items:center;gap:13px;margin:0 0 20px;}
-.rt-brand .rt-mark{display:inline-flex;line-height:0;}
-.rt-mark-svg{display:block;width:34px;height:34px;}
-.rt-brand .rt-wordmark{font-family:var(--rt-font-mono);font-weight:600;font-size:19px;letter-spacing:0.36em;
-  color:var(--rt-off-white);text-transform:uppercase;}
+.rt-brand{display:flex;align-items:center;margin:0 0 20px;}
+.rt-brand .rt-logo{display:block;height:42px;width:auto;}
 hr.rt-cover-rule{border:none;border-top:1.5px solid var(--rt-teal);margin:0 0 13px;width:60%;max-width:430px;}
 .rt-cover-kicker{margin:0;font-size:15px;letter-spacing:0.01em;color:var(--rt-fog);}
 .rt-cover-kicker strong{color:var(--rt-off-white);font-weight:600;}
@@ -664,7 +648,8 @@ table.rt-table th{text-align:left;font-weight:600;color:var(--rt-off-white);back
 table.rt-table td{border:1px solid var(--rt-slate-line);padding:8px 10px;vertical-align:top;
   color:var(--rt-fog);overflow-wrap:anywhere;word-break:break-word;}
 /* Inline code in a cell wraps with its column rather than overflowing the page. */
-table.rt-table code.rt-ic{overflow-wrap:anywhere;word-break:break-word;}
+table.rt-table code.rt-ic{white-space:normal;overflow-wrap:normal;word-break:normal;}
+table.rt-table code.rt-ic .rt-ic-flag{white-space:nowrap;}
 table.rt-table tbody tr:nth-child(even){background:rgba(18,26,36,0.5);}
 .rt-label{font-family:var(--rt-font-mono);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;
   color:var(--rt-fog-dim);}
