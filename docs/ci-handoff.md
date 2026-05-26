@@ -231,7 +231,7 @@ adopter pins their own hash to their own replay fixture.
 
 4. **Fill in the `TODO(downstream):` placeholders.** At minimum:
    - `RIPTIDE_CLI_SPEC` — pin a specific Riptide CLI version
-     (e.g. `@riptide/cli@0.9.1`). The template ships the placeholder
+     (e.g. `@riptide/cli@0.10.0`). The template ships the placeholder
      `@riptide/cli@TODO_PIN_EXACT_VERSION` AND a "Fail closed on
      unresolved TODOs" pre-flight step that refuses to run until
      every `TODO` placeholder is replaced. `--ignore-scripts` at the
@@ -240,7 +240,7 @@ adopter pins their own hash to their own replay fixture.
      `npm-shrinkwrap.json` and the install step fails 1 with a
      diagnostic if the shrinkwrap is missing.
    - `RIPTIDE_ENGINE_VERSION` — pin the matching engine release tag
-     (e.g. `v0.9.1`). Because `--ignore-scripts` skipped the CLI's
+     (e.g. `v0.10.0`). Because `--ignore-scripts` skipped the CLI's
      built-in binary fetch, the template includes an explicit
      "Provision riptide-engine (pinned + checksum-verified)" step
      that downloads `riptide-engine-<target-triple>` from the
