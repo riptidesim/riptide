@@ -52,10 +52,13 @@ import {
 //   Sprint 40 JSON 69744b3ee695ea18feee7d9c00971ff5d3dbf0737e2bd75a2b30824f5983252c
 //   Sprint 42 Phase-1 placeholder-cleanup MD
 //                  091b44c2e67d401ecc3baade760921814b10e32b02939dbc1cf97ecd60d08632
+// Sprint 46 Phase 1 adds the machine-readable `coverage_statement` block to
+// assessment.json only; markdown stays byte-identical until the reader-facing
+// Coverage & Limits section lands.
 const FLAGSHIP_MD_SHA256 =
   "d751233ac22161399a85d9e6f4477b9f1fe8057140a6438f4569a0e985487114";
 const FLAGSHIP_JSON_SHA256 =
-  "c3fd34d486a282b27c32bf8723c4095f62bfdf5669d70fa6b0f5dedc24a95ec9";
+  "35b3e900b256882e87a1f9487ea35c1b3fdd599a115a7290bf3b1d30f45c129a";
 
 const OVERCLAIM =
   /guarantee|proven safe|certified|audit replacement|audit signoff|complete protocol safety/i;
@@ -207,14 +210,16 @@ test("flagship assessment: overclaim grep is clean (boundary/negation wording on
 //   clean JSON 132b087e12984a6899a12ca57a3e42ad432052b8b729d4b23e9fd38501b97c22
 //   finding MD e9fb58bf6b6e3ebd1d38a16cd7dde018719273301f514b329900668f8cb12e3d
 //   find. JSON a4ba3048d822119e77a2ef8c1ff029d61c85ec1ae1d799fd9d1e4e3b2598e4d6
+// Sprint 46 Phase 1 adds the additive `coverage_statement` JSON block for the
+// correctness shape. Markdown stays unchanged until the reader-facing section.
 const CLEAN_CORRECTNESS_MD_SHA256 =
   "7c539515ac23542c4e7c25bc852bbbe12606b106ea865112a3e62eb45650e989";
 const CLEAN_CORRECTNESS_JSON_SHA256 =
-  "49efbef13d86aba22e1da8b05d43d480d09b99577095b7ab0463a00bc4f9887b";
+  "3619361f298ba45c82b6ed7f6226c74f814c242d978342abd2315dcf6d78542b";
 const FINDING_CORRECTNESS_MD_SHA256 =
   "ea88b5d7344a8d713f8b99c38d2493ad976ff185108ecfc9b6e17949e7eb9ba1";
 const FINDING_CORRECTNESS_JSON_SHA256 =
-  "700759d106b61fa9648abafc6710abed16ea981c977589c7ef9f8742b44a9212";
+  "6f8577cf949f125eaf49fb98e738824885971d0b2b305daa5799171d4c3990ad";
 
 function renderCorrectness(model: AssessmentModel): { markdown: string; json: string } {
   const narrative = generateAssessmentNarrative(model);

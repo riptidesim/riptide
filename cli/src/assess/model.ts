@@ -9,10 +9,13 @@ import type {
   CampaignSummaryJson
 } from "../campaign/aggregation.js";
 import type {
+  RiskSurfaceAxis,
   RiskSurfaceAxisBound,
+  RiskSurfaceCell,
   RiskSurfaceDocument,
   RiskSurfaceSafeRegionStatus
 } from "../campaign/surface.js";
+import type { JsonScalar } from "../campaign/schema.js";
 import { RISK_SURFACE_HASH_PREFIX } from "../campaign/surface.js";
 import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
 
@@ -125,9 +128,9 @@ export type AssessmentVerdict = (typeof ASSESSMENT_VERDICTS)[number];
  * control) whose evidence is guided-sim rejection + invariant holds, not a
  * heatmap.
  *
- * Byte-stability note: the field is deliberately *optional* on
- * {@link AssessmentModel}. The cartography builder NEVER sets it, so the
- * canonical bytes (and the Sprint 40 lending flagship pins) are untouched; a
+ * Discriminator-stability note: the field is deliberately *optional* on
+ * {@link AssessmentModel}. The cartography builder NEVER sets it, so Sprint 46's
+ * additive `coverage_statement` JSON move does not also churn a `shape` key; a
  * `cartography` model is recognized by `surface !== null`. Only the correctness
  * builder stamps `shape: "correctness"`. Use {@link assessmentShape} to read the
  * effective shape from any model.
@@ -135,6 +138,10 @@ export type AssessmentVerdict = (typeof ASSESSMENT_VERDICTS)[number];
 export const ASSESSMENT_SHAPES = ["cartography", "correctness"] as const;
 
 export type AssessmentShape = (typeof ASSESSMENT_SHAPES)[number];
+
+/** Additive, machine-readable negative-space block embedded in `assessment.json`. */
+export const ASSESSMENT_COVERAGE_STATEMENT_SCHEMA =
+  "assessment-coverage-statement.v1" as const;
 
 // ---------------------------------------------------------------------------
 // Model root
@@ -145,9 +152,9 @@ export interface AssessmentModel {
   schema_version: typeof ASSESSMENT_SCHEMA_VERSION;
   /**
    * Assessment shape (R1.1). **Optional and absent on cartography models** so
-   * their canonical bytes stay byte-identical to the Sprint 40 pins; present and
-   * set to `"correctness"` only on surface-less models. Read via
-   * {@link assessmentShape}.
+   * the additive Sprint 46 `coverage_statement` JSON move does not also introduce
+   * discriminator churn; present and set to `"correctness"` only on surface-less
+   * models. Read via {@link assessmentShape}.
    */
   shape?: AssessmentShape;
   protocol: AssessmentProtocolIdentity;
@@ -160,6 +167,13 @@ export interface AssessmentModel {
   scope: AssessmentScope;
   /** Sorted by `(priority rank, flow)`. */
   coverage_matrix: AssessmentCoverageRow[];
+  /**
+   * Additive structured coverage / negative-space block: what was probed, where
+   * failures concentrated, where the model saw no signal, and which declared
+   * flows were blocked, out of scope, or not assessed. It is facts only and is
+   * included in the assessment digest.
+   */
+  coverage_statement: AssessmentCoverageStatement;
   /** Simulation evidence rows; the ingested campaign plus any attached evidence. */
   simulations: AssessmentSimulation[];
   /**
@@ -272,6 +286,181 @@ export interface AssessmentCoverageRow {
   priority: string;
   flow: string;
   status: CoverageStatus;
+  evidence_tier: string;
+  commands: string[];
+  artifacts: string[];
+  notes: string;
+}
+
+/** Structured coverage / negative-space facts embedded in `assessment.json`. */
+export interface AssessmentCoverageStatement {
+  schema_version: typeof ASSESSMENT_COVERAGE_STATEMENT_SCHEMA;
+  shape: AssessmentShape;
+  probed: AssessmentCoverageProbe;
+  /** Failing cells or guided-sim unexpected results, sorted hottest first. */
+  hot_regions: AssessmentHotRegion[];
+  /**
+   * Regions with no observed signal in this campaign. These are explicitly not
+   * safety claims; consumers must treat them as negative space, not clearance.
+   */
+  flat_no_signal_regions: AssessmentFlatNoSignalRegion[];
+  /** Coverage rows whose status is blocked, out of scope, or not assessed. */
+  blocked: AssessmentCoverageGap[];
+}
+
+export type AssessmentCoverageProbe =
+  | AssessmentCartographyCoverageProbe
+  | AssessmentCorrectnessCoverageProbe;
+
+export interface AssessmentCartographyCoverageProbe {
+  kind: "swept-gradient";
+  risk_objective: string;
+  seed_policy: string;
+  run_budget: number;
+  completed_runs: number;
+  invariant_failed_runs: number;
+  invariant_failure_rate: number;
+  axes: AssessmentCoverageAxis[];
+}
+
+export interface AssessmentCoverageAxis {
+  axis: string;
+  kind: RiskSurfaceAxis["kind"];
+  distribution: string;
+  unit?: string;
+  range: AssessmentCoverageAxisRange;
+  granularity: AssessmentCoverageAxisGranularity;
+  populated_bins: number;
+  run_count: number;
+  failed_runs: number;
+  invariant_failure_rate: number;
+  bins: AssessmentCoverageAxisBin[];
+}
+
+export type AssessmentCoverageAxisRange =
+  | {
+      kind: "values";
+      values: JsonScalar[];
+    }
+  | {
+      kind: "interval";
+      lower: number | null;
+      upper: number | null;
+      edges: number[];
+    };
+
+export interface AssessmentCoverageAxisGranularity {
+  method: "value" | "fixed-width";
+  bin_count: number;
+  min_cell_run_count: number;
+}
+
+export interface AssessmentCoverageAxisBin {
+  index: number;
+  label: string;
+  value?: JsonScalar;
+  lower?: number | null;
+  upper?: number | null;
+  run_count: number;
+  failed_runs: number;
+  invariant_failure_rate: number;
+}
+
+export interface AssessmentCorrectnessCoverageProbe {
+  kind: "guided-sim-flow-coverage";
+  guided_sim: AssessmentGuidedSimProbe | null;
+  flows: AssessmentGuidedSimFlowProbe[];
+  negative_controls: AssessmentGuidedSimFlowProbe[];
+}
+
+export interface AssessmentGuidedSimProbe {
+  label: string;
+  status: string;
+  iterations: number;
+  flows: number;
+  tx_success: number;
+  expected_errors: number;
+  unexpected_errors: number;
+  panics: number;
+  path: string;
+  sha256: string | null;
+}
+
+export interface AssessmentGuidedSimFlowProbe {
+  flow: string;
+  status: CoverageStatus;
+  evidence_tier: string;
+  dispatched_count: number | null;
+  negative_control: boolean;
+  expected_rejections: number | null;
+  unexpected_errors: number | null;
+  panics: number | null;
+  artifacts: string[];
+}
+
+export type AssessmentHotRegion =
+  | AssessmentSurfaceHotRegion
+  | AssessmentGuidedSimHotRegion;
+
+export interface AssessmentSurfaceHotRegion {
+  kind: "failing_cell";
+  coords: AssessmentCoverageCellCoord[];
+  run_count: number;
+  failed_runs: number;
+  invariant_failure_rate: number;
+  sparse: boolean;
+}
+
+export interface AssessmentGuidedSimHotRegion {
+  kind: "guided_sim_unexpected_result";
+  flow: string;
+  dispatched_count: number;
+  expected_rejections: number;
+  unexpected_errors: number;
+  panics: number;
+  status: string;
+  evidence: string | null;
+}
+
+export type AssessmentFlatNoSignalRegion =
+  | AssessmentSurfaceNoSignalRegion
+  | AssessmentCorrectnessNoSignalRegion;
+
+export interface AssessmentSurfaceNoSignalRegion {
+  kind: "zero_failure_cell" | "unpopulated_cell" | "flat_axis_zero_failure";
+  signal_type: "invariant_failure";
+  interpretation: "no signal in this campaign";
+  not_safety_claim: true;
+  axis?: string;
+  coords?: AssessmentCoverageCellCoord[];
+  run_count: number;
+  failed_runs: number;
+  invariant_failure_rate: number | null;
+  sparse: boolean;
+}
+
+export interface AssessmentCorrectnessNoSignalRegion {
+  kind: "no_swept_gradient" | "guided_sim_no_unexpected_result";
+  signal_type: "parameter_gradient" | "unexpected_error_or_panic";
+  interpretation: "no signal in this campaign";
+  not_safety_claim: true;
+  flow: string;
+  dispatched_count: number;
+  expected_rejections: number;
+  unexpected_errors: number;
+  panics: number;
+}
+
+export interface AssessmentCoverageCellCoord {
+  axis: string;
+  bin_index: number;
+  bin_label: string;
+}
+
+export interface AssessmentCoverageGap {
+  priority: string;
+  flow: string;
+  status: Extract<CoverageStatus, "blocked" | "out of scope" | "not assessed">;
   evidence_tier: string;
   commands: string[];
   artifacts: string[];
@@ -1018,7 +1207,7 @@ export function buildAssessmentModel(input: BuildAssessmentInput): CartographyAs
   // NOTE: this literal must NOT gain a `shape` or `correctness` key — the
   // cartography canonical bytes (and the Sprint 40 lending flagship pins) are
   // byte-frozen. The correctness shape is built by buildCorrectnessAssessmentModel.
-  const document: Omit<CartographyAssessmentModel, "assessment_digest"> = {
+  const documentFacts: Omit<CartographyAssessmentModel, "assessment_digest" | "coverage_statement"> = {
     schema_version: ASSESSMENT_SCHEMA_VERSION,
     protocol,
     campaign,
@@ -1034,6 +1223,10 @@ export function buildAssessmentModel(input: BuildAssessmentInput): CartographyAs
     external_evidence: [...(inputs.externalEvidence ?? [])],
     reproduction,
     claim_boundary: ASSESSMENT_CLAIM_BOUNDARY
+  };
+  const document: Omit<CartographyAssessmentModel, "assessment_digest"> = {
+    ...documentFacts,
+    coverage_statement: buildCoverageStatementFromFacts(documentFacts)
   };
 
   const digest = sha256Hex(
@@ -1153,7 +1346,7 @@ export function buildCorrectnessAssessmentModel(
     inputs.reproductionCommands
   );
 
-  const document: Omit<AssessmentModel, "assessment_digest"> = {
+  const documentFacts: Omit<AssessmentModel, "assessment_digest" | "coverage_statement"> = {
     schema_version: ASSESSMENT_SCHEMA_VERSION,
     shape: "correctness",
     protocol,
@@ -1171,6 +1364,10 @@ export function buildCorrectnessAssessmentModel(
     external_evidence: [...(inputs.externalEvidence ?? [])],
     reproduction,
     claim_boundary: ASSESSMENT_CLAIM_BOUNDARY
+  };
+  const document: Omit<AssessmentModel, "assessment_digest"> = {
+    ...documentFacts,
+    coverage_statement: buildCoverageStatementFromFacts(documentFacts)
   };
 
   const digest = sha256Hex(
@@ -1431,6 +1628,410 @@ function rootedArtifactPath(rootLabel: string, artifactPath: string): string {
 /** Serialize an assessment model to its canonical, byte-stable on-disk form. */
 export function serializeAssessment(model: AssessmentModel): string {
   return canonicalJson(model as unknown as JsonValue);
+}
+
+type AssessmentModelFacts = Omit<AssessmentModel, "assessment_digest" | "coverage_statement"> & {
+  assessment_digest?: string;
+  coverage_statement?: AssessmentCoverageStatement;
+};
+
+type CartographyCoverageFacts = AssessmentModelFacts & {
+  campaign: AssessmentCampaignReference;
+  totals: AssessmentCampaignTotals;
+  surface: RiskSurfaceDocument;
+  surface_highlights: AssessmentSurfaceHighlights;
+};
+
+/**
+ * Derive the structured coverage / negative-space block from an assessment
+ * model. The builder ignores any existing embedded block, so tests and future
+ * consumers can recompute it over the same model and get byte-identical facts.
+ */
+export function buildCoverageStatement(model: AssessmentModel): AssessmentCoverageStatement {
+  return buildCoverageStatementFromFacts(model);
+}
+
+function buildCoverageStatementFromFacts(model: AssessmentModelFacts): AssessmentCoverageStatement {
+  const shape = effectiveAssessmentShape(model);
+  if (
+    shape === "cartography" &&
+    model.campaign !== null &&
+    model.totals !== null &&
+    model.surface !== null &&
+    model.surface_highlights !== null
+  ) {
+    return buildCartographyCoverageStatement(model as CartographyCoverageFacts);
+  }
+  return buildCorrectnessCoverageStatement(model);
+}
+
+function effectiveAssessmentShape(model: AssessmentModelFacts): AssessmentShape {
+  return model.shape ?? (model.surface === null ? "correctness" : "cartography");
+}
+
+function buildCartographyCoverageStatement(
+  model: CartographyCoverageFacts
+): AssessmentCoverageStatement {
+  return {
+    schema_version: ASSESSMENT_COVERAGE_STATEMENT_SCHEMA,
+    shape: "cartography",
+    probed: {
+      kind: "swept-gradient",
+      risk_objective: model.campaign.risk_objective,
+      seed_policy: model.campaign.seed_policy,
+      run_budget: model.campaign.run_budget,
+      completed_runs: model.totals.completed_runs,
+      invariant_failed_runs: model.totals.invariant_failed_runs,
+      invariant_failure_rate: roundNumber(model.totals.invariant_failure_rate),
+      axes: model.surface.axes.map((axis) => coverageAxis(model.surface, axis))
+    },
+    hot_regions: surfaceHotRegions(model.surface),
+    flat_no_signal_regions: surfaceNoSignalRegions(model.surface),
+    blocked: coverageGaps(model.coverage_matrix)
+  };
+}
+
+function buildCorrectnessCoverageStatement(model: AssessmentModelFacts): AssessmentCoverageStatement {
+  const guidedSim = model.correctness?.guided_sim ?? null;
+  const flowRows = model.coverage_matrix.filter(
+    (row) => row.status === "covered" || row.status === "covered by guided sim"
+  );
+  const flows = flowRows.map((row) => guidedSimFlowProbe(row, guidedSim));
+  const negativeControls = flows.filter((flow) => flow.negative_control);
+  const flatNoSignal: AssessmentFlatNoSignalRegion[] = [
+    {
+      kind: "no_swept_gradient",
+      signal_type: "parameter_gradient",
+      interpretation: "no signal in this campaign",
+      not_safety_claim: true,
+      flow: "surface-less correctness assessment",
+      dispatched_count: guidedSim?.flows ?? 0,
+      expected_rejections: guidedSim?.expected_errors ?? 0,
+      unexpected_errors: guidedSim?.unexpected_errors ?? 0,
+      panics: guidedSim?.panics ?? 0
+    }
+  ];
+  if (guidedSim && guidedSim.unexpected_errors === 0 && guidedSim.panics === 0) {
+    flatNoSignal.push({
+      kind: "guided_sim_no_unexpected_result",
+      signal_type: "unexpected_error_or_panic",
+      interpretation: "no signal in this campaign",
+      not_safety_claim: true,
+      flow: "assessed guided-sim flows",
+      dispatched_count: guidedSim.flows,
+      expected_rejections: guidedSim.expected_errors,
+      unexpected_errors: guidedSim.unexpected_errors,
+      panics: guidedSim.panics
+    });
+  }
+
+  return {
+    schema_version: ASSESSMENT_COVERAGE_STATEMENT_SCHEMA,
+    shape: "correctness",
+    probed: {
+      kind: "guided-sim-flow-coverage",
+      guided_sim: guidedSim
+        ? {
+            label: guidedSim.label,
+            status: guidedSim.status,
+            iterations: guidedSim.iterations,
+            flows: guidedSim.flows,
+            tx_success: guidedSim.tx_success,
+            expected_errors: guidedSim.expected_errors,
+            unexpected_errors: guidedSim.unexpected_errors,
+            panics: guidedSim.panics,
+            path: guidedSim.path,
+            sha256: guidedSim.sha256
+          }
+        : null,
+      flows,
+      negative_controls: negativeControls
+    },
+    hot_regions: correctnessHotRegions(guidedSim),
+    flat_no_signal_regions: flatNoSignal,
+    blocked: coverageGaps(model.coverage_matrix)
+  };
+}
+
+function coverageAxis(surface: RiskSurfaceDocument, axis: RiskSurfaceAxis): AssessmentCoverageAxis {
+  const bins = axis.bins.map((bin) => {
+    const pooled = poolSurfaceCells(surface.cells, [[axis.name, bin.index]]);
+    return {
+      index: bin.index,
+      label: bin.label,
+      ...(bin.value !== undefined ? { value: bin.value } : {}),
+      ...(bin.lower !== undefined ? { lower: bin.lower } : {}),
+      ...(bin.upper !== undefined ? { upper: bin.upper } : {}),
+      run_count: pooled.run_count,
+      failed_runs: pooled.failed_runs,
+      invariant_failure_rate: pooled.invariant_failure_rate ?? 0
+    };
+  });
+  const runCount = bins.reduce((sum, bin) => sum + bin.run_count, 0);
+  const failedRuns = bins.reduce((sum, bin) => sum + bin.failed_runs, 0);
+  return {
+    axis: axis.name,
+    kind: axis.kind,
+    distribution: axis.distribution,
+    ...(axis.unit !== undefined ? { unit: axis.unit } : {}),
+    range: coverageAxisRange(axis),
+    granularity: {
+      method: axis.binning.method,
+      bin_count: axis.bins.length,
+      min_cell_run_count: surface.config.min_cell_run_count
+    },
+    populated_bins: bins.filter((bin) => bin.run_count > 0).length,
+    run_count: runCount,
+    failed_runs: failedRuns,
+    invariant_failure_rate: runCount === 0 ? 0 : roundNumber(failedRuns / runCount),
+    bins
+  };
+}
+
+function coverageAxisRange(axis: RiskSurfaceAxis): AssessmentCoverageAxisRange {
+  if (axis.kind === "discrete") {
+    return {
+      kind: "values",
+      values: axis.bins.map((bin) => bin.value ?? null)
+    };
+  }
+  const edges = axis.binning.method === "fixed-width" ? axis.binning.edges : [];
+  return {
+    kind: "interval",
+    lower: axis.bins[0]?.lower ?? null,
+    upper: axis.bins[axis.bins.length - 1]?.upper ?? null,
+    edges
+  };
+}
+
+function surfaceHotRegions(surface: RiskSurfaceDocument): AssessmentSurfaceHotRegion[] {
+  const hot = surface.cells
+    .map((cell) => {
+      const failedRuns = failedRunsForCell(cell);
+      return { cell, failedRuns };
+    })
+    .filter(({ cell, failedRuns }) => failedRuns > 0 || cell.invariant_failure_rate > 0)
+    .map(({ cell, failedRuns }) => ({
+      kind: "failing_cell" as const,
+      coords: cellCoordRefs(surface, cell),
+      run_count: cell.run_count,
+      failed_runs: failedRuns,
+      invariant_failure_rate: roundNumber(cell.invariant_failure_rate),
+      sparse: cell.sparse
+    }));
+  hot.sort(
+    (a, b) =>
+      compareNumbersDesc(a.invariant_failure_rate, b.invariant_failure_rate) ||
+      compareNumbersDesc(a.failed_runs, b.failed_runs) ||
+      compareNumbersDesc(a.run_count, b.run_count) ||
+      coordKey(a.coords).localeCompare(coordKey(b.coords))
+  );
+  return hot;
+}
+
+function correctnessHotRegions(guidedSim: AssessmentGuidedSimEvidence | null): AssessmentHotRegion[] {
+  if (!guidedSim || (guidedSim.unexpected_errors === 0 && guidedSim.panics === 0)) return [];
+  return [
+    {
+      kind: "guided_sim_unexpected_result",
+      flow: "assessed guided-sim flows",
+      dispatched_count: guidedSim.flows,
+      expected_rejections: guidedSim.expected_errors,
+      unexpected_errors: guidedSim.unexpected_errors,
+      panics: guidedSim.panics,
+      status: guidedSim.status,
+      evidence: guidedSim.path
+    }
+  ];
+}
+
+function surfaceNoSignalRegions(surface: RiskSurfaceDocument): AssessmentFlatNoSignalRegion[] {
+  const regions: AssessmentFlatNoSignalRegion[] = [];
+  for (const entry of surface.sensitivity.ranking) {
+    if (entry.monotonic !== "flat" || entry.min_bin_failure_rate !== 0 || entry.max_bin_failure_rate !== 0) {
+      continue;
+    }
+    const axis = surface.axes.find((candidate) => candidate.name === entry.axis);
+    if (!axis) continue;
+    const pooled = poolSurfaceCells(surface.cells, []);
+    regions.push({
+      kind: "flat_axis_zero_failure",
+      signal_type: "invariant_failure",
+      interpretation: "no signal in this campaign",
+      not_safety_claim: true,
+      axis: axis.name,
+      run_count: pooled.run_count,
+      failed_runs: 0,
+      invariant_failure_rate: 0,
+      sparse: pooled.run_count < surface.config.min_cell_run_count
+    });
+  }
+  for (const cell of surface.cells) {
+    const failedRuns = failedRunsForCell(cell);
+    if (cell.run_count === 0) {
+      regions.push({
+        kind: "unpopulated_cell",
+        signal_type: "invariant_failure",
+        interpretation: "no signal in this campaign",
+        not_safety_claim: true,
+        coords: cellCoordRefs(surface, cell),
+        run_count: 0,
+        failed_runs: 0,
+        invariant_failure_rate: null,
+        sparse: cell.sparse
+      });
+      continue;
+    }
+    if (failedRuns === 0 && cell.invariant_failure_rate === 0) {
+      regions.push({
+        kind: "zero_failure_cell",
+        signal_type: "invariant_failure",
+        interpretation: "no signal in this campaign",
+        not_safety_claim: true,
+        coords: cellCoordRefs(surface, cell),
+        run_count: cell.run_count,
+        failed_runs: 0,
+        invariant_failure_rate: 0,
+        sparse: cell.sparse
+      });
+    }
+  }
+  regions.sort(
+    (a, b) =>
+      noSignalKindRank(a.kind) - noSignalKindRank(b.kind) ||
+      noSignalSortKey(a).localeCompare(noSignalSortKey(b))
+  );
+  return regions;
+}
+
+interface SurfacePool {
+  run_count: number;
+  failed_runs: number;
+  invariant_failure_rate: number | null;
+}
+
+function poolSurfaceCells(
+  cells: RiskSurfaceCell[],
+  constraints: Array<[string, number]>
+): SurfacePool {
+  let runCount = 0;
+  let failedRuns = 0;
+  for (const cell of cells) {
+    if (!cellMatches(cell, constraints)) continue;
+    runCount += cell.run_count;
+    failedRuns += failedRunsForCell(cell);
+  }
+  return {
+    run_count: runCount,
+    failed_runs: failedRuns,
+    invariant_failure_rate: runCount === 0 ? null : roundNumber(failedRuns / runCount)
+  };
+}
+
+function cellMatches(cell: RiskSurfaceCell, constraints: Array<[string, number]>): boolean {
+  return constraints.every(([axis, binIndex]) =>
+    cell.coords.some((coord) => coord.axis === axis && coord.bin_index === binIndex)
+  );
+}
+
+function failedRunsForCell(cell: RiskSurfaceCell): number {
+  return Math.round(cell.invariant_failure_rate * cell.run_count);
+}
+
+function cellCoordRefs(
+  surface: RiskSurfaceDocument,
+  cell: RiskSurfaceCell
+): AssessmentCoverageCellCoord[] {
+  return cell.coords.map((coord) => {
+    const axis = surface.axes.find((candidate) => candidate.name === coord.axis);
+    const bin = axis?.bins.find((candidate) => candidate.index === coord.bin_index);
+    return {
+      axis: coord.axis,
+      bin_index: coord.bin_index,
+      bin_label: bin?.label ?? String(coord.bin_index)
+    };
+  });
+}
+
+function coordKey(coords: AssessmentCoverageCellCoord[]): string {
+  return coords.map((coord) => `${coord.axis}:${coord.bin_index}:${coord.bin_label}`).join("|");
+}
+
+function noSignalKindRank(kind: AssessmentFlatNoSignalRegion["kind"]): number {
+  switch (kind) {
+    case "flat_axis_zero_failure":
+      return 0;
+    case "zero_failure_cell":
+      return 1;
+    case "unpopulated_cell":
+      return 2;
+    case "guided_sim_no_unexpected_result":
+      return 3;
+    case "no_swept_gradient":
+      return 4;
+  }
+}
+
+function noSignalSortKey(region: AssessmentFlatNoSignalRegion): string {
+  if ("axis" in region && region.axis) return region.axis;
+  if ("coords" in region) return coordKey(region.coords ?? []);
+  if ("flow" in region) return region.flow;
+  return "";
+}
+
+function guidedSimFlowProbe(
+  row: AssessmentCoverageRow,
+  guidedSim: AssessmentGuidedSimEvidence | null
+): AssessmentGuidedSimFlowProbe {
+  const dispatched = guidedSimDispatchedCount(row.flow, guidedSim);
+  const negative = isNegativeCoverageRow(row);
+  return {
+    flow: row.flow,
+    status: row.status,
+    evidence_tier: row.evidence_tier,
+    dispatched_count: dispatched,
+    negative_control: negative,
+    expected_rejections: negative ? guidedSim?.expected_errors ?? null : null,
+    unexpected_errors: guidedSim?.unexpected_errors ?? null,
+    panics: guidedSim?.panics ?? null,
+    artifacts: [...row.artifacts]
+  };
+}
+
+function guidedSimDispatchedCount(flow: string, guidedSim: AssessmentGuidedSimEvidence | null): number | null {
+  if (!guidedSim) return null;
+  const rawFlow = unwrapGuidedSimFlow(flow);
+  const match = guidedSim.flow_counts.find(
+    (entry) => entry.flow === rawFlow || `guided-sim flow \`${entry.flow}\`` === flow
+  );
+  return match?.count ?? null;
+}
+
+function unwrapGuidedSimFlow(flow: string): string {
+  const match = /^guided-sim flow `(.+)`$/.exec(flow);
+  return match?.[1] ?? flow;
+}
+
+function isNegativeCoverageRow(row: AssessmentCoverageRow): boolean {
+  return /negative control/i.test(row.evidence_tier) || isNegativeControlFlow(unwrapGuidedSimFlow(row.flow));
+}
+
+function coverageGaps(rows: AssessmentCoverageRow[]): AssessmentCoverageGap[] {
+  return rows.filter(isCoverageGap).map((row) => ({
+    priority: row.priority,
+    flow: row.flow,
+    status: row.status,
+    evidence_tier: row.evidence_tier,
+    commands: [...row.commands],
+    artifacts: [...row.artifacts],
+    notes: row.notes
+  }));
+}
+
+function isCoverageGap(row: AssessmentCoverageRow): row is AssessmentCoverageRow & {
+  status: AssessmentCoverageGap["status"];
+} {
+  return row.status === "blocked" || row.status === "out of scope" || row.status === "not assessed";
 }
 
 // ---------------------------------------------------------------------------
@@ -2254,6 +2855,10 @@ function dedupeStable(values: string[]): string[] {
 
 function formatRate(rate: number): string {
   return `${roundNumber(rate * 100)}%`;
+}
+
+function compareNumbersDesc(a: number, b: number): number {
+  return a < b ? 1 : a > b ? -1 : 0;
 }
 
 function shellQuote(value: string): string {
