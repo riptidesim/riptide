@@ -1,8 +1,13 @@
 import { renderRiskSurfaceNarrative } from "../report/surface-narrative.js";
 
 import type {
+  AssessmentCoverageAxis,
+  AssessmentCoverageCellCoord,
+  AssessmentCoverageGap,
   AssessmentCoverageRow,
+  AssessmentFlatNoSignalRegion,
   AssessmentFinding,
+  AssessmentHotRegion,
   AssessmentModel,
   AssessmentNarrative,
   AssessmentReproduction,
@@ -55,6 +60,7 @@ export function renderAssessmentMarkdown(
   renderExecutiveSummary(model, narrative, lines);
   renderScope(model, lines);
   renderRiskPlan(model, lines);
+  renderCoverageLimits(model, narrative, lines);
   renderCoverageMatrix(model, lines);
   renderSurfaceSection(model, lines);
   renderSimulations(model, lines);
@@ -102,7 +108,6 @@ function renderExecutiveSummary(
   lines.push(`- **Verdict:** ${model.verdict.value}`);
   lines.push(`- **Headline claim:** ${narrative.headline_claim}`);
   lines.push(`- **Main finding:** ${narrative.main_finding}`);
-  lines.push(`- **Main limit:** ${narrative.main_limit}`);
   lines.push("");
   lines.push("Short summary:", "");
   for (const paragraph of narrative.executive_summary) {
@@ -140,6 +145,250 @@ function renderRiskPlan(model: AssessmentModel, lines: string[]): void {
   lines.push(`- **Guided-sim boundaries:** ${joinInline(plan.guided_sim_boundaries)}`);
   lines.push(`- **Known coverage limits:** ${joinInline(plan.known_coverage_limits)}`);
   lines.push("");
+}
+
+// ---------------------------------------------------------------------------
+// Coverage & Limits (Sprint 46 R2) — one reader-facing negative-space map
+// ---------------------------------------------------------------------------
+
+const COVERAGE_LIMIT_PREVIEW = 12;
+
+function renderCoverageLimits(
+  model: AssessmentModel,
+  narrative: AssessmentNarrative,
+  lines: string[]
+): void {
+  lines.push("## Coverage & Limits", "");
+  lines.push(
+    "This is the negative-space map for the assessment: what Riptide probed, where risk signals concentrated, " +
+      "where the campaign produced no signal, and which declared flows were blocked, out of scope, or not assessed. " +
+      "Flat or zero-failure entries mean no signal in this campaign, not safety.",
+    ""
+  );
+
+  renderCoverageLimitsProbed(model, lines);
+  renderCoverageLimitsHotRegions(model.coverage_statement.hot_regions, lines);
+  renderCoverageLimitsNoSignal(model.coverage_statement.flat_no_signal_regions, lines);
+  renderCoverageLimitsGaps(model.coverage_statement.blocked, narrative, lines);
+}
+
+function renderCoverageLimitsProbed(model: AssessmentModel, lines: string[]): void {
+  const probed = model.coverage_statement.probed;
+  lines.push("### Probed surface", "");
+
+  if (probed.kind === "swept-gradient") {
+    lines.push(
+      `Riptide probed the \`${probed.risk_objective}\` surface with ${probed.completed_runs} completed ` +
+        `run(s) under the ${probed.seed_policy} seed policy; ${probed.invariant_failed_runs} run(s) fired ` +
+        `a declared invariant (${formatPercent(probed.invariant_failure_rate)}).`,
+      ""
+    );
+    if (probed.axes.length === 0) {
+      lines.push("No varying parameter axis was recorded for this campaign.", "");
+      return;
+    }
+    lines.push(
+      "| Axis | Range | Granularity | Populated bins | Runs | Failed runs | Failure rate |",
+      "| --- | --- | --- | ---: | ---: | ---: | ---: |"
+    );
+    for (const axis of probed.axes) {
+      lines.push(
+        `| ${cell(axis.axis)} | ${cell(formatAxisRange(axis))} | ${cell(formatAxisGranularity(axis))} | ` +
+          `${axis.populated_bins}/${axis.granularity.bin_count} | ${axis.run_count} | ${axis.failed_runs} | ` +
+          `${formatPercent(axis.invariant_failure_rate)} |`
+      );
+    }
+    lines.push("");
+    return;
+  }
+
+  const gs = probed.guided_sim;
+  if (gs) {
+    lines.push(
+      `Riptide probed guided-sim flow coverage with \`${gs.label}\` (status \`${gs.status}\`): ` +
+        `${gs.flows} flow(s) across ${gs.iterations} iteration(s), ${gs.tx_success} transaction success(es), ` +
+        `${gs.expected_errors} expected rejection(s), ${gs.unexpected_errors} unexpected error(s), and ` +
+        `${gs.panics} panic(s).`,
+      ""
+    );
+  } else {
+    lines.push("No guided-sim evidence was ingested for this correctness-shaped assessment.", "");
+  }
+
+  if (probed.flows.length === 0) {
+    lines.push("No guided-sim flow coverage rows were recorded.", "");
+    return;
+  }
+  lines.push(
+    "| Flow | Status | Evidence tier | Dispatched | Negative control | Expected rejections | Unexpected errors | Panics |",
+    "| --- | --- | --- | ---: | --- | ---: | ---: | ---: |"
+  );
+  for (const flow of probed.flows) {
+    lines.push(
+      `| ${cell(flow.flow)} | ${cell(flow.status)} | ${cell(flow.evidence_tier)} | ${formatNullableNumber(flow.dispatched_count)} | ` +
+        `${flow.negative_control ? "yes" : "no"} | ${formatNullableNumber(flow.expected_rejections)} | ` +
+        `${formatNullableNumber(flow.unexpected_errors)} | ${formatNullableNumber(flow.panics)} |`
+    );
+  }
+  lines.push("");
+}
+
+function renderCoverageLimitsHotRegions(regions: AssessmentHotRegion[], lines: string[]): void {
+  lines.push("### Hot regions", "");
+  if (regions.length === 0) {
+    lines.push(
+      "No hot region was recorded by the coverage statement for the assessed inputs.",
+      ""
+    );
+    return;
+  }
+  lines.push(
+    "| Region | Runs or dispatches | Observed signal | Notes |",
+    "| --- | ---: | --- | --- |"
+  );
+  for (const region of regions.slice(0, COVERAGE_LIMIT_PREVIEW)) {
+    if (region.kind === "failing_cell") {
+      lines.push(
+        `| ${cell(formatCoords(region.coords))} | ${region.run_count} | ` +
+          `${cell(`${region.failed_runs} failed run(s), ${formatPercent(region.invariant_failure_rate)} failure rate`)} | ` +
+          `${region.sparse ? "sparse cell" : "populated cell"} |`
+      );
+    } else {
+      lines.push(
+        `| ${cell(region.flow)} | ${region.dispatched_count} | ` +
+          `${cell(`${region.unexpected_errors} unexpected error(s), ${region.panics} panic(s)`)} | ` +
+          `${cell(`status ${region.status}${region.evidence ? `; evidence ${region.evidence}` : ""}`)} |`
+      );
+    }
+  }
+  pushAdditionalCount(regions.length, "hot region", lines);
+}
+
+function renderCoverageLimitsNoSignal(regions: AssessmentFlatNoSignalRegion[], lines: string[]): void {
+  lines.push("### Flat and no-signal regions", "");
+  lines.push(
+    "These entries are negative space. They record no signal in this campaign, not safety; use them as targets " +
+      "for additional scenarios, manual review, or prover work when the claim matters.",
+    ""
+  );
+  if (regions.length === 0) {
+    lines.push("No flat/no-signal region was recorded by the coverage statement.", "");
+    return;
+  }
+  lines.push(
+    "| Region | Signal type | Runs or dispatches | Observed signal | Interpretation |",
+    "| --- | --- | ---: | --- | --- |"
+  );
+  for (const region of regions.slice(0, COVERAGE_LIMIT_PREVIEW)) {
+    lines.push(
+      `| ${cell(formatNoSignalRegion(region))} | ${cell(region.signal_type)} | ${formatNoSignalCount(region)} | ` +
+        `${cell(formatNoSignalObserved(region))} | no signal in this campaign; not safety |`
+    );
+  }
+  pushAdditionalNoSignalCount(regions.length, lines);
+}
+
+function renderCoverageLimitsGaps(
+  gaps: AssessmentCoverageGap[],
+  narrative: AssessmentNarrative,
+  lines: string[]
+): void {
+  lines.push("### Blocked or out of scope", "");
+  lines.push(`Primary limit: ${narrative.main_limit}`, "");
+  if (gaps.length === 0) {
+    lines.push(
+      "No blocked, out-of-scope, or not-assessed flow is recorded in the coverage statement.",
+      ""
+    );
+    return;
+  }
+  lines.push(
+    "| Flow | Status | Evidence tier | Notes |",
+    "| --- | --- | --- | --- |"
+  );
+  for (const gap of gaps) {
+    lines.push(`| ${cell(gap.flow)} | ${cell(gap.status)} | ${cell(gap.evidence_tier)} | ${cell(gap.notes)} |`);
+  }
+  lines.push("");
+}
+
+function formatAxisRange(axis: AssessmentCoverageAxis): string {
+  const range = axis.range;
+  if (range.kind === "values") {
+    return `{${range.values.map(formatScalar).join(", ")}}`;
+  }
+  const lower = range.lower === null ? "(open)" : String(range.lower);
+  const upper = range.upper === null ? "(open)" : String(range.upper);
+  const edges = range.edges.length > 0 ? `; edges ${range.edges.join(", ")}` : "";
+  return `[${lower}, ${upper}]${edges}${axis.unit ? ` ${axis.unit}` : ""}`;
+}
+
+function formatAxisGranularity(axis: AssessmentCoverageAxis): string {
+  return `${axis.granularity.method}, ${axis.granularity.bin_count} bin(s), min cell run count ${axis.granularity.min_cell_run_count}`;
+}
+
+function formatNoSignalRegion(region: AssessmentFlatNoSignalRegion): string {
+  switch (region.kind) {
+    case "flat_axis_zero_failure":
+      return region.axis ? `flat axis ${region.axis}` : "flat axis";
+    case "zero_failure_cell":
+      return `zero-failure cell ${formatCoords(region.coords ?? [])}`;
+    case "unpopulated_cell":
+      return `unpopulated cell ${formatCoords(region.coords ?? [])}`;
+    case "no_swept_gradient":
+      return region.flow;
+    case "guided_sim_no_unexpected_result":
+      return region.flow;
+  }
+}
+
+function formatNoSignalCount(region: AssessmentFlatNoSignalRegion): string {
+  if ("dispatched_count" in region) return String(region.dispatched_count);
+  return String(region.run_count);
+}
+
+function formatNoSignalObserved(region: AssessmentFlatNoSignalRegion): string {
+  if ("dispatched_count" in region) {
+    return `${region.unexpected_errors} unexpected error(s), ${region.panics} panic(s), ${region.expected_rejections} expected rejection(s)`;
+  }
+  if (region.invariant_failure_rate === null) return "no runs placed";
+  return `${region.failed_runs} failed run(s), ${formatPercent(region.invariant_failure_rate)} failure rate`;
+}
+
+function formatCoords(coords: AssessmentCoverageCellCoord[]): string {
+  if (coords.length === 0) return "aggregate region";
+  return coords.map((coord) => `${coord.axis}=${coord.bin_label}`).join(", ");
+}
+
+function pushAdditionalCount(total: number, label: string, lines: string[]): void {
+  const remaining = total - COVERAGE_LIMIT_PREVIEW;
+  if (remaining > 0) {
+    lines.push(`| ${remaining} additional ${label}(s) | — | recorded in \`assessment.json\` \`coverage_statement\` | — |`);
+  }
+  lines.push("");
+}
+
+function pushAdditionalNoSignalCount(total: number, lines: string[]): void {
+  const remaining = total - COVERAGE_LIMIT_PREVIEW;
+  if (remaining > 0) {
+    lines.push(
+      `| ${remaining} additional flat/no-signal region(s) | — | — | recorded in \`assessment.json\` \`coverage_statement\` | no signal in this campaign; not safety |`
+    );
+  }
+  lines.push("");
+}
+
+function formatNullableNumber(value: number | null): string {
+  return value === null ? "—" : String(value);
+}
+
+function formatScalar(value: string | number | boolean | null): string {
+  return value === null ? "null" : String(value);
+}
+
+/** Fixed one-decimal percentage, matching the risk-surface narrative renderer. */
+function formatPercent(rate: number): string {
+  return `${(rate * 100).toFixed(1)}%`;
 }
 
 // ---------------------------------------------------------------------------

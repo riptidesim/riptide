@@ -53,10 +53,9 @@ import {
 //   Sprint 42 Phase-1 placeholder-cleanup MD
 //                  091b44c2e67d401ecc3baade760921814b10e32b02939dbc1cf97ecd60d08632
 // Sprint 46 Phase 1 adds the machine-readable `coverage_statement` block to
-// assessment.json only; markdown stays byte-identical until the reader-facing
-// Coverage & Limits section lands.
-const FLAGSHIP_MD_SHA256 =
-  "d751233ac22161399a85d9e6f4477b9f1fe8057140a6438f4569a0e985487114";
+// assessment.json. Sprint 46 Phase 2 intentionally changes markdown by adding
+// the reader-facing Coverage & Limits section; Phase 3 owns the formal markdown
+// re-pin. Keep the JSON pin locked here and assert the markdown section shape.
 const FLAGSHIP_JSON_SHA256 =
   "35b3e900b256882e87a1f9487ea35c1b3fdd599a115a7290bf3b1d30f45c129a";
 
@@ -82,18 +81,16 @@ async function renderFlagship(): Promise<{ model: CartographyAssessmentModel; ma
   return { model, markdown, json };
 }
 
-test("flagship assessment: assessment.md + assessment.json bytes match the recorded gate hashes", async () => {
+test("flagship assessment: assessment.json bytes match the recorded gate hash and markdown carries Coverage & Limits", async () => {
   const { markdown, json } = await renderFlagship();
-  assert.equal(
-    createHash("sha256").update(markdown, "utf8").digest("hex"),
-    FLAGSHIP_MD_SHA256,
-    "flagship assessment.md bytes drifted from the recorded gate hash"
-  );
   assert.equal(
     createHash("sha256").update(json, "utf8").digest("hex"),
     FLAGSHIP_JSON_SHA256,
     "flagship assessment.json bytes drifted from the recorded gate hash"
   );
+  assert.match(markdown, /## Coverage & Limits\n/);
+  assert.match(markdown, /Flat or zero-failure entries mean no signal in this campaign, not safety\./);
+  assert.doesNotMatch(markdown, /- \*\*Main limit:\*\*/);
 });
 
 test("flagship assessment: re-rendering is byte-identical (the R6.4 determinism property)", async () => {
@@ -211,13 +208,10 @@ test("flagship assessment: overclaim grep is clean (boundary/negation wording on
 //   finding MD e9fb58bf6b6e3ebd1d38a16cd7dde018719273301f514b329900668f8cb12e3d
 //   find. JSON a4ba3048d822119e77a2ef8c1ff029d61c85ec1ae1d799fd9d1e4e3b2598e4d6
 // Sprint 46 Phase 1 adds the additive `coverage_statement` JSON block for the
-// correctness shape. Markdown stays unchanged until the reader-facing section.
-const CLEAN_CORRECTNESS_MD_SHA256 =
-  "7c539515ac23542c4e7c25bc852bbbe12606b106ea865112a3e62eb45650e989";
+// correctness shape. Sprint 46 Phase 2 intentionally moves markdown by adding
+// the Coverage & Limits section; Phase 3 owns the formal markdown re-pin.
 const CLEAN_CORRECTNESS_JSON_SHA256 =
   "3619361f298ba45c82b6ed7f6226c74f814c242d978342abd2315dcf6d78542b";
-const FINDING_CORRECTNESS_MD_SHA256 =
-  "ea88b5d7344a8d713f8b99c38d2493ad976ff185108ecfc9b6e17949e7eb9ba1";
 const FINDING_CORRECTNESS_JSON_SHA256 =
   "6f8577cf949f125eaf49fb98e738824885971d0b2b305daa5799171d4c3990ad";
 
@@ -228,34 +222,29 @@ function renderCorrectness(model: AssessmentModel): { markdown: string; json: st
   return { markdown, json };
 }
 
-test("correctness assessment: clean model bytes match the recorded gate hashes", () => {
+test("correctness assessment: clean model json stays pinned and markdown carries Coverage & Limits", () => {
   const model = buildCleanCorrectnessModel();
   const { markdown, json } = renderCorrectness(model);
-  assert.equal(
-    createHash("sha256").update(markdown, "utf8").digest("hex"),
-    CLEAN_CORRECTNESS_MD_SHA256,
-    "clean correctness assessment.md bytes drifted from the recorded gate hash"
-  );
   assert.equal(
     createHash("sha256").update(json, "utf8").digest("hex"),
     CLEAN_CORRECTNESS_JSON_SHA256,
     "clean correctness assessment.json bytes drifted from the recorded gate hash"
   );
+  assert.match(markdown, /## Coverage & Limits\n/);
+  assert.match(markdown, /surface-less correctness assessment \| parameter_gradient/);
+  assert.match(markdown, /no signal in this campaign; not safety/);
 });
 
-test("correctness assessment: finding model bytes match the recorded gate hashes", () => {
+test("correctness assessment: finding model json stays pinned and markdown carries Coverage & Limits", () => {
   const model = buildFindingCorrectnessModel();
   const { markdown, json } = renderCorrectness(model);
-  assert.equal(
-    createHash("sha256").update(markdown, "utf8").digest("hex"),
-    FINDING_CORRECTNESS_MD_SHA256,
-    "finding correctness assessment.md bytes drifted from the recorded gate hash"
-  );
   assert.equal(
     createHash("sha256").update(json, "utf8").digest("hex"),
     FINDING_CORRECTNESS_JSON_SHA256,
     "finding correctness assessment.json bytes drifted from the recorded gate hash"
   );
+  assert.match(markdown, /## Coverage & Limits\n/);
+  assert.match(markdown, /guided_sim_unexpected_result|unexpected error\(s\), 1 panic\(s\)/);
 });
 
 test("correctness assessment: re-rendering is byte-identical (the determinism property)", () => {

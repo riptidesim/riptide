@@ -399,7 +399,7 @@ function trendPhrase(monotonic: string | null): string | null {
     case "non-monotonic":
       return "vary non-monotonically across";
     case "flat":
-      return "stay flat across";
+      return "show no axis gradient across";
     default:
       return null;
   }

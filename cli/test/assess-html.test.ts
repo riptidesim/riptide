@@ -25,6 +25,8 @@ test("assess html: emits a self-contained design-system document", async () => {
   // Markdown structure became styled HTML.
   assert.match(html, /<h1 class="rt-h1">Protocol assessment — whale-shock-cartography<\/h1>/);
   assert.match(html, /<h2 class="rt-h2">Executive summary<\/h2>/);
+  assert.match(html, /<h2 class="rt-h2">Coverage &amp; Limits<\/h2>/);
+  assert.match(html, /Flat or zero-failure entries mean no signal in this campaign, not safety\./);
   assert.match(html, /<table class="rt-table">/);
   assert.match(html, /<pre class="rt-code">/);
 });

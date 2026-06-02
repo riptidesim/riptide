@@ -27,6 +27,7 @@ test("assess render: flagship renders every template section in order", async ()
     "### Out of scope",
     "### Claim boundary",
     "## Risk Plan",
+    "## Coverage & Limits",
     "## Coverage Matrix",
     "## Risk Surface",
     "## Simulations run",
@@ -48,6 +49,24 @@ test("assess render: flagship renders every template section in order", async ()
   // Executive-summary header fields and the rendered verdict are present.
   assert.match(md, /- \*\*Verdict:\*\* needs_campaign_tuning/);
   assert.match(md, /- \*\*Protocol:\*\* whale-shock-cartography/);
+  assert.doesNotMatch(md, /- \*\*Main limit:\*\*/);
+});
+
+test("assess render: Coverage & Limits consolidates probed, hot, no-signal, and blocked facts", async () => {
+  const model = await loadFlagshipModel();
+  const md = renderAssessmentMarkdown(model, generateAssessmentNarrative(model));
+  const section = extractSection(md, "## Coverage & Limits", "## Coverage Matrix");
+
+  assert.match(section, /### Probed surface/);
+  assert.match(section, /Riptide probed the `liquidation-safety` surface with 80 completed run\(s\)/);
+  assert.match(section, /\| whale_share_bps \| \[500, 3000\]; edges 500, 1125, 1750, 2375, 3000 bps/);
+  assert.match(section, /### Hot regions/);
+  assert.match(section, /shock_profile=price-shock, whale_share_bps=\[2375, 3000\].*100\.0% failure rate/);
+  assert.match(section, /### Flat and no-signal regions/);
+  assert.match(section, /no signal in this campaign, not safety/);
+  assert.match(section, /zero-failure cell shock_profile=bank-run, whale_share_bps=\[2375, 3000\]/);
+  assert.match(section, /### Blocked or out of scope/);
+  assert.match(section, /Primary limit: Flows, parameters, and seeds outside this campaign's declared region are not assessed\./);
 });
 
 test("assess render: embeds the risk-surface heatmap, sensitivity ranking, and bounded safe region", async () => {
@@ -157,8 +176,9 @@ test("assess render: correctness shape preserves blocked and not-assessed covera
   );
   assert.match(
     md,
-    /- \*\*Main limit:\*\* Positive NAV, whitelist-admin, and fee-authority flows are blocked: Requires hard-coded Defunds NAV authority/
+    /Primary limit: Positive NAV, whitelist-admin, and fee-authority flows are blocked: Requires hard-coded Defunds NAV authority/
   );
+  assert.doesNotMatch(md, /- \*\*Main limit:\*\*/);
   assert.doesNotMatch(md, /No blocked, out-of-scope, or not-assessed flows are recorded/);
 });
 
@@ -186,6 +206,8 @@ test("assess render: correctness HTML mirrors the degrade — no heatmap widget,
 
   // The note renders; no heatmap <figure> is built (the surface-less shape has none).
   assert.match(html, /correctness-dominated assessment/);
+  assert.match(html, /<h2 class="rt-h2">Coverage &amp; Limits<\/h2>/);
+  assert.match(html, /no signal in this campaign; not safety/);
   assert.doesNotMatch(html, /<figure class="rt-heatmap">/);
   assert.doesNotMatch(html, /Failure-rate heatmap<\/h3>/);
 });
@@ -201,3 +223,11 @@ test("assess render: rendered markdown is overclaim-grep clean outside the claim
     assert.ok(allowed, `overclaim phrase outside boundary wording: ${JSON.stringify(line)}`);
   }
 });
+
+function extractSection(markdown: string, startHeading: string, endHeading: string): string {
+  const start = markdown.indexOf(startHeading);
+  assert.ok(start >= 0, `missing section ${startHeading}`);
+  const end = markdown.indexOf(endHeading, start + startHeading.length);
+  assert.ok(end > start, `missing end section ${endHeading}`);
+  return markdown.slice(start, end);
+}

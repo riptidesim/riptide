@@ -48,6 +48,8 @@ test("assess cli: writes assessment.json + assessment.md into the campaign root"
 
     const md = await readFile(path.join(root, "assessment.md"), "utf8");
     assert.match(md, /# Protocol assessment — whale-shock-cartography/);
+    assert.match(md, /## Coverage & Limits/);
+    assert.match(md, /Flat or zero-failure entries mean no signal in this campaign, not safety\./);
     assert.match(md, /## Risk Surface/);
     assert.match(md, /- \*\*Assessment date:\*\* 2026-05-23/);
     // Paths render through the repo/workspace-relative label, never the absolute
@@ -241,6 +243,8 @@ test("assess cli: accepts a no-surface correctness workspace and writes artifact
 
     const md = await readFile(path.join(root, "assessment.md"), "utf8");
     assert.match(md, /# Protocol assessment —/);
+    assert.match(md, /## Coverage & Limits/);
+    assert.match(md, /no signal in this campaign; not safety/);
     assert.match(md, /correctness-dominated assessment, so there is no risk-surface heatmap/);
     assert.match(md, /- \*\*Assessment date:\*\* 2026-05-22/);
     // Artifact refs render through the repo/workspace-relative label, never the
