@@ -11,15 +11,17 @@
   <a href="docs/architecture.md"><img src="https://img.shields.io/badge/runtime-LiteSVM-4f8cff?style=flat-square" alt="LiteSVM"></a>
 </p>
 
-**Deterministic multi-agent simulation for Solana programs, run from Riptide Studio.**
+**Deterministic multi-agent simulation for Solana programs, led by one assessment skill.**
 
 Riptide runs your compiled Solana program in LiteSVM, drives it with declared
 agent behavior, and shows where your protocol starts losing economic headroom.
-Studio is the default product path: a localhost visual control plane for
-workspaces, setup handoff, simulation graphs, allowlisted run jobs, reports,
-and evidence packs. The CLI remains available for terminal and CI workflows.
+For a first assessment, open your Solana program repo in an agent and invoke
+[`riptide-assess`](skills/riptide-assess/SKILL.md). The skill detects the
+protocol family, asks up to three scoping questions, uses the existing Riptide
+commands to run the campaign, and returns `assessment.md`, `assessment.json`,
+the evidence-pack path, and the exact rerun commands.
 
-[Open Studio](#open-studio) - [What Studio Offers](#what-studio-offers) - [Run From CLI](#run-from-cli) - [Trust & Review](docs/trust.md) - [Docs](#docs)
+[Assess With The Skill](#assess-with-the-skill) - [Advanced / Power Users](#advanced--power-users) - [Trust & Review](docs/trust.md) - [Docs](#docs)
 
 <div align="center">
   <video src="https://github.com/user-attachments/assets/7f3475d2-5459-4abc-983a-72d6af0f5f05" width="720" controls></video>
@@ -30,7 +32,7 @@ and evidence packs. The CLI remains available for terminal and CI workflows.
 > reproducible point in a declared experiment; your team still decides whether
 > that point matters.
 
-## Open Studio
+## Assess With The Skill
 
 Install Riptide:
 
@@ -44,19 +46,34 @@ Windows PowerShell:
 irm https://riptide.run/install.ps1 | iex
 ```
 
-Then open Studio from the Solana program repo you want to test:
+Then open the Solana program repo you want to assess in your agent and ask it
+to use the front-door skill:
+
+```text
+Use riptide-assess on this repo.
+```
+
+The agent should do the practitioner work: inspect source, IDL, tests, and any
+existing `.riptide/` files; ask only the missing scoping questions; run the
+validated Riptide commands; and hand back the report plus the rerun command.
+The generated report is simulation evidence over declared inputs, not audit
+signoff or complete protocol safety.
+
+## Advanced / Power Users
+
+Use Studio or the CLI directly when you want manual control, a terminal
+workflow, CI integration, or a scriptable path after the assessment flow has
+shown you the shape of the evidence.
+
+### Studio
+
+Open Studio from the Solana program repo you want to inspect:
 
 ```bash
 riptide studio --workspace .
 ```
 
-Studio opens in your browser and stays bound to localhost. From there you can
-select a workspace, prepare setup handoff, queue jobs, and inspect the artifacts
-Riptide writes back to `.riptide/`.
-
-## What Studio Offers
-
-Studio is the fastest way to operate Riptide locally:
+Studio opens in your browser and stays bound to localhost:
 
 - **Workspace overview** for the active repo, recent runs, reports, queued jobs,
   and next actions.
@@ -77,7 +94,7 @@ Studio is not a generic shell, does not push or publish, and stays on the local
 machine. See [Studio](docs/studio.md) for flags, job kinds, persistence, and
 the trust boundary.
 
-## Run From CLI
+### CLI Verbs
 
 Use the CLI when you want a terminal workflow, CI integration, or a scriptable
 path. After Riptide is installed and your repo has `.riptide/` configuration,

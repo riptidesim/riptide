@@ -49,9 +49,13 @@ test("commands: root help is compact, ordered for first-hour use, and example-dr
   });
 
   assert.match(stdout, /Deterministic Solana simulations, campaigns, and reviewer-ready evidence\./);
+  assert.match(stdout, /First assessment:/);
+  assert.match(stdout, /riptide-assess/);
+  assert.match(stdout, /Reports are simulation evidence over declared inputs, not audit signoff\./);
   assert.match(stdout, /Start here:/);
   assert.match(stdout, /Advanced\/support:/);
   assert.match(stdout, /Examples:/);
+  assert.match(stdout, /# First assessment: use the riptide-assess agent skill from your protocol repo/);
   assert.match(stdout, /riptide run --adapter \.riptide\/adapters\/<program-name>\.toml --seeds 1 --seed-root 1337/);
   assert.match(stdout, /riptide campaign validate \.riptide\/campaigns\/<risk>\.campaign\.toml/);
   assert.match(stdout, /riptide <command> --help/);

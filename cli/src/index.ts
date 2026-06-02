@@ -34,6 +34,17 @@ program
   .version(cliPackageVersion())
   .addHelpCommand(false);
 
+program.addHelpText(
+  "before",
+  [
+    "First assessment:",
+    "  Open your Solana program repo in an agent and invoke `riptide-assess`.",
+    "  The skill runs this CLI underneath and returns assessment.md, assessment.json, evidence, and rerun commands.",
+    "  Reports are simulation evidence over declared inputs, not audit signoff.",
+    ""
+  ].join("\n")
+);
+
 addRootCommand(createInitCommand(), "Scaffold .riptide/ in the current repo", "Start here:");
 addRootCommand(createReadinessCommand(), "Inspect local protocol evidence readiness", "Start here:");
 addRootCommand(createCampaignCommand(), "Validate, plan, and run campaign sweeps", "Start here:");
@@ -60,6 +71,7 @@ program.addHelpText(
   [
     "",
     "Examples:",
+    "  # First assessment: use the riptide-assess agent skill from your protocol repo",
     "  riptide init",
     "  riptide readiness .",
     "  riptide doctor",
