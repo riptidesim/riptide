@@ -388,6 +388,8 @@ export interface AssessmentGuidedSimProbe {
 
 export interface AssessmentGuidedSimFlowProbe {
   flow: string;
+  /** Raw guided-sim family name when this coverage row maps to one. */
+  guided_sim_flow: string | null;
   status: CoverageStatus;
   evidence_tier: string;
   dispatched_count: number | null;
@@ -595,15 +597,28 @@ export interface GuidedSimRunIteration {
   dispatched_flows: number;
   /** Flows dispatched per scenario family in this iteration. */
   flow_counts: Record<string, number>;
+  /** Optional per-flow trace emitted by newer guided-sim runs. */
+  flow_trace?: GuidedSimFlowTraceStep[];
   service_ticks: number;
   error: string | null;
   panic: boolean;
+}
+
+/** One optional guided-sim trace step, when the artifact carries per-flow counters. */
+export interface GuidedSimFlowTraceStep {
+  flow_name: string;
+  expected_errors?: number;
+  unexpected_errors?: number;
 }
 
 /** A flow family and how many flows it dispatched, aggregated across iterations. */
 export interface AssessmentGuidedSimFlowCount {
   flow: string;
   count: number;
+  /** Per-flow expected rejections, or `null` when the artifact only exposes run totals. */
+  expected_errors: number | null;
+  /** Per-flow unexpected errors, or `null` when the artifact only exposes run totals. */
+  unexpected_errors: number | null;
 }
 
 /**
@@ -1293,14 +1308,39 @@ export function summarizeGuidedSimRun(
   ref: { label: string; path: string; sha256?: string | null }
 ): AssessmentGuidedSimEvidence {
   const counts = new Map<string, number>();
+  const traceStats = new Map<string, { expected_errors: number; unexpected_errors: number }>();
   for (const iteration of doc.iterations ?? []) {
     for (const [flow, count] of Object.entries(iteration.flow_counts ?? {})) {
       if (typeof count !== "number" || !Number.isFinite(count)) continue;
       counts.set(flow, (counts.get(flow) ?? 0) + count);
     }
+    for (const step of iteration.flow_trace ?? []) {
+      const flow = typeof step.flow_name === "string" ? step.flow_name : "";
+      if (!flow) continue;
+      const expected =
+        typeof step.expected_errors === "number" && Number.isFinite(step.expected_errors)
+          ? step.expected_errors
+          : 0;
+      const unexpected =
+        typeof step.unexpected_errors === "number" && Number.isFinite(step.unexpected_errors)
+          ? step.unexpected_errors
+          : 0;
+      const current = traceStats.get(flow) ?? { expected_errors: 0, unexpected_errors: 0 };
+      current.expected_errors += expected;
+      current.unexpected_errors += unexpected;
+      traceStats.set(flow, current);
+    }
   }
   const flowCounts: AssessmentGuidedSimFlowCount[] = [...counts.entries()]
-    .map(([flow, count]) => ({ flow, count }))
+    .map(([flow, count]) => {
+      const stats = traceStats.get(flow);
+      return {
+        flow,
+        count,
+        expected_errors: stats?.expected_errors ?? null,
+        unexpected_errors: stats?.unexpected_errors ?? null
+      };
+    })
     .sort((a, b) => a.flow.localeCompare(b.flow));
   const totals = doc.totals;
   return {
@@ -1983,33 +2023,98 @@ function guidedSimFlowProbe(
   row: AssessmentCoverageRow,
   guidedSim: AssessmentGuidedSimEvidence | null
 ): AssessmentGuidedSimFlowProbe {
-  const dispatched = guidedSimDispatchedCount(row.flow, guidedSim);
+  const matchedFlow = guidedSimFlowMatch(row.flow, guidedSim);
   const negative = isNegativeCoverageRow(row);
   return {
     flow: row.flow,
+    guided_sim_flow: matchedFlow?.flow ?? null,
     status: row.status,
     evidence_tier: row.evidence_tier,
-    dispatched_count: dispatched,
+    dispatched_count: matchedFlow?.count ?? null,
     negative_control: negative,
-    expected_rejections: negative ? guidedSim?.expected_errors ?? null : null,
-    unexpected_errors: guidedSim?.unexpected_errors ?? null,
+    expected_rejections: negative ? matchedFlow?.expected_errors ?? null : null,
+    unexpected_errors: matchedFlow?.unexpected_errors ?? guidedSimZeroUnexpected(guidedSim),
     panics: guidedSim?.panics ?? null,
     artifacts: [...row.artifacts]
   };
 }
 
-function guidedSimDispatchedCount(flow: string, guidedSim: AssessmentGuidedSimEvidence | null): number | null {
+function guidedSimFlowMatch(
+  flow: string,
+  guidedSim: AssessmentGuidedSimEvidence | null
+): AssessmentGuidedSimFlowCount | null {
   if (!guidedSim) return null;
   const rawFlow = unwrapGuidedSimFlow(flow);
-  const match = guidedSim.flow_counts.find(
+  const direct = guidedSim.flow_counts.find(
     (entry) => entry.flow === rawFlow || `guided-sim flow \`${entry.flow}\`` === flow
   );
-  return match?.count ?? null;
+  if (direct) return direct;
+
+  const aliases = guidedSimFlowAliases(rawFlow);
+  for (const alias of aliases) {
+    const match = guidedSim.flow_counts.find((entry) => entry.flow === alias);
+    if (match) return match;
+  }
+
+  const rowWords = guidedSimWords(rawFlow);
+  let best: { entry: AssessmentGuidedSimFlowCount; score: number } | null = null;
+  for (const entry of guidedSim.flow_counts) {
+    const entryWords = guidedSimWords(entry.flow);
+    const score = [...entryWords].filter((word) => rowWords.has(word)).length;
+    if (score < 2) continue;
+    if (!best || score > best.score || (score === best.score && entry.flow.localeCompare(best.entry.flow) < 0)) {
+      best = { entry, score };
+    }
+  }
+  return best?.entry ?? null;
 }
 
 function unwrapGuidedSimFlow(flow: string): string {
   const match = /^guided-sim flow `(.+)`$/.exec(flow);
   return match?.[1] ?? flow;
+}
+
+function guidedSimFlowAliases(flow: string): string[] {
+  const words = guidedSimWords(flow);
+  const has = (word: string): boolean => words.has(word);
+  const aliases: string[] = [];
+
+  if (has("payout") && has("session") && (has("negative") || has("control") || has("controls"))) {
+    aliases.push("payout_session_negative_controls");
+  }
+  if (has("payout") && has("session") && (has("happy") || has("path"))) {
+    aliases.push("payout_session_happy_path");
+  }
+  if (has("withdrawal") && (has("negative") || has("control") || has("controls"))) {
+    aliases.push("withdrawal_negative_controls");
+  }
+  if ((has("withdrawal") || has("token")) && (has("finalize") || has("finalization") || has("finalizing"))) {
+    aliases.push("withdrawal_finalize_token_happy_path");
+  }
+  if (has("cpi")) {
+    aliases.push("cpi_paths");
+  }
+  if (has("authority") || has("unauthorized") || has("nav") || has("whitelist") || has("fee")) {
+    aliases.push("authority_paths");
+  }
+
+  return aliases;
+}
+
+function guidedSimWords(value: string): Set<string> {
+  return new Set(
+    value
+      .replace(/`/g, "")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((word) => word.length > 0 && word !== "and" && word !== "the")
+  );
+}
+
+function guidedSimZeroUnexpected(guidedSim: AssessmentGuidedSimEvidence | null): number | null {
+  if (!guidedSim) return null;
+  return guidedSim.unexpected_errors === 0 ? 0 : null;
 }
 
 function isNegativeCoverageRow(row: AssessmentCoverageRow): boolean {

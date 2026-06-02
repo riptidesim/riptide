@@ -221,13 +221,13 @@ function renderCoverageLimitsProbed(model: AssessmentModel, lines: string[]): vo
     return;
   }
   lines.push(
-    "| Flow | Status | Evidence tier | Dispatched | Negative control | Expected rejections | Unexpected errors | Panics |",
-    "| --- | --- | --- | ---: | --- | ---: | ---: | ---: |"
+    "| Flow | Guided-sim flow | Status | Evidence tier | Dispatched | Negative control | Expected rejections | Unexpected errors | Panics |",
+    "| --- | --- | --- | --- | ---: | --- | ---: | ---: | ---: |"
   );
   for (const flow of probed.flows) {
     lines.push(
-      `| ${cell(flow.flow)} | ${cell(flow.status)} | ${cell(flow.evidence_tier)} | ${formatNullableNumber(flow.dispatched_count)} | ` +
-        `${flow.negative_control ? "yes" : "no"} | ${formatNullableNumber(flow.expected_rejections)} | ` +
+      `| ${cell(flow.flow)} | ${cell(flow.guided_sim_flow ?? "—")} | ${cell(flow.status)} | ${cell(flow.evidence_tier)} | ` +
+        `${formatNullableNumber(flow.dispatched_count)} | ${flow.negative_control ? "yes" : "no"} | ${formatNullableNumber(flow.expected_rejections)} | ` +
         `${formatNullableNumber(flow.unexpected_errors)} | ${formatNullableNumber(flow.panics)} |`
     );
   }

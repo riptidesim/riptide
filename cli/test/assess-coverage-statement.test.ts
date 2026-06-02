@@ -78,6 +78,8 @@ test("assess coverage statement: correctness captures guided-sim flow coverage a
   assert.equal(block.probed.guided_sim?.expected_errors, 16);
   assert.equal(block.probed.negative_controls.length, 1);
   assert.equal(block.probed.negative_controls[0]?.negative_control, true);
+  assert.equal(block.probed.negative_controls[0]?.guided_sim_flow, "payout_session_negative_controls");
+  assert.equal(block.probed.negative_controls[0]?.dispatched_count, 16);
   assert.equal(block.probed.negative_controls[0]?.expected_rejections, 16);
   assert.equal(block.hot_regions.length, 0);
   assert.ok(
@@ -101,6 +103,19 @@ test("assess coverage statement: correctness blocked/not-assessed rows come from
   const block = model.coverage_statement;
 
   assert.equal(block.shape, "correctness");
+  assert.equal(block.probed.kind, "guided-sim-flow-coverage");
+  const tokenFlow = block.probed.flows.find((row) => row.flow === "Token withdrawal finalization");
+  assert.ok(tokenFlow);
+  assert.equal(tokenFlow.guided_sim_flow, "withdrawal_finalize_token_happy_path");
+  assert.equal(tokenFlow.dispatched_count, 12);
+  assert.equal(tokenFlow.expected_rejections, null);
+
+  const payoutNegative = block.probed.flows.find((row) => row.flow === "Payout session negative controls");
+  assert.ok(payoutNegative);
+  assert.equal(payoutNegative.guided_sim_flow, "payout_session_negative_controls");
+  assert.equal(payoutNegative.dispatched_count, 16);
+  assert.equal(payoutNegative.expected_rejections, 16);
+
   assert.deepEqual(
     block.blocked.map((row) => row.status),
     ["blocked", "not assessed"]

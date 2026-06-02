@@ -220,14 +220,16 @@ test("flagship assessment: overclaim grep is clean (boundary/negation wording on
 // Sprint 46 Phase 1 adds the additive `coverage_statement` JSON block for the
 // correctness shape. Sprint 46 Phase 2 intentionally moves markdown by adding
 // the Coverage & Limits section. Sprint 46 Phase 3 formally re-pins markdown.
+// Sprint 46 post-close flow-count fix adds raw guided-sim family ids plus
+// per-flow trace counts to correctness-shaped Coverage & Limits tables.
 const CLEAN_CORRECTNESS_MD_SHA256 =
-  "2c60281a6968bbe88aaebf7d32d1b0350f7d4c0d26e9adcb2a2909d6cce254f5";
+  "f963afb35bd052accea404ea16615f65f2a1656b5278fbd2bff8cefa38aa827c";
 const CLEAN_CORRECTNESS_JSON_SHA256 =
-  "3619361f298ba45c82b6ed7f6226c74f814c242d978342abd2315dcf6d78542b";
+  "3d3fb77af8994ea971fbb8e35f6f4f9f5e79054786ac0bf88bb5df96c3f638f0";
 const FINDING_CORRECTNESS_MD_SHA256 =
-  "30efc1b7072639c96e918125b7a2a47fce434823fa327b4303da87e7e61e5e2f";
+  "7de6b6aaea7f8977910a9482e06e2be57585f811ec2c3c24ba9cb10741f85210";
 const FINDING_CORRECTNESS_JSON_SHA256 =
-  "6f8577cf949f125eaf49fb98e738824885971d0b2b305daa5799171d4c3990ad";
+  "adcc3542d2090d87e9d416d72287460506df172885e98c2ea5f1aaffe38f446e";
 
 function renderCorrectness(model: AssessmentModel): { markdown: string; json: string } {
   const narrative = generateAssessmentNarrative(model);

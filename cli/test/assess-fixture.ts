@@ -428,6 +428,23 @@ function guidedSimDoc(
     status: "passed",
     dispatched_flows: 20,
     flow_counts: flowCounts,
+    flow_trace: [
+      {
+        flow_name: "payout_session_happy_path",
+        expected_errors: 0,
+        unexpected_errors: 0
+      },
+      {
+        flow_name: "payout_session_negative_controls",
+        expected_errors: 8,
+        unexpected_errors: index === 0 ? unexpected : 0
+      },
+      {
+        flow_name: "withdrawal_finalize_token_happy_path",
+        expected_errors: 0,
+        unexpected_errors: 0
+      }
+    ],
     service_ticks: 0,
     error: null,
     panic: false
@@ -504,6 +521,15 @@ export function buildCorrectnessModelWithBlockedCoverage(): AssessmentModel {
           commands: ["riptide sim run .riptide/sim --out .riptide/sim/artifacts/defunds-guided-main"],
           artifacts: [".riptide/sim/artifacts/defunds-guided-main/guided-sim-run.json"],
           notes: "Finalize, burn shares, release claim ledger, debit vault, and pay investor."
+        },
+        {
+          priority: "P0",
+          flow: "Payout session negative controls",
+          status: "covered by guided sim",
+          evidence_tier: "guided sim (negative control)",
+          commands: ["riptide sim run .riptide/sim --out .riptide/sim/artifacts/defunds-guided-main"],
+          artifacts: [".riptide/sim/artifacts/defunds-guided-main/guided-sim-run.json"],
+          notes: "Duplicate same-chunk and active-session replay rejected as expected."
         },
         {
           priority: "P0",
