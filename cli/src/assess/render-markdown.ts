@@ -108,6 +108,7 @@ function renderExecutiveSummary(
   lines.push(`- **Verdict:** ${model.verdict.value}`);
   lines.push(`- **Headline claim:** ${narrative.headline_claim}`);
   lines.push(`- **Main finding:** ${narrative.main_finding}`);
+  lines.push(`- **Main limit:** ${narrative.main_limit}`);
   lines.push("");
   lines.push("Short summary:", "");
   for (const paragraph of narrative.executive_summary) {

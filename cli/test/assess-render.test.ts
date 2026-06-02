@@ -49,7 +49,7 @@ test("assess render: flagship renders every template section in order", async ()
   // Executive-summary header fields and the rendered verdict are present.
   assert.match(md, /- \*\*Verdict:\*\* needs_campaign_tuning/);
   assert.match(md, /- \*\*Protocol:\*\* whale-shock-cartography/);
-  assert.doesNotMatch(md, /- \*\*Main limit:\*\*/);
+  assert.match(md, /- \*\*Main limit:\*\* Flows, parameters, and seeds outside this campaign's declared region are not assessed\./);
 });
 
 test("assess render: Coverage & Limits consolidates probed, hot, no-signal, and blocked facts", async () => {
@@ -178,7 +178,10 @@ test("assess render: correctness shape preserves blocked and not-assessed covera
     md,
     /Primary limit: Positive NAV, whitelist-admin, and fee-authority flows are blocked: Requires hard-coded Defunds NAV authority/
   );
-  assert.doesNotMatch(md, /- \*\*Main limit:\*\*/);
+  assert.match(
+    md,
+    /- \*\*Main limit:\*\* Positive NAV, whitelist-admin, and fee-authority flows are blocked: Requires hard-coded Defunds NAV authority/
+  );
   assert.doesNotMatch(md, /No blocked, out-of-scope, or not-assessed flows are recorded/);
 });
 
