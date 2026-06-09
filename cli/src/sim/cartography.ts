@@ -126,15 +126,24 @@ interface GuidedSimRunDocument {
 }
 
 /**
- * Map a guided-sim iteration to its risk-surface run status:
- * - `panic` (engine fault) → `error` (excluded from the solvency failure rate)
- * - engine `failed` or any recorded invariant fire → `fail`
+ * Map a guided-sim iteration to its risk-surface run status. Economic failure
+ * is a declared error-severity invariant fire — NOT an engine crash or a
+ * returned execution error:
+ * - any recorded invariant fire → `fail` (the solvency failure-rate signal)
+ * - `panic` (engine fault) or `failed` (a non-panic returned error;
+ *   `riptide-sim` runner marks these `failed`) → `error`, excluded from the
+ *   failure rate so a flaky transaction can never inflate it
  * - otherwise → `pass`
+ *
+ * A cell's `invariant_failure_rate` therefore counts only `fail` runs, keeping
+ * "the protocol breached solvency" strictly separate from "a transaction
+ * errored unexpectedly".
  */
 export function iterationStatus(iteration: GuidedSimIteration): RiskSurfaceRunInput["status"] {
-  if (iteration.panic === true || iteration.status === "panic") return "error";
-  const invariantFired = (iteration.invariant_fires ?? []).length > 0;
-  if (iteration.status === "failed" || invariantFired) return "fail";
+  if ((iteration.invariant_fires ?? []).length > 0) return "fail";
+  if (iteration.panic === true || iteration.status === "panic" || iteration.status === "failed") {
+    return "error";
+  }
   return "pass";
 }
 
@@ -236,7 +245,8 @@ export function buildCartographyArtifacts(input: EmitCartographyInput): Cartogra
     cartography,
     seedPolicyDisplay,
     sweep,
-    runs
+    runs,
+    runDoc
   });
 
   const retentionManifest: CampaignRetentionManifest = {
@@ -265,6 +275,23 @@ interface SynthesizeSummaryInput {
   seedPolicyDisplay: string;
   sweep: SweepConfig;
   runs: RiskSurfaceRunInput[];
+  runDoc: GuidedSimRunDocument;
+}
+
+/** Collect the recorded values of one metric key across all iterations. */
+function metricSeries(runDoc: GuidedSimRunDocument, key: string): number[] {
+  const series: number[] = [];
+  for (const iteration of runDoc.iterations) {
+    const value = iteration.metrics?.[key];
+    if (typeof value === "number" && Number.isFinite(value)) series.push(value);
+  }
+  return series;
+}
+
+/** Lending observation keys, in canonical order, that some iteration recorded. */
+function presentLendingObservations(runDoc: GuidedSimRunDocument): string[] {
+  const canonical = ["bad_debt", "utilization", "tvl", "available_liquidity", "liquidations"];
+  return canonical.filter((key) => metricSeries(runDoc, key).length > 0);
 }
 
 function synthesizeCampaignSummary(input: SynthesizeSummaryInput): CampaignSummaryJson {
@@ -291,12 +318,21 @@ function synthesizeCampaignSummary(input: SynthesizeSummaryInput): CampaignSumma
 
   const isLending = input.cartography.class === "lending.v1";
   const badDebts = runs.map((r) => r.badDebt).filter((v): v is number => v !== null);
+  const liquidations = metricSeries(input.runDoc, "liquidations");
+  // Only claim observations the guided sim actually recorded, so the report
+  // never advertises a metric it did not measure (e.g. liquidations stays
+  // null unless a flow recorded it).
+  const observationsUsed = presentLendingObservations(input.runDoc);
   const lending = isLending
     ? {
-        observations_used: ["bad_debt", "utilization", "tvl", "available_liquidity"],
+        observations_used: observationsUsed,
         completed_runs_with_metrics: badDebts.length,
         total_bad_debt: { min: minOrNull(badDebts), median: median(badDebts), max: maxOrNull(badDebts) },
-        total_liquidations: { min: null, median: null, max: null },
+        total_liquidations: {
+          min: minOrNull(liquidations),
+          median: median(liquidations),
+          max: maxOrNull(liquidations)
+        },
         liquidity_stress: {
           min_tvl_observed: minOrNull(runs.map((r) => r.tvl).filter(isNum)),
           max_utilization_observed: maxOrNull(runs.map((r) => r.utilization).filter(isNum)),

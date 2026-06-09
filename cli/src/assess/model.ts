@@ -2279,6 +2279,31 @@ function declaredRationale(verdict: AssessmentVerdict): string {
   }
 }
 
+/** Adapter marker the guided-sim → cartography producer stamps on its summary. */
+export const GUIDED_SIM_ADAPTER = "guided-sim";
+
+/** Reproduction command for guided-sim-derived cartography (not a campaign run). */
+const GUIDED_SIM_REPRODUCTION_COMMAND =
+  "riptide sim run (sweep) -> riptide sim surface -> riptide assess";
+
+/**
+ * First-screen provenance disclosure for guided-sim-derived cartography. The
+ * gradient and failure rates are real on-chain guided-sim execution, but the
+ * cartography artifacts were synthesized from a sweep, not produced by
+ * `riptide campaign run`. Stated up front so the report never reads as a
+ * campaign run it was not.
+ */
+export const GUIDED_SIM_PROVENANCE_DISCLOSURE =
+  "Evidence source: a guided-simulation parameter sweep converted into " +
+  "campaign-cartography artifacts; this was not produced by `riptide campaign run`. " +
+  "The failure rates and gradient are real guided-sim execution over the declared, " +
+  "fixed-seed swept region.";
+
+/** True when the cartography root was synthesized from a guided-sim sweep. */
+function isGuidedSimDerived(summary: CampaignSummaryJson): boolean {
+  return summary.campaign.adapter === GUIDED_SIM_ADAPTER;
+}
+
 function resolveRiskPlan(
   summary: CampaignSummaryJson,
   overrides: AssessmentInputs["riskPlan"]
@@ -2290,8 +2315,9 @@ function resolveRiskPlan(
   const families = Object.keys(summary.scenario_families).sort((a, b) => a.localeCompare(b));
   const invariantNames = summary.lending?.liquidation_safety_failures.invariant_names ?? [];
 
+  const guidedSim = isGuidedSimDerived(summary);
   const defaultP0 = families.map((family) => `scenario family \`${family}\``);
-  const defaultEvidence = ["focused campaign"];
+  const defaultEvidence = [guidedSim ? "guided-sim sweep" : "focused campaign"];
   const defaultFailureModes = invariantNames.length > 0
     ? invariantNames.map((name) => `invariant \`${name}\` firing`)
     : ["invariant firing under the swept parameter region"];
@@ -2359,7 +2385,12 @@ function deriveCoverageRows(
   riskPlan: AssessmentRiskPlan,
   campaignRootLabel: string
 ): AssessmentCoverageRow[] {
-  const command = "original campaign command not recorded in campaign artifacts";
+  const guidedSim = isGuidedSimDerived(summary);
+  const command = guidedSim
+    ? GUIDED_SIM_REPRODUCTION_COMMAND
+    : "original campaign command not recorded in campaign artifacts";
+  const familyTier = guidedSim ? "guided-sim sweep" : "focused campaign";
+  const adversarialTier = guidedSim ? "guided-sim adversarial sweep" : "adversarial campaign";
   const artifacts = [`${campaignRootLabel}/risk-surface.json`];
   const rows: AssessmentCoverageRow[] = [];
   for (const [family, row] of Object.entries(summary.scenario_families).sort(([a], [b]) =>
@@ -2371,7 +2402,7 @@ function deriveCoverageRows(
       priority: "P0",
       flow: `scenario family \`${family}\``,
       status,
-      evidence_tier: "focused campaign",
+      evidence_tier: familyTier,
       commands: [command],
       artifacts,
       notes:
@@ -2386,7 +2417,7 @@ function deriveCoverageRows(
       priority: "P0",
       flow: mode,
       status: summary.totals.invariant_failed_runs > 0 ? "covered" : "not assessed",
-      evidence_tier: "adversarial campaign",
+      evidence_tier: adversarialTier,
       commands: [command],
       artifacts,
       notes:
@@ -2403,6 +2434,7 @@ function deriveSimulations(
   surfaceSha256: string,
   campaignRootLabel: string
 ): AssessmentSimulation[] {
+  const guidedSim = isGuidedSimDerived(summary);
   const objective = summary.campaign.risk_objective;
   const result =
     summary.totals.setup_errors > 0
@@ -2412,9 +2444,11 @@ function deriveSimulations(
         : `${summary.totals.completed_runs} runs completed with no invariant failure`;
   return [
     {
-      kind: "focused campaign",
+      kind: guidedSim ? "guided sim" : "focused campaign",
       objective,
-      command: "original campaign command not recorded in campaign artifacts",
+      command: guidedSim
+        ? GUIDED_SIM_REPRODUCTION_COMMAND
+        : "original campaign command not recorded in campaign artifacts",
       result,
       retained_evidence: `${campaignRootLabel}/retention-manifest.json`,
       hashes: [
