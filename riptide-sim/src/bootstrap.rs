@@ -61,6 +61,37 @@ pub struct SimBootstrap {
     pub regression: RegressionConfig,
     #[serde(default)]
     pub coverage: CoverageConfig,
+    /// Risk-surface parameter sweep. Consumed by the runner via forwarded CLI
+    /// flags (`riptide sim run` reads it here and passes `--sweep`); bootstrap
+    /// ignores it, but it must be declared so `deny_unknown_fields` accepts a
+    /// sweep manifest.
+    #[serde(default)]
+    pub sweep: Option<SweepManifest>,
+    /// Cartography metadata (class + risk objective) for the guided-sim →
+    /// risk-surface producer. Read by `riptide sim surface`; bootstrap ignores
+    /// it. Declared here so a cartography manifest parses cleanly.
+    #[serde(default)]
+    pub cartography: Option<CartographyManifest>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SweepManifest {
+    pub name: String,
+    pub values: Vec<f64>,
+    #[serde(default = "default_seeds_per_value")]
+    pub seeds_per_value: u64,
+}
+
+fn default_seeds_per_value() -> u64 {
+    1
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CartographyManifest {
+    pub class: String,
+    pub risk_objective: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]

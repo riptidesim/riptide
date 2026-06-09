@@ -28,7 +28,18 @@ interface EntryAddress {
 }
 
 const TOP_LEVEL_KEYS = new Set(["sim"]);
-const SIM_KEYS = new Set(["programs", "accounts", "fork", "metrics", "regression", "coverage"]);
+const SIM_KEYS = new Set([
+  "programs",
+  "accounts",
+  "fork",
+  "metrics",
+  "regression",
+  "coverage",
+  "sweep",
+  "cartography"
+]);
+const SWEEP_KEYS = new Set(["name", "values", "seeds_per_value"]);
+const CARTOGRAPHY_KEYS = new Set(["class", "risk_objective"]);
 const PROGRAM_KEYS = new Set(["address", "program", "loader"]);
 const ACCOUNT_KEYS = new Set(["address", "filename"]);
 const FORK_KEYS = new Set(["address", "cluster", "filename", "overwrite"]);
@@ -154,7 +165,84 @@ function validateManifestObject(
   validateMetrics(sim["metrics"], findings);
   validateRegression(sim["regression"], findings);
   validateCoverage(sim["coverage"], findings);
+  validateSweep(sim["sweep"], findings);
+  validateCartography(sim["cartography"], findings);
   validateDuplicateBootstrapAddresses(addresses, findings);
+}
+
+function validateSweep(value: unknown, findings: SimManifestFinding[]): void {
+  if (value === undefined) return;
+  if (!isRecord(value)) {
+    findings.push({
+      level: "fail",
+      code: "sweep-shape",
+      path: "sim.sweep",
+      message: "sim.sweep must be a TOML table"
+    });
+    return;
+  }
+  rejectUnknownKeys(value, SWEEP_KEYS, "sim.sweep", findings);
+  stringField(value, "name", "sim.sweep.name", findings);
+
+  const values = value["values"];
+  if (values === undefined) {
+    findings.push({
+      level: "fail",
+      code: "sweep-values-required",
+      path: "sim.sweep.values",
+      message: "sim.sweep.values must declare at least one numeric value"
+    });
+  } else if (!Array.isArray(values) || values.length === 0) {
+    findings.push({
+      level: "fail",
+      code: "sweep-values-shape",
+      path: "sim.sweep.values",
+      message: "sim.sweep.values must be a non-empty array of numbers"
+    });
+  } else {
+    values.forEach((entry, index) => {
+      if (typeof entry !== "number" || !Number.isFinite(entry)) {
+        findings.push({
+          level: "fail",
+          code: "sweep-value-type",
+          path: `sim.sweep.values[${index}]`,
+          message: `sim.sweep.values[${index}] must be a finite number`
+        });
+      }
+    });
+  }
+
+  const seedsPerValue = value["seeds_per_value"];
+  if (seedsPerValue !== undefined) {
+    if (
+      typeof seedsPerValue !== "number" ||
+      !Number.isInteger(seedsPerValue) ||
+      seedsPerValue < 1
+    ) {
+      findings.push({
+        level: "fail",
+        code: "sweep-seeds-per-value",
+        path: "sim.sweep.seeds_per_value",
+        message: "sim.sweep.seeds_per_value must be an integer >= 1"
+      });
+    }
+  }
+}
+
+function validateCartography(value: unknown, findings: SimManifestFinding[]): void {
+  if (value === undefined) return;
+  if (!isRecord(value)) {
+    findings.push({
+      level: "fail",
+      code: "cartography-shape",
+      path: "sim.cartography",
+      message: "sim.cartography must be a TOML table"
+    });
+    return;
+  }
+  rejectUnknownKeys(value, CARTOGRAPHY_KEYS, "sim.cartography", findings);
+  stringField(value, "class", "sim.cartography.class", findings);
+  stringField(value, "risk_objective", "sim.cartography.risk_objective", findings);
 }
 
 function validatePrograms(

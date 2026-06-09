@@ -48,6 +48,17 @@ pub struct World {
     rng: RiptideRng,
     metrics_config: MetricsConfig,
     regression_config: RegressionConfig,
+    /// Per-iteration swept-parameter coordinates recorded by the runner (and
+    /// readable by flows via `sweep_value`). Surfaced in the guided-sim
+    /// artifact so a parameter sweep can be cross-tabulated into a risk
+    /// surface. Empty for non-sweep runs (omitted from the artifact).
+    iteration_parameters: BTreeMap<String, f64>,
+    /// Per-iteration outcome metrics a flow records (e.g. `bad_debt`,
+    /// `liquidations`) for the risk-surface cell metrics. Empty by default.
+    iteration_metrics: BTreeMap<String, f64>,
+    /// Per-iteration error-severity invariant fires a flow records. A
+    /// non-empty list marks the iteration as a surface `fail`. Empty by default.
+    iteration_invariant_fires: Vec<String>,
 }
 
 pub struct WorldTransactionBuilder<'world> {
@@ -87,7 +98,52 @@ impl World {
             rng: RiptideRng::default(),
             metrics_config: MetricsConfig::default(),
             regression_config: RegressionConfig::default(),
+            iteration_parameters: BTreeMap::new(),
+            iteration_metrics: BTreeMap::new(),
+            iteration_invariant_fires: Vec::new(),
         }
+    }
+
+    /// Record a swept-parameter coordinate for this iteration. The runner calls
+    /// this to inject the active sweep value; flows read it back via
+    /// `sweep_value`. Recorded into the guided-sim artifact for risk-surface
+    /// axis placement. Deterministic: BTreeMap keeps keys sorted.
+    pub fn record_parameter(&mut self, name: &str, value: f64) {
+        self.iteration_parameters.insert(name.to_owned(), value);
+    }
+
+    /// Read back a swept-parameter coordinate the runner injected for this
+    /// iteration (e.g. the active `rate_shock_bps`). Returns `None` outside a
+    /// sweep or before the runner sets it.
+    pub fn sweep_value(&self, name: &str) -> Option<f64> {
+        self.iteration_parameters.get(name).copied()
+    }
+
+    /// Record an outcome metric for this iteration (e.g. `bad_debt`,
+    /// `liquidations`). Surfaced as risk-surface cell metric percentiles.
+    pub fn record_metric(&mut self, name: &str, value: f64) {
+        self.iteration_metrics.insert(name.to_owned(), value);
+    }
+
+    /// Record an error-severity invariant fire for this iteration. A non-empty
+    /// set marks the iteration as a risk-surface `fail`. Deduplicated and kept
+    /// sorted for deterministic serialization.
+    pub fn record_invariant_fire(&mut self, name: &str) {
+        if let Err(insert_at) = self.iteration_invariant_fires.binary_search_by(|n| n.as_str().cmp(name)) {
+            self.iteration_invariant_fires.insert(insert_at, name.to_owned());
+        }
+    }
+
+    pub fn iteration_parameters(&self) -> &BTreeMap<String, f64> {
+        &self.iteration_parameters
+    }
+
+    pub fn iteration_metrics(&self) -> &BTreeMap<String, f64> {
+        &self.iteration_metrics
+    }
+
+    pub fn iteration_invariant_fires(&self) -> &[String] {
+        &self.iteration_invariant_fires
     }
 
     pub fn svm(&self) -> &LiteSVM {
