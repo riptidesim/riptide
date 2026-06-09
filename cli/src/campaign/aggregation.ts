@@ -92,6 +92,14 @@ export interface CampaignSummaryJson {
   };
   warnings: string[];
   claim_boundary: string;
+  /**
+   * Additive, optional: the distinct protocol flows a guided-sim sweep
+   * exercised (e.g. `open_swap`, `liquidate_position`). Set only by the
+   * guided-sim → cartography producer; absent for real `riptide campaign run`
+   * summaries, so it never affects existing campaign artifacts. Surfaced in the
+   * assessment scope so the report names the real flows under test.
+   */
+  guided_sim_flows?: string[];
 }
 
 export interface CampaignScenarioFamilySummary {

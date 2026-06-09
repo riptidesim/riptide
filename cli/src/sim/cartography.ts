@@ -108,6 +108,12 @@ async function readSimBlock(
 // guided-sim-run.json shape (only the fields the producer reads)
 // ---------------------------------------------------------------------------
 
+interface GuidedSimTxOutcome {
+  label?: string | null;
+  ok?: boolean;
+  expected_error?: boolean;
+}
+
 interface GuidedSimIteration {
   iteration: number;
   seed: string;
@@ -116,6 +122,7 @@ interface GuidedSimIteration {
   parameters?: Record<string, number>;
   metrics?: Record<string, number>;
   invariant_fires?: string[];
+  tx_outcomes?: GuidedSimTxOutcome[];
 }
 
 interface GuidedSimRunDocument {
@@ -294,6 +301,26 @@ function presentLendingObservations(runDoc: GuidedSimRunDocument): string[] {
   return canonical.filter((key) => metricSeries(runDoc, key).length > 0);
 }
 
+/**
+ * Distinct protocol flows exercised across the sweep, read from the transaction
+ * labels the guided sim recorded. Invariant-check transactions (`invariant:*`)
+ * are excluded. Sorted for deterministic output. Lets the report name the real
+ * flows (`open_swap`, `liquidate_position`, …) instead of an opaque single
+ * dispatch, without per-flow failure attribution.
+ */
+export function exercisedFlows(runDoc: GuidedSimRunDocument): string[] {
+  const labels = new Set<string>();
+  for (const iteration of runDoc.iterations) {
+    for (const tx of iteration.tx_outcomes ?? []) {
+      const label = typeof tx.label === "string" ? tx.label.trim() : "";
+      if (label.length === 0) continue;
+      if (label.startsWith("invariant:")) continue;
+      labels.add(label);
+    }
+  }
+  return [...labels].sort((a, b) => a.localeCompare(b));
+}
+
 function synthesizeCampaignSummary(input: SynthesizeSummaryInput): CampaignSummaryJson {
   const { runs } = input;
   const completed = runs.filter((r) => r.status === "pass" || r.status === "fail").length;
@@ -394,7 +421,8 @@ function synthesizeCampaignSummary(input: SynthesizeSummaryInput): CampaignSumma
     lending,
     retention: { selected: [], warnings: [] },
     warnings: [],
-    claim_boundary: CARTOGRAPHY_CLAIM_BOUNDARY
+    claim_boundary: CARTOGRAPHY_CLAIM_BOUNDARY,
+    guided_sim_flows: exercisedFlows(input.runDoc)
   };
 }
 

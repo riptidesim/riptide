@@ -38,6 +38,12 @@ function syntheticSweepDoc(): GuidedSimRunDocument {
         panic: false,
         parameters: { rate_shock_bps: v },
         metrics: { bad_debt: v * 10 + s, liquidations: Math.max(0, Math.floor((v - 200) / 100)) },
+        tx_outcomes: [
+          { label: "open_swap", ok: true },
+          { label: "settle_period", ok: true },
+          { label: "liquidate_position", ok: true },
+          { label: "invariant:solvency:held", ok: true }
+        ],
         ...(fires.length ? { invariant_fires: fires } : {})
       });
       idx += 1;
@@ -133,6 +139,11 @@ test("sim cartography: guided-sim root assesses as cartography, discloses proven
     assert.doesNotMatch(md, /\| focused campaign \|/);
     // The reproduction path is the guided-sim pipeline, not a campaign run.
     assert.match(md, /riptide sim run \(sweep\) -> riptide sim surface -> riptide assess/);
+    // Scope names the real exercised flows (from tx labels), excluding the
+    // invariant-check transaction, instead of an opaque single dispatch.
+    assert.match(md, /guided-sim flow `open_swap`/);
+    assert.match(md, /guided-sim flow `liquidate_position`/);
+    assert.doesNotMatch(md, /guided-sim flow `invariant:/);
 
     // The model JSON (hashed facts) carries the guided-sim adapter marker.
     const model = JSON.parse(await readFile(path.join(root, "assessment.json"), "utf8")) as {

@@ -2351,8 +2351,20 @@ function resolveScope(
   const families = Object.keys(summary.scenario_families)
     .sort((a, b) => a.localeCompare(b))
     .map((family) => `scenario family \`${family}\``);
+  // Guided-sim-derived cartography names the real protocol flows it exercised
+  // (read from recorded transaction labels) so the report does not read as an
+  // opaque single dispatch. Gated on the guided-sim adapter, so real-campaign
+  // scope bytes are unchanged.
+  const guidedSimFlows =
+    isGuidedSimDerived(summary) && summary.guided_sim_flows
+      ? summary.guided_sim_flows
+          .slice()
+          .sort((a, b) => a.localeCompare(b))
+          .map((flow) => `guided-sim flow \`${flow}\``)
+      : [];
   const inScope = dedupeStable([
     ...families,
+    ...guidedSimFlows,
     ...axes,
     `risk objective \`${summary.campaign.risk_objective}\` over the ${summary.campaign.seed_policy} seed policy`
   ]);
