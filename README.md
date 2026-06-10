@@ -131,7 +131,7 @@ Detailed command-line workflows live in the docs, not in this README.
 | Read | Use it for |
 | --- | --- |
 | [Studio](docs/studio.md) | Studio capabilities, flags, workspace behavior, job launcher, config handoff, and trust boundary. |
-| [Install](docs/install.md) | Hosted installer, repository build, Docker, upgrades, and first run in your repo. |
+| [Install](docs/install.md) | Hosted installer, repository build, local npm package, Docker, upgrades, and first run in your repo. |
 | [Architecture](docs/architecture.md) | The adapter/persona/scenario stack, LiteSVM runtime, determinism, and dashboard artifacts. |
 | [Campaign Runner](docs/campaigns.md) | Deterministic campaign sweeps, retained cases, and review handoff. |
 | [Evidence packs](docs/pack.md) | Pack shape, canonical hashes, rerun scripts, and reviewer workflow. |
