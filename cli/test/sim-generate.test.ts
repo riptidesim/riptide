@@ -1,10 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { generateSim } from "../src/sim/generate.js";
+import {
+  generateSim,
+  materializeRuntime,
+  renderCargoToml,
+  runtimeSourceFromRoots
+} from "../src/sim/generate.js";
 import { loadGenericIdl } from "../src/sim/idl.js";
 import { renderTypes } from "../src/sim/render-types.js";
 
@@ -25,8 +30,9 @@ test("sim generate writes a guided Rust crate from the AMM IDL", async () => {
   const typesExtRs = await readFile(path.join(result.dir, "src", "types_ext.rs"), "utf8");
   const bootstrapToml = await readFile(result.bootstrapManifestPath, "utf8");
 
-  assert.match(cargoToml, /riptide-sim = \{ path = /);
-  assert.match(cargoToml, /riptide-sim-macros = \{ path = /);
+  assert.match(cargoToml, /riptide-sim = \{ path = "\//);
+  assert.match(cargoToml, /riptide-sim-macros = \{ path = "\//);
+  assert.doesNotMatch(cargoToml, /vendor\//);
   assert.match(cargoToml, /borsh = \{ version = "1\.6\.1"/);
   assert.match(mainRs, /#\[riptide_sim\]/);
   assert.match(mainRs, /mod types_ext;/);
@@ -223,13 +229,87 @@ test("sim IDL parser accepts tuple-style enum variant fields from case-study IDL
 test("built CLI carries vendored guided sim runtime crates for packaged installs", async () => {
   const runtimeRoot = path.resolve(process.cwd(), "dist", "sim-runtime");
 
-  assert.match(
-    await readFile(path.join(runtimeRoot, "riptide-sim", "Cargo.toml"), "utf8"),
-    /name = "riptide-sim"/
-  );
+  const simManifest = await readFile(path.join(runtimeRoot, "riptide-sim", "Cargo.toml"), "utf8");
+  assert.match(simManifest, /name = "riptide-sim"/);
+  // The bundled runtime must stay closed over relative paths: riptide-sim's
+  // only path dep is its sibling macros crate, so the pair builds anywhere
+  // the two directories travel together.
+  assert.match(simManifest, /riptide-sim-macros = \{ path = "\.\.\/riptide-sim-macros" \}/);
   assert.match(
     await readFile(path.join(runtimeRoot, "riptide-sim-macros", "Cargo.toml"), "utf8"),
     /name = "riptide-sim-macros"/
   );
   assert.match(await readFile(path.join(runtimeRoot, "Cargo.lock"), "utf8"), /riptide-sim/);
+});
+
+async function writeFakeRuntimeCrates(root: string): Promise<void> {
+  for (const crate of ["riptide-sim", "riptide-sim-macros"]) {
+    await mkdir(path.join(root, crate, "src"), { recursive: true });
+    await writeFile(path.join(root, crate, "Cargo.toml"), `[package]\nname = "${crate}"\n`, "utf8");
+    await writeFile(path.join(root, crate, "src", "lib.rs"), "", "utf8");
+  }
+}
+
+test("sim runtime source prefers a workspace checkout over the packaged runtime", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-source-"));
+  const workspaceRoot = path.join(root, "workspace");
+  const packageRoot = path.join(root, "package");
+  await writeFakeRuntimeCrates(workspaceRoot);
+  await writeFile(path.join(workspaceRoot, "Cargo.toml"), "[workspace]\n", "utf8");
+  await writeFile(path.join(workspaceRoot, "Cargo.lock"), "# lock\n", "utf8");
+  await writeFakeRuntimeCrates(path.join(packageRoot, "dist", "sim-runtime"));
+
+  const source = runtimeSourceFromRoots(workspaceRoot, packageRoot);
+  assert.equal(source?.kind, "workspace");
+  assert.equal(source?.simDir, path.join(workspaceRoot, "riptide-sim"));
+  assert.equal(source?.macrosDir, path.join(workspaceRoot, "riptide-sim-macros"));
+  assert.equal(source?.lockfilePath, path.join(workspaceRoot, "Cargo.lock"));
+});
+
+test("sim runtime source falls back to the packaged runtime without a workspace marker", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-source-"));
+  const packageRoot = path.join(root, "package");
+  const runtimeDir = path.join(packageRoot, "dist", "sim-runtime");
+  await writeFakeRuntimeCrates(runtimeDir);
+  await writeFile(path.join(runtimeDir, "Cargo.lock"), "# lock\n", "utf8");
+
+  assert.equal(runtimeSourceFromRoots(undefined, packageRoot)?.kind, "packaged");
+
+  // A Cargo.toml alone is not a workspace marker — the runtime crates must
+  // resolve under it too, otherwise the packaged runtime wins.
+  const stray = path.join(root, "stray");
+  await mkdir(stray, { recursive: true });
+  await writeFile(path.join(stray, "Cargo.toml"), "[workspace]\n", "utf8");
+  const source = runtimeSourceFromRoots(stray, packageRoot);
+  assert.equal(source?.kind, "packaged");
+  assert.equal(source?.simDir, path.join(runtimeDir, "riptide-sim"));
+  assert.equal(source?.lockfilePath, path.join(runtimeDir, "Cargo.lock"));
+});
+
+test("packaged runtime is vendored next to the generated crate with relative path deps", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-vendor-"));
+  const packageRoot = path.join(root, "package");
+  await writeFakeRuntimeCrates(path.join(packageRoot, "dist", "sim-runtime"));
+  const source = runtimeSourceFromRoots(undefined, packageRoot);
+  assert.ok(source);
+
+  const outDir = path.join(root, "repo", ".riptide", "sim");
+  await mkdir(outDir, { recursive: true });
+  const paths = await materializeRuntime(outDir, source);
+
+  assert.equal(paths.simPath, "vendor/riptide-sim");
+  assert.equal(paths.macrosPath, "vendor/riptide-sim-macros");
+  assert.match(
+    await readFile(path.join(outDir, "vendor", "riptide-sim", "Cargo.toml"), "utf8"),
+    /name = "riptide-sim"/
+  );
+  assert.match(
+    await readFile(path.join(outDir, "vendor", "riptide-sim-macros", "Cargo.toml"), "utf8"),
+    /name = "riptide-sim-macros"/
+  );
+
+  const manifest = renderCargoToml("demo-riptide-sim", paths);
+  assert.match(manifest, /riptide-sim = \{ path = "vendor\/riptide-sim" \}/);
+  assert.match(manifest, /riptide-sim-macros = \{ path = "vendor\/riptide-sim-macros" \}/);
+  assert.ok(!manifest.includes(packageRoot), "manifest must not leak the install location");
 });
