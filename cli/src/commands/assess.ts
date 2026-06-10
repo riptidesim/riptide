@@ -4,6 +4,7 @@
 // campaign. Run `riptide campaign run` first, then assess the root it writes.
 
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -15,16 +16,23 @@ import {
   ASSESSMENT_VERDICTS,
   AssessmentIngestError,
   COVERAGE_STATUSES,
+  GUIDED_SIM_ADAPTER,
   assessmentShape,
   ingestAssessmentWorkspace,
   requireCartographyModel,
   serializeAssessment,
+  withExecutionHonesty,
   workspaceRelative,
   type AssessmentInputs,
   type AssessmentModel,
   type AssessmentVerdict,
   type CartographyAssessmentModel
 } from "../assess/model.js";
+import {
+  failedGates,
+  reverifyAtEmit,
+  type ExecutionHonestyReport
+} from "../sim/honesty-gates.js";
 import { generateAssessmentNarrative } from "../assess/narrative.js";
 import { renderAssessmentHtml } from "../assess/render-html.js";
 import { renderAssessmentMarkdown } from "../assess/render-markdown.js";
@@ -134,13 +142,34 @@ export async function runAssess(
     const campaignRootLabel = workspaceRelative(root, cwd);
 
     const model = await ingestAssessmentWorkspace({ campaignRoot: root, campaignRootLabel, inputs });
-    const narrative = generateAssessmentNarrative(model);
-    const markdown = renderAssessmentMarkdown(model, narrative);
-    const json = serializeAssessment(model);
+
+    // Execution-honesty gate (guided-sim only): re-verify the gate report the
+    // producer recorded in campaign-summary.json and BLOCK emit on a failed
+    // gate. Gated on the guided-sim adapter so real-campaign assessments — and
+    // the frozen cartography bytes — are never affected. Runs before any
+    // artifact is written so a blocked report is never emitted.
+    const executionHonesty = await resolveExecutionHonesty(root, model);
+    if (executionHonesty && executionHonesty.status === "blocked") {
+      throw new AssessmentIngestError(
+        "execution-honesty gates blocked this guided-sim assessment:\n" +
+          failedGates(executionHonesty)
+            .map((gate) => `    ✗ ${gate.id}: ${gate.detail}`)
+            .join("\n"),
+        "Fix the guided sim (declare/pass a positive control, run the full lifecycle, keep the surface deterministic), re-run `riptide sim run` + `riptide sim surface`, then assess again."
+      );
+    }
+
+    const emittedModel = withExecutionHonesty(model, executionHonesty);
+    const narrative = generateAssessmentNarrative(emittedModel);
+    const markdown = renderAssessmentMarkdown(emittedModel, narrative);
+    const json = serializeAssessment(emittedModel);
 
     const outDir = options.out ? path.resolve(cwd, options.out) : root;
     const jsonPath = path.join(outDir, ASSESSMENT_JSON_FILE);
     const mdPath = path.join(outDir, ASSESSMENT_MD_FILE);
+    if (executionHonesty) {
+      await assertAssessmentArtifactsStableAtEmit({ jsonPath, mdPath, json, markdown });
+    }
     // assessment.json is the canonical, self-digested model; assessment.md is the
     // byte-deterministic render the digest transitively covers. The markdown
     // already ends in a single trailing newline; the JSON is written verbatim.
@@ -149,15 +178,15 @@ export async function runAssess(
 
     // Presentation exports (R5): a styled HTML rendering of the hashed markdown,
     // and optionally a PDF from that HTML. Explicitly out of the byte-hash gate.
-    const exports = await writePresentationExports(model, markdown, outDir, options);
+    const exports = await writePresentationExports(emittedModel, markdown, outDir, options);
 
     if (options.json) {
       stdout(
         JSON.stringify(
           {
             schema_version: "assess-cli.v1",
-            assessment_digest: model.assessment_digest,
-            verdict: { value: model.verdict.value, source: model.verdict.source },
+            assessment_digest: emittedModel.assessment_digest,
+            verdict: { value: emittedModel.verdict.value, source: emittedModel.verdict.source },
             artifacts: {
               assessment_json: jsonPath,
               assessment_md: mdPath,
@@ -165,16 +194,17 @@ export async function runAssess(
               ...(exports.pdfPath ? { assessment_pdf: exports.pdfPath } : {})
             },
             ...(exports.pdfSkipped ? { pdf_skipped: exports.pdfSkipped } : {}),
-            shape: assessmentShape(model),
-            ...(model.campaign
+            shape: assessmentShape(emittedModel),
+            ...(emittedModel.campaign
               ? {
                   campaign: {
-                    campaign_id: model.campaign.campaign_id,
-                    campaign_digest: model.campaign.campaign_digest,
-                    surface_sha256: model.reproduction.hashes.surface_sha256
+                    campaign_id: emittedModel.campaign.campaign_id,
+                    campaign_digest: emittedModel.campaign.campaign_digest,
+                    surface_sha256: emittedModel.reproduction.hashes.surface_sha256
                   }
                 }
-              : {})
+              : {}),
+            ...(executionHonesty ? { execution_honesty: executionHonesty } : {})
           },
           null,
           2
@@ -183,9 +213,15 @@ export async function runAssess(
     } else {
       const summaryArtifacts: SummaryArtifacts = { jsonPath, mdPath, campaignRootPath: root, ...exports };
       stdout(
-        assessmentShape(model) === "correctness"
-          ? renderCorrectnessSummary(model, summaryArtifacts, cwd, deps)
-          : renderAssessSummary(requireCartographyModel(model), summaryArtifacts, cwd, deps)
+        assessmentShape(emittedModel) === "correctness"
+          ? renderCorrectnessSummary(emittedModel, summaryArtifacts, cwd, deps)
+          : renderAssessSummary(
+              requireCartographyModel(emittedModel),
+              summaryArtifacts,
+              cwd,
+              deps,
+              executionHonesty
+            )
       );
     }
     return 0;
@@ -200,6 +236,91 @@ export async function runAssess(
     );
     return exitCode;
   }
+}
+
+/**
+ * Resolve the execution-honesty gate report for a guided-sim assessment. Reads
+ * the report the producer recorded in `campaign-summary.json` and re-verifies
+ * the determinism gate against the freshly hashed on-disk `risk-surface.json`
+ * (`model.reproduction.hashes.surface_sha256`). Returns `null` for non-guided-sim
+ * assessments (the gates do not apply). A guided-sim surface with no recorded
+ * report is itself blocked: the gates are mandatory for guided-sim emit.
+ */
+async function resolveExecutionHonesty(
+  root: string,
+  model: AssessmentModel
+): Promise<ExecutionHonestyReport | null> {
+  if (model.campaign?.adapter !== GUIDED_SIM_ADAPTER) return null;
+
+  const recorded = await readRecordedHonesty(root);
+  if (!recorded) {
+    return {
+      schema_version: "execution-honesty.v1",
+      status: "blocked",
+      gates: [
+        {
+          id: "positive_control",
+          status: "fail",
+          detail:
+            "no execution-honesty gate report recorded in campaign-summary.json; re-run `riptide sim surface` with the current CLI."
+        }
+      ],
+      surface_sha256: model.reproduction.hashes.surface_sha256 ?? ""
+    };
+  }
+  const actualSurfaceSha256 = model.reproduction.hashes.surface_sha256 ?? "";
+  return reverifyAtEmit(recorded, actualSurfaceSha256);
+}
+
+/** Read the `execution_honesty` block out of the ingested campaign-summary.json, if present. */
+async function readRecordedHonesty(root: string): Promise<ExecutionHonestyReport | null> {
+  try {
+    const raw = await readFile(path.join(root, "campaign-summary.json"), "utf8");
+    const parsed = JSON.parse(raw) as { execution_honesty?: ExecutionHonestyReport };
+    return parsed.execution_honesty ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function assertAssessmentArtifactsStableAtEmit(input: {
+  jsonPath: string;
+  mdPath: string;
+  json: string;
+  markdown: string;
+}): Promise<void> {
+  const drifts = (
+    await Promise.all([
+      artifactDrift(input.jsonPath, ASSESSMENT_JSON_FILE, input.json),
+      artifactDrift(input.mdPath, ASSESSMENT_MD_FILE, input.markdown)
+    ])
+  ).filter((detail): detail is string => detail !== null);
+
+  if (drifts.length === 0) return;
+  throw new AssessmentIngestError(
+    "execution-honesty gates blocked this guided-sim assessment:\n" +
+      drifts.map((detail) => `    ✗ determinism: ${detail}`).join("\n"),
+    "The existing assessment artifact(s) do not match the freshly rendered bytes. Re-run `riptide assess` into a clean output directory, or perform a documented additive re-pin."
+  );
+}
+
+async function artifactDrift(
+  filePath: string,
+  label: string,
+  expectedBytes: string
+): Promise<string | null> {
+  let existing: string;
+  try {
+    existing = await readFile(filePath, "utf8");
+  } catch {
+    return null;
+  }
+  if (existing === expectedBytes) return null;
+  return `${label} drift: existing sha256 ${sha256(existing).slice(0, 16)}… does not match freshly rendered sha256 ${sha256(expectedBytes).slice(0, 16)}….`;
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 // ---------------------------------------------------------------------------
@@ -396,7 +517,8 @@ function renderAssessSummary(
   model: CartographyAssessmentModel,
   artifacts: SummaryArtifacts,
   cwd: string,
-  deps: AssessCommandDeps
+  deps: AssessCommandDeps,
+  executionHonesty?: ExecutionHonestyReport | null
 ): string {
   const c: Colorizer = pickColorizer(deps.color ?? shouldUseColor(process.env, Boolean(process.stdout.isTTY)));
   const highlights = model.surface_highlights;
@@ -417,6 +539,7 @@ function renderAssessSummary(
       `${model.totals.invariant_failed_runs} invariant-failed (${formatRate(model.totals.invariant_failure_rate)})`,
     `  Risk surface: ${surfaceLine}`,
     `  Safe region: ${safeRegionLine(model)}`,
+    ...executionHonestyLines(executionHonesty, c),
     "",
     c.bold("Artifacts"),
     `  Assessment: ${c.cyan(relativizePath(artifacts.jsonPath, cwd))}`,
@@ -441,6 +564,21 @@ function renderAssessSummary(
     ""
   ];
   return lines.join("\n") + "\n";
+}
+
+/** Cold-read lines for the execution-honesty gates (guided-sim only; empty otherwise). */
+function executionHonestyLines(
+  report: ExecutionHonestyReport | null | undefined,
+  c: Colorizer
+): string[] {
+  if (!report) return [];
+  const head = report.status === "blocked" ? c.yellow("blocked") : c.dim("pass");
+  const lines = [`  Execution honesty: ${head}`];
+  for (const gate of report.gates) {
+    const mark = gate.status === "fail" ? c.yellow("✗") : c.dim("✓");
+    lines.push(`    ${mark} ${gate.id}`);
+  }
+  return lines;
 }
 
 function safeRegionLine(model: CartographyAssessmentModel): string {

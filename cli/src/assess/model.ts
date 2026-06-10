@@ -16,6 +16,7 @@ import type {
   RiskSurfaceSafeRegionStatus
 } from "../campaign/surface.js";
 import type { JsonScalar } from "../campaign/schema.js";
+import type { ExecutionHonestyReport } from "../sim/honesty-gates.js";
 import { RISK_SURFACE_HASH_PREFIX } from "../campaign/surface.js";
 import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
 
@@ -194,6 +195,11 @@ export interface AssessmentModel {
   retained_evidence: AssessmentRetainedEvidence[];
   /** Optional attached run/pack evidence (ingest-only references). */
   external_evidence: AssessmentExternalEvidence[];
+  /**
+   * Guided-sim-only execution-honesty gate report. Absent for real campaign
+   * assessments so frozen campaign artifacts do not pick up guided-sim state.
+   */
+  execution_honesty?: ExecutionHonestyReport;
   reproduction: AssessmentReproduction;
   claim_boundary: string;
   /**
@@ -1221,7 +1227,9 @@ export function buildAssessmentModel(input: BuildAssessmentInput): CartographyAs
 
   // NOTE: this literal must NOT gain a `shape` or `correctness` key — the
   // cartography canonical bytes (and the Sprint 40 lending flagship pins) are
-  // byte-frozen. The correctness shape is built by buildCorrectnessAssessmentModel.
+  // byte-frozen. Guided-sim-only `execution_honesty` is optional and absent on
+  // real campaign artifacts. The correctness shape is built by
+  // buildCorrectnessAssessmentModel.
   const documentFacts: Omit<CartographyAssessmentModel, "assessment_digest" | "coverage_statement"> = {
     schema_version: ASSESSMENT_SCHEMA_VERSION,
     protocol,
@@ -1236,6 +1244,9 @@ export function buildAssessmentModel(input: BuildAssessmentInput): CartographyAs
     surface_highlights: highlights,
     retained_evidence: retainedEvidence,
     external_evidence: [...(inputs.externalEvidence ?? [])],
+    ...(isGuidedSimDerived(summary) && summary.execution_honesty
+      ? { execution_honesty: summary.execution_honesty }
+      : {}),
     reproduction,
     claim_boundary: ASSESSMENT_CLAIM_BOUNDARY
   };
@@ -1248,6 +1259,26 @@ export function buildAssessmentModel(input: BuildAssessmentInput): CartographyAs
     `${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
   );
   return { ...document, assessment_digest: digest };
+}
+
+/**
+ * Return a model whose canonical digest covers the final execution-honesty
+ * report. `riptide assess` uses this after re-verifying the producer-recorded
+ * report at emit time, so the rendered assessment artifacts contain the same
+ * gate state the command enforced.
+ */
+export function withExecutionHonesty<T extends AssessmentModel>(
+  model: T,
+  executionHonesty: ExecutionHonestyReport | null
+): T {
+  const { assessment_digest: _oldDigest, ...facts } = model;
+  const document = executionHonesty
+    ? { ...facts, execution_honesty: executionHonesty }
+    : facts;
+  const digest = sha256Hex(
+    `${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
+  );
+  return { ...(document as Omit<T, "assessment_digest">), assessment_digest: digest } as T;
 }
 
 /**

@@ -2,6 +2,7 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { SimulationResult } from "../compiler/schema.js";
+import type { ExecutionHonestyReport } from "../sim/honesty-gates.js";
 import { renderRiskSurfaceNarrative } from "../report/surface-narrative.js";
 import type { RunSummary } from "../run/loop.js";
 import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
@@ -100,6 +101,14 @@ export interface CampaignSummaryJson {
    * assessment scope so the report names the real flows under test.
    */
   guided_sim_flows?: string[];
+  /**
+   * Additive, optional: the execution-honesty gate report for a guided-sim
+   * sweep (positive control / lifecycle-executed / determinism). Set only by the
+   * guided-sim → cartography producer; absent for real `riptide campaign run`
+   * summaries, so it never affects existing campaign artifacts. `riptide assess`
+   * re-verifies it and blocks emit on a failed gate (guided-sim only).
+   */
+  execution_honesty?: ExecutionHonestyReport;
 }
 
 export interface CampaignScenarioFamilySummary {

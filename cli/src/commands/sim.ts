@@ -18,6 +18,12 @@ import {
   emitCartographyRoot,
   type GuidedSimRunDocument
 } from "../sim/cartography.js";
+import {
+  evaluateLifecycle,
+  evaluatePositiveControl,
+  readLifecycleConfig,
+  readPositiveControlConfig
+} from "../sim/honesty-gates.js";
 
 const dim = (value: string) => chalk.hex("#A8A8A8")(value);
 
@@ -198,7 +204,16 @@ export async function runSimSurface(runPath: string, options: SurfaceOptions): P
       (await readCartographyConfig(manifestPath)) ??
       ({ class: "generic", riskObjective: sweep.name } as const);
 
-    const artifacts = buildCartographyArtifacts({ runDoc, sweep, cartography });
+    const positiveControl = await readPositiveControlConfig(manifestPath, sweep.name);
+    const lifecycle = await readLifecycleConfig(manifestPath);
+
+    const artifacts = buildCartographyArtifacts({
+      runDoc,
+      sweep,
+      cartography,
+      positiveControl,
+      lifecycle
+    });
     const outDir = options.out
       ? path.resolve(process.cwd(), options.out)
       : path.dirname(simDir);
@@ -210,6 +225,28 @@ export async function runSimSurface(runPath: string, options: SurfaceOptions): P
     process.stderr.write(dim(`  campaign-summary.json (id ${artifacts.campaignId})\n`));
     process.stderr.write(dim(`  risk-surface.json\n`));
     process.stderr.write(dim(`  retention-manifest.json\n`));
+
+    // Surface the execution-honesty gate status; a failed gate blocks at
+    // `riptide assess` (emit) time, so flag it loudly here too.
+    const honesty = artifacts.campaignSummary.execution_honesty;
+    if (honesty) {
+      const blocked = honesty.status === "blocked";
+      process.stderr.write(
+        (blocked ? chalk.red : chalk.green)(
+          `  execution-honesty gates: ${honesty.status}\n`
+        )
+      );
+      for (const gate of honesty.gates) {
+        const mark = gate.status === "fail" ? chalk.red("✗") : dim("✓");
+        process.stderr.write(`    ${mark} ${gate.id}: ${gate.detail}\n`);
+      }
+      if (blocked) {
+        process.stderr.write(
+          chalk.red(`  riptide assess will block this surface until the failing gate(s) pass\n`)
+        );
+      }
+    }
+
     process.stderr.write(dim(`  next: riptide assess ${path.relative(process.cwd(), outDir) || "."}\n`));
     return 0;
   } catch (err) {
@@ -244,15 +281,52 @@ async function runCargoSim(simPath: string, options: RunOptions): Promise<number
     await writeGuidedSimRerunScript(simPath, options);
   }
 
-  return new Promise((resolve, reject) => {
+  const code: number = await new Promise((resolve, reject) => {
     const child = spawn("cargo", args, {
       cwd,
       stdio: "inherit",
       env: { ...process.env }
     });
     child.once("error", reject);
-    child.once("close", (code) => resolve(code ?? 1));
+    child.once("close", (closeCode) => resolve(closeCode ?? 1));
   });
+
+  // Warn (never block) at `sim run`: evaluate the run-only honesty gates
+  // (positive control + lifecycle) so authoring iterations get early feedback
+  // without being stopped. Emit-time enforcement happens at `riptide assess`.
+  if (code === 0 && sweep && options.out) {
+    await warnRunGates(cwd, options.out, sweep.name);
+  }
+
+  return code;
+}
+
+/** Evaluate the run-only honesty gates over a freshly written guided-sim-run.json and warn on failures. */
+async function warnRunGates(cwd: string, out: string, sweepName: string): Promise<void> {
+  try {
+    const runFile = path.join(path.resolve(process.cwd(), out), "guided-sim-run.json");
+    if (!existsSync(runFile)) return;
+    const runDoc = JSON.parse(await readFile(runFile, "utf8")) as GuidedSimRunDocument;
+    const manifestPath = path.join(cwd, "Riptide.toml");
+    const positiveControl = await readPositiveControlConfig(manifestPath, sweepName);
+    const lifecycle = await readLifecycleConfig(manifestPath);
+    const gates = [
+      evaluatePositiveControl(runDoc, positiveControl),
+      evaluateLifecycle(runDoc, lifecycle)
+    ];
+    const failed = gates.filter((gate) => gate.status === "fail");
+    if (failed.length === 0) return;
+    process.stderr.write(
+      chalk.yellow(
+        `  warning: ${failed.length} execution-honesty gate(s) would block at \`riptide assess\`:\n`
+      )
+    );
+    for (const gate of failed) {
+      process.stderr.write(chalk.yellow(`    ✗ ${gate.id}: ${gate.detail}\n`));
+    }
+  } catch {
+    // Best-effort warning; never fail the run on gate-evaluation trouble.
+  }
 }
 
 async function writeGuidedSimRerunScript(simPath: string, options: RunOptions): Promise<void> {

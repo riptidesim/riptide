@@ -111,7 +111,13 @@ test("sim cartography: guided-sim root assesses as cartography, discloses proven
     const artifacts = buildCartographyArtifacts({
       runDoc: syntheticSweepDoc(),
       sweep: SWEEP,
-      cartography: CARTO
+      cartography: CARTO,
+      // Declare an honest baseline + lifecycle so the execution-honesty gates
+      // pass and the assessment emits (the gates are exercised in their own
+      // suite). The synthetic sweep runs rate_shock_bps=0 as the control and
+      // executes the three core flows every iteration.
+      positiveControl: { parameter: "rate_shock_bps", value: 0 },
+      lifecycle: { required_flows: ["open_swap", "settle_period", "liquidate_position"] }
     });
     await emitCartographyRoot(artifacts, root);
 

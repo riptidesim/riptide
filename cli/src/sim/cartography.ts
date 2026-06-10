@@ -16,6 +16,12 @@ import type {
   CampaignParameterSummary
 } from "../campaign/aggregation.js";
 import type { JsonScalar, ParameterDistribution, RetentionLabel } from "../campaign/schema.js";
+import {
+  buildExecutionHonestyReport,
+  type ExecutionHonestyReport,
+  type LifecycleConfig,
+  type PositiveControlConfig
+} from "./honesty-gates.js";
 
 /**
  * Bridge: turn a guided-sim parameter sweep into the three cartography
@@ -196,6 +202,10 @@ export interface EmitCartographyInput {
   runDoc: GuidedSimRunDocument;
   sweep: SweepConfig;
   cartography: CartographyConfig;
+  /** Declared positive-control coordinate; drives the positive-control gate. */
+  positiveControl?: PositiveControlConfig | null;
+  /** Declared lifecycle flows; drives the lifecycle-executed gate. */
+  lifecycle?: LifecycleConfig | null;
 }
 
 export interface CartographyArtifacts {
@@ -245,6 +255,17 @@ export function buildCartographyArtifacts(input: EmitCartographyInput): Cartogra
   });
   const riskSurfaceJson = serializeRiskSurface(surface);
 
+  // Execution-honesty gates: evaluated where the producer knows the run, and
+  // recorded into the (guided-sim only) summary so `riptide assess` can
+  // re-verify and block emit on a failed gate. The determinism gate is seeded
+  // with the surface hash for re-verification at the surface→assess boundary.
+  const executionHonesty: ExecutionHonestyReport = buildExecutionHonestyReport({
+    runDoc,
+    positiveControl: input.positiveControl ?? null,
+    lifecycle: input.lifecycle ?? null,
+    surfaceSha256: sha256Hex(riskSurfaceJson)
+  });
+
   const campaignSummary = synthesizeCampaignSummary({
     campaignId,
     campaignDigest,
@@ -253,7 +274,8 @@ export function buildCartographyArtifacts(input: EmitCartographyInput): Cartogra
     seedPolicyDisplay,
     sweep,
     runs,
-    runDoc
+    runDoc,
+    executionHonesty
   });
 
   const retentionManifest: CampaignRetentionManifest = {
@@ -283,6 +305,7 @@ interface SynthesizeSummaryInput {
   sweep: SweepConfig;
   runs: RiskSurfaceRunInput[];
   runDoc: GuidedSimRunDocument;
+  executionHonesty: ExecutionHonestyReport;
 }
 
 /** Collect the recorded values of one metric key across all iterations. */
@@ -444,7 +467,8 @@ function synthesizeCampaignSummary(input: SynthesizeSummaryInput): CampaignSumma
     retention: { selected: [], warnings: [] },
     warnings: [],
     claim_boundary: CARTOGRAPHY_CLAIM_BOUNDARY,
-    guided_sim_flows: exercisedFlows(input.runDoc)
+    guided_sim_flows: exercisedFlows(input.runDoc),
+    execution_honesty: input.executionHonesty
   };
 }
 

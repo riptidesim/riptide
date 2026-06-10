@@ -68,6 +68,7 @@ export function renderAssessmentMarkdown(
   renderNonFindings(narrative, lines);
   renderBlockedAndOutOfScope(model, lines);
   renderReproduction(model, lines);
+  renderExecutionHonesty(model, lines);
   renderRecommendedNextWork(model, narrative, lines);
   renderToolchain(model, lines);
   renderReviewerChecklist(lines);
@@ -612,6 +613,24 @@ function renderReproduction(model: AssessmentModel, lines: string[]): void {
     // Correctness shape: no campaign/surface digests; anchor on the guided-sim hash.
     const guidedSimSha256 = model.correctness?.guided_sim?.sha256 ?? null;
     lines.push(`- **\`guided-sim-run.json\` sha256:** \`${guidedSimSha256 ?? "not emitted"}\``);
+  }
+  lines.push("");
+}
+
+// ---------------------------------------------------------------------------
+// Execution honesty (guided-sim only)
+// ---------------------------------------------------------------------------
+
+function renderExecutionHonesty(model: AssessmentModel, lines: string[]): void {
+  const report = model.execution_honesty;
+  if (!report) return;
+  lines.push("## Execution Honesty", "");
+  lines.push(`- **Status:** \`${report.status}\``);
+  lines.push(`- **Surface hash:** \`${report.surface_sha256 || "not recorded"}\``);
+  lines.push("");
+  lines.push("| Gate | Status | Detail |", "| --- | --- | --- |");
+  for (const gate of report.gates) {
+    lines.push(`| ${cell(gate.id)} | ${cell(gate.status)} | ${cell(gate.detail)} |`);
   }
   lines.push("");
 }
