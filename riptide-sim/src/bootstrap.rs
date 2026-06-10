@@ -72,6 +72,16 @@ pub struct SimBootstrap {
     /// it. Declared here so a cartography manifest parses cleanly.
     #[serde(default)]
     pub cartography: Option<CartographyManifest>,
+    /// Execution-honesty positive control: the known-correct baseline sweep
+    /// coordinate. Read by `riptide sim run`/`riptide sim surface`; bootstrap
+    /// ignores it. Declared here so an honesty-bearing manifest parses cleanly.
+    #[serde(default)]
+    pub positive_control: Option<PositiveControlManifest>,
+    /// Execution-honesty lifecycle declaration: transaction labels that must
+    /// execute on-chain for the run to be honest evidence. Read by
+    /// `riptide sim run`/`riptide sim surface`; bootstrap ignores it.
+    #[serde(default)]
+    pub lifecycle: Option<LifecycleManifest>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -92,6 +102,20 @@ fn default_seeds_per_value() -> u64 {
 pub struct CartographyManifest {
     pub class: String,
     pub risk_objective: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PositiveControlManifest {
+    /// Swept axis the control coordinate lives on; defaults to the sweep name.
+    pub parameter: Option<String>,
+    pub value: f64,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LifecycleManifest {
+    pub required_flows: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -741,6 +765,34 @@ enabled = false
         assert_eq!(manifest.sim.regression.accounts.len(), 1);
         assert_eq!(manifest.sim.regression.state_hashes, vec!["pool"]);
         assert!(!manifest.sim.coverage.enabled);
+    }
+
+    #[test]
+    fn manifest_accepts_execution_honesty_sections() {
+        let manifest: SimManifest = toml::from_str(
+            r#"
+[sim.sweep]
+name = "rate_shock_bps"
+values = [0, 100, 200]
+seeds_per_value = 4
+
+[sim.positive_control]
+value = 0
+
+[sim.lifecycle]
+required_flows = ["deposit_liquidity", "open_swap"]
+"#,
+        )
+        .unwrap();
+
+        let control = manifest.sim.positive_control.unwrap();
+        assert_eq!(control.parameter, None);
+        assert_eq!(control.value, 0.0);
+        let lifecycle = manifest.sim.lifecycle.unwrap();
+        assert_eq!(
+            lifecycle.required_flows,
+            vec!["deposit_liquidity", "open_swap"]
+        );
     }
 
     #[test]
