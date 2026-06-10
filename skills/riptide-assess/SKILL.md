@@ -277,6 +277,154 @@ The expected authoring output is a repo-local Campaign TOML such as:
 Use the exact path that `riptide-config` produced. Do not invent a campaign
 path or rename the campaign after validation.
 
+## Authoring Patterns (Guided Sim)
+
+When the classification verdict is `guided-sim-required`, the sim crate under
+`.riptide/sim/` is hand-authored, but the hard-won parts are already library
+code. Wire these instead of re-deriving them; each pattern maps back to the
+trigger that forced the guided path.
+
+### Oracle-account construction (trigger B)
+
+Use `riptide_sim::oracle::PythPriceUpdate` to construct the Pyth
+`PriceUpdateV2` account a program's `get_price_no_older_than(...)` reads. The
+builder owns the full 134-byte layout (Anchor discriminator, verification
+level, feed_id, price/conf/exponent, freshness fields) verified against
+`pyth-solana-receiver-sdk`, so never hand-roll those bytes:
+
+```rust
+use riptide_sim::oracle::{crash_in_place, PythPriceUpdate};
+
+let mut update = PythPriceUpdate::new(FEED_ID, INITIAL_PRICE, -8, base_ts);
+update.install(&mut sim.world, price_update_key)?;
+// Later, mid-lifecycle: the crash (the swept stress), re-stamped fresh so the
+// program's freshness window is isolated from the price move.
+crash_in_place(&mut sim.world, &price_update_key, crashed_price, now)?;
+```
+
+Set `write_authority`, `conf`, or other fields on the struct before
+`install` when the target program checks them. For non-Pyth attestors
+(custom NAV attestations, Switchboard), follow the same shape — a
+deterministic byte builder in your sim's `services/`, with a `set`/`crash`
+mutator — rather than scattering offsets through flows.
+
+### Third-party-actor dispatch (trigger C)
+
+Use `riptide_sim::dispatch::ThirdPartyDispatch` for any instruction where one
+actor signs and operates on another actor's position or order (liquidator,
+keeper, matcher, settler). Push accounts in the program's IDL order with the
+role methods; `build()` rejects the three recurring hand-roll bugs (target
+marked signer, actor never signing, a stray third signer):
+
+```rust
+use riptide_sim::dispatch::ThirdPartyDispatch;
+
+let mut dispatch = ThirdPartyDispatch::new(liquidator, position_owner);
+dispatch
+    .shared(protocol_state, false)
+    .target_account(position_pda, true)   // owner's position; never signs
+    .actor_account(liquidator_ata, true)  // receives seized collateral
+    .actor_signer(true);                  // the sole signer
+let (metas, signer) = dispatch.build_with_signer()?;
+```
+
+### The sweep + control + invariant scaffold
+
+A guided sim destined for a risk-surface assessment declares four blocks in
+`.riptide/sim/Riptide.toml`:
+
+```toml
+[sim.sweep]                      # the exogenous stress axis
+name = "collateral_price_drop_bps"
+values = [0, 1000, 2000, 3000, 4000, 5000, 6000]
+seeds_per_value = 4
+
+[sim.positive_control]           # the known-correct baseline coordinate
+value = 0                        # parameter defaults to the sweep name
+
+[sim.lifecycle]                  # core flows that must execute on-chain
+required_flows = ["create_lend_offer", "accept_lend_offer", "liquidate_loan"]
+
+[sim.cartography]                # surface metadata
+class = "lending.v1"
+risk_objective = "<one-sentence risk objective with scope boundaries>"
+```
+
+In `flows.rs`, read the swept coordinate with
+`world.sweep_value("<axis>")` and echo it back with
+`world.record_parameter`. Record the deciding signal with
+`world.record_metric` and fire the deciding invariant with
+`world.record_invariant_fire` when the metric crosses the stated risk line —
+the playbook entry for the archetype names the metric, the trap to avoid,
+and the line. Author negative controls (a healthy-state action that must
+reject) with the transaction builder's `expect_error()`, so a rejection is
+asserted rather than silently tolerated.
+
+### The guided evidence pipeline
+
+```bash
+riptide sim run .riptide/sim --out <artifact-dir>   # reads [sim.sweep]; warns on failing gates
+riptide sim surface <artifact-dir> --sim .riptide/sim --out <assess-root>
+riptide assess <assess-root>                        # blocks on any failed gate
+```
+
+`sim run` executes one iteration per (value, seed replicate) and records each
+coordinate; `sim surface` builds the cartography artifacts and records the
+execution-honesty gate report into the guided-sim campaign summary;
+`riptide assess` re-verifies the gates and refuses to emit while any gate
+fails.
+
+## Honesty Discipline (Non-Negotiable)
+
+Riptide has no automatic oracle for "is this finding real and honestly
+framed", so the report's credibility rests on these rules. The runtime
+enforces the first three as execution-honesty gates — evaluated at
+`riptide sim surface`, warned at `riptide sim run`, and **blocking** at
+`riptide assess` — and the rest are framing rules the gates cannot check, so
+following them is on you.
+
+1. **Positive control.** Every sweep declares a coordinate whose outcome is
+   known-correct (`[sim.positive_control]`, usually axis value `0`: no shock,
+   fresh-and-true attestation paying exact pro-rata) and that coordinate must
+   pass. Without it a flat surface is unfalsifiable. *Enforced: the
+   `positive_control` gate blocks emit when the declaration is missing, the
+   coordinate never ran, or it fired an invariant.*
+2. **Real-program execution — never mock.** Flows execute the target
+   program's real `.so`. Constructed external-account bytes (oracle prices,
+   attestations) are the stress input, not a mock of the target; the target
+   program itself is never stubbed or reimplemented. A flat result is only
+   robustness if the intended lifecycle actually ran on-chain. *Enforced:
+   the `lifecycle_executed` gate blocks emit when declared
+   `[sim.lifecycle] required_flows` never executed successfully — "no-op,
+   not robustness".*
+3. **Determinism.** Fixed seeds, fixed amounts, no wall clock, no network.
+   The same command must reproduce the same bytes. *Enforced: the
+   `determinism` gate re-hashes `risk-surface.json` at emit against the hash
+   recorded at surface time, and `riptide assess` refuses to overwrite an
+   existing `assessment.json`/`assessment.md` that does not match the freshly
+   rendered bytes.*
+4. **Scope and boundary framing.** The result is evidence over the declared
+   region — one configuration, the swept axis, the listed flows — not a
+   safety statement. Name what was held fixed, what was out of scope (e.g.
+   an oracle's own staleness guards when you drive the price directly, an
+   external reserve that is inert in stub mode), and say "evidence over the
+   declared region", never "safe".
+5. **Robustness is a valid result — never manufacture a finding.** A flat
+   surface with the positive control passing and the lifecycle executed is a
+   real, publishable robustness result. State the structural reason the
+   guard holds rather than asserting safety, and do not tighten thresholds
+   or distort scenarios until something fires.
+6. **The fire-threshold is a stated risk line; the gradient is the signal.**
+   The invariant's threshold (1% of reserve, 1% of debt value) is a chosen
+   reporting line, not a discovered boundary. Report where the metric starts
+   moving and where it crosses the line — both are surface facts.
+7. **Exogenous-axis cover-framing.** The swept axis is an exogenous stress
+   (a market crash, a markdown), not a protocol knob. The auto-generated
+   finding title and any "keep `<axis>` in {…}" safe-region line must be
+   reframed in your delivery as "the onset sits at X on the axis" — a fact
+   about where the risk begins, never a tuning instruction to the protocol
+   team. No gate can check this; it is a delivery-step rule.
+
 ## Step 5: Run
 
 Run the validated campaign deterministically, repair setup failures in-loop,
@@ -316,7 +464,8 @@ Classify failures carefully:
   that explicitly.
 
 For guided-sim evidence destined for a risk-surface heatmap, declare the
-swept axis as `[sim.sweep]` in `.riptide/sim/Riptide.toml`, then run the
+`[sim.sweep]`, `[sim.positive_control]`, and `[sim.lifecycle]` blocks in
+`.riptide/sim/Riptide.toml` (see the authoring patterns above), then run the
 guided pipeline:
 
 ```bash
@@ -329,6 +478,12 @@ riptide assess <assess-root printed by sim surface>
 risk surface, retention manifest) from the sweep so `riptide assess` renders
 the heatmap; without a sweep, guided-sim evidence flows through
 `riptide sim review` and the correctness assessment shape instead.
+
+A blocked `riptide assess` that names a failed execution-honesty gate is a
+setup repair, not evidence: declare or fix the positive control, make the
+required lifecycle flows actually execute, or restore determinism, then
+re-run `riptide sim run` + `riptide sim surface` and assess again. Do not
+work around a blocked gate with a hand-written report.
 
 Review the campaign root printed by the run:
 
@@ -374,6 +529,12 @@ complete:
   summary coverage/confidence line when present.
 - Boundary: state that the result covers declared simulation inputs and
   evidence only.
+- For guided-sim assessments: the execution-honesty gate results (positive
+  control, lifecycle executed, determinism) as printed by `riptide assess`,
+  and the worst-case framing from the honesty discipline — the swept axis
+  named as an exogenous stress with the onset stated as a surface fact, the
+  fire-threshold named as the stated risk line, and a held invariant framed
+  as a robustness result with its structural reason.
 
 If no assessment was generated, do not pretend otherwise. Deliver the blocked
 state with the exact failed command, the exact error summary, what you repaired,
