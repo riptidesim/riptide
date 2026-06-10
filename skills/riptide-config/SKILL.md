@@ -266,6 +266,16 @@ transactions, target-vs-agent action selection, unsupported custom
 argument assembly, or project-local oracle/orderbook/stake service
 models.
 
+When the assessment front door (`riptide-assess`) hands over an
+execution-path classification note, treat it as the path decision and map
+its triggers to authoring stages: non-primitive or enum arguments → typed
+builders in the generated sim crate; external oracle account bytes →
+deterministic account construction in the harness or in project-owned sim
+services; third-party / target-vs-agent actions, multi-instruction
+sequences, and dynamic `remaining_accounts` → hand-authored flows in
+`flows.rs`; custom CPI bootstrapping → `Riptide.toml` program/account
+declarations plus bootstrap services.
+
 Generate the project-owned simulation crate:
 
 ```bash
