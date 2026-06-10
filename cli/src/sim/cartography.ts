@@ -321,6 +321,22 @@ export function exercisedFlows(runDoc: GuidedSimRunDocument): string[] {
   return [...labels].sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * Distinct error-severity invariants that actually fired across the sweep, read
+ * from the recorded `invariant_fires`. Sorted for determinism. Lets the report
+ * name the invariant that really fired (e.g. `lp_outflow_material`) instead of a
+ * hardcoded guess; a sweep with no fires reports an empty list.
+ */
+export function firedInvariants(runDoc: GuidedSimRunDocument): string[] {
+  const fires = new Set<string>();
+  for (const iteration of runDoc.iterations) {
+    for (const name of iteration.invariant_fires ?? []) {
+      if (typeof name === "string" && name.trim().length > 0) fires.add(name.trim());
+    }
+  }
+  return [...fires].sort((a, b) => a.localeCompare(b));
+}
+
 function synthesizeCampaignSummary(input: SynthesizeSummaryInput): CampaignSummaryJson {
   const { runs } = input;
   const completed = runs.filter((r) => r.status === "pass" || r.status === "fail").length;
@@ -367,7 +383,13 @@ function synthesizeCampaignSummary(input: SynthesizeSummaryInput): CampaignSumma
             runs.map((r) => r.availableLiquidity).filter(isNum)
           )
         },
-        liquidation_safety_failures: { failed_runs: failed, invariant_names: ["solvency"] }
+        liquidation_safety_failures: {
+          failed_runs: failed,
+          // Name the invariants that ACTUALLY fired (e.g. `lp_outflow_material`),
+          // not a hardcoded guess — a flat-zero sweep reports none, never a
+          // misleading "solvency" failure.
+          invariant_names: firedInvariants(input.runDoc)
+        }
       }
     : null;
 
