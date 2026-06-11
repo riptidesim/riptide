@@ -8,7 +8,7 @@
 - **Sweep size**: 3
 - **Completed cells**: 3
 - **Fail-fast**: true
-- **Wall clock**: 0.013s
+- **Wall clock**: 0.008s
 
 ## Invariant fire frequency
 

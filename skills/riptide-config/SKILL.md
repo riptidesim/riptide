@@ -230,8 +230,11 @@ owners, discriminators, sizes, PDA seeds, feed IDs, and serialization.
 
 For external-owned accounts such as oracle receiver accounts, keep the
 adapter/harness deterministic: use local account bytes, checked-in
-snapshots, or guided-sim fork cache entries. Do not ask Riptide core to
-learn Pyth, Switchboard, or other protocol-specific layouts. If the
+snapshots, or guided-sim fork cache entries. For Pyth `PriceUpdateV2`
+accounts, guided-sim code uses the provided
+`riptide_sim::oracle::PythPriceUpdate` builder instead of hand-rolled
+bytes; other protocol-specific layouts stay project-owned (do not ask
+Riptide core to learn them). If the
 exact layout, owner, feed ID, or serialization cannot be determined from
 local facts or an explicit `.riptide/sim/Riptide.toml` snapshot, return
 `blocked = missing deterministic <fact> for harness/guided-sim setup`
@@ -266,6 +269,16 @@ transactions, target-vs-agent action selection, unsupported custom
 argument assembly, or project-local oracle/orderbook/stake service
 models.
 
+When the assessment front door (`riptide-assess`) hands over an
+execution-path classification note, treat it as the path decision and map
+its triggers to authoring stages: non-primitive or enum arguments → typed
+builders in the generated sim crate; external oracle account bytes →
+deterministic account construction in the harness or in project-owned sim
+services; third-party / target-vs-agent actions, multi-instruction
+sequences, and dynamic `remaining_accounts` → hand-authored flows in
+`flows.rs`; custom CPI bootstrapping → `Riptide.toml` program/account
+declarations plus bootstrap services.
+
 Generate the project-owned simulation crate:
 
 ```bash
@@ -298,12 +311,31 @@ Keep generated `types.rs` and `accounts.rs` regenerated-only; put
 hand-authored protocol actions, dynamic account resolution, and service
 models under `flows.rs`, `invariants.rs`, and `services/`.
 
-Do not add Pyth, Switchboard, OpenBook, Drift, Mango, Marinade,
-Whirlpool, or other protocol-specific layouts to Riptide core. If the
-protocol needs those account bytes to evolve during a run, declare the
-external programs/accounts/forked snapshots generically in
+Wire the provided guided-sim helpers instead of re-deriving their
+patterns by hand:
+
+- `riptide_sim::oracle::PythPriceUpdate` (+ `crash_in_place`) constructs
+  and mutates the Pyth `PriceUpdateV2` account bytes a program's price
+  read consumes — never hand-roll that layout.
+- `riptide_sim::dispatch::ThirdPartyDispatch` builds the account set for
+  an actor signing an instruction that operates on another actor's
+  position or order (liquidator, keeper, matcher); `build()` enforces
+  that the actor is the sole signer and the target never signs.
+
+Do not add OpenBook, Drift, Mango, Marinade, Whirlpool, or other
+protocol-specific layouts to Riptide core beyond the provided helpers. If
+the protocol needs other external account bytes to evolve during a run,
+declare the external programs/accounts/forked snapshots generically in
 `Riptide.toml`, then model the protocol-specific mutation in
 project-owned services.
+
+When the guided evidence is destined for an assessment, also declare the
+evidence-honesty blocks in `Riptide.toml` next to `[sim.sweep]`:
+`[sim.positive_control]` (the known-correct baseline coordinate, usually
+axis value `0`) and `[sim.lifecycle]` with `required_flows` listing the
+transaction labels that must execute on-chain. `riptide sim run` warns
+when those checks fail; `riptide assess` blocks the report until they
+pass.
 
 Validate the guided-sim loop before continuing to scenario or campaign
 work:

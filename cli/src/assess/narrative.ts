@@ -4,6 +4,8 @@ import {
   ASSESSMENT_NARRATIVE_SCHEMA,
   assessmentShape,
   requireCartographyModel,
+  GUIDED_SIM_ADAPTER,
+  GUIDED_SIM_PROVENANCE_DISCLOSURE,
   type AssessmentCorrectnessEvidence,
   type AssessmentFinding,
   type AssessmentModel,
@@ -184,16 +186,21 @@ function buildExecutiveSummary(
   recommendation: AssessmentRecommendation
 ): string[] {
   const totals = model.totals;
+  const guidedSim = model.campaign.adapter === GUIDED_SIM_ADAPTER;
   const swept = sweptAxes(model);
   const sweptPhrase =
     swept.length > 0
       ? `, sweeping ${joinList(swept.map((axis) => `\`${axis}\``))}`
       : ", with no varying parameters";
 
-  const whatRan =
-    `${model.protocol.name} was assessed over the \`${model.campaign.name}\` ${model.campaign.class} ` +
-    `campaign: ${totals.completed_runs} of ${totals.requested_runs} requested run(s) completed under the ` +
-    `${model.campaign.seed_policy} seed policy${sweptPhrase}.`;
+  const whatRan = guidedSim
+    ? `${model.protocol.name} was assessed over a guided-simulation sweep \`${model.campaign.name}\` ` +
+      `(${model.campaign.class}), rendered as cartography artifacts: ${totals.completed_runs} of ` +
+      `${totals.requested_runs} swept iteration(s) completed under the ${model.campaign.seed_policy} ` +
+      `seed policy${sweptPhrase}.`
+    : `${model.protocol.name} was assessed over the \`${model.campaign.name}\` ${model.campaign.class} ` +
+      `campaign: ${totals.completed_runs} of ${totals.requested_runs} requested run(s) completed under the ` +
+      `${model.campaign.seed_policy} seed policy${sweptPhrase}.`;
 
   const verdict = `Verdict — ${humanVerdict(model.verdict.value)}: ${model.verdict.rationale}`;
 
@@ -207,7 +214,11 @@ function buildExecutiveSummary(
       : `No declared invariant fired across the ${totals.completed_runs} completed run(s) within the declared ` +
         `parameter region. ${recommendation.statement}`;
 
-  return [whatRan, verdict, evidence, model.claim_boundary];
+  // Lead with the provenance disclosure for guided-sim-derived cartography so
+  // the report never reads as a `riptide campaign run` it was not.
+  return guidedSim
+    ? [GUIDED_SIM_PROVENANCE_DISCLOSURE, whatRan, verdict, evidence, model.claim_boundary]
+    : [whatRan, verdict, evidence, model.claim_boundary];
 }
 
 // ---------------------------------------------------------------------------
@@ -244,7 +255,8 @@ function buildFindings(
       title,
       severity: "P0",
       affected_flow: affectedFlow,
-      evidence_tier: "focused campaign",
+      evidence_tier:
+        model.campaign.adapter === GUIDED_SIM_ADAPTER ? "guided-sim sweep" : "focused campaign",
       observed,
       why_it_matters:
         "Failures cluster in part of the declared parameter region rather than spreading uniformly, so a bounded " +

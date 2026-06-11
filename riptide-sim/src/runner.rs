@@ -51,6 +51,37 @@ pub struct RunnerConfig {
     pub seed: [u8; 32],
     pub debug: bool,
     pub out_dir: Option<PathBuf>,
+    /// When set, the runner sweeps a single named parameter across declared
+    /// values, running `seeds_per_value` seed replicates per value. Each
+    /// iteration's coordinate is injected into the World (readable via
+    /// `sweep_value`) and recorded into the artifact. In sweep mode the loop
+    /// does NOT stop at the first failing iteration — failing cells are the
+    /// signal a risk surface needs.
+    pub sweep: Option<SweepConfig>,
+}
+
+/// A single-axis parameter sweep for guided-sim risk-surface generation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SweepConfig {
+    pub name: String,
+    pub values: Vec<f64>,
+    pub seeds_per_value: u64,
+}
+
+impl Eq for SweepConfig {}
+
+impl SweepConfig {
+    /// Total iterations this sweep expands to: one per (value, seed replicate).
+    pub fn total_iterations(&self) -> u64 {
+        (self.values.len() as u64).saturating_mul(self.seeds_per_value.max(1))
+    }
+
+    /// The swept value active for a given global iteration index.
+    fn value_for(&self, iteration: u64) -> f64 {
+        let per_value = self.seeds_per_value.max(1);
+        let value_index = (iteration / per_value) as usize;
+        self.values[value_index.min(self.values.len().saturating_sub(1))]
+    }
 }
 
 impl Default for RunnerConfig {
@@ -61,6 +92,7 @@ impl Default for RunnerConfig {
             seed: [0x52; 32],
             debug: false,
             out_dir: None,
+            sweep: None,
         }
     }
 }
@@ -97,14 +129,25 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
         let mut first_error: Option<String> = None;
         let mut metrics_artifact_filename: Option<PathBuf> = None;
 
-        for iteration in 0..self.config.iterations {
+        let sweeping = self.config.sweep.is_some();
+        let iterations = match &self.config.sweep {
+            Some(sweep) => sweep.total_iterations(),
+            None => self.config.iterations,
+        };
+
+        for iteration in 0..iterations {
             let seed = iteration_seed(self.config.seed, iteration);
+            let sweep_point = self
+                .config
+                .sweep
+                .as_ref()
+                .map(|sweep| (sweep.name.as_str(), sweep.value_for(iteration)));
             eprintln!(
                 "riptide sim iteration={} seed={}",
                 iteration,
                 seed_to_hex(&seed)
             );
-            let report = self.run_iteration(iteration, seed);
+            let report = self.run_iteration(iteration, seed, sweep_point);
             if metrics_artifact_filename.is_none() {
                 metrics_artifact_filename = report.metrics_artifact_filename.clone();
             }
@@ -114,10 +157,16 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
                     iteration,
                     seed_to_hex(&seed)
                 );
-                artifact.retained_failing_seed = Some(seed_to_hex(&seed));
-                first_error = Some(error.clone());
-                artifact.iterations.push(report.artifact);
-                break;
+                if artifact.retained_failing_seed.is_none() {
+                    artifact.retained_failing_seed = Some(seed_to_hex(&seed));
+                }
+                // In sweep mode a failing iteration is recorded signal, not a
+                // run abort: keep going so every parameter cell is populated.
+                if !sweeping {
+                    first_error = Some(error.clone());
+                    artifact.iterations.push(report.artifact);
+                    break;
+                }
             }
             artifact.iterations.push(report.artifact);
         }
@@ -135,9 +184,20 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
         }
     }
 
-    fn run_iteration(&self, iteration: u64, seed: [u8; 32]) -> IterationRun {
+    fn run_iteration(
+        &self,
+        iteration: u64,
+        seed: [u8; 32],
+        sweep_point: Option<(&str, f64)>,
+    ) -> IterationRun {
         let mut simulation = T::default();
         simulation.world().set_rng_seed(seed);
+        if let Some((name, value)) = sweep_point {
+            // Inject the active sweep coordinate before init/flows so flows can
+            // read it via `world.sweep_value(name)`, and so it is recorded into
+            // the iteration artifact even if the flow never reads it.
+            simulation.world().record_parameter(name, value);
+        }
         let mut flow_counts = BTreeMap::new();
         let mut flow_trace = Vec::new();
         let mut first_failing_flow_step = None;
@@ -337,6 +397,9 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
             .then(|| world.metrics_config().filename.as_deref())
             .flatten()
             .map(PathBuf::from);
+        let parameters = world.iteration_parameters().clone();
+        let metrics = world.iteration_metrics().clone();
+        let invariant_fires = world.iteration_invariant_fires().to_vec();
         let tx_log = world.tx_log().to_vec();
         let status = if panic {
             "panic"
@@ -364,6 +427,9 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
                 regression,
                 error,
                 panic,
+                parameters,
+                metrics,
+                invariant_fires,
             },
         }
     }
@@ -463,6 +529,11 @@ struct GuidedSimRunArtifact {
     retained_failing_seed: Option<String>,
     totals: GuidedSimTotals,
     iterations: Vec<GuidedSimIterationArtifact>,
+    /// True when this artifact came from a parameter sweep. Not serialized:
+    /// it only governs the terminal-status rule (a sweep that ran to
+    /// completion is `passed` even though individual cells failed).
+    #[serde(skip)]
+    swept: bool,
 }
 
 impl GuidedSimRunArtifact {
@@ -471,12 +542,16 @@ impl GuidedSimRunArtifact {
             schema_version: 1,
             trace_schema_version: 1,
             status: "running".to_owned(),
-            iterations_requested: config.iterations,
+            iterations_requested: match &config.sweep {
+                Some(sweep) => sweep.total_iterations(),
+                None => config.iterations,
+            },
             flows_per_iteration: config.flows_per_iteration,
             base_seed: seed_to_hex(&config.seed),
             retained_failing_seed: None,
             totals: GuidedSimTotals::default(),
             iterations: Vec::new(),
+            swept: config.sweep.is_some(),
         }
     }
 
@@ -507,7 +582,10 @@ impl GuidedSimRunArtifact {
                 }
             }
         }
-        self.status = if self.retained_failing_seed.is_some() {
+        // A sweep that ran to completion is `passed`: failing cells are the
+        // recorded signal, not a run abort. Outside a sweep, a retained failing
+        // seed means the run stopped on first failure.
+        self.status = if self.retained_failing_seed.is_some() && !self.swept {
             "failed".to_owned()
         } else {
             "passed".to_owned()
@@ -544,6 +622,18 @@ struct GuidedSimIterationArtifact {
     regression: RegressionArtifact,
     error: Option<String>,
     panic: bool,
+    /// Swept-parameter coordinates for this iteration (e.g. `rate_shock_bps`).
+    /// Additive and omitted when empty so non-sweep guided-sim artifacts keep
+    /// byte-identical serialization (and `trace_schema_version` stays 1).
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    parameters: BTreeMap<String, f64>,
+    /// Outcome metrics a flow recorded for risk-surface cell percentiles.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    metrics: BTreeMap<String, f64>,
+    /// Error-severity invariant fires a flow recorded; non-empty marks the
+    /// iteration as a surface `fail`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    invariant_fires: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -797,10 +887,22 @@ struct RunnerArgs {
     debug: bool,
     #[arg(long = "out")]
     out_dir: Option<PathBuf>,
+    /// Sweep a single named parameter as `name=v1,v2,...`. When set, the runner
+    /// runs one iteration per (value, seed replicate) and records each value as
+    /// the iteration's risk-surface coordinate. Overrides `--iterations`.
+    #[arg(long = "sweep")]
+    sweep: Option<String>,
+    /// Seed replicates per swept value (default 1). Only used with `--sweep`.
+    #[arg(long = "seeds-per-value", default_value_t = 1)]
+    seeds_per_value: u64,
 }
 
 impl RunnerArgs {
     fn try_into_config(self) -> Result<RunnerConfig> {
+        let sweep = match self.sweep {
+            Some(spec) => Some(parse_sweep_spec(&spec, self.seeds_per_value)?),
+            None => None,
+        };
         Ok(RunnerConfig {
             iterations: self.iterations,
             flows_per_iteration: self.flows_per_iteration,
@@ -810,8 +912,48 @@ impl RunnerArgs {
             },
             debug: self.debug,
             out_dir: self.out_dir,
+            sweep,
         })
     }
+}
+
+/// Parse `name=v1,v2,...` into a `SweepConfig`. Values are finite f64. The
+/// declared order is preserved (it is the canonical axis order downstream).
+fn parse_sweep_spec(spec: &str, seeds_per_value: u64) -> Result<SweepConfig> {
+    let (name, values) = spec
+        .split_once('=')
+        .ok_or_else(|| anyhow!("--sweep must be `name=v1,v2,...`, got {spec:?}"))?;
+    let name = name.trim();
+    if name.is_empty() {
+        anyhow::bail!("--sweep parameter name must be non-empty in {spec:?}");
+    }
+    let values = values
+        .split(',')
+        .map(|raw| raw.trim())
+        .filter(|raw| !raw.is_empty())
+        .map(|raw| {
+            raw.parse::<f64>()
+                .map_err(|_| anyhow!("--sweep value {raw:?} is not a number"))
+                .and_then(|value| {
+                    if value.is_finite() {
+                        Ok(value)
+                    } else {
+                        Err(anyhow!("--sweep value {raw:?} must be finite"))
+                    }
+                })
+        })
+        .collect::<Result<Vec<f64>>>()?;
+    if values.is_empty() {
+        anyhow::bail!("--sweep must declare at least one value in {spec:?}");
+    }
+    if seeds_per_value == 0 {
+        anyhow::bail!("--seeds-per-value must be at least 1");
+    }
+    Ok(SweepConfig {
+        name: name.to_owned(),
+        values,
+        seeds_per_value,
+    })
 }
 
 #[cfg(test)]
@@ -891,6 +1033,81 @@ mod tests {
         assert_eq!(trace[0]["expected_errors"], 0);
         assert_eq!(trace[0]["unexpected_errors"], 0);
         assert!(trace[0]["failure_message"].is_null());
+
+        // Additive sweep fields are omitted when empty so non-sweep artifacts
+        // serialize byte-identically (trace_schema_version stays 1).
+        let iteration0 = value["iterations"][0].as_object().unwrap();
+        assert!(!iteration0.contains_key("parameters"));
+        assert!(!iteration0.contains_key("metrics"));
+        assert!(!iteration0.contains_key("invariant_fires"));
+
+        let _ = fs::remove_dir_all(out_dir);
+    }
+
+    #[derive(Default)]
+    struct SweepSim {
+        world: World,
+    }
+
+    #[riptide_sim]
+    impl SweepSim {
+        #[init]
+        fn init(&mut self) {}
+
+        #[flow(weight = 100)]
+        fn record_shock(&mut self) -> Result<()> {
+            // Read the injected sweep coordinate and turn it into recorded
+            // outcome signal: high shock => an error-severity invariant fire.
+            let shock = self.world.sweep_value("rate_shock_bps").unwrap_or(0.0);
+            self.world.record_metric("bad_debt", shock * 2.0);
+            if shock >= 300.0 {
+                self.world.record_invariant_fire("solvency");
+            }
+            Ok(())
+        }
+
+        #[end]
+        fn end(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn runner_sweep_populates_every_cell() {
+        let out_dir = unique_temp_dir();
+        let config = RunnerConfig {
+            flows_per_iteration: 1,
+            out_dir: Some(out_dir.clone()),
+            sweep: Some(SweepConfig {
+                name: "rate_shock_bps".to_owned(),
+                values: vec![0.0, 100.0, 300.0, 500.0],
+                seeds_per_value: 3,
+            }),
+            ..RunnerConfig::default()
+        };
+
+        SimulationRunner::<SweepSim>::new(config).run().unwrap();
+
+        let raw = fs::read_to_string(out_dir.join("guided-sim-run.json")).unwrap();
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        // 4 values x 3 seeds = 12 iterations, all retained (no break on fail).
+        assert_eq!(value["totals"]["iterations"], 12);
+        assert_eq!(value["status"], "passed");
+        let iterations = value["iterations"].as_array().unwrap();
+        assert_eq!(iterations.len(), 12);
+        // Each iteration carries the active swept coordinate.
+        assert_eq!(iterations[0]["parameters"]["rate_shock_bps"], 0.0);
+        assert_eq!(iterations[3]["parameters"]["rate_shock_bps"], 100.0);
+        assert_eq!(iterations[6]["parameters"]["rate_shock_bps"], 300.0);
+        assert_eq!(iterations[11]["parameters"]["rate_shock_bps"], 500.0);
+        // Recorded metric scales with the coordinate.
+        assert_eq!(iterations[6]["metrics"]["bad_debt"], 600.0);
+        // High-shock cells record the solvency invariant fire; low-shock don't.
+        // This is surface-level economic failure signal, distinct from an
+        // engine error: the iteration still runs to completion ("passed").
+        assert_eq!(iterations[6]["invariant_fires"][0], "solvency");
+        assert_eq!(iterations[6]["status"], "passed");
+        assert!(iterations[0].as_object().unwrap().get("invariant_fires").is_none());
 
         let _ = fs::remove_dir_all(out_dir);
     }

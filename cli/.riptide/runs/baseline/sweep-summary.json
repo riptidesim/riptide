@@ -7,7 +7,7 @@
   "engine_errors": 0,
   "status": "all_pass",
   "fail_fast": true,
-  "wall_clock_s": 0.013,
+  "wall_clock_s": 0.008,
   "invariant_fire_frequency": {},
   "cells": [
     {

@@ -4,6 +4,8 @@ extern crate self as riptide_sim;
 
 pub mod accounts;
 pub mod bootstrap;
+pub mod dispatch;
+pub mod oracle;
 pub mod rng;
 pub mod runner;
 pub mod services;
@@ -14,6 +16,11 @@ pub use accounts::AddressStorage;
 pub use bootstrap::{
     BootstrapReport, CoverageConfig, ForkSnapshotReport, MetricsConfig, RegressionConfig,
     SimBootstrap, SimManifest,
+};
+pub use dispatch::{register_actor, ThirdPartyDispatch};
+pub use oracle::{
+    crash_in_place as crash_pyth_price_in_place, pyth_receiver_program, PythPriceUpdate,
+    PRICE_UPDATE_V2_LEN, PYTH_RECEIVER_PROGRAM,
 };
 pub use rng::RiptideRng;
 pub use runner::{run, FlowSpec, IntoSimResult, RiptideSimulation, RunnerConfig, SimulationRunner};

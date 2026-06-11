@@ -1,0 +1,70 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.59s
+     Running unittests src/lib.rs (target/debug/deps/riptide_sim-f07a2ed4d8a3161a)
+
+running 48 tests
+test accounts::tests::get_except_picks_distinct_address ... ok
+test bootstrap::tests::cached_fork_does_not_refetch_without_overwrite ... ok
+test accounts::tests::family_and_role_helpers_are_deterministic ... ok
+test bootstrap::tests::cached_snapshot_pubkey_mismatch_fails ... ok
+test bootstrap::tests::manifest_accepts_execution_honesty_sections ... ok
+test bootstrap::tests::snapshot_provenance_records_hash_and_source ... ok
+test dispatch::tests::duplicate_actor_signer_is_rejected ... ok
+test dispatch::tests::liquidation_set_makes_actor_the_sole_signer ... ok
+test dispatch::tests::missing_actor_signer_is_rejected ... ok
+test bootstrap::tests::manifest_accepts_guarded_evidence_sections ... ok
+test dispatch::tests::self_service_is_rejected - should panic ... ok
+test dispatch::tests::target_as_signer_is_rejected ... ok
+test dispatch::tests::third_party_signer_other_than_actor_is_rejected ... ok
+test oracle::tests::crash_price_drops_by_basis_points ... ok
+test oracle::tests::discriminator_matches_anchor_account_hash ... ok
+test oracle::tests::serialized_account_is_134_bytes_partial_tagged ... ok
+test rng::tests::seeded_rng_reproduces_values ... ok
+test runner::tests::runner_dispatches_weighted_flows ... ok
+test bootstrap::tests::manifest_rejects_unavailable_coverage_flag ... ok
+test bootstrap::tests::manifest_rejects_unknown_sections ... ok
+test dispatch::tests::registered_actor_is_a_world_signer ... ok
+test accounts::tests::signer_registration_keeps_world_in_sync ... ok
+test bootstrap::tests::manifest_loads_local_account_snapshot ... ok
+test bootstrap::tests::manifest_rejects_unsupported_program_loader ... ok
+test runner::tests::runner_trace_records_first_failure_for_end_error ... ok
+test runner::tests::runner_fails_on_regression_hash_mismatch ... ok
+test runner::tests::runner_retains_failing_seed_in_artifact ... ok
+test runner::tests::runner_trace_records_first_failing_step_for_panic ... ok
+test runner::tests::runner_replay_rejects_bad_flow_index ... ok
+test runner::tests::runner_trace_records_first_failure_for_end_panic ... ok
+test runner::tests::runner_replay_sequence_preserves_traced_counts_and_failure_step ... ok
+test runner::tests::runner_trace_records_service_tick_offsets ... ok
+test runner::tests::runner_trace_summarizes_expected_error_outcomes ... ok
+test runner::tests::runner_writes_regression_account_hashes ... ok
+test runner::tests::runner_writes_metrics_filename_when_out_is_omitted ... ok
+test bootstrap::tests::cached_upgradeable_program_forks_programdata_pair ... ok
+test world::tests::borsh_account_helpers_round_trip_and_mutate ... ok
+test world::tests::process_transaction_expect_error_records_program_failure ... ok
+test world::tests::process_transaction_records_success ... ok
+test world::tests::process_transaction_outcome_preserves_legacy_missing_signer_panic ... ok
+test world::tests::sysvar_time_helpers_are_deterministic ... ok
+test runner::tests::runner_writes_stable_json_artifact ... ok
+test world::tests::transaction_builder_can_return_raw_outcome ... ok
+test world::tests::transaction_builder_reports_missing_required_signer ... ok
+test world::tests::transaction_builder_records_expected_error ... ok
+test world::tests::transaction_builder_runs_instruction_with_label_and_selected_signer ... ok
+test world::tests::process_transaction_signatures_are_stable_across_worlds ... ok
+test runner::tests::runner_sweep_populates_every_cell ... ok
+
+test result: ok. 48 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.33s
+
+     Running tests/oracle.rs (target/debug/deps/oracle-68d83a8ed95543a3)
+
+running 3 tests
+test oracle_builder_round_trips_through_the_independent_decoder ... ok
+test oracle_crashed_price_flips_liquidation_from_reject_to_trigger ... ok
+test oracle_stale_publish_time_is_rejected_by_freshness_check ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+   Doc-tests riptide_sim
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -73,6 +73,15 @@ By default, the crate lands at `.riptide/sim/`:
 `accounts.rs` contains generated address-storage fields from the
 adapter's `[accounts.*]` entries. Treat both files as regenerated code.
 
+The crate depends on the `riptide-sim` runtime. From a Riptide source
+checkout, the generator writes live path dependencies into the checkout
+so runtime changes are picked up without regenerating. From an
+installed CLI, it copies the runtime crates into `.riptide/sim/vendor/`
+and writes relative path dependencies, so the crate is self-contained:
+it builds with only Rust and Cargo present, can be committed alongside
+your program, and survives CLI upgrades. The vendored copy is refreshed
+on every full `riptide sim generate`.
+
 Write protocol behavior in `flows.rs`, invariant checks in
 `invariants.rs`, and project-local mocks in `services/`.
 
