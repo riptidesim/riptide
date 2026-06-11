@@ -1,6 +1,6 @@
 [package]
 name = "riptide-engine"
-version = "0.9.1"
+version = "0.10.0"
 edition = "2021"
 description = "Deterministic multi-agent simulator for Solana programs: run hundreds of adversarial personas against your code in LiteSVM and map the knife edge before mainnet does."
 license = "MIT OR Apache-2.0"

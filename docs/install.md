@@ -2,7 +2,7 @@
 
 **Supported path:** use the hosted installer for Linux x86_64 or macOS Intel/Apple Silicon.
 
-The hosted installer downloads a prebuilt bundle for the current platform. Windows x64 packaging exists in the release tooling, but no Windows asset is published for `v0.9.1`; use WSL, Linux/macOS, or the repository checkout path until a Windows bundle is attached. A repository checkout and local Docker build are available for Riptide development or unreleased changes.
+The hosted installer downloads a prebuilt bundle for the current platform. Windows x64 packaging exists in the release tooling, but no Windows asset is published for `v0.10.0`; use WSL, Linux/macOS, or the repository checkout path until a Windows bundle is attached. A repository checkout and local Docker build are available for Riptide development or unreleased changes.
 
 ## Release Install
 
@@ -12,7 +12,7 @@ Linux and macOS:
 curl -fsSL https://riptide.run/install | sh
 ```
 
-Windows PowerShell is not an active prebuilt path for `v0.9.1`; the hosted PowerShell script exits with a no-bundle message until a Windows release asset is published:
+Windows PowerShell is not an active prebuilt path for `v0.10.0`; the hosted PowerShell script exits with a no-bundle message until a Windows release asset is published:
 
 ```powershell
 irm https://riptide.run/install.ps1 | iex
@@ -25,7 +25,7 @@ The release bundle does not require Rust, Node.js, npm, Solana CLI, or `cargo-bu
 Useful options:
 
 ```bash
-curl -fsSL https://riptide.run/install | sh -s -- --version 0.9.1
+curl -fsSL https://riptide.run/install | sh -s -- --version 0.10.0
 curl -fsSL https://riptide.run/install | sh -s -- --bin-dir "$HOME/bin"
 curl -fsSL https://riptide.run/install | sh -s -- --dry-run
 curl -fsSL https://riptide.run/install | sh -s -- --no-agent-skills
@@ -39,7 +39,7 @@ existing non-Riptide-managed skill directory untouched. Set
 `RIPTIDE_INSTALL_AGENT_SKILLS=0` or pass `--no-agent-skills` to skip
 that step.
 
-Release bundles are produced by [`../scripts/package-release.sh`](../scripts/package-release.sh). The current `v0.9.1` public release artifact set is:
+Release bundles are produced by [`../scripts/package-release.sh`](../scripts/package-release.sh). The current `v0.10.0` public release artifact set is:
 
 ```text
 riptide-x86_64-unknown-linux-gnu.tar.gz
@@ -251,7 +251,7 @@ Linux and macOS:
 curl -fsSL https://riptide.run/install | sh
 ```
 
-Windows PowerShell currently reports that no Windows prebuilt bundle is published for `v0.9.1`:
+Windows PowerShell currently reports that no Windows prebuilt bundle is published for `v0.10.0`:
 
 ```powershell
 irm https://riptide.run/install.ps1 | iex
