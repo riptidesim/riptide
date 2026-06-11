@@ -771,7 +771,12 @@ function loadIdlFacts(adapter: RawAdapter, adapterPath: string, required: boolea
   return collectIdlFacts(parsed);
 }
 
-function resolveRuntimePath(raw: string, adapterPath: string): string {
+// Canonical resolution for adapter-declared runtime files (`idl_path`,
+// `program_so`): absolute paths pass through, adapter-dir-relative wins when
+// the file exists there, and adapters under `.riptide/adapters/` fall back to
+// the user repo root so `target/idl/x.json`-style paths resolve the same way
+// everywhere (lint, generate, explain).
+export function resolveRuntimePath(raw: string, adapterPath: string): string {
   if (path.isAbsolute(raw)) return raw;
   const adapterDir = path.dirname(path.resolve(adapterPath));
   const adapterRelative = path.resolve(adapterDir, raw);

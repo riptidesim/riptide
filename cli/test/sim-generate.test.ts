@@ -81,6 +81,42 @@ test("sim generate uses fixed-address program load when adapter declares program
   assert.doesNotMatch(mainRs, /load_program_from_so/);
 });
 
+test("sim generate resolves repo-root-relative runtime paths for .riptide adapters", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-reporoot-"));
+  const repoRoot = path.resolve(process.cwd(), "..");
+  const sourceAdapter = await readFile(path.join(repoRoot, "fixtures", "adapters", "amm.toml"), "utf8");
+
+  // Lay the adapter out the way `riptide init` + riptide-config do in a user
+  // repo: adapter under .riptide/adapters/ with idl_path/program_so written
+  // relative to the repo root, not the adapter directory.
+  await mkdir(path.join(root, ".riptide", "adapters"), { recursive: true });
+  await mkdir(path.join(root, "target", "idl"), { recursive: true });
+  await mkdir(path.join(root, "target", "deploy"), { recursive: true });
+  const idlSource = await readFile(path.join(repoRoot, "fixtures", "idls", "amm.json"), "utf8");
+  await writeFile(path.join(root, "target", "idl", "amm.json"), idlSource, "utf8");
+  await writeFile(path.join(root, "target", "deploy", "amm.so"), "", "utf8");
+  const adapterPath = path.join(root, ".riptide", "adapters", "amm.toml");
+  const adapter = sourceAdapter
+    .replace(
+      'program_so = "../../programs/amm/target/deploy/amm.so"',
+      'program_so = "target/deploy/amm.so"'
+    )
+    .replace('idl_path = "../idls/amm.json"', 'idl_path = "target/idl/amm.json"');
+  await writeFile(adapterPath, adapter, "utf8");
+
+  const result = await generateSim(root, {
+    adapter: adapterPath,
+    dir: ".riptide/sim"
+  });
+
+  assert.equal(result.idlPath, path.join(root, "target", "idl", "amm.json"));
+  const mainRs = await readFile(path.join(result.dir, "src", "main.rs"), "utf8");
+  assert.match(
+    mainRs,
+    new RegExp(JSON.stringify(path.join(root, "target", "deploy", "amm.so")).replace(/[\\^$.*+?()[\]{}|]/g, "\\$&"))
+  );
+});
+
 test("sim refresh preserves user-owned flow files", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-refresh-"));
   const adapter = path.resolve(process.cwd(), "..", "fixtures", "adapters", "amm.toml");

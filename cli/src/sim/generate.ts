@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { loadAdapter, type AdapterLoadError } from "../adapter/resolve.js";
 import { cliPackageRootFromModule, monorepoRootFromModule } from "../orchestrator/index.js";
-import { resolveAdapterRuntime, type Adapter } from "../schemas/adapter.js";
+import { resolveAdapterRuntime, resolveRuntimePath, type Adapter } from "../schemas/adapter.js";
 import { loadGenericIdl } from "./idl.js";
 import { renderAccounts } from "./render-accounts.js";
 import { renderBootstrapManifest } from "./render-manifest.js";
@@ -49,8 +49,7 @@ export async function generateSim(
     throw new Error(`${resolved.path} does not declare idl_path`);
   }
 
-  const adapterDir = path.dirname(resolved.path);
-  const idlPath = path.resolve(adapterDir, resolved.adapter.idl_path);
+  const idlPath = resolveRuntimePath(resolved.adapter.idl_path, resolved.path);
   const idl = await loadGenericIdl(idlPath);
   const outDir = path.resolve(cwd, options.dir ?? ".riptide/sim");
   const srcDir = path.join(outDir, "src");
@@ -59,7 +58,7 @@ export async function generateSim(
   const bootstrapManifestPath = path.join(outDir, "Riptide.toml");
   const forceUserOwned = options.forceGenerated === true;
   const programSoPath = resolved.adapter.program_so
-    ? path.resolve(adapterDir, resolved.adapter.program_so)
+    ? resolveRuntimePath(resolved.adapter.program_so, resolved.path)
     : undefined;
 
   await mkdir(servicesDir, { recursive: true });
