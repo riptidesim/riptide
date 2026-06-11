@@ -267,7 +267,7 @@ EOF
 
   cat > "$fake_path/node" <<'EOF'
 #!/usr/bin/env bash
-printf '%s' '0.10.0'
+printf '%s' '0.11.0'
 EOF
 
   for cmd in npm cargo curl tar; do

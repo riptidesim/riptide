@@ -1,7 +1,7 @@
 {
   "name": "@riptide/studio-app",
   "private": true,
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Riptide Studio React + Vite frontend (CLI-bundled localhost app).",
   "type": "module",
   "scripts": {
