@@ -101,15 +101,22 @@ found.
 
 ## Local npm Package Install
 
-To install the CLI as a global npm package without a registry, build the tarball from a repository checkout and install it into your npm prefix:
+To install the CLI as a global npm package without a registry, build the tarball from a repository checkout and install it into your npm prefix. For `v0.9.1`, install scripts stay disabled because the matching GitHub Release engine asset is not published; copy the locally built engine into the package after install:
 
 ```bash
 git clone https://github.com/riptidesim/riptide
-cd riptide/cli
+cd riptide
+cargo build --release -p riptide-engine
+cd cli
 npm install --no-audit --no-fund --ignore-scripts
 npm run build
 npm pack
-npm install -g ./riptide-cli-<version>.tgz
+npm install -g --ignore-scripts ./riptide-cli-<version>.tgz
+RIPTIDE_NPM_ROOT="$(npm root -g)"
+mkdir -p "$RIPTIDE_NPM_ROOT/@riptide/cli/bin"
+cp ../target/release/riptide-engine "$RIPTIDE_NPM_ROOT/@riptide/cli/bin/riptide-engine"
+chmod +x "$RIPTIDE_NPM_ROOT/@riptide/cli/bin/riptide-engine"
+riptide --version
 ```
 
 Prerequisites on the machine that runs `riptide`:
@@ -120,7 +127,9 @@ Prerequisites on the machine that runs `riptide`:
 
 The package carries the guided-sim runtime crates under `dist/sim-runtime/`. In a packaged install, `riptide sim generate` copies them into your repo at `.riptide/sim/vendor/` and writes relative path dependencies, so the generated simulation crate builds without this repository present.
 
-The npm postinstall step downloads the prebuilt `riptide-engine` binary from GitHub Releases for the package version. When no release asset is published for your platform or version, install with `--ignore-scripts` and place a locally built engine binary (from `cargo build --release -p riptide-engine` in the checkout) at `<npm-prefix>/lib/node_modules/@riptide/cli/bin/riptide-engine`, or set `RIPTIDE_RELEASE_BASE_URL` to a mirror that hosts the binary. Verify with:
+If you install into a custom prefix, use `npm root -g --prefix <prefix>` for `RIPTIDE_NPM_ROOT` and put `<prefix>/bin` on `PATH`.
+
+The npm postinstall step downloads the prebuilt `riptide-engine` binary from GitHub Releases for the package version. When a matching release asset exists, the plain `npm install -g ./riptide-cli-<version>.tgz` path can fetch it automatically. Until then, use the `--ignore-scripts` local-engine path above, or set `RIPTIDE_RELEASE_BASE_URL` to a mirror that hosts the binary. Verify with:
 
 ```bash
 riptide --version
