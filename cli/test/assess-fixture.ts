@@ -17,6 +17,7 @@ import {
   buildAssessmentModel,
   buildCorrectnessAssessmentModel,
   summarizeGuidedSimRun,
+  type AssessmentInputs,
   type AssessmentModel,
   type CartographyAssessmentModel,
   type GuidedSimRunDocument
@@ -164,6 +165,129 @@ export function buildThresholdNonZeroSafeRegionModel(): CartographyAssessmentMod
     surfaceRawBytes: surfaceRaw,
     retentionManifest: identityManifest(surface)
   });
+}
+
+// --- swept exogenous-stress fixtures (guided-sim vs real-campaign twins) ----
+
+export type SweptStressShape = "bounded" | "entire-region" | "none";
+
+/** The adapter label the real-campaign twin models carry. */
+export const REAL_CAMPAIGN_ADAPTER = "fixtures/adapters/lending-cartography.toml";
+
+/**
+ * A model whose swept axis is an exogenous stress (`collateral_price_drop_bps`),
+ * buildable with either the guided-sim adapter or a real-campaign adapter so
+ * suites can assert the guided-sim resilience-boundary narrative and the
+ * frozen real-campaign strings against identical surfaces. `shape` picks the
+ * safe-region branch: `bounded` fails only at the deepest crash (safe region
+ * {0, 1000, 2000}), `entire-region` never fails, `none` always fails. The
+ * summary declares the single invariant `lender_bad_debt`.
+ */
+export function buildSweptStressModel(options: {
+  shape: SweptStressShape;
+  adapter?: string;
+  inputs?: AssessmentInputs;
+}): CartographyAssessmentModel {
+  const { shape } = options;
+  const adapter = options.adapter ?? "guided-sim";
+  const campaign: BuildRiskSurfaceInput["campaign"] = {
+    campaignId: `campaign_stress${shape.replace(/-/g, "")}`,
+    campaignDigest: `stress-${shape}-digest`,
+    name: "collateral-crash-sweep",
+    semanticClass: "lending.v1",
+    riskObjective: "liquidation-safety",
+    seedPolicyDisplay: "fixed:20260612",
+    runBudget: 8,
+    requestedRuns: 8
+  };
+  const values = [0, 1000, 2000, 3000];
+  const failsAt = (value: number): boolean =>
+    shape === "none" ? true : shape === "bounded" ? value === 3000 : false;
+  const runs = values.flatMap((value) => [
+    run(failsAt(value) ? "fail" : "pass", { collateral_price_drop_bps: value }),
+    run(failsAt(value) ? "fail" : "pass", { collateral_price_drop_bps: value })
+  ]);
+  const failedRuns = runs.filter((entry) => entry.status === "fail").length;
+  const surface = buildRiskSurfaceDocument({
+    campaign,
+    parameters: { collateral_price_drop_bps: discrete(values) },
+    runs
+  });
+  const surfaceRaw = serializeRiskSurface(surface);
+  return buildAssessmentModel({
+    campaignRootLabel: "collateral-crash-sweep",
+    summary: sweptStressSummary(surface, adapter, failedRuns, runs.length),
+    surface,
+    surfaceRawBytes: surfaceRaw,
+    retentionManifest: identityManifest(surface),
+    ...(options.inputs ? { inputs: options.inputs } : {})
+  });
+}
+
+function sweptStressSummary(
+  surface: RiskSurfaceDocument,
+  adapter: string,
+  failedRuns: number,
+  completedRuns: number
+): CampaignSummaryJson {
+  return {
+    schema_version: "campaign-summary.v1",
+    campaign: campaignBlock(surface, adapter),
+    artifacts: standardArtifacts(),
+    totals: {
+      requested_runs: completedRuns,
+      completed_runs: completedRuns,
+      passed_runs: completedRuns - failedRuns,
+      invariant_failed_runs: failedRuns,
+      setup_errors: 0,
+      skipped_runs: 0,
+      invariant_failure_rate: failedRuns / completedRuns
+    },
+    first_failure_ticks: { count: 0, min: null, median: null, max: null, distribution: {} },
+    scenario_families: {
+      "price-crash": {
+        planned_runs: completedRuns,
+        completed_runs: completedRuns,
+        passed_runs: completedRuns - failedRuns,
+        invariant_failed_runs: failedRuns,
+        setup_errors: 0,
+        skipped_runs: 0,
+        first_failure_tick_min: failedRuns > 0 ? 1 : null,
+        total_bad_debt_max: failedRuns > 0 ? 1200 : 0,
+        max_utilization_observed: 1,
+        min_tvl_observed: 1000
+      }
+    },
+    parameters: {
+      collateral_price_drop_bps: {
+        distribution: "discrete(0|1000|2000|3000)",
+        unit: "bps",
+        sampled_count: completedRuns,
+        min: 0,
+        median: 1500,
+        max: 3000,
+        values: [0, 1000, 2000, 3000]
+      }
+    },
+    lending: {
+      observations_used: ["bad_debt", "utilization", "tvl"],
+      completed_runs_with_metrics: completedRuns,
+      total_bad_debt: { min: 0, median: 0, max: failedRuns > 0 ? 1200 : 0 },
+      total_liquidations: { min: 0, median: 0, max: 0 },
+      liquidity_stress: {
+        min_tvl_observed: 1000,
+        max_utilization_observed: 1,
+        min_available_liquidity_observed: 500
+      },
+      liquidation_safety_failures: {
+        failed_runs: failedRuns,
+        invariant_names: ["lender_bad_debt"]
+      }
+    },
+    retention: { selected: [], warnings: [] },
+    warnings: [],
+    claim_boundary: "Simulation evidence over the declared, fixed-seed parameter region."
+  };
 }
 
 // --- summary / manifest builders -------------------------------------------

@@ -237,8 +237,15 @@ function buildFindings(
   const worst = formatRate(model.surface_highlights.worst_cell_failure_rate);
   const shape = topEntry ? trendPhrase(topEntry.monotonic) : null;
 
-  const title =
-    top && shape
+  // On a guided-sim sweep the axis is the applied stress, not a protocol
+  // setting, so the headline names what fired rather than implying the axis is
+  // actionable. Real-campaign titles below are byte-frozen.
+  const guidedSimInvariant =
+    model.campaign.adapter === GUIDED_SIM_ADAPTER ? singleFiredInvariant(model) : null;
+
+  const title = guidedSimInvariant
+    ? guidedSimFindingTitle(guidedSimInvariant, top, topEntry?.monotonic ?? null)
+    : top && shape
       ? `Invariant failures ${shape} \`${top}\``
       : top
         ? `Invariant failures concentrate along \`${top}\``
@@ -326,25 +333,48 @@ function buildRecommendation(model: CartographyAssessmentModel): AssessmentRecom
   const threshold = highlights.safe_region_threshold;
   const thresholdText = formatRate(threshold);
 
+  // On a guided-sim sweep the swept axis is an applied exogenous stress, so
+  // "keep the axis here" would read as protocol advice about a knob nobody
+  // controls. The guided-sim statements below characterize the observed
+  // resilience boundary instead; only the human `statement` string differs —
+  // the kind/threshold/bounds/primary_axis data fields are shared, and the
+  // real-campaign statements are byte-frozen.
+  const guidedSim = model.campaign.adapter === GUIDED_SIM_ADAPTER;
+  const invariant = guidedSim ? singleFiredInvariant(model) : null;
+
   if (highlights.safe_region_status === "none") {
+    const axisText = highlights.most_sensitive_axis
+      ? `\`${highlights.most_sensitive_axis}\``
+      : "the swept stress";
     return {
       kind: "none",
       primary_axis: highlights.most_sensitive_axis,
-      statement:
-        `No parameter sub-region held the invariant-failure rate at or under the ${thresholdText} threshold within ` +
-        "the declared, fixed-seed parameter region; tune the campaign toward a safer region before relying on these inputs.",
+      statement: guidedSim
+        ? `No swept sub-region held the invariant-failure rate at or under the ${thresholdText} threshold: ` +
+          `${invariant ? `\`${invariant}\`` : "the declared invariant"} fired beyond the threshold across the ` +
+          `declared, fixed-seed swept region, so no observed safe region bounds the protocol's resilience to ` +
+          `${axisText} under the tested configuration.`
+        : `No parameter sub-region held the invariant-failure rate at or under the ${thresholdText} threshold within ` +
+          "the declared, fixed-seed parameter region; tune the campaign toward a safer region before relying on these inputs.",
       threshold,
       bounds: highlights.safe_region_bounds
     };
   }
 
   if (highlights.safe_region_status === "entire-region") {
+    const axisText = highlights.most_sensitive_axis
+      ? `swept \`${highlights.most_sensitive_axis}\``
+      : "swept stress";
     return {
       kind: "entire-region",
       primary_axis: highlights.most_sensitive_axis,
-      statement:
-        `Every populated cell held the invariant-failure rate at or under the ${thresholdText} threshold; keeping ` +
-        "parameters within the declared, fixed-seed region stayed at or under it.",
+      statement: guidedSim
+        ? `Every populated cell held the invariant-failure rate at or under the ${thresholdText} threshold: the ` +
+          `tested ${axisText} range stayed within the protocol's observed resilience under this configuration, ` +
+          "and no failure boundary was crossed inside the declared, fixed-seed swept region. Stresses beyond the " +
+          "swept region were not tested."
+        : `Every populated cell held the invariant-failure rate at or under the ${thresholdText} threshold; keeping ` +
+          "parameters within the declared, fixed-seed region stayed at or under it.",
       threshold,
       bounds: highlights.safe_region_bounds
     };
@@ -357,6 +387,26 @@ function buildRecommendation(model: CartographyAssessmentModel): AssessmentRecom
   const where = primaryBound ? describeBound(primaryBound) : "the recommended bounds";
   const axisText = primaryBound ? `\`${primaryBound.axis}\`` : (primary ? `\`${primary}\`` : "parameters");
 
+  if (guidedSim) {
+    const heldSubject = invariant ? `\`${invariant}\`` : "The declared invariant";
+    const onset = primaryBound ? boundaryOnset(model, primaryBound) : null;
+    const heldClause = onset
+      ? `${heldSubject} held while ${axisText} stayed at or below ${onset} and began to fire beyond that bound`
+      : primaryBound
+        ? `${heldSubject} held while ${axisText} stayed ${where} and fired outside that observed region`
+        : `${heldSubject} held inside the recommended bounds and fired outside them`;
+    return {
+      kind: "bounded",
+      primary_axis: primary,
+      statement:
+        `${heldClause}. This bounds the protocol's observed resilience to ${axisText} under the tested ` +
+        `configuration: a safe region observed at or under the ${thresholdText} failure-rate threshold within ` +
+        "the declared, fixed-seed swept region — an observed boundary, not a parameter to set.",
+      threshold,
+      bounds: highlights.safe_region_bounds
+    };
+  }
+
   return {
     kind: "bounded",
     primary_axis: primary,
@@ -366,6 +416,90 @@ function buildRecommendation(model: CartographyAssessmentModel): AssessmentRecom
     threshold,
     bounds: highlights.safe_region_bounds
   };
+}
+
+// ---------------------------------------------------------------------------
+// Guided-sim resilience-boundary phrasing
+// ---------------------------------------------------------------------------
+
+/**
+ * The single invariant a guided-sim narrative can honestly name. Sources, in
+ * order: invariant names recorded on retained failing cases, then the risk
+ * plan's failure modes — both the generated ``invariant `<name>` firing`` form
+ * and the authored `<name>: <explanation>` form. Exactly one distinct name is
+ * required; anything else returns `null` so the caller keeps the generic
+ * phrasing instead of guessing between invariants.
+ */
+function singleFiredInvariant(model: CartographyAssessmentModel): string | null {
+  const names = new Set<string>();
+  for (const entry of model.retained_evidence) {
+    for (const name of entry.risk_signals?.invariant_names ?? []) names.add(name);
+  }
+  if (names.size === 0) {
+    for (const mode of model.risk_plan.expected_failure_modes) {
+      const generated = /^invariant `([^`]+)` firing$/.exec(mode);
+      const authored = /^([A-Za-z_][A-Za-z0-9_.-]*):\s/.exec(mode);
+      const name = generated?.[1] ?? authored?.[1];
+      if (name) names.add(name);
+    }
+  }
+  if (names.size !== 1) return null;
+  return [...names][0] ?? null;
+}
+
+/** Guided-sim finding title: what fired, as the stress varies — never axis advice. */
+function guidedSimFindingTitle(invariant: string, axis: string | null, monotonic: string | null): string {
+  if (!axis) return `\`${invariant}\` fires within the swept parameter region`;
+  switch (monotonic) {
+    case "increasing":
+      return `\`${invariant}\` fires as \`${axis}\` deepens`;
+    case "decreasing":
+      return `\`${invariant}\` fires as \`${axis}\` recedes`;
+    default:
+      return `\`${invariant}\` fires across the swept \`${axis}\` range`;
+  }
+}
+
+/**
+ * The onset bound for the boundary phrasing: the highest swept value the safe
+ * region reaches before the invariant starts firing. Read from the safe-region
+ * bound against the surface's declared bins — never recomputed. Returns `null`
+ * whenever the safe region is not exactly the low end of the sweep (a
+ * non-prefix region has no single "beyond this" value), so the caller falls
+ * back to region phrasing.
+ */
+function boundaryOnset(
+  model: CartographyAssessmentModel,
+  bound: RiskSurfaceAxisBound
+): string | null {
+  const axis = model.surface.axes.find((entry) => entry.name === bound.axis);
+  if (!axis) return null;
+
+  if (bound.kind === "discrete") {
+    const declared = bound.allowed_values ?? [];
+    const allowed = declared.filter((value): value is number => typeof value === "number");
+    if (allowed.length === 0 || allowed.length !== declared.length) return null;
+    const swept = axis.bins
+      .map((bin) => bin.value)
+      .filter((value): value is number => typeof value === "number");
+    if (swept.length !== axis.bins.length) return null;
+    // The whole sweep being allowed leaves no observed boundary on this axis.
+    if (allowed.length === swept.length) return null;
+    const onset = Math.max(...allowed);
+    const lowEnd = swept.filter((value) => value <= onset).sort((a, b) => a - b);
+    const sorted = [...allowed].sort((a, b) => a - b);
+    if (lowEnd.length !== sorted.length) return null;
+    if (!sorted.every((value, index) => value === lowEnd[index])) return null;
+    return String(onset);
+  }
+
+  const range = bound.bin_range;
+  if (!range || range.upper === null) return null;
+  if (range.lower !== null) {
+    const sweepFloor = axis.bins[0]?.lower;
+    if (sweepFloor === undefined || sweepFloor === null || range.lower !== sweepFloor) return null;
+  }
+  return String(range.upper);
 }
 
 // ---------------------------------------------------------------------------
