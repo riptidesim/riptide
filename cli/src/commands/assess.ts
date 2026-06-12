@@ -33,7 +33,9 @@ import {
   reverifyAtEmit,
   type ExecutionHonestyReport
 } from "../sim/honesty-gates.js";
+import type { AssessmentNarrative } from "../assess/model.js";
 import { generateAssessmentNarrative } from "../assess/narrative.js";
+import { renderAssessmentBrief } from "../assess/render-brief.js";
 import { renderAssessmentHtml } from "../assess/render-html.js";
 import { renderAssessmentMarkdown } from "../assess/render-markdown.js";
 import { printBanner } from "../banner.js";
@@ -51,6 +53,8 @@ const ASSESSMENT_JSON_FILE = "assessment.json";
 const ASSESSMENT_MD_FILE = "assessment.md";
 const ASSESSMENT_HTML_FILE = "assessment.html";
 const ASSESSMENT_PDF_FILE = "assessment.pdf";
+const BRIEF_HTML_FILE = "brief.html";
+const BRIEF_PDF_FILE = "brief.pdf";
 
 /** Chromium/Chrome binaries probed for the PDF binder, in order. */
 const CHROMIUM_BINARIES = [
@@ -72,6 +76,7 @@ export interface AssessOptions {
   verdict?: string;
   html?: boolean;
   pdf?: boolean;
+  brief?: boolean;
   json?: boolean;
   quiet?: boolean;
 }
@@ -113,6 +118,11 @@ export function createAssessCommand(deps: AssessCommandDeps = {}): Command {
     )
     .option("--html", "Also write a design-system-styled assessment.html presentation export (out of the byte-hash gate)", false)
     .option("--pdf", "Also write assessment.pdf rendered from the HTML via a local headless browser (implies --html)", false)
+    .option(
+      "--brief",
+      "Also write a one-page brief.html + brief.pdf executive brief rendered from the assessment model (out of the byte-hash gate)",
+      false
+    )
     .option("--json", "Emit a machine-readable result instead of the cold-read summary", false)
     .option("--quiet", "Suppress the interactive banner", false)
     .action(async (campaignRoot: string, options: AssessOptions) => {
@@ -176,9 +186,11 @@ export async function runAssess(
     await writeFile(jsonPath, json, "utf8");
     await writeFile(mdPath, markdown, "utf8");
 
-    // Presentation exports (R5): a styled HTML rendering of the hashed markdown,
-    // and optionally a PDF from that HTML. Explicitly out of the byte-hash gate.
-    const exports = await writePresentationExports(emittedModel, markdown, outDir, options);
+    // Presentation exports: a styled HTML rendering of the hashed markdown
+    // (optionally bound to PDF), plus the one-page executive brief. Explicitly
+    // out of the byte-hash gate, though brief.html itself renders
+    // byte-deterministically from the model.
+    const exports = await writePresentationExports(emittedModel, narrative, markdown, outDir, options);
 
     if (options.json) {
       stdout(
@@ -191,9 +203,12 @@ export async function runAssess(
               assessment_json: jsonPath,
               assessment_md: mdPath,
               ...(exports.htmlPath ? { assessment_html: exports.htmlPath } : {}),
-              ...(exports.pdfPath ? { assessment_pdf: exports.pdfPath } : {})
+              ...(exports.pdfPath ? { assessment_pdf: exports.pdfPath } : {}),
+              ...(exports.briefHtmlPath ? { brief_html: exports.briefHtmlPath } : {}),
+              ...(exports.briefPdfPath ? { brief_pdf: exports.briefPdfPath } : {})
             },
             ...(exports.pdfSkipped ? { pdf_skipped: exports.pdfSkipped } : {}),
+            ...(exports.briefPdfSkipped ? { brief_pdf_skipped: exports.briefPdfSkipped } : {}),
             shape: assessmentShape(emittedModel),
             ...(emittedModel.campaign
               ? {
@@ -429,34 +444,59 @@ interface PresentationExports {
   pdfPath?: string;
   /** When the PDF binder was requested but no headless browser was found. */
   pdfSkipped?: string;
+  briefHtmlPath?: string;
+  briefPdfPath?: string;
+  /** When the brief PDF was requested but no headless browser was found. */
+  briefPdfSkipped?: string;
 }
 
 async function writePresentationExports(
   model: AssessmentModel,
+  narrative: AssessmentNarrative,
   markdown: string,
   outDir: string,
   options: AssessOptions
 ): Promise<PresentationExports> {
   const wantHtml = Boolean(options.html) || Boolean(options.pdf);
-  if (!wantHtml) return {};
+  const wantBrief = Boolean(options.brief);
+  if (!wantHtml && !wantBrief) return {};
 
-  const htmlPath = path.join(outDir, ASSESSMENT_HTML_FILE);
-  const html = renderAssessmentHtml(markdown, model);
-  await writeFile(htmlPath, html, "utf8");
+  const out: PresentationExports = {};
+  const wantPdf = Boolean(options.pdf) || wantBrief;
+  // Probe for the PDF binder once; the assessment PDF and the brief PDF share it.
+  const browser = wantPdf ? await findChromium() : null;
+  const noBrowser =
+    "no local headless browser found (set RIPTIDE_CHROMIUM to a Chromium/Chrome binary).";
 
-  if (!options.pdf) return { htmlPath };
-
-  const pdfPath = path.join(outDir, ASSESSMENT_PDF_FILE);
-  const browser = await findChromium();
-  if (!browser) {
-    return {
-      htmlPath,
-      pdfSkipped:
-        "no local headless browser found (set RIPTIDE_CHROMIUM to a Chromium/Chrome binary). assessment.html still rendered."
-    };
+  if (wantHtml) {
+    const htmlPath = path.join(outDir, ASSESSMENT_HTML_FILE);
+    await writeFile(htmlPath, renderAssessmentHtml(markdown, model), "utf8");
+    out.htmlPath = htmlPath;
+    if (options.pdf) {
+      if (browser) {
+        const pdfPath = path.join(outDir, ASSESSMENT_PDF_FILE);
+        await htmlToPdf(browser, htmlPath, pdfPath);
+        out.pdfPath = pdfPath;
+      } else {
+        out.pdfSkipped = `${noBrowser} assessment.html still rendered.`;
+      }
+    }
   }
-  await htmlToPdf(browser, htmlPath, pdfPath);
-  return { htmlPath, pdfPath };
+
+  if (wantBrief) {
+    const briefHtmlPath = path.join(outDir, BRIEF_HTML_FILE);
+    await writeFile(briefHtmlPath, renderAssessmentBrief(model, narrative), "utf8");
+    out.briefHtmlPath = briefHtmlPath;
+    if (browser) {
+      const briefPdfPath = path.join(outDir, BRIEF_PDF_FILE);
+      await htmlToPdf(browser, briefHtmlPath, briefPdfPath);
+      out.briefPdfPath = briefPdfPath;
+    } else {
+      out.briefPdfSkipped = `${noBrowser} brief.html still rendered.`;
+    }
+  }
+
+  return out;
 }
 
 /** Locate a Chromium/Chrome binary, honoring RIPTIDE_CHROMIUM first. */
@@ -511,6 +551,23 @@ interface SummaryArtifacts {
   htmlPath?: string;
   pdfPath?: string;
   pdfSkipped?: string;
+  briefHtmlPath?: string;
+  briefPdfPath?: string;
+  briefPdfSkipped?: string;
+}
+
+/** Cold-read artifact lines shared by both summary shapes. */
+function presentationArtifactLines(artifacts: SummaryArtifacts, cwd: string, c: Colorizer): string[] {
+  return [
+    ...(artifacts.htmlPath ? [`  HTML: ${c.cyan(relativizePath(artifacts.htmlPath, cwd))}`] : []),
+    ...(artifacts.pdfPath ? [`  PDF: ${c.cyan(relativizePath(artifacts.pdfPath, cwd))}`] : []),
+    ...(artifacts.pdfSkipped ? [`  PDF: ${c.yellow(`skipped — ${artifacts.pdfSkipped}`)}`] : []),
+    ...(artifacts.briefHtmlPath ? [`  Brief: ${c.cyan(relativizePath(artifacts.briefHtmlPath, cwd))}`] : []),
+    ...(artifacts.briefPdfPath ? [`  Brief PDF: ${c.cyan(relativizePath(artifacts.briefPdfPath, cwd))}`] : []),
+    ...(artifacts.briefPdfSkipped
+      ? [`  Brief PDF: ${c.yellow(`skipped — ${artifacts.briefPdfSkipped}`)}`]
+      : [])
+  ];
 }
 
 function renderAssessSummary(
@@ -544,9 +601,7 @@ function renderAssessSummary(
     c.bold("Artifacts"),
     `  Assessment: ${c.cyan(relativizePath(artifacts.jsonPath, cwd))}`,
     `  Report: ${c.cyan(relativizePath(artifacts.mdPath, cwd))}`,
-    ...(artifacts.htmlPath ? [`  HTML: ${c.cyan(relativizePath(artifacts.htmlPath, cwd))}`] : []),
-    ...(artifacts.pdfPath ? [`  PDF: ${c.cyan(relativizePath(artifacts.pdfPath, cwd))}`] : []),
-    ...(artifacts.pdfSkipped ? [`  PDF: ${c.yellow(`skipped — ${artifacts.pdfSkipped}`)}`] : []),
+    ...presentationArtifactLines(artifacts, cwd, c),
     "",
     c.bold("Hashes"),
     `  Assessment digest: ${c.cyan(model.assessment_digest)}`,
@@ -621,9 +676,7 @@ function renderCorrectnessSummary(
     c.bold("Artifacts"),
     `  Assessment: ${c.cyan(relativizePath(artifacts.jsonPath, cwd))}`,
     `  Report: ${c.cyan(relativizePath(artifacts.mdPath, cwd))}`,
-    ...(artifacts.htmlPath ? [`  HTML: ${c.cyan(relativizePath(artifacts.htmlPath, cwd))}`] : []),
-    ...(artifacts.pdfPath ? [`  PDF: ${c.cyan(relativizePath(artifacts.pdfPath, cwd))}`] : []),
-    ...(artifacts.pdfSkipped ? [`  PDF: ${c.yellow(`skipped — ${artifacts.pdfSkipped}`)}`] : []),
+    ...presentationArtifactLines(artifacts, cwd, c),
     "",
     c.bold("Hashes"),
     `  Assessment digest: ${c.cyan(model.assessment_digest)}`,
