@@ -1,0 +1,186 @@
+$ node /home/ailton/Work/riptide/riptide/cli/dist/src/index.js sim run .riptide/sim --flows 20 --out .riptide/sim/artifacts/eval-sweep
+  sweep rate_shock_bps over 6 value(s) x 4 seed(s)
+riptide sim iteration=0 seed=5252525252525252525252525252525252525252525252525252525252525252
+riptide sim anemone shock_bps=0
+riptide sim iteration=1 seed=5252525252525252525252525252525252525252525252525352525252525252
+riptide sim anemone shock_bps=0
+riptide sim iteration=2 seed=5252525252525252525252525252525252525252525252525052525252525252
+riptide sim anemone shock_bps=0
+riptide sim iteration=3 seed=5252525252525252525252525252525252525252525252525152525252525252
+riptide sim anemone shock_bps=0
+riptide sim iteration=4 seed=5252525252525252525252525252525252525252525252525652525252525252
+riptide sim anemone shock_bps=100
+riptide sim iteration=5 seed=5252525252525252525252525252525252525252525252525752525252525252
+riptide sim anemone shock_bps=100
+riptide sim iteration=6 seed=5252525252525252525252525252525252525252525252525452525252525252
+riptide sim anemone shock_bps=100
+riptide sim iteration=7 seed=5252525252525252525252525252525252525252525252525552525252525252
+riptide sim anemone shock_bps=100
+riptide sim iteration=8 seed=5252525252525252525252525252525252525252525252525a52525252525252
+riptide sim anemone shock_bps=200
+riptide sim iteration=9 seed=5252525252525252525252525252525252525252525252525b52525252525252
+riptide sim anemone shock_bps=200
+riptide sim iteration=10 seed=5252525252525252525252525252525252525252525252525852525252525252
+riptide sim anemone shock_bps=200
+riptide sim iteration=11 seed=5252525252525252525252525252525252525252525252525952525252525252
+riptide sim anemone shock_bps=200
+riptide sim iteration=12 seed=5252525252525252525252525252525252525252525252525e52525252525252
+riptide sim anemone shock_bps=300
+riptide sim iteration=13 seed=5252525252525252525252525252525252525252525252525f52525252525252
+riptide sim anemone shock_bps=300
+riptide sim iteration=14 seed=5252525252525252525252525252525252525252525252525c52525252525252
+riptide sim anemone shock_bps=300
+riptide sim iteration=15 seed=5252525252525252525252525252525252525252525252525d52525252525252
+riptide sim anemone shock_bps=300
+riptide sim iteration=16 seed=5252525252525252525252525252525252525252525252524252525252525252
+riptide sim anemone shock_bps=400
+riptide sim iteration=17 seed=5252525252525252525252525252525252525252525252524352525252525252
+riptide sim anemone shock_bps=400
+riptide sim iteration=18 seed=5252525252525252525252525252525252525252525252524052525252525252
+riptide sim anemone shock_bps=400
+riptide sim iteration=19 seed=5252525252525252525252525252525252525252525252524152525252525252
+riptide sim anemone shock_bps=400
+riptide sim iteration=20 seed=5252525252525252525252525252525252525252525252524652525252525252
+riptide sim anemone shock_bps=490
+riptide sim iteration=21 seed=5252525252525252525252525252525252525252525252524752525252525252
+riptide sim anemone shock_bps=490
+riptide sim iteration=22 seed=5252525252525252525252525252525252525252525252524452525252525252
+riptide sim anemone shock_bps=490
+riptide sim iteration=23 seed=5252525252525252525252525252525252525252525252524552525252525252
+riptide sim anemone shock_bps=490
+
+$ node /home/ailton/Work/riptide/riptide/cli/dist/src/index.js sim surface .riptide/sim/artifacts/eval-sweep --sim .riptide/sim --out .riptide/eval-assess
+riptide sim surface: wrote cartography artifacts to /home/ailton/Work/riptide/case-studies/anemone/.riptide/eval-assess
+  campaign-summary.json (id guided-sim-59b0a9875a186dff)
+  risk-surface.json
+  retention-manifest.json
+  execution-honesty gates: pass
+    ✓ positive_control: positive control rate_shock_bps=0 passed across 4 iteration(s).
+    ✓ lifecycle_executed: all 5 declared lifecycle flow(s) executed on-chain.
+    ✓ determinism: surface hash recorded for re-verification (sha256 c69d402734a32b82…).
+  next: riptide assess .riptide/eval-assess
+
+$ node /home/ailton/Work/riptide/riptide/cli/dist/src/index.js assess .riptide/eval-assess --brief --input .riptide/assessment-input.json --protocol-name Anemone --out /tmp/s50-anemone-a
+RIPTIDE
+Riptide v0.11.0
+Deterministic Solana simulation evidence.
+
+Assessment generated: Anemone
+
+Result
+  Verdict: ready_to_send (declared)
+  Runs: 24/24 completed, 12 invariant-failed (50%)
+  Risk surface: 6/6 cells populated, worst cell 100%, most sensitive `rate_shock_bps`
+  Safe region: bounded region at or under 5%
+  Execution honesty: pass
+    ✓ positive_control
+    ✓ lifecycle_executed
+    ✓ determinism
+
+Artifacts
+  Assessment: /tmp/s50-anemone-a/assessment.json
+  Report: /tmp/s50-anemone-a/assessment.md
+  Brief: /tmp/s50-anemone-a/brief.html
+  Brief PDF: /tmp/s50-anemone-a/brief.pdf
+
+Hashes
+  Assessment digest: 96c7ecbcb4f9e599d871bbbd05b1b00580ac7b17e5c617c8d47d06d8643368a3
+  Campaign digest: 59b0a9875a186dff34b7e75a7d5524b5a5b02ebfeab2eea959bf902b7d68f361
+  risk-surface.json sha256: c69d402734a32b82672f476b7bca033207ed4e8668ec6884a2a89596c7e26f1b
+
+Next
+  riptide review .riptide/eval-assess
+
+Boundary
+  Simulation evidence over the campaign's declared, fixed-seed region — not audit signoff, formal verification, complete protocol safety, or a mainnet prediction.
+
+
+$ node /home/ailton/Work/riptide/riptide/cli/dist/src/index.js assess .riptide/eval-assess --brief --input .riptide/assessment-input.json --protocol-name Anemone --out /tmp/s50-anemone-b
+RIPTIDE
+Riptide v0.11.0
+Deterministic Solana simulation evidence.
+
+Assessment generated: Anemone
+
+Result
+  Verdict: ready_to_send (declared)
+  Runs: 24/24 completed, 12 invariant-failed (50%)
+  Risk surface: 6/6 cells populated, worst cell 100%, most sensitive `rate_shock_bps`
+  Safe region: bounded region at or under 5%
+  Execution honesty: pass
+    ✓ positive_control
+    ✓ lifecycle_executed
+    ✓ determinism
+
+Artifacts
+  Assessment: /tmp/s50-anemone-b/assessment.json
+  Report: /tmp/s50-anemone-b/assessment.md
+  Brief: /tmp/s50-anemone-b/brief.html
+  Brief PDF: /tmp/s50-anemone-b/brief.pdf
+
+Hashes
+  Assessment digest: 96c7ecbcb4f9e599d871bbbd05b1b00580ac7b17e5c617c8d47d06d8643368a3
+  Campaign digest: 59b0a9875a186dff34b7e75a7d5524b5a5b02ebfeab2eea959bf902b7d68f361
+  risk-surface.json sha256: c69d402734a32b82672f476b7bca033207ed4e8668ec6884a2a89596c7e26f1b
+
+Next
+  riptide review .riptide/eval-assess
+
+Boundary
+  Simulation evidence over the campaign's declared, fixed-seed region — not audit signoff, formal verification, complete protocol safety, or a mainnet prediction.
+
+
+$ node /home/ailton/Work/riptide/riptide/cli/dist/src/index.js assess .riptide/eval-assess --brief --input .riptide/assessment-input.json --protocol-name Anemone --out /tmp/s50-anemone-c
+RIPTIDE
+Riptide v0.11.0
+Deterministic Solana simulation evidence.
+
+Assessment generated: Anemone
+
+Result
+  Verdict: ready_to_send (declared)
+  Runs: 24/24 completed, 12 invariant-failed (50%)
+  Risk surface: 6/6 cells populated, worst cell 100%, most sensitive `rate_shock_bps`
+  Safe region: bounded region at or under 5%
+  Execution honesty: pass
+    ✓ positive_control
+    ✓ lifecycle_executed
+    ✓ determinism
+
+Artifacts
+  Assessment: /tmp/s50-anemone-c/assessment.json
+  Report: /tmp/s50-anemone-c/assessment.md
+  Brief: /tmp/s50-anemone-c/brief.html
+  Brief PDF: /tmp/s50-anemone-c/brief.pdf
+
+Hashes
+  Assessment digest: 96c7ecbcb4f9e599d871bbbd05b1b00580ac7b17e5c617c8d47d06d8643368a3
+  Campaign digest: 59b0a9875a186dff34b7e75a7d5524b5a5b02ebfeab2eea959bf902b7d68f361
+  risk-surface.json sha256: c69d402734a32b82672f476b7bca033207ed4e8668ec6884a2a89596c7e26f1b
+
+Next
+  riptide review .riptide/eval-assess
+
+Boundary
+  Simulation evidence over the campaign's declared, fixed-seed region — not audit signoff, formal verification, complete protocol safety, or a mainnet prediction.
+
+
+$ sha256sum /tmp/s50-anemone-a/brief.html /tmp/s50-anemone-b/brief.html /tmp/s50-anemone-c/brief.html
+0ed07f31158a880439c40fb6ff349619ce4b48f5acce76a239ce92e243ea70e5  /tmp/s50-anemone-a/brief.html
+0ed07f31158a880439c40fb6ff349619ce4b48f5acce76a239ce92e243ea70e5  /tmp/s50-anemone-b/brief.html
+0ed07f31158a880439c40fb6ff349619ce4b48f5acce76a239ce92e243ea70e5  /tmp/s50-anemone-c/brief.html
+
+$ pdfinfo /tmp/s50-anemone-c/brief.pdf | grep Pages
+Pages:           1
+
+$ rg -n sections /tmp/s50-anemone-c/brief.html
+37:<h2><span class="n">1</span>What we did</h2>
+44:<h2><span class="n">2</span>What we found</h2>
+49:<h2><span class="n">3</span>What to do</h2>
+53:<h2><span class="n">4</span>Scope &amp; limits</h2>
+61:<h2><span class="n">5</span>Reproduce</h2>
+
+$ grep -cE knob-phrasing /tmp/s50-anemone-c/brief.html /tmp/s50-anemone-c/assessment.md
+/tmp/s50-anemone-c/brief.html:0
+/tmp/s50-anemone-c/assessment.md:0
+

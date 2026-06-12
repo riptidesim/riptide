@@ -34,3 +34,6 @@ fixtures/replays/*/riptide-output/
 
 # Local readiness/report exports; keep out of the GitHub repository.
 reports/case-study-readiness/
+
+# Local scratch artifacts from close gates, npm packs, and temporary reruns.
+tmp/

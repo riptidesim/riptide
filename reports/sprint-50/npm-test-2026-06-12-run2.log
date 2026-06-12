@@ -1,0 +1,1131 @@
+
+> @riptide/cli@0.11.0 test
+> npm run build && node ./scripts/run-tests.mjs
+
+
+> @riptide/cli@0.11.0 build
+> node ./scripts/clean-dist.mjs && tsc -p tsconfig.json && node ./scripts/build-studio-app.mjs && node ./scripts/copy-personas.mjs
+
+
+> @riptide/studio-app@0.11.0 build
+> tsc -p tsconfig.json && vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 65 modules transformed.
+rendering chunks...
+computing gzip size...
+../assets/studio/index.html                   0.62 kB │ gzip:   0.34 kB
+../assets/studio/assets/style-BUM64RWh.css   45.51 kB │ gzip:   8.54 kB
+../assets/studio/assets/index-C_mPPQQk.js   385.67 kB │ gzip: 112.81 kB
+✓ built in 978ms
+Adapt — adapter
+adapter: /nonexistent/path/to/adapter.toml
+
+riptide adapt: could not read adapter at /nonexistent/path/to/adapter.toml: ENOENT: no such file or directory, open '/nonexistent/path/to/adapter.toml'
+✔ adapt: missing adapter file → exit 2 (9.901751ms)
+Adapt — adapter
+adapter: /tmp/riptide-adapter-test-2Lv6VF/adapter.toml
+
+riptide adapt: adapter failed validation: /tmp/riptide-adapter-test-2Lv6VF/adapter.toml: `[instructions].deposit.action`: unknown lending action `not-a-real-action`; expected one of ["deposit","borrow","repay","withdraw","liquidate"]
+  adapter file: /tmp/riptide-adapter-test-2Lv6VF/adapter.toml
+✔ adapt: adapter fails Zod validation → exit 2 (47.694472ms)
+Adapt — adapter
+adapter: /tmp/riptide-adapter-test-YkeFsU/adapter.toml
+
+  lint: SKIP — adapter has no [lineage] block to machine-check; continuing to smoke
+Smoke: PASS (stubbed pass)
+  engine output: /tmp/stub.json
+
+Summary
+  Verdict: PASS (exit 0)
+
+Adapter smoke test only — runs one scenario against the local engine. Use `riptide lint <adapter>` for static validation; `riptide doctor` for toolchain + multi-adapter health.
+Adapt — adapter
+adapter: /tmp/riptide-adapter-test-AiVKKX/adapter.toml
+
+✔ adapt: valid lending adapter + stubbed smoke pass → exit 0 (4.872156ms)
+  lint: SKIP — adapter has no [lineage] block to machine-check; continuing to smoke
+Smoke: PASS (stubbed pass)
+  engine output: /tmp/stub.json
+
+Summary
+  Verdict: PASS (exit 0)
+
+Adapter smoke test only — runs one scenario against the local engine. Use `riptide lint <adapter>` for static validation; `riptide doctor` for toolchain + multi-adapter health.
+Adapt — adapter
+adapter: /tmp/riptide-adapter-test-5c5oPp/adapter.toml
+
+✔ adapt: valid generic adapter + stubbed smoke pass → exit 0 (7.295757ms)
+  lint: SKIP — adapter has no [lineage] block to machine-check; continuing to smoke
+Smoke: FAIL — stubbed failure
+  adapter file: /tmp/riptide-adapter-test-5c5oPp/adapter.toml
+  engine stderr (tail):
+stub engine rejected adapter
+
+Summary
+  Verdict: FAIL (exit 1)
+
+Adapter smoke test only — runs one scenario against the local engine. Use `riptide lint <adapter>` for static validation; `riptide doctor` for toolchain + multi-adapter health.
+✔ adapt: valid adapter but smoke test fails → exit 1 (4.642094ms)
+Adapt — adapter
+adapter: /tmp/riptide-adapter-lint-CsdVNQ/fixtures/adapters/adapter.toml
+
+  [instruction-not-in-idl] [instructions].ghost: adapter maps instruction `ghost` but the JSON IDL has no instruction with that name.
+      hint: Available instructions in the IDL: `real_ix`.
+  adapter file: /tmp/riptide-adapter-lint-CsdVNQ/fixtures/adapters/adapter.toml
+✔ adapt: lint preflight aborts before smoke when JSON-IDL lineage fails (8.209005ms)
+Adapt — adapter
+adapter: /tmp/riptide-adapter-test-9gfF8N/adapter.toml
+
+  lint: SKIP — adapter has no [lineage] block to machine-check; continuing to smoke
+Smoke: PASS (stubbed pass)
+  engine output: /tmp/stub.json
+
+Summary
+  Verdict: PASS (exit 0)
+
+Adapter smoke test only — runs one scenario against the local engine. Use `riptide lint <adapter>` for static validation; `riptide doctor` for toolchain + multi-adapter health.
+✔ adapt: lint preflight SKIP on adapters without lineage → continues to smoke (3.790474ms)
+✔ findObservationDelta: rejects a baseline-only summary with empty events + empty timeseries (0.401378ms)
+✔ findObservationDelta: accepts a successful deposit event (0.360261ms)
+✔ findObservationDelta: rejects a trigger_activated event as a write-action proof (0.310811ms)
+✔ findObservationDelta: rejects expression-invariant fires as write-action proof (0.173861ms)
+✔ findObservationDelta: accepts a timeseries field that changed between first and last tick (1.521097ms)
+✔ findObservationDelta: accepts a nested semantic timeseries field that changed (0.205658ms)
+✔ findObservationDelta: rejects a timeseries where nothing actually changed (0.13404ms)
+✔ AdapterSchema accepts the shipped lending fixture (38.16255ms)
+✔ AdapterSchema produces the same shape the serde side expects (8.843629ms)
+✔ AdapterSchema accepts a generic adapter shape (4.439325ms)
+✔ validateAdapter expands IDL-backed space, bindings, actions, and auto observations (9.235448ms)
+✔ validateAdapter rejects auto account space when the IDL omits accounts[].size (2.610681ms)
+✔ validateAdapter rejects binding shorthand that does not cover every IDL arg (3.542335ms)
+✔ validateAdapter rejects unsafe persona binding identifiers (1.944753ms)
+✔ AdapterSchema accepts semantics block and defaults invariant severity (0.823035ms)
+✔ AdapterSchema accepts generic SBF/IDL runtime with lending.v1 economic semantics (1.66063ms)
+✔ AdapterSchema accepts minimal amm.v1 semantic surface (1.738159ms)
+✔ AdapterSchema rejects amm.v1 missing a required role (0.835459ms)
+✔ AdapterSchema rejects amm.v1 missing a required derived observation (0.738316ms)
+✔ AdapterSchema accepts minimal perps-margin.v1 semantic surface (0.550496ms)
+✔ AdapterSchema rejects perps-margin.v1 missing a required role (0.512029ms)
+✔ AdapterSchema rejects perps-margin.v1 missing a required derived observation (1.355065ms)
+✔ AdapterSchema accepts minimal lst.v1 semantic surface (0.501582ms)
+✔ AdapterSchema rejects lst.v1 missing a required role (0.406871ms)
+✔ AdapterSchema rejects lst.v1 missing a required derived observation (0.405199ms)
+✔ AdapterSchema accepts minimal stablecoin.v1 semantic surface (0.449657ms)
+✔ AdapterSchema rejects stablecoin.v1 missing a required role (0.736319ms)
+✔ AdapterSchema rejects stablecoin.v1 missing a required derived observation (0.437379ms)
+✔ AdapterSchema accepts minimal token.v1 semantic surface (0.410991ms)
+✔ AdapterSchema rejects token.v1 missing a required role (2.131568ms)
+✔ AdapterSchema rejects token.v1 missing a required derived observation (0.664535ms)
+✔ AdapterSchema infers generic runtime from program_so and idl_path when protocol is omitted (0.953583ms)
+✔ AdapterSchema lets program artifacts override the protocol backcompat hint (0.567896ms)
+✔ AdapterSchema rejects adapters with neither runtime artifacts nor protocol hint (0.53322ms)
+✔ AdapterSchema semantics class regex mirrors Rust (0.1142ms)
+✔ AdapterSchema rejects malformed semantics shapes (2.32543ms)
+✔ AdapterSchema semantic diagnostics escape terminal controls (2.51626ms)
+✔ AdapterSchema rejects unknown lending actions with an actionable error (0.781925ms)
+✔ AdapterSchema rejects malformed state_mapping keys (0.268646ms)
+✔ AdapterSchema rejects unknown observations (0.219452ms)
+✔ AdapterSchema rejects unsupported generic trigger operators (0.537368ms)
+✔ AdapterSchema LENDING_ACTIONS is identical to the Rust canonical list (0.131408ms)
+✔ AdapterSchema LENDING_OBSERVATIONS is identical to the Rust canonical list (0.155827ms)
+✔ validateAdapter accepts account decoder presets (0.604781ms)
+✔ validateAdapter accepts raw layout account decoders (1.032448ms)
+✔ validateAdapter rejects unknown decoder presets (0.495343ms)
+✔ validateAdapter rejects invalid decoder field types (0.46807ms)
+✔ validateAdapter rejects decoder fields past account space (0.378117ms)
+✔ validateAdapter rejects mappings to undeclared decoder fields (0.543949ms)
+✔ validateAdapter rejects observation key with ANSI escape (1.286473ms)
+✔ validateAdapter rejects action name with embedded newline (0.538967ms)
+✔ validateAdapter rejects persona label containing a control character (0.862602ms)
+✔ validateAdapter rejects state_mapping value with bell control byte (0.650901ms)
+✔ validateAdapter accepts the safe minimal adapter (0.362763ms)
+✔ validateLineage rejects typoed keys instead of silently dropping them (0.953579ms)
+✔ validateLineage caps lineage text at UTF-8 byte length (not JS char length) (0.455859ms)
+✔ assess brief: renders the five sections in order from the model (31.065786ms)
+✔ assess brief: leads with what held before the finding (5.553521ms)
+✔ assess brief: a fixed-seed policy renders as prose, not the raw seed blob (3.026334ms)
+✔ assess brief: non-fixed seed policies are not described as fixed-seed (2.620883ms)
+✔ assess brief: guided-sim brief carries the resilience boundary, never knob phrasing (6.576945ms)
+✔ assess brief: sources verdict, claim boundary, and reproduction from the model only (3.365629ms)
+✔ assess brief: an --input editorial layer enriches Scope & limits automatically (3.295381ms)
+✔ assess brief: byte-deterministic for a fixed model (26.503262ms)
+✔ assess brief: correctness (surface-less) shape renders all five sections (1.911279ms)
+✔ assess brief: overclaim-grep clean outside the boundary wording (7.008735ms)
+✔ assess brief: runAssess --brief writes brief.html into the output dir, byte-identical across runs (2646.550856ms)
+✔ assess cli: writes assessment.json + assessment.md into the campaign root (57.537101ms)
+✔ assess cli: assessment.json + assessment.md are byte-identical across two runs (17.68531ms)
+✔ assess cli: --out redirects artifacts away from the campaign root (12.404221ms)
+✔ assess cli: --verdict and identity flags fold into the model (25.125875ms)
+✔ assess cli: --input file folds Risk Plan / verdict over campaign defaults (15.532783ms)
+✔ assess cli: --json emits a machine-readable result (18.200198ms)
+✔ assess cli: a workspace with no evidence at all is a message-first failure (4.625758ms)
+✔ assess cli: missing risk-surface.json is a message-first failure (8.072762ms)
+✔ assess cli: an unknown --verdict is rejected before ingestion (3.273801ms)
+✔ assess cli: accepts a no-surface correctness workspace and writes artifacts (R2.1) (18.987934ms)
+✔ assess cli: correctness reproduction artifact paths share the assessed workspace root (12.010045ms)
+✔ assess cli: correctness assessment is byte-identical across two runs (18.833039ms)
+✔ assess cli: correctness assessment.md is overclaim-grep clean (10.711601ms)
+✔ assess cli: generated assessment.md is overclaim-grep clean (11.851336ms)
+✔ assess coverage statement: cartography captures swept axes, hot cells, and no-signal cells (35.254709ms)
+✔ assess coverage statement: flat zero cartography is labelled no-signal, not clearance (5.687754ms)
+✔ assess coverage statement: correctness captures guided-sim flow coverage and negative controls (3.573975ms)
+✔ assess coverage statement: correctness blocked/not-assessed rows come from the coverage matrix (2.021114ms)
+✔ assess coverage statement: recomputing the block over the same model is byte-identical (18.960345ms)
+✔ flagship assessment: assessment.md + assessment.json bytes match the recorded gate hashes (47.02379ms)
+✔ flagship assessment: re-rendering is byte-identical (the R6.4 determinism property) (15.878397ms)
+✔ flagship assessment: assessment.json is canonical with a verifiable self-digest (6.359774ms)
+✔ flagship assessment: ranks whale_share_bps #1 and reads the bounded safe-region recommendation (5.47164ms)
+✔ flagship assessment: renders the failure-rate heatmap with the recorded whale × shock gradient (10.139052ms)
+✔ flagship assessment: separates findings from non-findings with bounded claim language (4.104889ms)
+✔ flagship assessment: overclaim grep is clean (boundary/negation wording only) (5.027044ms)
+✔ correctness assessment: clean model md + json stay pinned (4.314052ms)
+✔ correctness assessment: finding model md + json stay pinned (1.941423ms)
+✔ correctness assessment: re-rendering is byte-identical (the determinism property) (2.388327ms)
+✔ correctness assessment: json is canonical with a verifiable self-digest (1.868142ms)
+✔ correctness assessment: clean model is the surface-less correctness shape with a bounded verdict (0.599985ms)
+✔ correctness assessment: degrades the risk-surface section to the honest no-heatmap note (0.973344ms)
+✔ correctness assessment: coverage matrix carries the report via guided-sim rows (0.974038ms)
+✔ correctness assessment: clean model reads as a bounded non-finding, never proven safe (1.002901ms)
+✔ correctness assessment: an unexpected error or panic flips to a finding and a blocked verdict (0.973915ms)
+✔ correctness assessment: overclaim grep is clean (boundary/negation wording only) (1.642699ms)
+✔ assess html: emits a self-contained design-system document (57.325705ms)
+✔ assess html: opens with a dedicated cover page carrying the brand, title, and metadata (R2) (16.197995ms)
+✔ assess html: embeds the real brand assets inline, self-contained and deterministic (R1, R2.2) (28.657486ms)
+✔ assess html: renders the failure-rate heatmap visually from the model (28.835717ms)
+✔ assess html: correctness 'no heatmap' note renders as a clean callout (R3.3) (9.671244ms)
+✔ assess html: cartography heatmap is not wrapped in the no-heatmap callout (R3.3) (15.950666ms)
+✔ assess html: deterministic for a fixed model + markdown (29.487618ms)
+✔ assess html: table command code keeps shell flags atomic while adding safe path breaks (0.930709ms)
+✔ assess html: reviewer checklist becomes checkbox list items (16.599309ms)
+✔ assess html: pages print full-bleed ink with no white @page gutter (R3) (12.276608ms)
+✔ assess html: clean model surface still renders a visual heatmap (16.094458ms)
+✔ assess html: avoids reproduction placeholders and is overclaim-grep clean outside the boundary (17.142898ms)
+✔ assess html: markdownToHtml converts a small table and bold/inline-code (0.350384ms)
+✔ assess model ingestion reads a structurally valid campaign root (41.734764ms)
+✔ assess model ingestion rejects malformed risk surfaces with AssessmentIngestError (7.987132ms)
+✔ assess model ingestion rejects cross-artifact campaign digest mismatches (8.08486ms)
+✔ assess model ingestion rejects risk surfaces whose embedded digest does not verify (5.220388ms)
+✔ assess narrative (guided-sim): bounded recommendation reads as an observed resilience boundary, not a knob (21.050849ms)
+✔ assess narrative (guided-sim): finding title names the fired invariant, not the axis as actionable (5.554184ms)
+✔ assess narrative (guided-sim): entire-region and none branches carry boundary phrasing, no knob advice (3.699199ms)
+✔ assess narrative (guided-sim): authored failure-mode prose still yields the invariant; ambiguity falls back to the generic title (2.827556ms)
+✔ assess narrative (guided-sim): only the human statement changes — recommendation data fields match the real-campaign twin (13.410113ms)
+✔ assess narrative (real campaign): statements and titles keep the existing strings verbatim (22.513788ms)
+✔ assess narrative: flagship model yields a finding, a bounded recommendation, and cites the threshold (56.068763ms)
+✔ assess narrative: clean model reads as a non-finding, never as proof of safety (5.254509ms)
+✔ assess narrative: threshold-safe regions with non-zero failures are not non-findings (3.436122ms)
+✔ assess narrative: deterministic across two generations of a fixed model (6.810725ms)
+✔ assess narrative: generated prose is overclaim-grep clean outside the claim boundary (8.122948ms)
+✔ assess narrative: clean correctness model yields a bounded non-finding, no finding (1.204619ms)
+✔ assess narrative: an unexpected error/panic in the guided sim is a finding (R4.2) (0.59985ms)
+✔ assess narrative: correctness coverage rows derive from flow_counts, deterministically (R4.1/R4.4) (0.73664ms)
+✔ assess narrative: correctness narrative is deterministic across two generations (0.6913ms)
+✔ assess render: flagship renders every template section in order (38.214474ms)
+✔ assess render: Coverage & Limits consolidates probed, hot, no-signal, and blocked facts (5.496552ms)
+✔ assess render: embeds the risk-surface heatmap, sensitivity ranking, and bounded safe region (8.988315ms)
+✔ assess render: a finding is rendered and kept separate from non-findings (5.382962ms)
+✔ assess render: clean model renders 'No finding under the declared inputs' (9.204221ms)
+✔ assess render: threshold-safe regions with failures do not render a false non-finding (3.345051ms)
+✔ assess render: reproduction block carries commands, artifact paths, and canonical hashes (4.739335ms)
+✔ assess render: byte-deterministic across two renders and two builds of the flagship (5.957155ms)
+✔ assess render: correctness shape degrades to a bounded note, not a heatmap (R3.1/R3.2) (3.682572ms)
+✔ assess render: correctness shape preserves blocked and not-assessed coverage rows (1.745362ms)
+✔ assess render: correctness shape with a finding renders it and no non-finding (0.718422ms)
+✔ assess render: correctness markdown is byte-deterministic across two renders (1.574743ms)
+✔ assess render: correctness HTML mirrors the degrade — no heatmap widget, note present (R3.3) (8.480654ms)
+✔ assess render: rendered markdown is overclaim-grep clean outside the claim boundary (15.510477ms)
+✔ banner suppresses when stdout is not a TTY (1.733489ms)
+✔ banner suppresses for json output (0.294327ms)
+✔ banner suppresses for quiet output (2.392273ms)
+✔ banner suppresses when CI is truthy (0.275561ms)
+✔ banner prints without color when NO_COLOR is present (1.349265ms)
+✔ banner suppresses when RIPTIDE_NO_BANNER is truthy (0.230488ms)
+✔ rendered banner is compact and reads version from package.json (0.895963ms)
+✔ printBanner writes exactly once when allowed (1.115606ms)
+✔ init banner renders ASCII wordmark with tagline (0.942969ms)
+✔ printInitBanner respects suppression flags (1.365937ms)
+✔ flagship cartography surface: bytes match the recorded R6.4 determinism hash (13.31123ms)
+✔ flagship cartography surface: is in byte-stable canonical form with a verifiable self-digest (8.977382ms)
+✔ flagship cartography surface: shows the expected monotonic whale × shock failure gradient (4.283155ms)
+✔ campaign expansion determinism: canonical digest, run seeds, run IDs, and configs are byte-stable (88.463003ms)
+✔ campaign materialization expansion: sampled coordinates change effective generated run config fields (21.175941ms)
+✔ campaign materialization reuses run-config persona count maps for whale share (9.996353ms)
+✔ campaign expansion determinism: range seed policies stay inside the declared range (7.027217ms)
+✔ campaign expansion determinism: dry materialization writes generated run configs without executing simulations (7.387866ms)
+✔ campaign expansion determinism: missing scenario templates fail dry expansion (4.421147ms)
+✔ campaign retention aggregation: writes summaries and selects retained labels deterministically (142.488443ms)
+✔ campaign retention aggregation: unsupported or absent labels warn without failing (18.387872ms)
+✔ campaign retention aggregation: case digests are stable across output roots (62.692649ms)
+✔ campaign run resume: executes generated configs through the run path and writes metadata (141.310616ms)
+✔ campaign run resume: records setup errors separately from invariant failures (25.58974ms)
+✔ campaign run resume: reuses byte-identical configs and fails mismatches (34.443084ms)
+✔ campaign schema: accepts a valid minimal Campaign TOML v1 (15.111249ms)
+✔ campaign schema: rejects missing required sections (2.647728ms)
+✔ campaign schema: rejects invalid seed policies (2.457522ms)
+✔ campaign schema: rejects malformed distribution-specific fields (6.398306ms)
+✔ campaign schema: rejects scenario parameters that would be visible but not materialized (2.349365ms)
+✔ campaign schema: rejects materialized scenario parameters with incompatible distributions (3.021736ms)
+✔ campaign schema: rejects persona scale parameters until they affect generated configs (2.808445ms)
+✔ campaign schema: rejects unknown keys and bad family references (2.238824ms)
+✔ campaign schema: rejects bad retention labels (10.669329ms)
+✔ campaign-surface producer: bins a 2D sweep into a complete, ordered grid with failure rates and linear percentiles (36.335657ms)
+✔ campaign-surface producer: sensitivity ranks by failure-rate spread with deterministic name tie-break (4.174621ms)
+✔ campaign-surface sensitivity: elasticity is the signed per-bin-step slope, null when one bin populated (2.609354ms)
+✔ campaign-surface safe-region: no cell under threshold yields an explicit none status, never a silent empty (1.50155ms)
+✔ campaign-surface safe-region: bounds do not envelope unsafe diagonal cells (1.3085ms)
+✔ campaign-surface safe-region: the threshold is a config field that widens the safe region (1.701629ms)
+✔ campaign-surface producer: safe region reports per-axis bounds under the threshold (1.001859ms)
+✔ campaign-surface producer: all-pass campaign yields a zero-failure entire-region safe surface (0.793072ms)
+✔ campaign-surface producer: a single swept axis produces a 1D surface (20.155602ms)
+✔ campaign-surface producer: no swept axes collapses to one aggregate cell with a warning (1.510096ms)
+✔ campaign-surface producer: sparse cells are flagged in warnings, never dropped (0.770858ms)
+✔ campaign-surface producer: generic (non-lending) classes use the risk_score metric (0.6356ms)
+✔ campaign-surface producer: output is byte-deterministic and carries a verifiable self-digest (2.819653ms)
+✔ campaign-surface end-to-end: campaign run writes a non-empty, deterministic, additive risk-surface.json (305.901659ms)
+✔ root version matches package metadata (565.75319ms)
+✔ simulate command is not registered (1251.130208ms)
+✔ commands: root help is compact, ordered for first-hour use, and example-driven (551.222498ms)
+✔ scenarios prints the stub list (516.69114ms)
+✔ scenarios catalog prints the public family catalog (675.294892ms)
+✔ campaign commands: validate and plan expose stable JSON without executing simulations (1648.561487ms)
+✔ campaign materialization expansion: plan output exposes run coordinates and sampled parameters (1524.956136ms)
+✔ campaign commands: help documents run controls and bounded evidence language (1119.694999ms)
+✔ campaign commands: run --serve fails intentionally with a useful message (704.623971ms)
+✔ all fallback policies are valid (1.74349ms)
+✔ loads persona descriptions from toml (22.600538ms)
+✔ every default persona has a fallback policy (0.388253ms)
+✔ uses fallbacks when llm is unavailable (0.486815ms)
+✔ loadPersonaDescription rejects path-traversal persona ids (2.679817ms)
+✔ loadPersonaDescription rejects ids with slashes or nulls (1.552844ms)
+✔ repairs fenced json (1.396441ms)
+✔ repairs fenced json with trailing newline after the fence (0.585392ms)
+✔ repairs the first balanced json object when prose contains trailing braces (0.490479ms)
+✔ parses defaults and generates a seed (10.617575ms)
+✔ parses comma-separated personas (1.946943ms)
+✔ accepts validator url overrides (0.712437ms)
+✔ rejects invalid values (1.288937ms)
+✔ rejects persona ids with path traversal (1.334319ms)
+✔ rejects persona ids with uppercase, slashes, or spaces (0.858145ms)
+✔ dashboard metric registry handles stablecoin bps aggregate ratio keys (46.421289ms)
+✔ dashboard metric registry handles LST exchange-rate bps aggregates (9.427592ms)
+✔ dashboard metric registry normalizes qualified component summary keys (7.484293ms)
+✔ dashboard metric fallback keeps aggregate suffix readable without object rendering (3.177424ms)
+✔ dashboard semantics labels use canonical map and raw-name fallback (4.974249ms)
+✔ dashboard event stream renders decoded program errors (3.409798ms)
+✔ dashboard expression invariant fires reuse left-edge fire row styling (2.992708ms)
+✔ dashboard summary metrics skip structured invariant rows (12.767729ms)
+✔ discovery: walks recursively at varying depths (45.314243ms)
+✔ discovery: sort is stable across reruns (lexicographic) (16.061276ms)
+✔ discovery: sort is plain lexicographic (w100- comes before w25-) (5.942818ms)
+✔ discovery: scenario names use `/` separator and no .json extension (2.668425ms)
+✔ discovery: empty .riptide/scenarios/ → ok, empty list (1.872925ms)
+✔ discovery: missing .riptide/ → kind: missing (3.744711ms)
+✔ discovery: malformed JSON → warning emitted, good scenarios still returned (3.569466ms)
+✔ discovery: .riptide/ without scenarios subdir → ok, empty list (1.16236ms)
+riptide list: No .riptide/ directory found at /tmp/riptide-discovery-list-missing-0aiWMY. Run 'riptide init' to scaffold one.
+✔ runList: missing .riptide/ → exit 2 (1.322702ms)
+✔ runList: empty scenarios → exit 0 with no output (1.533246ms)
+✔ runList: happy path → exit 0 with sorted names on stdout (2.681732ms)
+✔ discoverAdapters: monorepo in-tree layer — `<cwd>/fixtures/adapters` picks up shipping-fork only (25.701566ms)
+✔ discoverAdapters: user-repo layer — `.riptide/adapters` wins, does NOT leak monorepo fixtures (3.630103ms)
+✔ discoverAdapters: both-shapes user repo — `.riptide/adapters` wins over in-tree monorepo (4.805708ms)
+✔ discoverAdapters: does NOT trust an arbitrary parent `fixtures/adapters/` (4.866801ms)
+✔ discoverAdapters: module-root fallback — source-checkout CLI still finds shipping fixtures from a fresh cwd (1.894135ms)
+✔ shouldUseModuleRootFixtureFallback: only real source checkouts use bundled fixtures (50.720003ms)
+✔ discoverAdapters: release-shaped module roots do not leak bundled fixtures into an empty cwd (4.63021ms)
+✔ discoverAdapters: source-shaped module roots keep the contributor fixture fallback (2.71306ms)
+✔ runDoctor: healthy toolchain + clean adapter → exit 0 (30.787728ms)
+✔ runDoctor: missing required tool → exit 2 with hint (6.835546ms)
+✔ runDoctor: missing engine binary → exit 2 with build hint (10.799013ms)
+✔ runDoctor: adapter with no [lineage] block → lint=warn, doctor exit 1 (6.298894ms)
+✔ runDoctor: downstream user repo is isolated — does NOT inherit shipping monorepo adapters (9.721892ms)
+✔ runDoctor: drifted npm version → exit 1 (WARN) (12.194759ms)
+✔ runDoctor: drifted cargo version → exit 1 (WARN) (11.672949ms)
+✔ runDoctor: drifted cargo-build-sbf version → exit 1 (WARN) (10.980538ms)
+✔ runDoctor: drifted Rust version → exit 1 (WARN), no FAIL (16.878149ms)
+✔ runDoctor: discovered adapter with broken instruction → lint FAIL → doctor exit 2 (7.633248ms)
+✔ runDoctor: adapter present + no IDL on disk → idl-unreadable FAIL (6.043855ms)
+✔ runDoctor: monorepo fixture with missing program_so → bounded optional-runtime WARN (3.847463ms)
+✔ runDoctor: monorepo fixture with missing idl_path → load=fail (2.863068ms)
+✔ runDoctor: empty repo (no adapters anywhere) → exit 1 with init hint (2.721863ms)
+✔ runDoctor: shipping monorepo fixtures are pass or bounded warnings (123.108148ms)
+✔ runDoctor: generic adapter with dead program_so → load=fail (mirrors engine loader) (6.354013ms)
+✔ runDoctor: generic adapter with dead idl_path → load=fail (7.671185ms)
+✔ runDoctor: user .riptide adapter resolves scaffolded target paths from repo root (3.700347ms)
+✔ runDoctor: generic adapter with dead owner.program_so → load=fail (6.857204ms)
+✔ runDoctor: generic adapter with present owner.program_so but missing sibling keypair → load=fail (9.321308ms)
+✔ runDoctor: lending adapter with no program_so/idl_path is fine (does NOT trigger runtime-path fail) (2.136212ms)
+✔ runDoctor: never spawns the engine — resolveEngine stub is the only call (7.863793ms)
+﹣ e2e: risky persona mix produces realized liquidations under shock (1.50253ms) # SKIP
+﹣ e2e: cautious persona mix survives the same shock without liquidations (0.298781ms) # SKIP
+﹣ e2e: determinism — two runs with same seed produce byte-identical simulation logic (0.217896ms) # SKIP
+✔ renderCliError: default hides stack and prefixes with `riptide:` (4.705913ms)
+✔ renderCliError: RIPTIDE_DEBUG=1 includes the stack (0.727338ms)
+✔ renderCliError: RIPTIDE_DEBUG=0 still hides the stack (0.413073ms)
+✔ renderCliError: object thrown does not collapse to [object Object] (0.265103ms)
+✔ renderCliError: null throw is safely labelled (0.500559ms)
+✔ renderCliError: multi-line message preserves structure (file + hint lines) (0.251411ms)
+✔ renderCliError: circular-ref object thrown does not collapse to [object Object] (0.338121ms)
+✔ renderCliError: cyclic class instance surfaces class name, not [object Object] (0.444994ms)
+✔ renderCliError: Symbol throw renders as a Symbol line, no crash (0.785348ms)
+✔ renderCliError: bare function throw renders as a function line, no crash (0.738404ms)
+✔ renderCliError: anonymous function throw renders with an anonymous label (0.392337ms)
+✔ renderCliError: object whose JSON.stringify collapses to undefined does not crash (0.30565ms)
+✔ renderCliError: bigint throw renders safely (0.209934ms)
+✔ shouldShowStack: defaults off; toggles on for non-zero / non-false RIPTIDE_DEBUG (0.292572ms)
+✔ buildSimulateOptions: missing adapter TOML names file and suggests shipped examples (1.82044ms)
+✔ buildSimulateOptions: malformed adapter TOML hints at brackets and quotes (28.475243ms)
+✔ resolveEngineBinary: missing binary names target/release path and cargo build command (15.452568ms)
+✔ renderAdapterExplain formats a parsed adapter byte-for-byte (3.971508ms)
+✔ renderAdapterExplain emits stable none lines for empty sections (0.883409ms)
+✔ renderAdapterExplain omits semantics when the adapter has no semantics block (0.265916ms)
+✔ runExplain renders the shipping lending adapter (65.801329ms)
+✔ runExplain exits 2 when the adapter cannot be resolved (10.089603ms)
+✔ runExplain exits 2 when adapter validation fails (6.728832ms)
+✔ harness generate writes a Rust crate with adapter account hints (67.076669ms)
+✔ harness generate rejects non-generic adapters (16.890299ms)
+✔ harness generate CLI output recommends one-seed smoke (738.717971ms)
+﹣ harnessed generic scaffold compiles before deterministic setup is filled (0.467712ms) # SKIP
+riptide init: no Solana program detected in this directory.
+Expected an Anchor.toml file or a matching target/deploy/<program>.so + target/idl/<program>.json pair.
+Run this from your program repo, or use `riptide init --blank --name <program-name>` to create a manual stub.
+✔ init: empty temp dir fails by default (20.424201ms)
+riptide init: scaffolded .riptide/ for manual-program
+  created .riptide/adapters/manual-program.toml
+  created .riptide/GETTING-STARTED.md
+  created .gitignore
+  created .claude/skills/riptide-config
+  warning: blank scaffold requested; Riptide did not verify this directory contains a Solana program.
+
+Next steps:
+
+  1. Invoke /riptide-config in your coding agent.
+     It will finish the adapter, harness, scenarios, campaign readiness, and validation.
+
+  2. Run the campaign it creates:
+     riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+
+  3. Review the printed campaign root:
+     riptide review <campaign-root>
+
+Manual / advanced path: run riptide init --wizard --force only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.
+
+More detail: .riptide/GETTING-STARTED.md
+✔ init: --blank --name creates the minimal manual scaffold (no personas or scenarios) (56.267982ms)
+✔ init: plain TTY init does not call the wizard (12.205545ms)
+riptide init: scaffolded .riptide/ for widget-factory
+  created .riptide/adapters/widget-factory.toml
+  created .riptide/GETTING-STARTED.md
+  created .gitignore
+  created .claude/skills/riptide-config
+  warning: target/deploy/widget_factory.so not found yet; build your program before running adapt/run.
+  warning: target/idl/widget_factory.json not found yet; generate or commit an IDL before running adapt/run.
+
+Next steps:
+
+  1. Invoke /riptide-config in your coding agent.
+     It will finish the adapter, harness, scenarios, campaign readiness, and validation.
+
+  2. Run the campaign it creates:
+     riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+
+  3. Review the printed campaign root:
+     riptide review <campaign-root>
+
+Manual / advanced path: run riptide init --wizard --force only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.
+
+More detail: .riptide/GETTING-STARTED.md
+✔ init: Anchor.toml present → inferred program name flows into adapter filename + content (12.121226ms)
+riptide init: scaffolded .riptide/ for widget-factory
+  created .riptide/adapters/widget-factory.toml
+  created .riptide/GETTING-STARTED.md
+  created .gitignore
+  created .claude/skills/riptide-config
+  warning: target/deploy/widget_factory.so not found yet; build your program before running adapt/run.
+  warning: target/idl/widget_factory.json not found yet; generate or commit an IDL before running adapt/run.
+
+Next steps:
+
+  1. Invoke /riptide-config in your coding agent.
+     It will finish the adapter, harness, scenarios, campaign readiness, and validation.
+
+  2. Run the campaign it creates:
+     riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+
+  3. Review the printed campaign root:
+     riptide review <campaign-root>
+
+Manual / advanced path: run riptide init --wizard --force only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.
+
+More detail: .riptide/GETTING-STARTED.md
+riptide init: /tmp/riptide-init-test-9gHG1p/.riptide already exists. Use --force to overwrite, or delete it manually.
+riptide init: scaffolded .riptide/ for widget-factory
+  created .riptide/adapters/widget-factory.toml
+  created .riptide/GETTING-STARTED.md
+  created .claude/skills/riptide-config
+  warning: target/deploy/widget_factory.so not found yet; build your program before running adapt/run.
+  warning: target/idl/widget_factory.json not found yet; generate or commit an IDL before running adapt/run.
+
+Next steps:
+
+  1. Invoke /riptide-config in your coding agent.
+     It will finish the adapter, harness, scenarios, campaign readiness, and validation.
+
+  2. Run the campaign it creates:
+     riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+
+  3. Review the printed campaign root:
+     riptide review <campaign-root>
+
+Manual / advanced path: run riptide init --wizard --force only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.
+
+More detail: .riptide/GETTING-STARTED.md
+✔ init: refuses existing .riptide unless --force is passed (19.380928ms)
+riptide init: scaffolded .riptide/ for widget-factory
+  created .riptide/adapters/widget-factory.toml
+  created .riptide/GETTING-STARTED.md
+  created .gitignore
+  created .claude/skills/riptide-config
+  warning: target/deploy/widget_factory.so not found yet; build your program before running adapt/run.
+  warning: target/idl/widget_factory.json not found yet; generate or commit an IDL before running adapt/run.
+
+Next steps:
+
+  1. Invoke /riptide-config in your coding agent.
+     It will finish the adapter, harness, scenarios, campaign readiness, and validation.
+
+  2. Run the campaign it creates:
+     riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+
+  3. Review the printed campaign root:
+     riptide review <campaign-root>
+
+Manual / advanced path: run riptide init --wizard --force only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.
+
+More detail: .riptide/GETTING-STARTED.md
+riptide init: /tmp/riptide-init-test-iwY4hb/.riptide already exists. Use --force to overwrite, or delete it manually.
+✔ init: existing .riptide fails before interactive wizard (5.038346ms)
+riptide init: no Solana program detected in this directory.
+Expected an Anchor.toml file or a matching target/deploy/<program>.so + target/idl/<program>.json pair.
+Run this from your program repo, or use `riptide init --blank --name <program-name>` to create a manual stub.
+✔ init: missing Solana program fails before interactive wizard (0.867327ms)
+riptide init: Anchor.toml found, but Riptide could not infer exactly one program name.
+Expected one [programs.localnet] entry, one [programs.mainnet] entry, or a top-level name = "...".
+Use `riptide init --blank --name <program-name>` if you want to scaffold manually.
+riptide init: Anchor.toml found, but Riptide could not infer exactly one program name.
+Expected one [programs.localnet] entry, one [programs.mainnet] entry, or a top-level name = "...".
+Use `riptide init --blank --name <program-name>` if you want to scaffold manually.
+✔ init: malformed or ambiguous Anchor.toml fails instead of guessing my-program (3.639701ms)
+✔ detectProgram: matching target artifacts identify a non-Anchor program (4.104834ms)
+✔ scaffold: wizard init prefills compact IDL-backed adapter hints (18.455489ms)
+riptide init: scaffolded .riptide/ for profile-program
+  created .riptide/adapters/profile-program.toml
+  created .riptide/GETTING-STARTED.md
+  created .gitignore
+  created .claude/skills/riptide-config
+  warning: blank scaffold requested; Riptide did not verify this directory contains a Solana program.
+
+Next steps:
+
+  1. Invoke /riptide-config in your coding agent.
+     It will finish the adapter, harness, scenarios, campaign readiness, and validation.
+
+  2. Run the campaign it creates:
+     riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+
+  3. Review the printed campaign root:
+     riptide review <campaign-root>
+
+Manual / advanced path: run riptide init --wizard --force only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.
+
+More detail: .riptide/GETTING-STARTED.md
+✔ init: --profile aliases --protocol for non-interactive scaffolds (4.890996ms)
+✔ inferProgramName: Anchor.toml names one program, otherwise null (1.200277ms)
+✔ renderAdapterStub: contains artifact paths, empty TODO blocks, and no live persona (0.362762ms)
+✔ renderAdapterStub: protocol arg drives the protocol field + intent comment (12.625563ms)
+✔ scaffold: Anchor anchor_uniswap_v2 AMM repos use generic runtime paths (13.32531ms)
+✔ renderGettingStarted: harnessed repos promote one-seed harness smoke (0.294418ms)
+✔ init: next steps point at riptide-config by default (5.663479ms)
+✔ renderAdapterStub: selected persona blocks are embedded in the adapter (0.293431ms)
+✔ renderInvariantsSection: empty selection emits no top-level header (0.108345ms)
+✔ renderSemanticsSection: only lending emits a semantics block (21.454802ms)
+✔ scaffold: result records warnings for explicit blank scaffolds (16.993018ms)
+✔ scaffold: protocol + personas → matching persona blocks are inlined in the adapter (10.585064ms)
+✔ scaffold: one seed and harness mode create seeded run-config plus TODO harness (16.043298ms)
+✔ scaffold: explicit scenario battery writes each run-config with scenario-specific sizing (15.992345ms)
+✔ scaffold: required catalog scenarios are retained when caller passes an empty selection (10.01002ms)
+✔ scaffold: required invariants are retained and explicit duplicates are uniqued (33.777759ms)
+✔ scaffold: custom protocol inlines generic personas from the custom bucket (23.483479ms)
+✔ scaffold: empty persona list does not create a personas/ directory (16.106187ms)
+✔ scaffold: lending protocol embeds selected policy personas and starter actions (37.077718ms)
+✔ renderRunConfig: emits canonical seedless shape without validator_url (0.340895ms)
+✔ renderRunConfig: one seed emits an explicit deterministic seed (0.193039ms)
+✔ renderRunConfig: multiple seeds emits a sweep count (0.132681ms)
+✔ renderGettingStarted: references scaffolded scenarios; no-personas variant stays terse (0.286045ms)
+riptide init: scaffolded .riptide/ for widget-factory
+  created .riptide/adapters/widget-factory.toml
+  created .riptide/scenarios/baseline/run-config.json
+  created .riptide/GETTING-STARTED.md
+  created .gitignore
+  created .claude/skills/riptide-config
+  warning: target/deploy/widget_factory.so not found yet; build your program before running adapt/run.
+  warning: target/idl/widget_factory.json not found yet; generate or commit an IDL before running adapt/run.
+
+Next steps:
+
+  1. Invoke /riptide-config in your coding agent.
+     It will finish the adapter, harness, scenarios, campaign readiness, and validation.
+
+  2. Run the campaign it creates:
+     riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+
+  3. Review the printed campaign root:
+     riptide review <campaign-root>
+
+Manual / advanced path:
+
+     riptide lint .riptide/adapters/widget-factory.toml
+     riptide harness generate --adapter .riptide/adapters/widget-factory.toml  # only when setup bytes are needed
+     riptide run baseline --adapter .riptide/adapters/widget-factory.toml --seeds 1 --seed-root 1337
+
+More detail: .riptide/GETTING-STARTED.md
+✔ init: wizard answers thread into scaffold output (injected promptWizard) (49.984388ms)
+riptide init: scaffolded .riptide/ for widget-factory
+  created .riptide/adapters/widget-factory.toml
+  created .riptide/GETTING-STARTED.md
+  created .gitignore
+  created .claude/skills/riptide-config
+  warning: target/deploy/widget_factory.so not found yet; build your program before running adapt/run.
+  warning: target/idl/widget_factory.json not found yet; generate or commit an IDL before running adapt/run.
+
+Next steps:
+
+  1. Invoke /riptide-config in your coding agent.
+     It will finish the adapter, harness, scenarios, campaign readiness, and validation.
+
+  2. Run the campaign it creates:
+     riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+
+  3. Review the printed campaign root:
+     riptide review <campaign-root>
+
+Manual / advanced path: run riptide init --wizard --force only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.
+
+More detail: .riptide/GETTING-STARTED.md
+✔ init: --yes skips the wizard even when isTTY is true (19.050456ms)
+riptide init: `riptide init --wizard` requires an interactive TTY. Run plain `riptide init` for the default minimal scaffold.
+✔ init: --wizard requires an interactive TTY (1.678968ms)
+riptide init: scaffolded .riptide/ for lending
+  created .riptide/adapters/lending.toml
+  created .riptide/GETTING-STARTED.md
+  created .gitignore
+  created .claude/skills/riptide-config
+  warning: blank scaffold requested; Riptide did not verify this directory contains a Solana program.
+
+Next steps:
+
+  1. Invoke /riptide-config in your coding agent.
+     It will finish the adapter, harness, scenarios, campaign readiness, and validation.
+
+  2. Run the campaign it creates:
+     riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+
+  3. Review the printed campaign root:
+     riptide review <campaign-root>
+
+Manual / advanced path: run riptide init --wizard --force only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.
+
+More detail: .riptide/GETTING-STARTED.md
+✔ init: --yes with lending protocol stays minimal and records a profile hint (6.509716ms)
+riptide init: scaffolded .riptide/ for perps
+  created .riptide/adapters/perps.toml
+  created .riptide/GETTING-STARTED.md
+  created .gitignore
+  created .claude/skills/riptide-config
+  warning: blank scaffold requested; Riptide did not verify this directory contains a Solana program.
+
+Next steps:
+
+  1. Invoke /riptide-config in your coding agent.
+     It will finish the adapter, harness, scenarios, campaign readiness, and validation.
+
+  2. Run the campaign it creates:
+     riptide campaign run .riptide/campaigns/<risk>.campaign.toml
+
+  3. Review the printed campaign root:
+     riptide review <campaign-root>
+
+Manual / advanced path: run riptide init --wizard --force only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.
+
+More detail: .riptide/GETTING-STARTED.md
+✔ init: --yes with non-lending protocol emits no invariant templates (12.366981ms)
+﹣ init: generated lending adapter passes adapt smoke (0.342614ms) # SKIP
+✔ clean run (no invariants declared) exits 0 (65.269275ms)
+✔ clean run with always-true invariant exits 0 (56.618788ms)
+✔ firing invariant exits 1 (42.155656ms)
+✔ --allow-invariant-violations restores exit 0 (65.506892ms)
+✔ broken adapter (unknown invariant field) exits 2 (12.081753ms)
+✔ malformed adapter (bad TOML) exits 2 (9.632876ms)
+✔ invariant catalog: lending exposes flat and semantic starter checks in priority order (30.270831ms)
+✔ invariant catalog: semantic entries require the semantics block (2.549389ms)
+✔ invariant catalog: path candidates search protocol bucket before custom fallback (0.684946ms)
+✔ invariant catalog: non-lending protocols expose commented templates (3.737197ms)
+✔ renderLineage formats a block with headings, bullets, and IDL source (1.639548ms)
+✔ renderLineage prints the 'no lineage recorded' line when absent (0.258916ms)
+✔ runLineage round-trips an adapter with a lineage block (71.68433ms)
+✔ runLineage prints the no-lineage line for adapters without the block (15.052478ms)
+✔ runLineage resolves short adapter names against the fixtures root (19.971428ms)
+✔ runLineage exits 2 when the adapter cannot be resolved (2.30471ms)
+✔ runLineage renders the shipping lending adapter end-to-end (22.628045ms)
+✔ semantics lint: clean migrated lending adapter exits 0 (78.014786ms)
+✔ semantics lint: generic SBF/IDL runtime can declare lending.v1 economic class (1.407453ms)
+✔ semantics lint: missing required role fails with next step (0.801872ms)
+✔ semantics lint: missing required derived observation fails (0.680497ms)
+✔ semantics lint: accepts minimal amm.v1 semantic surface (1.217206ms)
+✔ semantics lint: amm.v1 missing required role fails (0.479141ms)
+✔ semantics lint: amm.v1 missing required derived observation fails (0.616181ms)
+✔ semantics lint: accepts minimal perps-margin.v1 semantic surface (0.560285ms)
+✔ semantics lint: perps-margin.v1 missing required role fails (0.41998ms)
+✔ semantics lint: perps-margin.v1 missing required derived observation fails (1.280838ms)
+✔ semantics lint: accepts minimal lst.v1 semantic surface (0.519349ms)
+✔ semantics lint: lst.v1 missing required role fails (0.455076ms)
+✔ semantics lint: lst.v1 missing required derived observation fails (0.239353ms)
+✔ semantics lint: accepts minimal stablecoin.v1 semantic surface (0.306038ms)
+✔ semantics lint: stablecoin.v1 missing required role fails (0.222021ms)
+✔ semantics lint: stablecoin.v1 missing required derived observation fails (0.230942ms)
+✔ semantics lint: accepts minimal token.v1 semantic surface (0.257061ms)
+✔ semantics lint: token.v1 missing required role fails (0.206039ms)
+✔ semantics lint: token.v1 missing required derived observation fails (0.236408ms)
+✔ semantics lint: malformed derived expression fails (0.491492ms)
+✔ semantics lint: derived observation cycle names offenders (0.792389ms)
+✔ semantics lint: malformed class string fails (15.14947ms)
+Adapt — adapter
+adapter: /tmp/riptide-adapter-semantics-Vx431G/adapter.toml
+
+  [semantics-expression-parse-failed] [semantics.derived].health_factor: malformed semantic expression at byte 18: unexpected end of expression; expected number, bool, identifier, helper call, or `(`.
+      hint: Fix the expression syntax; valid expressions use identifiers, dotted role fields, helper calls, arithmetic, comparisons, logical operators, and parentheses.
+  adapter file: /tmp/riptide-adapter-semantics-Vx431G/adapter.toml
+✔ adapt: semantics lint preflight aborts before smoke even without JSON lineage (30.091717ms)
+✔ classifyLineageSourceKind: undefined → missing-lineage (2.181565ms)
+✔ classifyLineageSourceKind: empty idl_source → missing-lineage (0.400341ms)
+✔ classifyLineageSourceKind: .json suffix → json-idl (0.245937ms)
+✔ classifyLineageSourceKind: Rust source → non-json (0.220573ms)
+✔ lintAdapter: clean semantics breadth surface emits a named PASS (6.569974ms)
+✔ lintAdapter: semantics oracle role must exist (1.450889ms)
+✔ lintAdapter: semantics oracle pubkeys and positive total weights are enforced (1.003895ms)
+✔ lintAdapter: semantics collections validate over, formula, and expression syntax (1.131919ms)
+✔ lintAdapter: semantics replay validates state_source (0.883909ms)
+✔ lintAdapter: semantics replay validates relative pack_path and role bindings (0.975031ms)
+✔ lintAdapter: semantics replay rejects path traversal in pack_path (0.722139ms)
+✔ lintAdapter: semantics mainnet-rpc replay is WARN, not FAIL (1.030095ms)
+✔ runLint: clean JSON-IDL-backed adapter → exit 0 (108.499968ms)
+✔ runLint: legacy Anchor IDL account type fields and nested paths → exit 0 (13.077576ms)
+✔ runLint: broken instruction → exit 2 with named diagnostic (9.729593ms)
+✔ runLint: broken instruction arg → exit 2 (4.425703ms)
+✔ runLint: broken field reference → exit 2 (5.979304ms)
+✔ runLint: broken account → exit 2 (4.237212ms)
+✔ runLint: mapped IDL instruction with undeclared required accounts → exit 2 with stubs (5.145636ms)
+✔ runLint: non-JSON lineage source → explicit WARN, exit 1 (3.177786ms)
+✔ lintAdapter: generic invariant fields must be declared observations (0.437213ms)
+✔ lintAdapter: scheduled action account references must be declared (0.482173ms)
+✔ runLint: no [lineage] block → explicit SKIP, exit 0 (3.577736ms)
+✔ runLint: valid [errors] registry is accepted (3.637293ms)
+✔ runLint: invalid [errors] duplicate code → exit 2 with next step (3.28768ms)
+✔ runLint: invalid [errors] duplicate label → exit 2 with next step (2.258747ms)
+✔ runLint: invalid [errors] malformed label → exit 2 with next step (2.688699ms)
+✔ runLint: invalid [errors] missing required field → exit 2 with next step (2.691763ms)
+✔ runLint: unknown adapter name → exit 2 with named error (1.24437ms)
+✔ runLint: untouched init stub gets scaffold-specific next step (3.386302ms)
+✔ runLint: shipping amm lints cleanly (no FAILs) (20.42886ms)
+✔ runLint: shipping perpetuals lints cleanly (no FAILs) (17.972531ms)
+✔ runLint: shipping liquid-staking lints cleanly (no FAILs) (15.617154ms)
+✔ runLint: shipping lending semantics preflight passes despite non-JSON lineage → exit 0 (15.818869ms)
+✔ runLint: external adapter path resolves its own IDL (not the installed CLI's checkout) (5.985894ms)
+✔ runLint: .riptide/adapters/ downstream repo convention derives its own repo root (4.660762ms)
+✔ runLint: empty owner block is rejected at validation (not silently skipped) (4.073917ms)
+✔ runLint: owner with both program_so and pubkey is rejected at validation (4.321414ms)
+✔ runLint: owner.pubkey with invalid base58 character is rejected at validation (4.4275ms)
+✔ runLint: owner.pubkey that decodes to the wrong byte length is rejected at validation (3.554449ms)
+✔ runLint: owner.pubkey with a valid 32-byte base58 key is accepted + skips IDL cross-check on that account (4.091774ms)
+✔ runLint: agent account with valid owner pubkey is accepted and skipped from IDL cross-check (7.543439ms)
+✔ lintAdapter: coverage report includes uncovered-instruction warnings for an unacknowledged IDL instruction (3.536301ms)
+✔ resolveAdapterArg: bare name resolves against <cwd>/.riptide/adapters/ first (downstream repo) (2.158846ms)
+✔ resolveAdapterArg: <cwd>/.riptide/adapters/ wins over the shipping fixtures layer (1.933018ms)
+✔ resolveAdapterArg: falls through to fixturesRoot when no downstream adapter exists (1.854953ms)
+✔ resolveAdapterArg: returns null when neither layer has the adapter (0.225427ms)
+✔ resolveAdapterArg: legacy string-only fixturesRoot argument still works (3.8999ms)
+LLM unavailable — using default policies (shown once per command)
+✔ orchestrator constructs engine args and returns validated result (44.893539ms)
+✔ orchestrator does not compile fallback policies for generic inline personas (35.537906ms)
+✔ orchestrator forwards explicit state-pack path to the engine (10.517307ms)
+✔ orchestrator builds harness once and runs the release binary directly (13.039518ms)
+✔ orchestrator honors generated harness rust-toolchain pin (9.339268ms)
+✔ orchestrator resolves engine from cli/ subdir via cwd/../target/release (4.191019ms)
+✔ orchestrator does NOT walk up past the allowed candidates (security) (3.00489ms)
+✔ orchestrator cleans up temp dir on success (5.282291ms)
+✔ orchestrator surfaces engine stderr tail on non-zero exit (4.343511ms)
+✔ orchestrator handles empty stderr on failure without a bogus tail section (4.408751ms)
+✔ orchestrator reports every lookup attempt when engine binary missing (3.677255ms)
+✔ orchestrator resolves engine from moduleRoot regardless of cwd (7.770053ms)
+✔ orchestrator honors RIPTIDE_ENGINE_BIN override (7.633526ms)
+✔ readiness case-studies emits deterministic corpus rows with required schema (44.38955ms)
+✔ readiness case-studies writes deterministic markdown and JSON outputs (9.828542ms)
+✔ readiness case-studies does not include target build artifacts (86.548657ms)
+gate: building release riptide-engine (cargo build --release -p riptide-engine)...
+    Finished `release` profile [optimized] target(s) in 0.70s
+✔ `riptide replay` runs end-to-end and emits schema-compatible JSON (1614.311343ms)
+✔ invariant firing on replay still surfaces the full SimulationResult (exit 1) (1713.853303ms)
+✔ `riptide replay` rejects multi-component config with path-traversal component name (648.522989ms)
+✔ `riptide replay` rejects multi-component config with dotted component name (qualified-key collision risk) (807.603183ms)
+✔ `riptide replay` rejects multi-component config with control-character component name (593.49993ms)
+✔ summary renders all required sections (34.700899ms)
+✔ timeline renders tick-ordered events with persona labels (18.918233ms)
+✔ artifacts are written to disk (6.420496ms)
+✔ renderSummary handles a lending-shaped summary with all historical keys (0.595967ms)
+✔ renderSummary renders generic/adapter observation aggregates in a fallback metrics table (0.748148ms)
+✔ renderSummary does not crash on an empty summary (0.263869ms)
+✔ renderSummary sanitizes observation keys carrying ANSI escape sequences (1.308432ms)
+✔ renderSummary sanitizes string metric values carrying bell byte (0.356545ms)
+✔ renderSummary sanitizes simulation boundary lines (0.337046ms)
+✔ renderNarrative produces lending-shaped report with key metrics (21.755535ms)
+✔ renderNarrative produces generic-shaped report with adapter observations (0.405141ms)
+✔ renderNarrative includes invariant violations when present (0.449665ms)
+✔ renderNarrative shows 'No invariant violations' when summary has no invariants (0.185124ms)
+✔ renderNarrative shows 'No notable events' with empty event stream (0.168408ms)
+✔ renderNarrative uses custom reproCommand when provided (4.440393ms)
+✔ renderColoredTable renders a table with lending metrics (13.17109ms)
+✔ renderColoredTable renders generic metrics without lending labels (1.29124ms)
+✔ renderSummary renders structured invariants_fired (no [object Object]) (0.552111ms)
+✔ renderSummary excludes invariants_fired from the fallback metrics table (0.338445ms)
+✔ renderSummary renders Semantics section for semantics-bearing results (0.915616ms)
+✔ renderSummary omits Semantics section for legacy results (0.162707ms)
+✔ renderColoredTable renders structured invariants_fired rows (no [object Object]) (2.791288ms)
+✔ renderColoredTable highlights invariant violations (1.634729ms)
+✔ writeArtifacts writes report.md when narrativeConfig provided (21.066112ms)
+✔ review validates the lending whale replay pack and emits markdown (665.985629ms)
+✔ review --json emits validation, invariant, digest, canonical hash, and raw sha256 fields (655.093804ms)
+✔ review accepts repo-relative pack path indexes emitted by replay packs (762.227948ms)
+✔ review accepts a campaign root and maps retained cases to risk and rerun evidence (1653.54284ms)
+✔ review accepts guided sim artifacts with flow labels and rerun evidence (1384.363271ms)
+✔ review summarizes trace-bearing passed guided sim artifacts (1517.107302ms)
+✔ review reports the first failing guided trace flow step (938.813013ms)
+✔ review rejects malformed guided trace fields with an actionable error (292.761814ms)
+✔ review collects fired semantic expression invariants before legacy rows (0.785622ms)
+✔ review ignores invariant evidence from fields excluded from the canonical hash (353.360729ms)
+✔ review derives What Broke from hash-covered evidence when summary.md is tampered (328.888723ms)
+✔ review --out writes markdown and prints a short success line (304.689604ms)
+✔ review validates an unchanged pack copied outside the checkout (383.521169ms)
+✔ review exits 2 when an indexed path is absolute (258.930009ms)
+✔ review exits 2 when an indexed path escapes the pack root (264.8516ms)
+✔ review exits 2 when an indexed path symlink canonicalizes outside the pack root (320.071892ms)
+✔ review tells fresh-clone users to run replay when generated output is absent (280.771724ms)
+✔ review exits 2 when default simulation-result fallback symlink canonicalizes outside the pack root (354.054823ms)
+✔ review exits 2 on malformed manifest (301.86081ms)
+✔ review exits 2 on canonical hash mismatch (312.941974ms)
+✔ runScenarios writes .riptide/run-collection.json with schema v1 (55.517443ms)
+✔ runSummaryJson retains existing multi-scenario fields and adds run_collection_path (0.622997ms)
+✔ metricPreviewFromSummary keeps primitive metrics and skips structured rows (0.299059ms)
+✔ classifies invariant fires as failure observed with exercised coverage (6.280013ms)
+✔ classifies clean exercised runs as no failure observed (0.713184ms)
+✔ classifies all rejected scenario executions as failure observed (0.632619ms)
+✔ accepts inline adapter personas when the result has agents and events (0.570916ms)
+✔ warn expression invariant fires do not change verdict and report semantics coverage (0.839596ms)
+✔ error expression invariant fires produce failure-observed verdict (0.91086ms)
+✔ classifies populated summaries with no events and no state delta as inconclusive (0.624995ms)
+✔ classifies declared-but-missing invariant rows as inconclusive (0.601222ms)
+✔ counts semantic expression invariant rows in declared invariant inventory (1.223981ms)
+✔ accepts replay-only aggregate evidence without personas (1.222241ms)
+✔ classifies explained early termination as partial coverage (0.525739ms)
+✔ classifies missing SimulationResult or error records as setup error (0.605616ms)
+✔ classifies SIGINT termination as interrupted, not setup error (1.141381ms)
+✔ formatScenarioLine: PASS includes no-failure verdict, confidence, and coverage (2.226843ms)
+✔ formatScenarioLine: FAIL includes failure verdict, confidence, coverage, and first fire (0.364637ms)
+✔ formatScenarioLine: FAIL with N>1 fires uses plural 'invariant fires' + names first only (0.285933ms)
+✔ formatScenarioLine: inconclusive uses ? glyph and coverage (0.250733ms)
+✔ formatScenarioLine: plain-ASCII glyphs replace ✓ / ✗ with ok / FAIL (0.303597ms)
+✔ formatScenarioLine: setup-error line names the first line of the error message (0.286253ms)
+✔ formatScenarioLine: interrupted line does not blame setup or adapter config (0.261686ms)
+✔ formatScenarioLine: skipped line prints a muted placeholder (1.184259ms)
+✔ formatSummaryLine: exact shape '<P> pass · <F> fail · <E> error · <K> skip' (2.696987ms)
+✔ formatSummaryLine: errors counted separately from skip (error classifier expansion) (0.836742ms)
+✔ formatSummaryLine: SIGINT-aborted runs are explicitly marked interrupted (0.76746ms)
+✔ formatVerdictTotalsLine: counts interpretation verdicts (0.632701ms)
+✔ formatFailureBlock: one indented bullet per fire, each naming inv + tick (1.103989ms)
+✔ formatFailureBlock: error record uses the error glyph + 'error:' prefix (0.169404ms)
+✔ formatNextActionBlock: appears for failure, inconclusive, setup-error, and interrupted records (0.5728ms)
+✔ formatNextActionBlock: omitted for clean no-failure runs (0.318983ms)
+✔ shouldUsePlainAscii: NO_COLOR set → true regardless of TTY (0.16625ms)
+✔ shouldUsePlainAscii: !isTTY → true (0.093928ms)
+✔ createJestFormatter: emits per-scenario line on scenario_end, summary on run_end (3.622048ms)
+✔ createJestFormatter: emits sweep progress while long seed sweeps are running (26.676074ms)
+✔ createJestFormatter: dashboard URL echoed only when provided (0.845038ms)
+✔ exit code: 0 when all scenarios passed and no abort (0.207857ms)
+✔ exit code: 1 when at least one invariant fired (3.455313ms)
+✔ exit code: 2 when one or more scenarios errored (error reclassification) (0.198382ms)
+✔ exit code: 130 on SIGINT (Unix convention, wins over fail/abort) (0.150731ms)
+✔ EXIT_CODES constants are frozen at 0 / 1 / 2 / 3 / 130 (0.124593ms)
+✔ createJestFormatter: color=true wraps the pass line in green ANSI (0.562437ms)
+✔ createJestFormatter: color=false emits NO escape codes (NO_COLOR path) (0.945468ms)
+✔ createJestFormatter: engine stderr rendered once in the failure block (no duplication) (0.667705ms)
+✔ createJestFormatter: absolute paths inside cwd are rewritten relative in scenario line (0.38355ms)
+✔ firstFireOrNull: returns first element or null (1.176662ms)
+✔ resolveScenarios: zero-arg → all discovered scenarios (57.913523ms)
+✔ resolveScenarios: glob pattern filters the discovered list (16.26363ms)
+✔ resolveScenarios: existing .json path → single scenario (backward-compat) (2.983956ms)
+✔ resolveScenarios: file-path wins over glob ambiguity (disambiguation) (5.004978ms)
+✔ resolveScenarios: missing .riptide/ + non-file arg → setup_error (1.475323ms)
+✔ resolveScenarios: glob with no matches → setup_error (2.231223ms)
+✔ resolveScenarios: --only-failing filters by last-run.json statuses (8.906092ms)
+✔ resolveScenarios: --only-failing with no last-run.json → setup_error (5.353002ms)
+✔ runScenarios: sequential invocation in discovery-sorted order (26.655349ms)
+✔ runScenarios: forwards harness path into runOne (4.680229ms)
+✔ runScenarios: writes .riptide/last-run.json with v1 schema (4.155099ms)
+✔ runScenarios: all failed scenario actions mark the scenario failed (3.216236ms)
+✔ runScenarios: adapter semantic invariants count as declared inventory (25.721673ms)
+✔ runScenarios: errored scenario records 'error' status + partialAbort flag (6.050263ms)
+✔ runScenarios: skipped scenarios receive interrupted interpretation on SIGINT (4.496853ms)
+✔ runScenarios: SIGINT-terminated engine errors are interpreted as interrupted (2.067882ms)
+✔ runScenarios: distinguishes error (exit 2) from fail (invariant fire) in records (3.017548ms)
+✔ runScenarios: events emitted in the correct order (4.234992ms)
+✔ runScenarios: seedless configs default to a 50-cell sweep (80.102767ms)
+✔ runScenarios: run-config seeds field controls sweep size (6.146368ms)
+✔ runScenarios: explicit seed keeps the legacy single-run path by default (8.430731ms)
+✔ runScenarios: --seeds 1 keeps seedless configs on the single-run path (3.43736ms)
+✔ matchScenarioName: bare token matches exact + prefix-with-slash (0.213922ms)
+✔ matchScenarioName: * matches anywhere (jest-style, crosses /) (0.222405ms)
+✔ matchScenarioName: *shock* matches 'shock' anywhere in name (0.119338ms)
+✔ filterScenariosByPattern preserves input order (0.245725ms)
+✔ extractInvariantFires: pulls (name, tick) pairs from events[] in emission order (0.480394ms)
+✔ extractInvariantFires: includes severity-error expression invariant fires (0.190745ms)
+✔ extractInvariantFires: falls back to expression invariant summary rows (0.265593ms)
+✔ resolveAdapterForScenario: --adapter override wins every other branch (4.013875ms)
+✔ resolveAdapterForScenario: scenario's run-config 'adapter' field wins over monorepo bundle (1.773882ms)
+✔ resolveAdapterForScenario: monorepo bundle fallback derives from first path segment (1.326372ms)
+✔ resolveAdapterForScenario: scaffolded .riptide/adapters/<one>.toml is the user-repo fallback (1.095832ms)
+✔ resolveAdapterForScenario: multiple scaffolded adapters → error (ambiguous) (1.114504ms)
+✔ resolveAdapterForScenario: nothing anywhere → error with resolution trace (1.248607ms)
+✔ resolveAdapterForScenario: monorepo fallback fires only when first-segment adapter exists (1.288265ms)
+✔ buildScenarioRun: forwards validator_url from the scenario file (1.457431ms)
+✔ buildScenarioRun: missing validator_url falls back to env/default (existing behavior) (14.884578ms)
+✔ buildScenarioRun: repro command points at riptide run with the scenario file (5.803107ms)
+✔ defaultOutputPathForScenario: preserves full scenario name across leaf collisions (0.727679ms)
+✔ defaultOutputPathForScenario: single-segment name is a single subdir (0.136556ms)
+✔ buildScenarioRun: uses default output path derived from full scenario name when file omits output_path (2.099436ms)
+✔ buildScenarioRun: explicit output_path in file wins over the default (2.842955ms)
+✔ buildScenarioRun: outputPathOverride wins over the run-config's output_path (17.646181ms)
+✔ buildScenarioRun: resolves state_pack relative to the run-config file (5.124842ms)
+✔ resolveArtifactsDir: default produces a relative .riptide/runs/<scenario-name> path (not absolute) (0.373934ms)
+✔ resolveArtifactsDir: --output-dir override replaces the .riptide/runs root (0.240027ms)
+✔ readLastRun / writeLastRun round-trip (5.728677ms)
+✔ readLastRun: old aborted statuses normalize to error for --only-failing (1.66717ms)
+✔ scenario catalog: lending exposes only engine-backed init scenarios (26.999702ms)
+✔ scenario catalog: protocol baseline dedupes the custom fallback (2.997348ms)
+✔ scenario catalog: path candidates search protocol bucket before custom fallback (0.544426ms)
+riptide scenarios: validating /nonexistent/scenario/dir
+riptide scenarios: SCHEMA — scenario path does not exist: /nonexistent/scenario/dir
+✔ scenarios --validate: missing scenario path → exit 2 (3.917345ms)
+riptide scenarios: validating /tmp/riptide-scenario-test-yVhOKB
+riptide scenarios: SCHEMA — run-config.json at /tmp/riptide-scenario-test-yVhOKB/run-config.json failed schema validation — field `agents`: Too small: expected number to be >0
+✔ scenarios --validate: broken run-config (Zod fails) → exit 2 (38.503643ms)
+riptide scenarios: validating /tmp/riptide-scenario-test-A7IMCn
+riptide scenarios: SCHEMA — manifest.json missing at /tmp/riptide-scenario-test-A7IMCn/manifest.json
+riptide scenarios: validating /tmp/riptide-scenario-test-WSFmCg
+✔ scenarios --validate: missing manifest → exit 2 (3.710281ms)
+riptide scenarios: SCHEMA — run-config.personas references persona ids not declared in policies.json: ghost
+✔ scenarios --validate: run-config references unknown persona → exit 2 (4.661833ms)
+riptide scenarios: validating /tmp/riptide-scenario-test-txUVxI
+riptide scenarios: FAIL — engine exited with code 137 booting ../../../../../tmp/riptide-scenario-test-txUVxI (tick 1 of 1)
+  engine stderr (tail):
+fake engine: blew up on tick 0
+✔ scenarios --validate: engine exits non-zero → exit 1 (5.292075ms)
+riptide scenarios: validating /tmp/riptide-scenario-test-e82PgM
+riptide scenarios: FAIL — engine exited 0 but produced no timeseries entries — one-tick boot did not run
+✔ scenarios --validate: engine exits 0 but no timeseries → exit 1 (16.452545ms)
+riptide scenarios: validating /tmp/riptide-scenario-test-Df7YVy
+riptide scenarios: PASS — boot ok — engine ran one tick against fixtures/adapters/lending.toml
+✔ scenarios --validate: clean one-tick boot → exit 0 (5.465117ms)
+✔ validateScenario: resolves relative adapter path from monorepo root (4.054858ms)
+riptide scenarios: validating /tmp/riptide-scenario-test-s5zb21
+riptide scenarios: FAIL — engine exited 0 but produced no timeseries entries — one-tick boot did not run
+riptide scenarios: validating /tmp/riptide-scenario-test-E5AL02
+✔ scenarios --validate: total_ticks >= 1 with empty timeseries → exit 1 (no silent false-pass) (4.204949ms)
+riptide scenarios: SCHEMA — run-config.personas references persona ids not declared in adapter TOML [personas.*] at fixtures/adapters/resource-grinder.toml: ghost
+✔ scenarios --validate: generic adapter with empty policies + unknown persona id → exit 2 (not exit 1) (14.49804ms)
+riptide scenarios: validating /tmp/riptide-scenario-test-dKzO4Y
+riptide scenarios: PASS — boot ok — engine ran one tick against fixtures/adapters/resource-grinder.toml
+✔ scenarios --validate: generic adapter with empty policies + valid persona id → exit 0 (6.725277ms)
+riptide scenarios: validating /tmp/riptide-scenario-test-3IydFb
+riptide scenarios: SCHEMA — manifest.adapter must resolve to a path inside the containment root (/home/ailton/Work/riptide/riptide), got: "/etc/hosts" → /etc/hosts
+✔ scenarios --validate: absolute manifest.adapter outside monorepo → exit 2, engine never spawned (1.938564ms)
+riptide scenarios: validating /tmp/riptide-scenario-test-wUoM2D
+riptide scenarios: SCHEMA — manifest.adapter must resolve to a path inside the containment root (/home/ailton/Work/riptide/riptide), got: "../../../../../../../../etc/hosts" → /etc/hosts
+✔ scenarios --validate: relative manifest.adapter ..-escaping monorepo → exit 2 (4.401444ms)
+riptide scenarios: validating /tmp/riptide-scenario-test-fm6CYc
+riptide scenarios: SCHEMA — manifest.adapter must resolve to a path inside the containment root (/home/ailton/Work/riptide/riptide), got: "/home/ailton/Work/riptide/riptide-evil/adapter.toml" → /home/ailton/Work/riptide/riptide-evil/adapter.toml
+✔ scenarios --validate: sibling-root sharing a prefix of monorepoRoot → exit 2 (8.005821ms)
+riptide scenarios: validating /tmp/riptide-scenario-test-1nnlAr
+riptide scenarios: SCHEMA — manifest.adapter resolves inside the containment root lexically but canonicalizes outside it — refusing to follow a symlink escape. raw: "target/s4p2-test-link-330260-1781304059155.toml" → lexical: /home/ailton/Work/riptide/riptide/target/s4p2-test-link-330260-1781304059155.toml → canonical: /etc/hosts (root canonical: /home/ailton/Work/riptide/riptide)
+✔ scenarios --validate: symlinked adapter escaping via /etc/hosts → exit 2, engine never spawned (5.702769ms)
+riptide scenarios: validating /tmp/riptide-scenario-test-KsXQYF
+riptide scenarios: SCHEMA — manifest.adapter resolves inside the containment root lexically but canonicalizes outside it — refusing to follow a symlink escape. raw: "target/s4p2-test-link-valid-330260-1781304059162.toml" → lexical: /home/ailton/Work/riptide/riptide/target/s4p2-test-link-valid-330260-1781304059162.toml → canonical: /tmp/riptide-scenario-outside-LyRm0r/resource-grinder.toml (root canonical: /home/ailton/Work/riptide/riptide)
+✔ scenarios --validate: symlinked adapter pointing at a valid-but-out-of-repo TOML → exit 2 (11.155514ms)
+✔ validateScenario: missing adapter referenced by manifest → exit 2 (9.720002ms)
+✔ scenarios catalog lint: committed catalog is fresh and consistent (61.143394ms)
+✔ scenarios catalog lint: catches missing fixture referenced by catalog (13.802887ms)
+✔ scenarios catalog lint: catches catalog-less public fixture (3.695691ms)
+✔ scenarios catalog lint: catches result_hash mismatch (3.355338ms)
+✔ scenarios catalog lint: catches missing result artifact by default (2.835496ms)
+✔ scenarios catalog lint: catches stale generated markdown (3.682154ms)
+✔ scenarios catalog lint: strict class count is gated and fails in isolation (5.457712ms)
+✔ PolicySchema validates the shared policy fixture (22.412049ms)
+✔ RunConfigSchema validates the shared run config fixture (4.1313ms)
+✔ RunConfigSchema accepts persona count maps and expands them deterministically (1.970118ms)
+✔ RunConfigSchema rejects persona count maps that do not match agents (1.157754ms)
+✔ RunConfigSchema rejects all-zero persona count maps when agents are required (0.454292ms)
+✔ SimulationResultSchema validates the shared simulation result fixture (10.919221ms)
+✔ TickSnapshotSchema accepts a well-formed lending-shaped entry (0.513851ms)
+✔ TickSnapshotSchema accepts a well-formed generic-shaped entry (0.240718ms)
+✔ TickSnapshotSchema rejects a fractional tick (0.742591ms)
+✔ TickSnapshotSchema rejects a negative tick (0.447538ms)
+✔ TickSnapshotSchema rejects a fractional active_agents (0.309275ms)
+✔ TickSnapshotSchema rejects a missing active_agents (0.257643ms)
+✔ TickSnapshotSchema accepts derived observations (0.832711ms)
+✔ TickSnapshotSchema accepts collection observations with empty sentinels (1.046974ms)
+✔ SimulationSummarySchema accepts a well-formed lending summary (0.228893ms)
+✔ SimulationSummarySchema accepts a well-formed generic summary (0.411476ms)
+✔ SimulationSummarySchema accepts an invariants_fired array (replay surface) (0.639774ms)
+✔ SimulationSummarySchema accepts expression invariant rows with observed cap (7.595129ms)
+✔ SimulationResultSchema accepts top-level semantics contract (1.949175ms)
+✔ SimulationResultSchema rejects malformed replay provenance hashes (2.02426ms)
+✔ SimulationSummarySchema rejects a malformed invariants_fired row (1.138541ms)
+✔ SimulationSummarySchema rejects a negative firings count (0.541607ms)
+✔ SimulationSummarySchema rejects a fractional agents_active (0.585982ms)
+✔ SimulationSummarySchema rejects a negative agents_active (0.305185ms)
+✔ SimulationSummarySchema requires agents_liquidated (0.222194ms)
+✔ SimulationSummarySchema requires agents_depleted (0.230479ms)
+✔ schemas: adapter schema accepts shared semantics breadth fixture (33.130703ms)
+✔ schemas: adapter schema accepts mainnet-rpc replay at parse time (33.635208ms)
+✔ schemas: legacy semantics adapter keeps new breadth fields empty (16.857877ms)
+✔ schemas: malformed semantics breadth blocks have typed diagnostics (34.585737ms)
+✔ dashboard server serves a run collection and selected scenario artifacts (130.472662ms)
+✔ semantic label map covers every required derived observation (0.808334ms)
+✔ dashboard server returns a synthetic collection for a single artifact directory (123.438498ms)
+✔ dashboard server passes through semantics fields and serves the label map (18.534371ms)
+✔ sim cartography: returned execution errors are `error`, only invariant fires are `fail` (1.293336ms)
+✔ sim cartography: only records observations the sweep actually measured (20.250417ms)
+✔ sim cartography: a returned-error iteration is excluded from the failure rate (0.398466ms)
+✔ sim cartography: guided-sim root assesses as cartography, discloses provenance, never as a plain campaign (50.522555ms)
+✔ sim cartography: risk-surface.json bytes are stable for a fixed sweep (R6.4 determinism pin) (3.30683ms)
+✔ sim command is registered in advanced support help (643.319435ms)
+✔ sim generate CLI writes expected files (1546.98364ms)
+✔ sim lint CLI accepts a valid manifest (838.446048ms)
+✔ sim fork CLI reuses an existing cache without network (739.276958ms)
+✔ sim fork CLI rejects a cached snapshot for the wrong address (592.776423ms)
+✔ sim lint CLI reports fixable manifest diagnostics (697.462719ms)
+✔ sim generate writes a guided Rust crate from the AMM IDL (107.126366ms)
+✔ sim generate uses fixed-address program load when adapter declares program_id (25.895565ms)
+✔ sim generate resolves repo-root-relative runtime paths for .riptide adapters (25.265438ms)
+✔ sim refresh preserves user-owned flow files (48.943932ms)
+✔ sim generate rejects bundled lending adapters without an IDL path (9.698925ms)
+✔ sim generated builders fail loudly for unsupported IDL args (0.542363ms)
+✔ sim generated builders cover common complex Anchor IDL shapes (0.847643ms)
+✔ sim IDL parser accepts a complex case-study IDL when available (25.566037ms)
+✔ sim IDL parser accepts tuple-style enum variant fields from case-study IDLs (57.601815ms)
+✔ built CLI carries vendored guided sim runtime crates for packaged installs (8.813421ms)
+✔ sim runtime source prefers a workspace checkout over the packaged runtime (3.966137ms)
+✔ sim runtime source falls back to the packaged runtime without a workspace marker (3.445722ms)
+✔ packaged runtime is vendored next to the generated crate with relative path deps (13.44886ms)
+✔ positive-control gate: passes when the declared control is present and clean (4.147944ms)
+✔ positive-control gate: fails when no control is declared (0.844313ms)
+✔ positive-control gate: fails when the control coordinate fired an invariant (0.320593ms)
+✔ lifecycle gate: passes when all declared flows executed (0.498174ms)
+✔ lifecycle gate: flags a no-op as `no-op, not robustness` (0.32205ms)
+✔ determinism gate: drift between recorded and on-disk surface hash fails (0.645165ms)
+✔ assess blocks a guided-sim surface with no positive control (84.222729ms)
+✔ assess blocks a guided-sim surface whose lifecycle never executed (no-op) (7.001656ms)
+✔ assess blocks a guided-sim surface with a determinism drift (tampered risk-surface.json) (8.172958ms)
+✔ assess emits when all execution-honesty gates pass, and surfaces gate status (69.814498ms)
+✔ assess blocks when existing assessment artifacts drift from freshly rendered bytes (30.157317ms)
+✔ riptide-config skill frontmatter is present and names the merged flow (13.664175ms)
+✔ repo skill frontmatter blocks expose name and description (10.284236ms)
+✔ user-facing docs present only the current config skill (10.285601ms)
+✔ riptide-config keeps user-repo personas inline, not fixture policies (5.530901ms)
+✔ guided-sim docs guard coverage instead of claiming emitted coverage (2.280846ms)
+✔ riptide-config skill sim guidance includes artifact review boundary (3.006237ms)
+✔ createStatePack writes hash-checked current account fixtures (20.71156ms)
+✔ Orca account group resolver maps swap-style vault, tick array, oracle groups (2.080708ms)
+✔ createTransactionTemplate writes a transaction skeleton with mutator slots (5.737189ms)
+✔ studio e2e endpoints work against case-study workspaces (3641.856973ms)
+✔ studio chat runs in the selected case-study workspace (2773.51854ms)
+✔ studio workspace discovery returns the current workspace first (51.031517ms)
+✔ studio workspace discovery flags missing .riptide with a next action (29.505529ms)
+✔ studio workspace discovery surfaces the uninitialized launch folder alongside saved workspaces (18.833852ms)
+✔ studio workspace discovery surfaces case-study subfolders deterministically (14.856335ms)
+✔ studio artifact index is deterministic and surfaces every supported kind (86.574036ms)
+✔ studio indexer reports warnings for malformed run-collection.json (3.669564ms)
+✔ studio case-study artifacts do not inherit sibling repo readiness reports (12.983667ms)
+✔ studio server health route returns metadata about the workspace (3721.860866ms)
+✔ studio server workspaces and artifacts endpoints expose discovered state (2391.798945ms)
+✔ studio changes route returns git workspace changes (1731.499943ms)
+✔ studio thread changes ignore preexisting workspace dirt and studio backups (1709.003769ms)
+✔ studio chat adapters bypass interactive permission prompts (0.332108ms)
+✔ studio does not auto-save discovered riptide workspaces in the user registry (1488.963843ms)
+✔ studio init opens an existing .riptide workspace without overwriting it (1607.142341ms)
+✔ studio init from an uninitialized launch folder surfaces both the chosen project and the launch folder (1317.581139ms)
+✔ studio registry delete forgets registered workspace without deleting files (1413.647495ms)
+✔ studio registry delete can forget the launch workspace without re-adding it (1507.878567ms)
+✔ studio workspace removal preserves on-disk chat when reopening (1455.517058ms)
+✔ studio jobs route returns the persisted job list (empty by default) (1478.021604ms)
+✔ studio directory picker route returns an allowlisted selected path (1458.027776ms)
+✔ studio xdg portal picker parser extracts selected folder path (0.263682ms)
+✔ studio xdg portal picker parser reports cancellation (0.122725ms)
+✔ studio xdg portal picker parser reports helper failures (0.067879ms)
+✔ studio browse-directory route lists child directories without native dialogs (1448.025411ms)
+✔ studio detect-program route accepts a folder path before workspace setup (1468.157952ms)
+✔ studio graph route returns a populated diagram from a seeded workspace (1330.020978ms)
+✔ studio report route returns the markdown body for a run artifact (1451.147705ms)
+✔ studio report route renders retained campaign cases through riptide review (1445.427403ms)
+✔ studio report route renders nested-workspace packs through report v1 instead of stale summaries (1518.762936ms)
+✔ studio report route returns TOML bodies as TOML (1317.261192ms)
+✔ studio dashboard mount returns collection compatible with the existing dashboard (1424.153335ms)
+✔ studio dashboard mount serves the dashboard.html shell (1543.211633ms)
+✔ studio dashboard mount rejects sources that escape the workspace (1560.505528ms)
+✔ studio server serves the React app from / (1589.814465ms)
+✔ studio server rejects non-GET methods on read-only routes (1425.167027ms)
+✔ studio server rejects non-loopback bind hosts (0.780096ms)
+✔ studio server returns a 404 with route map for unknown paths (1461.761474ms)
+✔ studio job queue maps each allowlisted kind to a deterministic argv (1.436385ms)
+✔ studio job queue attaches campaign harness when available (0.732254ms)
+✔ studio job queue rejects unknown kinds and missing required params (0.150134ms)
+✔ studio job queue rejects publish/push/release tokens even via params (0.103647ms)
+✔ studio job queue rejects shell metacharacters and absolute paths (0.279508ms)
+✔ studio job queue persists job history under .riptide/studio/jobs/ (22.419665ms)
+✔ studio jobs HTTP plan rejects publish-shaped commands and accepts run (1397.797305ms)
+✔ studio jobs HTTP launch persists to disk and lists in /api/studio/jobs (1401.10145ms)
+✔ studio jobs HTTP rejects non-allowlisted kinds and bad payloads (1473.758259ms)
+✔ studio jobs hydration surfaces persisted jobs after restart (2862.389757ms)
+✔ studio jobs hydration normalizes legacy current ids to the owning workspace (1522.66433ms)
+✔ studio jobs HTTP list scopes rows to the selected workspace (1445.717054ms)
+✔ studio configure preset is Risk Plan-first and preserves confirmation boundaries (1.166793ms)
+✔ config intent generator returns prompt + proposed files for a complete payload (0.560936ms)
+✔ config intent generator rejects missing fields and unknown protocol classes (0.111999ms)
+✔ config intent HTTP endpoint returns the prompt and never claims it edited files (1465.323818ms)
+✔ studio loads case-study workspaces from --case-studies-root (1430.588577ms)
+✔ surface-narrative: renders a 2D heatmap over the two most-sensitive axes with shading glyphs (25.082592ms)
+✔ surface-narrative: byte-deterministic across two renders of a fixed surface (1.672463ms)
+✔ surface-narrative: 1D surface renders a per-bin column, no 2D grid (0.913422ms)
+✔ surface-narrative: no-safe-region surface states it explicitly, never a blank section (0.643695ms)
+✔ runSweep derives deterministic seeds and respects the parallelism cap (111.494562ms)
+✔ runSweep fail-fast cancels in-flight cells and stops scheduling new seeds (25.655013ms)
+✔ runSweep --full runs every cell and records fire frequency (21.436171ms)
+✔ runSweep records engine_error summaries even when no cell produced a result (15.493128ms)
+ℹ tests 764
+ℹ suites 0
+ℹ pass 759
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 5
+ℹ todo 0
+ℹ duration_ms 58041.534424
