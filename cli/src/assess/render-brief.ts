@@ -107,7 +107,7 @@ function whatWeDid(model: AssessmentModel): string[] {
       const unit = axis.unit ? ` ${escapeHtml(axis.unit)}` : "";
       return `Swept <code>${escapeHtml(axis.name)}</code> across ${escapeHtml(first)}–${escapeHtml(last)}${unit}.`;
     }),
-    "Deterministic, fixed-seed execution — reproduce byte-for-byte with the commands in section 5."
+    reproducibilityPhrase(campaign.seed_policy)
   ];
   return [paragraph(ran), bulletList(bullets.map((text) => bullet("mut", "›", text)))];
 }
@@ -123,6 +123,13 @@ function seedPolicyPhrase(seedPolicy: string): string {
     : `the ${escapeHtml(seedPolicy)} seed policy`;
 }
 
+function reproducibilityPhrase(seedPolicy?: string): string {
+  if (!seedPolicy) return "Deterministic execution — reproduce byte-for-byte with the commands in section 5.";
+  return seedPolicy.startsWith("fixed:")
+    ? "Deterministic execution under a fixed-seed policy — reproduce byte-for-byte with the commands in section 5."
+    : `Deterministic execution under the ${escapeHtml(seedPolicy)} seed policy — reproduce byte-for-byte with the commands in section 5.`;
+}
+
 function correctnessWhatWeDid(model: AssessmentModel): string[] {
   const gs = model.correctness?.guided_sim ?? null;
   const ran = gs
@@ -133,7 +140,7 @@ function correctnessWhatWeDid(model: AssessmentModel): string[] {
     : `<b>${escapeHtml(model.protocol.name)}</b> was assessed for correctness, but no guided-sim evidence was ingested.`;
   const bullets = [
     ...(gs ? [`Evidence: <code>${escapeHtml(gs.path)}</code> (status ${escapeHtml(gs.status)}).`] : []),
-    "Deterministic, fixed-seed execution — reproduce byte-for-byte with the commands in section 5."
+    reproducibilityPhrase()
   ];
   return [paragraph(ran), bulletList(bullets.map((text) => bullet("mut", "›", text)))];
 }
@@ -272,5 +279,5 @@ code{background:#ecfbfa;color:#0E7490;padding:1px 5px;border-radius:5px;font-siz
 .hashes{font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
 .foot{margin-top:16px;border-top:1px solid #eee;padding-top:9px;color:#6b7280;font-size:11.5px}
 b{color:#111}
-@media print{.wrap{padding:0;max-width:none}}
+@media print{.wrap{padding:0;max-width:none}body{font-size:12.4px;line-height:1.42}h2{margin:11px 0 5px}li{margin:4px 0}.sub{margin-bottom:12px}.foot{margin-top:10px}}
 `.trim();

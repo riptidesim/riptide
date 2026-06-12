@@ -56,6 +56,16 @@ test("assess brief: a fixed-seed policy renders as prose, not the raw seed blob"
   assert.ok(model.campaign?.seed_policy.startsWith("fixed:"));
   assert.doesNotMatch(html, new RegExp(model.campaign!.seed_policy));
   assert.match(html, /under a fixed-seed policy\./);
+  assert.match(html, /Deterministic execution under a fixed-seed policy/);
+});
+
+test("assess brief: non-fixed seed policies are not described as fixed-seed", () => {
+  const model = buildSweptStressModel({ shape: "bounded" });
+  model.campaign.seed_policy = "range:1000..1002";
+  const html = briefFor(model);
+  assert.match(html, /under the range:1000\.\.1002 seed policy\./);
+  assert.match(html, /Deterministic execution under the range:1000\.\.1002 seed policy/);
+  assert.doesNotMatch(html, /fixed-seed execution|under a fixed-seed policy/);
 });
 
 test("assess brief: guided-sim brief carries the resilience boundary, never knob phrasing", () => {

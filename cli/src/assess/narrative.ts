@@ -22,7 +22,7 @@ import {
  * ## What this is
  *
  * A pure projection from the hashed {@link AssessmentModel} (facts) to the
- * {@link AssessmentNarrative} blocks (prose) the markdown renderer (T02) slots
+ * {@link AssessmentNarrative} blocks (prose) the markdown renderer slots
  * into the report. It replaces the terse {@link import("./model.js").stubNarrative}
  * with the real generator: an executive summary, a finding when a declared
  * invariant fired, explicit non-findings when it did not, and the safe-region
