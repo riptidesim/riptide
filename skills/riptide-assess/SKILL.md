@@ -497,13 +497,77 @@ Generate the assessment from that existing root:
 riptide assess <campaign-root>
 ```
 
-Use `riptide assess <campaign-root> --input <json-file>` only when you wrote a
-repo-local Risk Plan, coverage, or verdict input JSON that must override or
-complete campaign-derived defaults. Use `--html` or `--pdf` only when the user
-asks for presentation exports; default assessment evidence is
+Do not stop at the bare invocation above. Before the final assessment, author
+the editorial input layer in Step 6 and pass it with
+`--input .riptide/assessment-input.json`; the standard final invocation shape
+lives in Step 7. Use `--html` or `--pdf` for the full assessment only when the
+user asks for presentation exports — the one-page brief (`--brief`) is a
+standard deliverable, not an on-request export. Default assessment evidence is
 `assessment.json` plus byte-deterministic `assessment.md`.
 
-## Step 6: Deliver
+## Step 6: Author The Assessment Inputs
+
+Before generating the final assessment, write a repo-local
+`.riptide/assessment-input.json` — an `AssessmentInputs` object that
+`riptide assess --input` folds over the campaign-derived defaults. The
+classify, scope, and author steps already produced the protocol knowledge this
+file needs; writing it down deterministically is what turns the generic
+campaign-shaped defaults into an assessment that names the protocol's actual
+flows, figures, and boundaries. Skipping this step ships the generic layer.
+
+Cover at minimum `verdict`, `riskPlan.target_claim`,
+`riskPlan.guided_sim_boundaries`, and explicit `coverage[]` rows:
+
+- `verdict` — the declared send-readiness call (for example
+  `"ready_to_send"`), validated against the CLI's accepted verdict values.
+- `riskPlan.target_claim` — one paragraph stating the honest claim: lead with
+  what held, name the finding, state the onset on the swept axis as a fact
+  about where the risk begins, and name the load-bearing design nuance the
+  result rests on.
+- `riskPlan.guided_sim_boundaries` — what was driven deterministically and is
+  therefore out of scope (for example "the Pyth price is driven
+  deterministically; Pyth's own staleness/confidence guards are out of
+  scope"), what held in every run so the report makes no false claim, and the
+  configuration limits ("single loan configuration, one axis, worst-case
+  timing — not a mainnet prediction").
+- `coverage[]` — one row per P0 flow turning it into explicit evidence:
+  `priority`, `flow`, `status`, `evidence_tier`, `commands`, `artifacts`, and
+  `notes` stating HELD or FINDING facts. `status` must be one of the CLI's
+  accepted coverage statuses (for example `covered`, `covered by guided sim`,
+  `blocked`, `out of scope`, `not assessed`); inspect the local command
+  source or help if unsure.
+
+Also fill the remaining `riskPlan` fields when you have them — recommended:
+`protocol_class`, `evidence_profile`, `p0_flows`, `expected_failure_modes`,
+and `known_coverage_limits`.
+
+The honesty discipline applies to every line. Each statement in the input must
+be backed by what actually ran — the surface, the sim run, the negative
+controls. The input adds protocol nouns and figures the generic default cannot
+know; it never invents new findings. The exogenous-axis cover-framing rule in
+the honesty discipline above governs the wording of the claim and any onset
+line.
+
+Follow the shape of the worked examples:
+
+- `case-studies/anemone/.riptide/assessment-input.json`
+- `case-studies/agio/program/.riptide/assessment-input.json`
+
+Both carry a top-level `verdict`, a `riskPlan` (protocol_class, target_claim,
+evidence_profile, p0_flows, expected_failure_modes, guided_sim_boundaries,
+known_coverage_limits), and explicit `coverage[]` rows.
+
+Do not run a separate assess pass for this file: it is consumed by the final
+`--brief --input` invocation in the Deliver step below.
+
+## Step 7: Deliver
+
+Generate the final assessment with the authored inputs and the executive
+brief — this is the standard invocation, not an on-request variant:
+
+```bash
+riptide assess <campaign-root> --brief --input .riptide/assessment-input.json
+```
 
 Read the generated `assessment.md`, `assessment.json`, campaign summary, and
 retention manifest before responding. The final response must be short but
@@ -511,6 +575,13 @@ complete:
 
 - Assessment report path: `<campaign-root>/assessment.md`.
 - Machine artifact path: `<campaign-root>/assessment.json`.
+- Executive brief paths: `<campaign-root>/brief.html` and
+  `<campaign-root>/brief.pdf` — the one-page executive brief (What we did /
+  What we found / What to do / Scope & limits / Reproduce), rendered from the
+  assessment model. The brief is the digestible artifact to send a protocol
+  team, with the full `assessment.md` as the technical companion. `brief.pdf`
+  requires a local headless Chromium; the CLI skips it with a notice
+  otherwise.
 - Evidence-pack pointer: campaign root, `campaign-summary.md`,
   `retention-manifest.json`, `retained/`, and any retained `rerun.sh` scripts.
 - Exact campaign rerun command: the precise `riptide campaign run ...` command
