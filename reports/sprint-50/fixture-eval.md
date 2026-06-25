@@ -7,8 +7,10 @@ guided-sim case studies (`~/Work/riptide/case-studies/{anemone,agio,defunds}`,
 private, outside this repo) must produce a *trustworthy, sendable* deliverable
 on the first run. Per fixture, this eval asserts:
 
-1. a **non-generic finding title** (names the fired invariant) and a
-   **boundary-style recommendation** with no knob phrasing
+1. the honest polished narrative shape for the actual evidence: a
+   **non-generic finding title** naming the fired invariant when an invariant
+   fired, or the explicit no-finding held-case fallback when zero invariants
+   fired, plus a **boundary-style recommendation** with no knob phrasing
    (`Keep `/`keeping parameters`/`tune the campaign`);
 2. `brief.html` + `brief.pdf` emitted with the five sections
    (*What we did / What we found / What to do / Scope & limits / Reproduce*);
@@ -51,7 +53,7 @@ re-proven post-fix for all three fixtures (hashes below are post-fix).
 
 ## Verdict summary
 
-| Fixture | Verdict | Finding title | Gates | brief.html sha256 (stable across runs) | brief.pdf | Knob grep |
+| Fixture | Verdict | Narrative shape | Gates | brief.html sha256 (stable across runs) | brief.pdf | Knob grep |
 | --- | --- | --- | --- | --- | --- | --- |
 | anemone | ✅ `ready_to_send` (declared) | `lp_outflow_material` fires as `rate_shock_bps` deepens | ✅✅✅ | `0ed07f31…` (3 runs identical) | 1 page | 0 |
 | agio | ✅ `ready_to_send` (declared) | `lender_bad_debt` fires as `collateral_price_drop_bps` deepens | ✅✅✅ | `ed15d450…` (2 runs identical) | 1 page | 0 |
@@ -62,9 +64,8 @@ defunds `cb9bc99c…` — all byte-identical to the committed case-study surface
 and the Sprint 48 eval log.
 
 Defunds note on assertion (1): with zero invariant fires there is no fired
-invariant to name; the generic fallback title is the *specified* behavior
-(R1.2: "fall back to the current generic phrase when no single invariant is
-identifiable"), and the recommendation still reads as a resilience boundary
+invariant to name; the explicit no-finding held-case fallback is the specified
+behavior, and the recommendation still reads as a resilience boundary
 (entire-region branch, pasted below) with the explicit caveat "Stresses beyond
 the swept region were not tested."
 

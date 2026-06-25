@@ -183,4 +183,3 @@ $ rg -n sections /tmp/s50-anemone-c/brief.html
 $ grep -cE knob-phrasing /tmp/s50-anemone-c/brief.html /tmp/s50-anemone-c/assessment.md
 /tmp/s50-anemone-c/brief.html:0
 /tmp/s50-anemone-c/assessment.md:0
-

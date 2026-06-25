@@ -16,7 +16,9 @@ empty.
 Full verbatim per-fixture log: `reports/sprint-50/fixture-eval.md` (raw stdout
 under `reports/sprint-50/raw-logs/`). For each of the three guided-sim fixtures
 (anemone, agio, defunds): the run authored an `AssessmentInputs` `--input`,
-produced a non-generic finding title + a resilience-boundary recommendation
+produced the honest polished narrative shape for the actual evidence
+(non-generic fired-invariant titles for Anemone/Agio; explicit no-finding
+held-case fallback for Defunds) plus a resilience-boundary recommendation
 (knob-phrasing grep `Keep |keeping parameters|tune the campaign` → 0 over every
 generated `brief.html` *and* `assessment.md`), emitted a five-section
 `brief.html` + 1-page `brief.pdf`, and kept the three execution-honesty gates
