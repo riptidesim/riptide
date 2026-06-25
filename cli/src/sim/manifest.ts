@@ -38,7 +38,8 @@ const SIM_KEYS = new Set([
   "sweep",
   "cartography"
 ]);
-const SWEEP_KEYS = new Set(["name", "values", "seeds_per_value"]);
+const SWEEP_KEYS = new Set(["name", "values", "axes", "seeds_per_value"]);
+const SWEEP_AXIS_KEYS = new Set(["name", "values"]);
 const CARTOGRAPHY_KEYS = new Set(["class", "risk_objective"]);
 const PROGRAM_KEYS = new Set(["address", "program", "loader"]);
 const ACCOUNT_KEYS = new Set(["address", "filename"]);
@@ -182,34 +183,20 @@ function validateSweep(value: unknown, findings: SimManifestFinding[]): void {
     return;
   }
   rejectUnknownKeys(value, SWEEP_KEYS, "sim.sweep", findings);
-  stringField(value, "name", "sim.sweep.name", findings);
 
-  const values = value["values"];
-  if (values === undefined) {
-    findings.push({
-      level: "fail",
-      code: "sweep-values-required",
-      path: "sim.sweep.values",
-      message: "sim.sweep.values must declare at least one numeric value"
-    });
-  } else if (!Array.isArray(values) || values.length === 0) {
-    findings.push({
-      level: "fail",
-      code: "sweep-values-shape",
-      path: "sim.sweep.values",
-      message: "sim.sweep.values must be a non-empty array of numbers"
-    });
+  if (value["axes"] !== undefined) {
+    validateSweepAxes(value["axes"], findings);
+    if (value["name"] !== undefined || value["values"] !== undefined) {
+      findings.push({
+        level: "fail",
+        code: "sweep-mixed-form",
+        path: "sim.sweep",
+        message: "sim.sweep must use either flat name/values or axes, not both"
+      });
+    }
   } else {
-    values.forEach((entry, index) => {
-      if (typeof entry !== "number" || !Number.isFinite(entry)) {
-        findings.push({
-          level: "fail",
-          code: "sweep-value-type",
-          path: `sim.sweep.values[${index}]`,
-          message: `sim.sweep.values[${index}] must be a finite number`
-        });
-      }
-    });
+    stringField(value, "name", "sim.sweep.name", findings);
+    validateSweepValues(value["values"], "sim.sweep.values", findings);
   }
 
   const seedsPerValue = value["seeds_per_value"];
@@ -226,6 +213,66 @@ function validateSweep(value: unknown, findings: SimManifestFinding[]): void {
         message: "sim.sweep.seeds_per_value must be an integer >= 1"
       });
     }
+  }
+}
+
+function validateSweepAxes(value: unknown, findings: SimManifestFinding[]): void {
+  if (!Array.isArray(value) || value.length === 0) {
+    findings.push({
+      level: "fail",
+      code: "sweep-axes-shape",
+      path: "sim.sweep.axes",
+      message: "sim.sweep.axes must be a non-empty array of axis tables"
+    });
+    return;
+  }
+  value.forEach((axis, index) => {
+    const axisPath = `sim.sweep.axes[${index}]`;
+    if (!isRecord(axis)) {
+      findings.push({
+        level: "fail",
+        code: "sweep-axis-shape",
+        path: axisPath,
+        message: `${axisPath} must be a TOML table`
+      });
+      return;
+    }
+    rejectUnknownKeys(axis, SWEEP_AXIS_KEYS, axisPath, findings);
+    stringField(axis, "name", `${axisPath}.name`, findings);
+    validateSweepValues(axis["values"], `${axisPath}.values`, findings);
+  });
+}
+
+function validateSweepValues(
+  value: unknown,
+  diagnosticPath: string,
+  findings: SimManifestFinding[]
+): void {
+  if (value === undefined) {
+    findings.push({
+      level: "fail",
+      code: "sweep-values-required",
+      path: diagnosticPath,
+      message: `${diagnosticPath} must declare at least one numeric value`
+    });
+  } else if (!Array.isArray(value) || value.length === 0) {
+    findings.push({
+      level: "fail",
+      code: "sweep-values-shape",
+      path: diagnosticPath,
+      message: `${diagnosticPath} must be a non-empty array of numbers`
+    });
+  } else {
+    value.forEach((entry, index) => {
+      if (typeof entry !== "number" || !Number.isFinite(entry)) {
+        findings.push({
+          level: "fail",
+          code: "sweep-value-type",
+          path: `${diagnosticPath}[${index}]`,
+          message: `${diagnosticPath}[${index}] must be a finite number`
+        });
+      }
+    });
   }
 }
 

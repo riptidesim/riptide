@@ -13,7 +13,8 @@ import { lintSimManifest, renderSimManifestLintReport } from "../sim/manifest.js
 import {
   readSweepConfig,
   readCartographyConfig,
-  formatSweepFlag,
+  formatSweepFlags,
+  sweepAxes,
   buildCartographyArtifacts,
   emitCartographyRoot,
   type GuidedSimRunDocument
@@ -268,13 +269,15 @@ async function runCargoSim(simPath: string, options: RunOptions): Promise<number
   // forward it to the runner. Skipped in --debug (single-seed) mode.
   const sweep = options.debug ? null : await readSweepConfig(path.join(cwd, "Riptide.toml"));
   if (sweep) {
-    args.push("--sweep", formatSweepFlag(sweep));
+    const axes = sweepAxes(sweep);
+    for (const flag of formatSweepFlags(sweep)) args.push("--sweep", flag);
     args.push("--seeds-per-value", String(sweep.seedsPerValue));
-    process.stderr.write(
-      dim(
-        `  sweep ${sweep.name} over ${sweep.values.length} value(s) x ${sweep.seedsPerValue} seed(s)\n`
-      )
-    );
+    const coordinates = axes.reduce((acc, axis) => acc * axis.values.length, 1);
+    const description =
+      axes.length === 1
+        ? `${axes[0]!.name} over ${axes[0]!.values.length} value(s)`
+        : `${axes.length} axes (${axes.map((axis) => axis.name).join(", ")}) over ${coordinates} coordinate(s)`;
+    process.stderr.write(dim(`  sweep ${description} x ${sweep.seedsPerValue} seed(s)\n`));
   }
 
   if (options.out) {

@@ -53,6 +53,12 @@ export interface SweepConfig {
   name: string;
   values: number[];
   seedsPerValue: number;
+  axes?: SweepAxisConfig[];
+}
+
+export interface SweepAxisConfig {
+  name: string;
+  values: number[];
 }
 
 export interface CartographyConfig {
@@ -64,15 +70,21 @@ export interface CartographyConfig {
 export async function readSweepConfig(manifestPath: string): Promise<SweepConfig | null> {
   const block = await readSimBlock(manifestPath, "sweep");
   if (!block) return null;
+  const seedsPerValue =
+    typeof block.seeds_per_value === "number" && Number.isInteger(block.seeds_per_value)
+      ? Math.max(1, block.seeds_per_value)
+      : 1;
+  if (Array.isArray(block.axes)) {
+    const axes = block.axes.map(readSweepAxis).filter((axis): axis is SweepAxisConfig => axis !== null);
+    const first = axes[0];
+    if (!first) return null;
+    return { name: first.name, values: first.values, seedsPerValue, axes };
+  }
   const name = typeof block.name === "string" ? block.name : null;
   const values = Array.isArray(block.values)
     ? block.values.filter((v): v is number => typeof v === "number" && Number.isFinite(v))
     : [];
   if (!name || values.length === 0) return null;
-  const seedsPerValue =
-    typeof block.seeds_per_value === "number" && Number.isInteger(block.seeds_per_value)
-      ? Math.max(1, block.seeds_per_value)
-      : 1;
   return { name, values, seedsPerValue };
 }
 
@@ -89,9 +101,39 @@ export async function readCartographyConfig(
   return { class: cls, riskObjective };
 }
 
-/** Format a {@link SweepConfig} as the runner `--sweep name=v1,v2,...` flag value. */
+/** Return the declared swept axes, normalizing the legacy flat single-axis form. */
+export function sweepAxes(sweep: SweepConfig): SweepAxisConfig[] {
+  return sweep.axes && sweep.axes.length > 0
+    ? sweep.axes
+    : [{ name: sweep.name, values: sweep.values }];
+}
+
+/** Format a single-axis {@link SweepConfig} as the runner `--sweep name=v1,v2,...` flag value. */
 export function formatSweepFlag(sweep: SweepConfig): string {
-  return `${sweep.name}=${sweep.values.join(",")}`;
+  const axes = sweepAxes(sweep);
+  if (axes.length !== 1) {
+    throw new Error("formatSweepFlag requires a single-axis sweep; use formatSweepFlags");
+  }
+  return formatSweepAxisFlag(axes[0]!);
+}
+
+/** Format a {@link SweepConfig} as repeatable runner `--sweep` flag values. */
+export function formatSweepFlags(sweep: SweepConfig): string[] {
+  return sweepAxes(sweep).map(formatSweepAxisFlag);
+}
+
+function formatSweepAxisFlag(axis: SweepAxisConfig): string {
+  return `${axis.name}=${axis.values.join(",")}`;
+}
+
+function readSweepAxis(value: unknown): SweepAxisConfig | null {
+  if (!isRecord(value)) return null;
+  const name = typeof value.name === "string" ? value.name : null;
+  const values = Array.isArray(value.values)
+    ? value.values.filter((v): v is number => typeof v === "number" && Number.isFinite(v))
+    : [];
+  if (!name || values.length === 0) return null;
+  return { name, values };
 }
 
 async function readSimBlock(
@@ -160,20 +202,33 @@ export function iterationStatus(iteration: GuidedSimIteration): RiskSurfaceRunIn
   return "pass";
 }
 
-/** Map sweep iterations to {@link RiskSurfaceRunInput}[] for the surface builder. */
+/**
+ * Map sweep iterations to {@link RiskSurfaceRunInput}[] for the surface builder.
+ *
+ * `axisNames` is every declared swept axis (a bare string is accepted for the
+ * single-axis case). EVERY axis coordinate the iteration recorded is carried
+ * into `sampledParameters` — load-bearing, because `placeRun` (surface.ts) drops
+ * any run missing a value for any declared axis, so a 2-D run that omitted one
+ * axis would silently vanish from the grid. A single axis yields exactly the
+ * same `{ [name]: value }` shape (or `{}` when unrecorded) as before.
+ */
 export function mapIterationsToRuns(
   doc: GuidedSimRunDocument,
-  sweepName: string
+  axisNames: string | string[]
 ): RiskSurfaceRunInput[] {
+  const names = Array.isArray(axisNames) ? axisNames : [axisNames];
   return doc.iterations.map((iteration, index) => {
     const metrics = iteration.metrics ?? {};
-    const coordinate = iteration.parameters?.[sweepName];
+    const sampledParameters: Record<string, JsonScalar> = {};
+    for (const name of names) {
+      const coordinate = iteration.parameters?.[name];
+      if (coordinate !== undefined) sampledParameters[name] = coordinate;
+    }
     const badDebt = numberOrNull(metrics["bad_debt"]);
     return {
       runIndex: index,
       status: iterationStatus(iteration),
-      sampledParameters:
-        coordinate === undefined ? {} : ({ [sweepName]: coordinate } as Record<string, JsonScalar>),
+      sampledParameters,
       badDebt,
       utilization: numberOrNull(metrics["utilization"]),
       tvl: numberOrNull(metrics["tvl"]),
@@ -185,17 +240,24 @@ export function mapIterationsToRuns(
   });
 }
 
-/** A discrete axis distribution over the swept values, with uniform weights. */
+/**
+ * One discrete distribution per declared axis, each over its swept values with
+ * uniform weights. The surface builder derives an axis from every entry that
+ * yields ≥ 2 bins, so a 2-D sweep produces a 2-D cell grid. A single-axis sweep
+ * emits exactly the one `{ [name]: … }` entry it did before.
+ */
 export function buildSweepAxisDistribution(
   sweep: SweepConfig
 ): Record<string, ParameterDistribution> {
-  return {
-    [sweep.name]: {
+  const distributions: Record<string, ParameterDistribution> = {};
+  for (const axis of sweepAxes(sweep)) {
+    distributions[axis.name] = {
       distribution: "discrete",
-      values: sweep.values as JsonScalar[],
-      weights: sweep.values.map(() => 1)
-    }
-  };
+      values: axis.values as JsonScalar[],
+      weights: axis.values.map(() => 1)
+    };
+  }
+  return distributions;
 }
 
 export interface EmitCartographyInput {
@@ -223,19 +285,37 @@ export interface CartographyArtifacts {
  */
 export function buildCartographyArtifacts(input: EmitCartographyInput): CartographyArtifacts {
   const { runDoc, sweep, cartography } = input;
-  const runs = mapIterationsToRuns(runDoc, sweep.name);
+  const axes = sweepAxes(sweep);
+  const runs = mapIterationsToRuns(
+    runDoc,
+    axes.map((axis) => axis.name)
+  );
   const parameters = buildSweepAxisDistribution(sweep);
 
-  // Identity hashed from the declared, path-independent inputs.
+  // Identity hashed from the declared, path-independent inputs. The single-axis
+  // case keeps the exact legacy `{ name, values, seeds_per_value }` shape so its
+  // digest — and therefore the whole surface — stays byte-identical; a 2-D+
+  // sweep hashes an ordered `axes` list instead.
   const identityPayload = {
     base_seed: runDoc.base_seed,
     class: cartography.class,
     risk_objective: cartography.riskObjective,
-    sweep: { name: sweep.name, values: sweep.values, seeds_per_value: sweep.seedsPerValue }
+    sweep:
+      axes.length === 1
+        ? { name: axes[0]!.name, values: axes[0]!.values, seeds_per_value: sweep.seedsPerValue }
+        : {
+            axes: axes.map((axis) => ({ name: axis.name, values: axis.values })),
+            seeds_per_value: sweep.seedsPerValue
+          }
   };
-  const campaignDigest = sha256Hex(canonicalJson(identityPayload));
+  const campaignDigest = sha256Hex(
+    canonicalJson(identityPayload as unknown as Parameters<typeof canonicalJson>[0])
+  );
   const campaignId = `guided-sim-${campaignDigest.slice(0, 16)}`;
-  const name = `${sweep.name} sweep`;
+  const name =
+    axes.length === 1
+      ? `${axes[0]!.name} sweep`
+      : `${axes.map((axis) => axis.name).join(" x ")} sweep`;
   const seedPolicyDisplay = `fixed:${runDoc.base_seed}`;
   const requestedRuns = runs.length;
 
@@ -369,18 +449,22 @@ function synthesizeCampaignSummary(input: SynthesizeSummaryInput): CampaignSumma
   const skipped = runs.filter((r) => r.status === "skipped").length;
   const failureRate = completed === 0 ? 0 : round6(failed / completed);
 
-  const coordinateValues = input.sweep.values;
-  const sampled = runs
-    .map((r) => r.sampledParameters[input.sweep.name])
-    .filter((v): v is number => typeof v === "number");
-  const parameterSummary: CampaignParameterSummary = {
-    distribution: "discrete",
-    sampled_count: sampled.length,
-    min: sampled.length ? Math.min(...sampled) : null,
-    median: median(sampled),
-    max: sampled.length ? Math.max(...sampled) : null,
-    values: coordinateValues as JsonScalar[]
-  };
+  // A marginal summary per declared axis. A single-axis sweep produces exactly
+  // the one `{ [name]: … }` entry it did before.
+  const parameterSummaries: Record<string, CampaignParameterSummary> = {};
+  for (const axis of sweepAxes(input.sweep)) {
+    const sampled = runs
+      .map((r) => r.sampledParameters[axis.name])
+      .filter((v): v is number => typeof v === "number");
+    parameterSummaries[axis.name] = {
+      distribution: "discrete",
+      sampled_count: sampled.length,
+      min: sampled.length ? Math.min(...sampled) : null,
+      median: median(sampled),
+      max: sampled.length ? Math.max(...sampled) : null,
+      values: axis.values as JsonScalar[]
+    };
+  }
 
   const isLending = input.cartography.class === "lending.v1";
   const badDebts = runs.map((r) => r.badDebt).filter((v): v is number => v !== null);
@@ -462,7 +546,7 @@ function synthesizeCampaignSummary(input: SynthesizeSummaryInput): CampaignSumma
         min_tvl_observed: minOrNull(runs.map((r) => r.tvl).filter(isNum))
       }
     },
-    parameters: { [input.sweep.name]: parameterSummary },
+    parameters: parameterSummaries,
     lending,
     retention: { selected: [], warnings: [] },
     warnings: [],
