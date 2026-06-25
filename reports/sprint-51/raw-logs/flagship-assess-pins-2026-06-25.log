@@ -1,0 +1,15 @@
+$ campaign run ... --out tmp/flagship-run
+  Digest: 40a5f239691a...4277f2
+
+Boundary
+  No invariant violation observed means none was observed in this campaign, not proof of complete safety.
+$ ls tmp/flagship-run
+campaign_40a5f239691a
+$ assess tmp/flagship-run/campaign_40a5f239691a --out /tmp/riptide-t04-lending-pin-NEzLBI
+
+Boundary
+  Simulation evidence over the campaign's declared, fixed-seed region — not audit signoff, formal verification, complete protocol safety, or a mainnet prediction.
+
+$ sha256sum assessment.{md,json}
+aa9ab5894ceb9454695004a8d4b537bf506f72fd60ce7bac82ff0465d4107d21  /tmp/riptide-t04-lending-pin-NEzLBI/assessment.md
+2de4739b505241dd9e73e715a661bf13a55a68e4e302045be8e882c5a6a29f9e  /tmp/riptide-t04-lending-pin-NEzLBI/assessment.json
