@@ -129,8 +129,12 @@ impl World {
     /// set marks the iteration as a risk-surface `fail`. Deduplicated and kept
     /// sorted for deterministic serialization.
     pub fn record_invariant_fire(&mut self, name: &str) {
-        if let Err(insert_at) = self.iteration_invariant_fires.binary_search_by(|n| n.as_str().cmp(name)) {
-            self.iteration_invariant_fires.insert(insert_at, name.to_owned());
+        if let Err(insert_at) = self
+            .iteration_invariant_fires
+            .binary_search_by(|n| n.as_str().cmp(name))
+        {
+            self.iteration_invariant_fires
+                .insert(insert_at, name.to_owned());
         }
     }
 

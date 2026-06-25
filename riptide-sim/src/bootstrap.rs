@@ -85,12 +85,34 @@ pub struct SimBootstrap {
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum SweepManifest {
+    SingleAxis(SingleAxisSweepManifest),
+    MultiAxis(MultiAxisSweepManifest),
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct SweepManifest {
+pub struct SingleAxisSweepManifest {
     pub name: String,
     pub values: Vec<f64>,
     #[serde(default = "default_seeds_per_value")]
     pub seeds_per_value: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MultiAxisSweepManifest {
+    pub axes: Vec<SweepAxisManifest>,
+    #[serde(default = "default_seeds_per_value")]
+    pub seeds_per_value: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SweepAxisManifest {
+    pub name: String,
+    pub values: Vec<f64>,
 }
 
 fn default_seeds_per_value() -> u64 {
@@ -793,6 +815,33 @@ required_flows = ["deposit_liquidity", "open_swap"]
             lifecycle.required_flows,
             vec!["deposit_liquidity", "open_swap"]
         );
+    }
+
+    #[test]
+    fn manifest_accepts_multi_axis_sweep_shape() {
+        let manifest: SimManifest = toml::from_str(
+            r#"
+[sim.sweep]
+seeds_per_value = 3
+
+[[sim.sweep.axes]]
+name = "rate_shock_bps"
+values = [0, 100, 300, 500]
+
+[[sim.sweep.axes]]
+name = "collateral_ratio"
+values = [1.2, 1.5, 2.0]
+"#,
+        )
+        .unwrap();
+
+        let SweepManifest::MultiAxis(sweep) = manifest.sim.sweep.unwrap() else {
+            panic!("expected multi-axis sweep manifest")
+        };
+        assert_eq!(sweep.seeds_per_value, 3);
+        assert_eq!(sweep.axes.len(), 2);
+        assert_eq!(sweep.axes[0].name, "rate_shock_bps");
+        assert_eq!(sweep.axes[1].values, vec![1.2, 1.5, 2.0]);
     }
 
     #[test]
