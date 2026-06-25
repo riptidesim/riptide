@@ -51,36 +51,111 @@ pub struct RunnerConfig {
     pub seed: [u8; 32],
     pub debug: bool,
     pub out_dir: Option<PathBuf>,
-    /// When set, the runner sweeps a single named parameter across declared
-    /// values, running `seeds_per_value` seed replicates per value. Each
-    /// iteration's coordinate is injected into the World (readable via
+    /// When set, the runner sweeps one or more named parameters across their
+    /// declared values, running the cross-product of every axis with
+    /// `seeds_per_value` seed replicates per coordinate. Each iteration's full
+    /// coordinate (one value per axis) is injected into the World (readable via
     /// `sweep_value`) and recorded into the artifact. In sweep mode the loop
     /// does NOT stop at the first failing iteration — failing cells are the
     /// signal a risk surface needs.
     pub sweep: Option<SweepConfig>,
 }
 
-/// A single-axis parameter sweep for guided-sim risk-surface generation.
+/// A single swept axis: a named parameter and the discrete values it takes.
+/// The declared value order is canonical (it is the axis order downstream).
 #[derive(Debug, Clone, PartialEq)]
-pub struct SweepConfig {
+pub struct SweepAxis {
     pub name: String,
     pub values: Vec<f64>,
+}
+
+impl Eq for SweepAxis {}
+
+/// A multi-axis parameter sweep for guided-sim risk-surface generation. The
+/// runner runs the cross-product of every axis's values, with
+/// `seeds_per_value` seed replicates per cross-product coordinate. A
+/// single-axis sweep (one axis) is the degenerate case and runs
+/// byte-identically to a linear single-parameter sweep.
+///
+/// Manifest shape (parsed CLI-side and forwarded as one `--sweep name=v1,v2`
+/// flag per axis): a single axis stays the flat form
+///
+/// ```toml
+/// [sim.sweep]
+/// name = "rate_shock_bps"
+/// values = [0, 100, 300, 500]
+/// seeds_per_value = 3
+/// ```
+///
+/// and multiple axes use an array-of-tables under the shared block, keeping
+/// the one shared `seeds_per_value`:
+///
+/// ```toml
+/// [sim.sweep]
+/// seeds_per_value = 3
+/// [[sim.sweep.axes]]
+/// name = "rate_shock_bps"
+/// values = [0, 100, 300, 500]
+/// [[sim.sweep.axes]]
+/// name = "collateral_ratio"
+/// values = [1.2, 1.5, 2.0]
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub struct SweepConfig {
+    pub axes: Vec<SweepAxis>,
     pub seeds_per_value: u64,
 }
 
 impl Eq for SweepConfig {}
 
 impl SweepConfig {
-    /// Total iterations this sweep expands to: one per (value, seed replicate).
-    pub fn total_iterations(&self) -> u64 {
-        (self.values.len() as u64).saturating_mul(self.seeds_per_value.max(1))
+    /// Build a single-axis sweep — the degenerate cross-product with one axis.
+    pub fn single(name: impl Into<String>, values: Vec<f64>, seeds_per_value: u64) -> Self {
+        Self {
+            axes: vec![SweepAxis {
+                name: name.into(),
+                values,
+            }],
+            seeds_per_value,
+        }
     }
 
-    /// The swept value active for a given global iteration index.
-    fn value_for(&self, iteration: u64) -> f64 {
+    /// Total iterations this sweep expands to: one per (cross-product
+    /// coordinate, seed replicate). The coordinate count is the product of
+    /// every axis's value count.
+    pub fn total_iterations(&self) -> u64 {
+        let coordinates = self.axes.iter().fold(1u64, |acc, axis| {
+            acc.saturating_mul(axis.values.len() as u64)
+        });
+        coordinates.saturating_mul(self.seeds_per_value.max(1))
+    }
+
+    /// The full coordinate (one value per axis, in declared order) active for a
+    /// given global iteration index.
+    ///
+    /// The seed replicate is the innermost (fastest-varying) dimension and the
+    /// last declared axis varies fastest among the axes, so a single-axis sweep
+    /// yields exactly the same value sequence as a linear sweep: value 0's
+    /// replicates, then value 1's, and so on.
+    fn coordinate_for(&self, iteration: u64) -> Vec<(&str, f64)> {
         let per_value = self.seeds_per_value.max(1);
-        let value_index = (iteration / per_value) as usize;
-        self.values[value_index.min(self.values.len().saturating_sub(1))]
+        let mut coordinate_index = iteration / per_value;
+        let mut indices = vec![0usize; self.axes.len()];
+        // Mixed-radix decode: peel the fastest-varying (last) axis first so
+        // axis 0 is the outermost dimension.
+        for (axis_index, axis) in self.axes.iter().enumerate().rev() {
+            let len = (axis.values.len() as u64).max(1);
+            indices[axis_index] = (coordinate_index % len) as usize;
+            coordinate_index /= len;
+        }
+        self.axes
+            .iter()
+            .zip(&indices)
+            .map(|(axis, &index)| {
+                let clamped = index.min(axis.values.len().saturating_sub(1));
+                (axis.name.as_str(), axis.values[clamped])
+            })
+            .collect()
     }
 }
 
@@ -141,7 +216,7 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
                 .config
                 .sweep
                 .as_ref()
-                .map(|sweep| (sweep.name.as_str(), sweep.value_for(iteration)));
+                .map(|sweep| sweep.coordinate_for(iteration));
             eprintln!(
                 "riptide sim iteration={} seed={}",
                 iteration,
@@ -188,15 +263,19 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
         &self,
         iteration: u64,
         seed: [u8; 32],
-        sweep_point: Option<(&str, f64)>,
+        sweep_point: Option<Vec<(&str, f64)>>,
     ) -> IterationRun {
         let mut simulation = T::default();
         simulation.world().set_rng_seed(seed);
-        if let Some((name, value)) = sweep_point {
-            // Inject the active sweep coordinate before init/flows so flows can
-            // read it via `world.sweep_value(name)`, and so it is recorded into
-            // the iteration artifact even if the flow never reads it.
-            simulation.world().record_parameter(name, value);
+        if let Some(coordinate) = sweep_point {
+            // Inject every axis value of the active sweep coordinate before
+            // init/flows so flows can read each via `world.sweep_value(name)`,
+            // and so EVERY axis is recorded into the iteration artifact even
+            // when a given flow never reads it (downstream cartography drops
+            // any run missing a value for any declared axis).
+            for (name, value) in coordinate {
+                simulation.world().record_parameter(name, value);
+            }
         }
         let mut flow_counts = BTreeMap::new();
         let mut flow_trace = Vec::new();
@@ -887,11 +966,13 @@ struct RunnerArgs {
     debug: bool,
     #[arg(long = "out")]
     out_dir: Option<PathBuf>,
-    /// Sweep a single named parameter as `name=v1,v2,...`. When set, the runner
-    /// runs one iteration per (value, seed replicate) and records each value as
-    /// the iteration's risk-surface coordinate. Overrides `--iterations`.
+    /// Sweep a named parameter as `name=v1,v2,...`. Repeat the flag to declare
+    /// additional axes; the runner then runs the cross-product of every axis
+    /// with `seeds-per-value` seed replicates per coordinate, recording each
+    /// axis value as the iteration's risk-surface coordinate. A single `--sweep`
+    /// is the byte-identical single-axis case. Overrides `--iterations`.
     #[arg(long = "sweep")]
-    sweep: Option<String>,
+    sweep: Vec<String>,
     /// Seed replicates per swept value (default 1). Only used with `--sweep`.
     #[arg(long = "seeds-per-value", default_value_t = 1)]
     seeds_per_value: u64,
@@ -899,9 +980,10 @@ struct RunnerArgs {
 
 impl RunnerArgs {
     fn try_into_config(self) -> Result<RunnerConfig> {
-        let sweep = match self.sweep {
-            Some(spec) => Some(parse_sweep_spec(&spec, self.seeds_per_value)?),
-            None => None,
+        let sweep = if self.sweep.is_empty() {
+            None
+        } else {
+            Some(parse_sweep_spec(&self.sweep, self.seeds_per_value)?)
         };
         Ok(RunnerConfig {
             iterations: self.iterations,
@@ -917,9 +999,30 @@ impl RunnerArgs {
     }
 }
 
-/// Parse `name=v1,v2,...` into a `SweepConfig`. Values are finite f64. The
-/// declared order is preserved (it is the canonical axis order downstream).
-fn parse_sweep_spec(spec: &str, seeds_per_value: u64) -> Result<SweepConfig> {
+/// Parse one or more `name=v1,v2,...` axis specs into a `SweepConfig`. Each
+/// spec becomes an axis; the runner runs their cross-product. The declared
+/// order is preserved (axis 0 is the outermost dimension), and a single spec
+/// is the byte-identical single-axis case.
+fn parse_sweep_spec(specs: &[String], seeds_per_value: u64) -> Result<SweepConfig> {
+    if seeds_per_value == 0 {
+        anyhow::bail!("--seeds-per-value must be at least 1");
+    }
+    let axes = specs
+        .iter()
+        .map(|spec| parse_sweep_axis(spec))
+        .collect::<Result<Vec<SweepAxis>>>()?;
+    if axes.is_empty() {
+        anyhow::bail!("--sweep must declare at least one axis");
+    }
+    Ok(SweepConfig {
+        axes,
+        seeds_per_value,
+    })
+}
+
+/// Parse a single `name=v1,v2,...` axis spec. Values are finite f64 and the
+/// declared value order is preserved.
+fn parse_sweep_axis(spec: &str) -> Result<SweepAxis> {
     let (name, values) = spec
         .split_once('=')
         .ok_or_else(|| anyhow!("--sweep must be `name=v1,v2,...`, got {spec:?}"))?;
@@ -946,13 +1049,9 @@ fn parse_sweep_spec(spec: &str, seeds_per_value: u64) -> Result<SweepConfig> {
     if values.is_empty() {
         anyhow::bail!("--sweep must declare at least one value in {spec:?}");
     }
-    if seeds_per_value == 0 {
-        anyhow::bail!("--seeds-per-value must be at least 1");
-    }
-    Ok(SweepConfig {
+    Ok(SweepAxis {
         name: name.to_owned(),
         values,
-        seeds_per_value,
     })
 }
 
@@ -1078,11 +1177,11 @@ mod tests {
         let config = RunnerConfig {
             flows_per_iteration: 1,
             out_dir: Some(out_dir.clone()),
-            sweep: Some(SweepConfig {
-                name: "rate_shock_bps".to_owned(),
-                values: vec![0.0, 100.0, 300.0, 500.0],
-                seeds_per_value: 3,
-            }),
+            sweep: Some(SweepConfig::single(
+                "rate_shock_bps",
+                vec![0.0, 100.0, 300.0, 500.0],
+                3,
+            )),
             ..RunnerConfig::default()
         };
 
@@ -1107,7 +1206,145 @@ mod tests {
         // engine error: the iteration still runs to completion ("passed").
         assert_eq!(iterations[6]["invariant_fires"][0], "solvency");
         assert_eq!(iterations[6]["status"], "passed");
-        assert!(iterations[0].as_object().unwrap().get("invariant_fires").is_none());
+        assert!(iterations[0]
+            .as_object()
+            .unwrap()
+            .get("invariant_fires")
+            .is_none());
+
+        let _ = fs::remove_dir_all(out_dir);
+    }
+
+    /// The cross-product decode is unit-testable without running a simulation:
+    /// a single-axis sweep must reproduce the linear value sequence exactly
+    /// (backward-compat), and a 2-axis sweep must enumerate the full grid with
+    /// axis 0 outermost, the last axis fastest, and the seed replicate innermost.
+    #[test]
+    fn sweep_single_axis_coordinate_matches_linear_sequence() {
+        let sweep = SweepConfig::single("rate_shock_bps", vec![0.0, 100.0, 300.0, 500.0], 3);
+        assert_eq!(sweep.total_iterations(), 12);
+        // value 0's 3 replicates, then value 1's, ... — identical to a linear
+        // single-parameter sweep.
+        let expected = [
+            0.0, 0.0, 0.0, 100.0, 100.0, 100.0, 300.0, 300.0, 300.0, 500.0, 500.0, 500.0,
+        ];
+        for (iteration, want) in expected.iter().enumerate() {
+            let coordinate = sweep.coordinate_for(iteration as u64);
+            assert_eq!(coordinate, vec![("rate_shock_bps", *want)]);
+        }
+    }
+
+    #[test]
+    fn sweep_two_axis_coordinate_enumerates_cross_product() {
+        // axis 0: rate_shock_bps in {0, 300} (outermost)
+        // axis 1: collateral_ratio in {1.2, 1.5, 2.0} (fastest among axes)
+        // seeds_per_value = 2 (innermost overall)
+        let sweep = SweepConfig {
+            axes: vec![
+                SweepAxis {
+                    name: "rate_shock_bps".to_owned(),
+                    values: vec![0.0, 300.0],
+                },
+                SweepAxis {
+                    name: "collateral_ratio".to_owned(),
+                    values: vec![1.2, 1.5, 2.0],
+                },
+            ],
+            seeds_per_value: 2,
+        };
+        // 2 x 3 coordinates x 2 seed replicates = 12 iterations.
+        assert_eq!(sweep.total_iterations(), 12);
+
+        // The 6 cross-product coordinates, each repeated for its 2 seed
+        // replicates: rate_shock outermost, collateral_ratio fastest.
+        let expected_coordinates = [
+            (0.0, 1.2),
+            (0.0, 1.5),
+            (0.0, 2.0),
+            (300.0, 1.2),
+            (300.0, 1.5),
+            (300.0, 2.0),
+        ];
+        for (coordinate_index, (shock, ratio)) in expected_coordinates.iter().enumerate() {
+            for replicate in 0..2u64 {
+                let iteration = coordinate_index as u64 * 2 + replicate;
+                let coordinate = sweep.coordinate_for(iteration);
+                assert_eq!(
+                    coordinate,
+                    vec![("rate_shock_bps", *shock), ("collateral_ratio", *ratio)],
+                    "iteration {iteration} (coordinate {coordinate_index}, replicate {replicate})"
+                );
+            }
+        }
+    }
+
+    /// A full 2-axis run records EVERY axis on EVERY iteration — the
+    /// load-bearing invariant for the downstream cartography producer, whose
+    /// `placeRun` drops any run missing a value for any declared axis.
+    #[test]
+    fn runner_two_axis_sweep_records_every_axis_per_iteration() {
+        let out_dir = unique_temp_dir();
+        let config = RunnerConfig {
+            flows_per_iteration: 1,
+            out_dir: Some(out_dir.clone()),
+            sweep: Some(SweepConfig {
+                axes: vec![
+                    SweepAxis {
+                        name: "rate_shock_bps".to_owned(),
+                        values: vec![0.0, 300.0],
+                    },
+                    SweepAxis {
+                        name: "collateral_ratio".to_owned(),
+                        values: vec![1.2, 1.5, 2.0],
+                    },
+                ],
+                seeds_per_value: 2,
+            }),
+            ..RunnerConfig::default()
+        };
+
+        SimulationRunner::<SweepSim>::new(config).run().unwrap();
+
+        let raw = fs::read_to_string(out_dir.join("guided-sim-run.json")).unwrap();
+        let value: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["totals"]["iterations"], 12);
+        assert_eq!(value["status"], "passed");
+        let iterations = value["iterations"].as_array().unwrap();
+        assert_eq!(iterations.len(), 12);
+
+        // Every iteration records BOTH axes, even though the flow only reads
+        // rate_shock_bps — collateral_ratio rides along unread.
+        for (index, iteration) in iterations.iter().enumerate() {
+            let params = iteration["parameters"].as_object().unwrap();
+            assert!(
+                params.contains_key("rate_shock_bps"),
+                "iteration {index} missing rate_shock_bps"
+            );
+            assert!(
+                params.contains_key("collateral_ratio"),
+                "iteration {index} missing collateral_ratio"
+            );
+        }
+
+        // Spot-check the cross-product layout in the artifact: rate_shock
+        // outermost, collateral_ratio fastest, seed replicate innermost.
+        assert_eq!(iterations[0]["parameters"]["rate_shock_bps"], 0.0);
+        assert_eq!(iterations[0]["parameters"]["collateral_ratio"], 1.2);
+        assert_eq!(iterations[2]["parameters"]["collateral_ratio"], 1.5);
+        assert_eq!(iterations[6]["parameters"]["rate_shock_bps"], 300.0);
+        assert_eq!(iterations[6]["parameters"]["collateral_ratio"], 1.2);
+        assert_eq!(iterations[11]["parameters"]["rate_shock_bps"], 300.0);
+        assert_eq!(iterations[11]["parameters"]["collateral_ratio"], 2.0);
+
+        // The shock axis still drives the recorded failure signal: high-shock
+        // cells fire solvency, low-shock cells don't — independent of the
+        // unread collateral_ratio axis.
+        assert!(iterations[0]
+            .as_object()
+            .unwrap()
+            .get("invariant_fires")
+            .is_none());
+        assert_eq!(iterations[6]["invariant_fires"][0], "solvency");
 
         let _ = fs::remove_dir_all(out_dir);
     }
