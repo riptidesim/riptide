@@ -97,6 +97,35 @@ enabled = false
   assert.match(result.stdout, /Verdict: PASS \(exit 0\)/);
 });
 
+test("sim lint CLI accepts a multi-axis sweep manifest", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-lint-multi-axis-"));
+  const simDir = path.join(root, ".riptide", "sim");
+  await mkdir(simDir, { recursive: true });
+  await writeFile(
+    path.join(simDir, "Riptide.toml"),
+    `
+[sim.sweep]
+seeds_per_value = 3
+
+[[sim.sweep.axes]]
+name = "rate_shock_bps"
+values = [0, 100, 300, 500]
+
+[[sim.sweep.axes]]
+name = "collateral_ratio"
+values = [1.2, 1.5, 2.0]
+`,
+    "utf8"
+  );
+
+  const result = await execFileAsync(process.execPath, [cliEntrypoint, "sim", "lint", simDir], {
+    cwd: root
+  });
+
+  assert.match(result.stdout, /PASS \[manifest-schema\] sim/);
+  assert.match(result.stdout, /Verdict: PASS \(exit 0\)/);
+});
+
 test("sim fork CLI reuses an existing cache without network", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-fork-reuse-"));
   const outPath = path.join(root, "fork-cache.json");
