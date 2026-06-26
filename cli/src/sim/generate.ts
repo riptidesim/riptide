@@ -9,8 +9,8 @@ import { loadGenericIdl } from "./idl.js";
 import { renderAccounts } from "./render-accounts.js";
 import { renderBootstrapManifest } from "./render-manifest.js";
 import { renderInvariants } from "./render-invariants.js";
+import { renderFlows } from "./render-flows.js";
 import {
-  renderFlows,
   renderMain,
   renderOracleService,
   renderServicesMod,
@@ -87,7 +87,7 @@ export async function generateSim(
       }),
       "utf8"
     );
-    await writeIfFirst(path.join(srcDir, "flows.rs"), renderFlows(), forceUserOwned);
+    await writeIfFirst(path.join(srcDir, "flows.rs"), renderFlows(resolved.adapter, idl), forceUserOwned);
     await writeIfFirst(
       path.join(srcDir, "invariants.rs"),
       renderInvariants(resolved.adapter),
