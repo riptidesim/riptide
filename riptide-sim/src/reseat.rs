@@ -194,6 +194,9 @@ pub fn step_personas(
             agents.len()
         );
     }
+    // Fresh blockhash per step so a persona repeating the same fixed-size action
+    // across flows does not dedup to `AlreadyProcessed` in LiteSVM.
+    world.expire_blockhash();
     let action_space = executor.action_space().to_vec();
     let mut decisions = Vec::with_capacity(agents.len());
     for (idx, agent) in agents.iter_mut().enumerate() {
