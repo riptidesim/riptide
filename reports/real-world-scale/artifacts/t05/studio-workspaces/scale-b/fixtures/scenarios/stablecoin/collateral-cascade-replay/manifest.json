@@ -1,6 +1,0 @@
-{
-  "adapter": "./adapter.toml",
-  "slug": "collateral-cascade-replay",
-  "failure_mode": "collateral_ratio_spiral",
-  "rationale": "Sweep midpoint for the UXD-style collateral-cascade pressure family. A fixture-local adapter schedules pool initialization, collateral seeding, minting, apply_hedge_loss, and a redemption after the haircut while personas stay inert. The declared no_hedge_loss_during_healthy_run invariant is expected to fire once the scheduled hedge loss lands; the frozen replay artifact remains the full single-trajectory proof."
-}

@@ -341,13 +341,10 @@ pub struct ActionDefinition {
 /// `Int(0)`, `direction = false` as `Bool(false)`, and
 /// `recipient = "4NBcG..."` as `String("4NBcG...")` (which the encoder
 /// decodes as base58 into a 32-byte pubkey).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ArgLiteral {
-    Bool(bool),
-    Int(i64),
-    String(String),
-}
+// `ArgLiteral` now lives in `riptide_sim::kernel::types` (referenced by the
+// kernel `Policy.persona_args`); re-exported so `crate::adapter::ArgLiteral`
+// keeps resolving.
+pub use riptide_sim::kernel::types::ArgLiteral;
 
 /// Supported observation types for the generic primitive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

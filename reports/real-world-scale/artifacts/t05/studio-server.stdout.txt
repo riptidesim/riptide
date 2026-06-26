@@ -1,7 +1,0 @@
-riptide studio: http://127.0.0.1:43383
-  workspace: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces/scale-a
-  case studies: /home/ailton/Work/riptide/riptide/reports/real-world-scale/artifacts/t05/studio-workspaces
-  health:    http://127.0.0.1:43383/api/studio/health
-  ctrl-c to stop.
-
-riptide studio: received SIGTERM, shutting down...

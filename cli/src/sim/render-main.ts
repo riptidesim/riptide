@@ -83,15 +83,6 @@ pub fn guided_flow(_sim: &mut Simulation) -> riptide_sim::anyhow::Result<()> {
 `;
 }
 
-export function renderInvariants(): string {
-  return `use crate::Simulation;
-
-pub fn check(_sim: &mut Simulation) -> riptide_sim::anyhow::Result<()> {
-    Ok(())
-}
-`;
-}
-
 export function renderTypesExt(): string {
   return `#![allow(dead_code)]
 

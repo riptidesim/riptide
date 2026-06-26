@@ -1,5 +1,0 @@
-{
-  "instructions": [
-    { "name": "deposit", "agent": "attacker", "args": { "amount": 100 } }
-  ]
-}

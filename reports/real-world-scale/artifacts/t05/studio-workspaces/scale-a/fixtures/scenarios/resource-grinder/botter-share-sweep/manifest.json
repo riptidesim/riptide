@@ -1,6 +1,0 @@
-{
-  "adapter": "fixtures/adapters/resource-grinder.toml",
-  "slug": "botter-share-sweep",
-  "failure_mode": "whale_concentration",
-  "rationale": "Middle point (15% botters) of a botter-share sweep. Classification flagged whale_concentration because the adapter's state_mapping exposes the shared marketplace.listings accumulator, and the adapter declares a 'botter' persona with action_rate_multiplier=4.0 skewed toward list_for_sale=2.5 — lopsided write pressure on the shared accumulator with no cap. Sweep axis: botter_share in {5%, 15%, 25%} over fixed agents=20."
-}

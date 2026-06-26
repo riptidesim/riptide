@@ -32,6 +32,7 @@ solana-system-interface = { version = "3.2.0", features = ["bincode"] }
 solana-transaction = "3.1.0"
 toml = "1.1.2"
 which = "8.0.0"
+riptide-sim = { path = "../riptide-sim" }
 
 litesvm = { version = "0.11.0", optional = true }
 
@@ -47,5 +48,4 @@ name = "litesvm_benchmark"
 
 [dev-dependencies]
 litesvm = "0.11.0"
-riptide-sim = { path = "../riptide-sim" }
 tempfile = "3.27.0"

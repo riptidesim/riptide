@@ -1,4 +1,0 @@
-run_index,run_id,status,scenario_family,run_seed,first_failure_tick,total_bad_debt,max_utilization,min_tvl,total_liquidations,fixed_one,oracle_lag_ticks,shock_profile,whale_share_bps
-0,run_000000_44713dd4efda,pass,oracle_shock_margin,1356,,,,,,,8,funding-skew,3000
-1,run_000001_4b92df2fcc69,pass,orderbook_keeper_pressure,1396,,,,,,,,oracle-down-35,1500
-2,run_000002_695eebcd82e0,pass,liquidation_cascade,1384,,,,,,,4,oracle-down-15,3000

@@ -40,8 +40,7 @@
     "npm-shrinkwrap.json"
   ],
   "scripts": {
-    "build": "node ./scripts/clean-dist.mjs && tsc -p tsconfig.json && node ./scripts/build-studio-app.mjs && node ./scripts/copy-personas.mjs",
-    "build:studio-app": "node ./scripts/build-studio-app.mjs",
+    "build": "node ./scripts/clean-dist.mjs && tsc -p tsconfig.json && node ./scripts/copy-personas.mjs",
     "test": "npm run build && node ./scripts/run-tests.mjs",
     "postinstall": "node scripts/install-binary.js"
   },

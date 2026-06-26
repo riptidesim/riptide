@@ -1,6 +1,0 @@
-{
-  "adapter": "fixtures/adapters/liquid-staking.toml",
-  "slug": "slash-redemption-cascade",
-  "failure_mode": "depeg_after_slash",
-  "rationale": "Cross-product midpoint of slash magnitude and open-queue depth pressure. The persona mix combines the slash-magnitude-sweep base with a larger panic-exiter share so the cold run stages depeg-sensitive exits against steady stake inflow. Runtime boundary: apply_slash is admin-gated and not dispatched by the generic persona loop, so the fixture is the deterministic scenario-family shape while replay artifacts own direct slash trajectories."
-}

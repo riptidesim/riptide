@@ -8,9 +8,9 @@ import { resolveAdapterRuntime, resolveRuntimePath, type Adapter } from "../sche
 import { loadGenericIdl } from "./idl.js";
 import { renderAccounts } from "./render-accounts.js";
 import { renderBootstrapManifest } from "./render-manifest.js";
+import { renderInvariants } from "./render-invariants.js";
 import {
   renderFlows,
-  renderInvariants,
   renderMain,
   renderOracleService,
   renderServicesMod,
@@ -88,7 +88,11 @@ export async function generateSim(
       "utf8"
     );
     await writeIfFirst(path.join(srcDir, "flows.rs"), renderFlows(), forceUserOwned);
-    await writeIfFirst(path.join(srcDir, "invariants.rs"), renderInvariants(), forceUserOwned);
+    await writeIfFirst(
+      path.join(srcDir, "invariants.rs"),
+      renderInvariants(resolved.adapter),
+      forceUserOwned
+    );
     await writeIfFirst(path.join(srcDir, "types_ext.rs"), renderTypesExt(), forceUserOwned);
     await writeIfFirst(path.join(servicesDir, "mod.rs"), renderServicesMod(), forceUserOwned);
     await writeIfFirst(path.join(servicesDir, "oracle.rs"), renderOracleService(), forceUserOwned);

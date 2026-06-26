@@ -72,10 +72,45 @@ function renderDefinedType(typeDef: GenericDefinedType, ctx: RenderContext): str
 
 function renderDefinedStruct(name: string, type: GenericTypeDefinition, ctx: RenderContext): string {
   const fields = type.fields.map((field) => renderArgField(field, ctx)).join("\n");
+  // Rust only auto-derives `Default` for arrays up to length 32, so a struct
+  // carrying a larger fixed array (price-observation buffers, padding, etc.)
+  // needs a hand-written `Default` impl that builds each array via `from_fn`.
+  if (type.fields.some((field) => isLargeArray(field.type))) {
+    const inits = type.fields
+      .map((field) => `            ${rustIdent(field.name)}: ${fieldDefault(field, ctx)},`)
+      .join("\n");
+    return `#[derive(Debug, Clone, BorshSerialize)]
+pub struct ${name} {
+${fields}
+}
+
+impl Default for ${name} {
+    fn default() -> Self {
+        Self {
+${inits}
+        }
+    }
+}`;
+  }
   return `#[derive(Debug, Clone, Default, BorshSerialize)]
 pub struct ${name} {
 ${fields}
 }`;
+}
+
+function isLargeArray(typeRef: GenericTypeRef): boolean {
+  if (typeof typeRef === "object" && typeRef !== null && "array" in typeRef) {
+    const [, len] = typeRef.array;
+    return typeof len === "number" && len > 32;
+  }
+  return false;
+}
+
+function fieldDefault(field: GenericArg, ctx: RenderContext): string {
+  if (typeof field.type === "object" && field.type !== null && "array" in field.type) {
+    return "core::array::from_fn(|_| Default::default())";
+  }
+  return defaultValue(field, rustType(field.type, ctx));
 }
 
 function renderDefinedEnum(name: string, type: GenericTypeDefinition, ctx: RenderContext): string {
