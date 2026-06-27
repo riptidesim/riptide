@@ -18,6 +18,40 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { inferAdapterRuntime } from "../schemas/adapter.js";
+import { defaultFixturesRoot } from "../adapter/resolve.js";
+import { monorepoRootFromModule } from "../orchestrator/index.js";
+
+/**
+ * Derive the repo root for an adapter path (recovered from the former
+ * `riptide lint` command, still used by `riptide doctor`'s adapter-health
+ * check). Shipping convention `<root>/fixtures/adapters/<name>.toml`, downstream
+ * convention `<root>/.riptide/adapters/<name>.toml`, else module/fixtures root.
+ */
+export function deriveRepoRoot(
+  adapterPath: string,
+  fixturesRootOverride: string | undefined
+): string {
+  const derived = deriveRepoRootFromAdapterPath(adapterPath);
+  if (derived) return derived;
+  if (fixturesRootOverride) return path.resolve(fixturesRootOverride, "..");
+  const moduleRoot = monorepoRootFromModule();
+  if (moduleRoot) return moduleRoot;
+  const fixtures = defaultFixturesRoot();
+  return path.resolve(fixtures, "..");
+}
+
+function deriveRepoRootFromAdapterPath(adapterPath: string): string | null {
+  const adapterDir = path.dirname(adapterPath);
+  const adapterDirParent = path.dirname(adapterDir);
+  if (
+    path.basename(adapterDir) === "adapters" &&
+    (path.basename(adapterDirParent) === "fixtures" ||
+      path.basename(adapterDirParent) === ".riptide")
+  ) {
+    return path.dirname(adapterDirParent);
+  }
+  return null;
+}
 import type { Adapter, AdapterLineage, AccountOwner } from "../schemas/adapter.js";
 import { lintSemantics } from "./semantics.js";
 import { lintSemanticsBreadth } from "./semantics_breadth.js";

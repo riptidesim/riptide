@@ -33,8 +33,7 @@ import {
   monorepoRootFromModule,
 } from "../orchestrator/index.js";
 import { loadAdapter } from "../adapter/resolve.js";
-import { lintAdapter } from "../lint/index.js";
-import { deriveRepoRoot } from "../commands/lint.js";
+import { lintAdapter, deriveRepoRoot } from "../lint/index.js";
 import { resolveAdapterRuntime, type Adapter } from "../schemas/adapter.js";
 
 const execFileAsync = promisify(execFile);
