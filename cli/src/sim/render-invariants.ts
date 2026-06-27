@@ -1,4 +1,5 @@
 import type { Adapter, AccountDefinition, Semantics } from "../schemas/adapter.js";
+import type { GenericArg, GenericIdl, GenericTypeRef } from "./idl.js";
 
 // Well-known field offsets for SPL decoder presets, so a `[semantics.roles]`
 // field bound to an `spl_token_account` / `spl_mint` account resolves without an
@@ -11,9 +12,13 @@ const SPL_MINT_FIELDS: Record<string, { offset: number; type: string }> = {
   decimals: { offset: 44, type: "u8" },
 };
 
+// Anchor account discriminator is 8 bytes; fields follow in declaration order.
+const ANCHOR_DISCRIMINATOR_LEN = 8;
+
 interface ResolvedField {
   contextKey: string;
   account: string;
+  isAgent: boolean;
   offset: number;
   reader: "u8" | "u64" | "u128" | "i64";
   ok: boolean;
@@ -26,14 +31,21 @@ interface ResolvedField {
  * on-chain account bytes), computes `[semantics.derived]` values, and fires the
  * declared invariants through `run_expression_invariants`. Otherwise it falls
  * back to the no-op stub.
+ *
+ * Field offsets resolve from (1) the adapter account's explicit decoder (layout
+ * block or spl preset), else (2) the IDL account's field layout (8-byte Anchor
+ * discriminator + cumulative sizes of preceding fields, honoring 1-byte
+ * bool/u8). Without the IDL fallback, role fields on accounts that declare no
+ * decoder default to offset 0 (the discriminator) and every invariant passes
+ * vacuously.
  */
-export function renderInvariants(adapter: Adapter): string {
+export function renderInvariants(adapter: Adapter, idl: GenericIdl): string {
   const semantics = adapter.semantics;
   if (!semantics || semantics.invariants.length === 0) {
     return renderInvariantsStub();
   }
 
-  const fields = resolveRoleFields(semantics, adapter.accounts);
+  const fields = resolveRoleFields(semantics, adapter, idl);
   const roleReads = fields.map(renderFieldRead).join("\n");
   const derivedReads = Object.entries(semantics.derived)
     .map(
@@ -97,7 +109,7 @@ fn read_i64(world: &World, addr: &Pubkey, offset: usize) -> i128 {
 
 /// Evaluate the adapter's declared invariants against the current on-chain
 /// state. Roles are decoded from the accounts the hand-authored \`flows::init\`
-/// stored in \`sim.accounts\` (keyed by the account name).
+/// stored in \`sim.accounts\` (shared by name, agent-kind by agent index 0).
 pub fn check(sim: &mut Simulation) -> riptide_sim::anyhow::Result<()> {
     let mut ctx = Context::new();
 
@@ -127,23 +139,26 @@ pub fn check(_sim: &mut Simulation) -> riptide_sim::anyhow::Result<()> {
 
 function resolveRoleFields(
   semantics: Semantics,
-  accounts: Record<string, AccountDefinition>
+  adapter: Adapter,
+  idl: GenericIdl
 ): ResolvedField[] {
   const resolved: ResolvedField[] = [];
   for (const [roleName, role] of Object.entries(semantics.roles)) {
     const account = role.source.replace(/^account\./, "");
-    const definition = accounts[account];
+    const definition = adapter.accounts[account];
+    const isAgent = definition?.kind === "agent";
     for (const fieldName of Object.keys(role.fields)) {
-      const layout = resolveFieldLayout(definition, fieldName);
+      const layout = resolveFieldLayout(definition, fieldName, account, idl);
       resolved.push({
         contextKey: `${roleName}.${fieldName}`,
         account,
+        isAgent,
         offset: layout?.offset ?? 0,
         reader: layout ? readerFor(layout.type) : "u64",
         ok: layout !== undefined,
         note: layout
           ? undefined
-          : `could not resolve offset for ${account}.${fieldName}; defaulting to 0`,
+          : `could not resolve offset for ${account}.${fieldName} (no decoder, not found in IDL); defaulting to 0`,
       });
     }
   }
@@ -152,28 +167,111 @@ function resolveRoleFields(
 
 function resolveFieldLayout(
   definition: AccountDefinition | undefined,
-  field: string
+  field: string,
+  account: string,
+  idl: GenericIdl
 ): { offset: number; type: string } | undefined {
-  if (!definition?.decoder) return undefined;
-  const decoder = definition.decoder;
-  if (typeof decoder === "string") {
-    if (decoder === "spl_token_account") return SPL_TOKEN_ACCOUNT_FIELDS[field];
-    if (decoder === "spl_mint") return SPL_MINT_FIELDS[field];
-    return undefined;
+  // 1. Explicit adapter decoder (layout block or spl preset).
+  if (definition?.decoder) {
+    const decoder = definition.decoder;
+    if (typeof decoder === "string") {
+      if (decoder === "spl_token_account") {
+        const preset = SPL_TOKEN_ACCOUNT_FIELDS[field];
+        if (preset) return preset;
+      } else if (decoder === "spl_mint") {
+        const preset = SPL_MINT_FIELDS[field];
+        if (preset) return preset;
+      }
+    } else {
+      const entry = decoder.fields[field];
+      if (entry) return { offset: entry.offset, type: entry.type };
+    }
   }
-  const entry = decoder.fields[field];
-  return entry ? { offset: entry.offset, type: entry.type } : undefined;
+  // 2. IDL account field layout (Anchor 8-byte disc + cumulative field sizes).
+  const idlAccount = findIdlAccount(idl, account);
+  if (idlAccount) {
+    const computed = computeIdlOffset(idlAccount, field, idl);
+    if (computed) return computed;
+  }
+  return undefined;
+}
+
+function findIdlAccount(idl: GenericIdl, adapterAccount: string) {
+  const target = normalizeName(adapterAccount);
+  return idl.accounts.find((account) => normalizeName(account.name) === target);
+}
+
+function accountLayoutFields(idlAccount: { fields?: GenericArg[]; type?: { fields?: GenericArg[] } }): GenericArg[] {
+  return idlAccount.type?.fields ?? idlAccount.fields ?? [];
+}
+
+function computeIdlOffset(
+  idlAccount: { fields?: GenericArg[]; type?: { fields?: GenericArg[] } },
+  field: string,
+  idl: GenericIdl
+): { offset: number; type: string } | undefined {
+  const target = normalizeName(field);
+  let offset = ANCHOR_DISCRIMINATOR_LEN;
+  for (const f of accountLayoutFields(idlAccount)) {
+    if (normalizeName(f.name) === target) {
+      const primitive = primitiveName(f.type);
+      return primitive ? { offset, type: primitive } : undefined;
+    }
+    const size = sizeOf(f.type, idl);
+    if (size === undefined) return undefined; // variable-size prior field — offset not computable
+    offset += size;
+  }
+  return undefined;
+}
+
+const PRIMITIVE_SIZES: Record<string, number> = {
+  bool: 1, u8: 1, i8: 1,
+  u16: 2, i16: 2,
+  u32: 4, i32: 4, f32: 4,
+  u64: 8, i64: 8, f64: 8,
+  u128: 16, i128: 16,
+  pubkey: 32, publicKey: 32, Pubkey: 32,
+};
+
+function sizeOf(typeRef: GenericTypeRef, idl: GenericIdl): number | undefined {
+  if (typeof typeRef === "string") {
+    return PRIMITIVE_SIZES[typeRef]; // string/bytes -> undefined (variable)
+  }
+  if ("array" in typeRef) {
+    const [inner, len] = typeRef.array;
+    const innerSize = sizeOf(inner, idl);
+    return innerSize === undefined ? undefined : innerSize * len;
+  }
+  if ("defined" in typeRef) {
+    const name = typeof typeRef.defined === "string" ? typeRef.defined : typeRef.defined.name;
+    const def = idl.types.find((t) => t.name === name);
+    const fields = def?.type?.fields ?? def?.fields;
+    if (!fields) return undefined; // enums / unknown -> not sized
+    let total = 0;
+    for (const f of fields) {
+      const size = sizeOf(f.type, idl);
+      if (size === undefined) return undefined;
+      total += size;
+    }
+    return total;
+  }
+  return undefined; // option/vec -> variable
+}
+
+function primitiveName(typeRef: GenericTypeRef): string | undefined {
+  return typeof typeRef === "string" && typeRef in PRIMITIVE_SIZES ? typeRef : undefined;
 }
 
 function readerFor(type: string): ResolvedField["reader"] {
   switch (type) {
     case "u8":
+    case "i8":
     case "bool":
       return "u8";
     case "u128":
+    case "i128":
       return "u128";
     case "i64":
-    case "i128":
       return "i64";
     default:
       return "u64";
@@ -186,14 +284,19 @@ function renderFieldRead(field: ResolvedField): string {
       ? `Value::I128(read_i64(&sim.world, &addr, ${field.offset}))`
       : `Value::U128(read_${field.reader}(&sim.world, &addr, ${field.offset}))`;
   const todo = field.ok ? "" : `    // TODO: ${field.note}\n`;
-  return `${todo}    let addr = sim.accounts.${rustIdent(field.account)}.get(${rustStr(
-    field.account
-  )});
+  const addr = field.isAgent
+    ? `sim.accounts.${rustIdent(field.account)}.agent(0)`
+    : `sim.accounts.${rustIdent(field.account)}.get(${rustStr(field.account)})`;
+  return `${todo}    let addr = ${addr};
     ctx.insert(${rustStr(field.contextKey)}.to_string(), ${value});`;
 }
 
 function severity(value: "error" | "warn"): string {
   return value === "warn" ? "Severity::Warn" : "Severity::Error";
+}
+
+function normalizeName(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function rustStr(value: string): string {
