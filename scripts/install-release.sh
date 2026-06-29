@@ -539,7 +539,7 @@ fi
 printf '    1. %sriptide --help%s          %s# verify the launcher%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '    2. %scd <your-program>%s       %s# the Solana program you want to simulate%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '    3. %sriptide init%s            %s# thin .riptide/ bootstrap%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
-printf '    4. %s/riptide-config%s         %s# configure adapter, harness, scenarios, campaign readiness%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+printf '    4. %s/riptide-config%s         %s# configure adapter, guided-sim setup, sweep, and assessment%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '    5. %sriptide doctor%s          %s# check the configured workspace%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '\n  %sNew to Riptide?%s %sriptide --help%s walks through the full surface.\n' "$C_DIM" "$C_RESET" "$C_BOLD" "$C_RESET"
 printf '\n'

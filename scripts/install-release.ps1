@@ -468,7 +468,7 @@ try {
   Write-Styled "            # thin .riptide/ bootstrap" -Color DarkGray
   Write-Styled "    4. " -Color White -NoNewline
   Write-Styled "/riptide-config" -Color Cyan -NoNewline
-  Write-Styled "         # configure adapter, harness, scenarios, campaign readiness" -Color DarkGray
+  Write-Styled "         # configure adapter, guided-sim setup, sweep, and assessment" -Color DarkGray
   Write-Styled "    5. " -Color White -NoNewline
   Write-Styled "riptide doctor" -Color Cyan -NoNewline
   Write-Styled "          # check the configured workspace" -Color DarkGray
