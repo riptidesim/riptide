@@ -28,7 +28,7 @@ not assess, and what the protocol team should review next.]
 ### In scope
 
 - [P0/P1 flow, instruction family, account path, or scenario family]
-- [Campaign or guided-sim path]
+- [Guided-sim sweep or guided-sim flow path]
 - [Invariant, metric, or assertion]
 
 ### Out of scope
@@ -46,7 +46,7 @@ coverage of flows outside the matrix below.
 
 - **Protocol class:** [lending, AMM, staking, payments, governance, bridge, or other]
 - **Target claim:** [narrow statement this report can support]
-- **Evidence profile:** [calibration, focused campaign, adversarial campaign, guided sim, negative control]
+- **Evidence profile:** [calibration, guided-sim sweep, adversarial guided-sim sweep, guided sim, negative control]
 - **P0 flows:** [list]
 - **P1 flows:** [list]
 - **Expected failure modes:** [list]
@@ -60,7 +60,7 @@ Use only these status values: `covered`, `covered by guided sim`, `blocked`,
 
 | Priority | Flow | Status | Evidence tier | Commands | Artifacts and hashes | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| P0 | [flow name] | [covered] | [focused campaign] | [`command`] | [path, hash] | [claim or limit] |
+| P0 | [flow name] | [covered] | [guided-sim sweep] | [`command`] | [path, hash] | [claim or limit] |
 | P0 | [flow name] | [covered by guided sim] | [guided sim] | [`command`] | [path, hash] | [claim or limit] |
 | P0 | [flow name] | [blocked] | [blocked] | [blocked command or none] | [missing artifact] | [blocker and next step] |
 | P1 | [flow name] | [not assessed] | [not assessed] | [none] | [none] | [why not assessed] |
@@ -80,17 +80,17 @@ Use only these status values: `covered`, `covered by guided sim`, `blocked`,
 - **Hashes:** [canonical hash, selected account hash, or "not emitted"]
 - **Notes:** [what this proves and what it does not prove]
 
-### Focused campaigns
+### Guided-sim sweeps
 
 | Objective | Command | Result | Retained evidence | Hashes | Notes |
 | --- | --- | --- | --- | --- | --- |
-| [objective] | [`riptide campaign run ...`] | [result] | [path] | [hash] | [notes] |
+| [objective] | [`riptide sim run ...` + `riptide sim surface ...`] | [result] | [path] | [hash] | [notes] |
 
-### Adversarial campaigns
+### Adversarial guided-sim sweeps
 
 | Failure mode | Command | Result | Retained evidence | Hashes | Notes |
 | --- | --- | --- | --- | --- | --- |
-| [failure mode] | [`riptide campaign run ...`] | [result] | [path] | [hash] | [notes] |
+| [failure mode] | [`riptide sim run ...` (adversarial parameters)] | [result] | [path] | [hash] | [notes] |
 
 ### Guided sims
 
@@ -113,7 +113,7 @@ declared simulations.
 
 - **Severity or priority:** [P0, P1, or informational]
 - **Affected flow:** [flow]
-- **Evidence tier:** [focused campaign, adversarial campaign, guided sim, or negative control]
+- **Evidence tier:** [guided-sim sweep, adversarial guided-sim sweep, guided sim, or negative control]
 - **Reproduction command:**
 
   ```bash
@@ -172,7 +172,7 @@ Expected artifacts:
 
 ## Recommended next work
 
-- [Smallest next campaign tuning step]
+- [Smallest next guided-sim sweep tuning step]
 - [Guided sim needed for dynamic flow]
 - [Protocol-owner input needed]
 - [Manual review, audit, formal methods, or monitoring step outside Riptide]

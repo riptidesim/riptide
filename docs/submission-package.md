@@ -14,58 +14,45 @@ come from interactions between accounts, actors, oracle inputs, and market
 conditions. Riptide gives those teams a deterministic local way to map a
 declared stress case before they launch or change risk parameters.
 
-### 2. Studio Walkthrough
+### 2. Guided-sim Walkthrough
 
-Open the local Studio route:
+Walk the guided-sim assessment flow on a real workspace. Use
+`anchor-uniswap-v2` because it has working `.riptide/` artifacts: adapter,
+guided-sim manifest, Rust flows, and a reviewable artifact.
 
 ```bash
-riptide studio --no-open --case-studies-root <path-to-case-studies>
+riptide init
+# run /riptide-config to finish the adapter and guided sim
+riptide sim generate --adapter .riptide/adapters/anchor-uniswap-v2.toml
+riptide sim run .riptide/sim --flows 20 --out /tmp/auv2-run
+riptide sim surface /tmp/auv2-run --sim .riptide/sim
+riptide assess /tmp/auv2-run
+riptide review /tmp/auv2-run
 ```
-
-Use `raydium-cp-swap` for the current Studio walkthrough because the
-workspace has real `.riptide/` artifacts: adapter, scenario, campaign,
-run collection, packs, readiness reports, and persisted job history.
 
 Show:
 
-- Reports defaulting to `run-collection.json`, with 33 indexed artifacts.
-- The `Open dashboard` drilldown loading
-  `/dashboard?workspace=raydium-cp-swap&source=.riptide/run-collection.json`.
-- The Adapter page simulation diagram with workspace, adapter, campaign,
-  personas, scenario, engine, run, and pack nodes.
-- Campaign preview showing the exact allowlisted command:
+- `riptide sim run` producing a deterministic guided-sim artifact.
+- `riptide sim surface` building the cartography artifacts
+  (`risk-surface.json`, `campaign-summary.json`, `retention-manifest.json`)
+  from the parameter sweep.
+- `riptide assess` generating the byte-deterministic assessment report.
+- `riptide review` accepting the guided-sim root.
+- `/riptide-config` as a prompt handoff surface, not automatic file mutation
+  or hidden agent execution.
 
-  ```text
-  riptide campaign run .riptide/campaigns/raydium-cp-swap-smoke.campaign.toml --harness .riptide/harness
-  ```
+### 3. Determinism Check
 
-- Agent chat / config handoff as a prompt handoff surface, not automatic
-  file mutation or hidden agent execution.
-
-### 3. CLI Evidence
-
-Switch to the flagship proof from the repository root:
+Re-run the assessment over the same root to show the bytes are stable:
 
 ```bash
-bash fixtures/replays/lst-lending-contagion-proof/rerun.sh
+riptide assess /tmp/auv2-run
+riptide assess /tmp/auv2-run
 ```
 
-Expected canonical hash:
-
-```text
-d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb
-```
-
-Then validate the emitted pack:
-
-```bash
-riptide review .riptide/pack/replay-multi-lst-lending-contagion-proof-upstream
-```
-
-The review command exits `1` for this proof because invariant firings are
-the expected signal. The useful check is that hash verification passes
-and the invariant section identifies the upstream slash and downstream
-bad-debt trace.
+`riptide assess` is ingest-only and byte-deterministic: two runs over the same
+guided-sim root produce byte-identical `assessment.json` and `assessment.md`,
+so a reviewer can reproduce the exact bytes.
 
 ### 4. Trust Boundary
 
@@ -79,15 +66,13 @@ mainnet monitoring, Cloud, or a promise that every failure mode was found.
 | Shot | Surface | Capture |
 | --- | --- | --- |
 | Problem setup | Title terminal or README | One sentence: deterministic stress testing for Solana economic risk. |
-| Studio workspace | Studio Reports | `raydium-cp-swap`, 33 artifacts, `run-collection.json`. |
-| Evidence viewer | Studio Reports | Markdown/JSON report viewer and artifact details. |
-| Dashboard drilldown | Studio dashboard | Scoped `workspace` + `source` URL and run collection table. |
-| Simulation diagram | Studio Adapter | Graph nodes and clicked adapter source path. |
-| Job preview | Studio Campaigns | Allowlisted `argv`, `cwd`, expected artifact, notes. |
-| Config handoff | Studio Agent chat | Prompt/handoff surface; no automatic file edits. |
-| Flagship rerun | Terminal | `rerun.sh`, canonical hash line. |
-| Review boundary | Terminal | `riptide review`, hash verification, invariant firings, exit-code note. |
-| Closing | Trust docs | Link trust page, CI handoff, pack docs, and known limits. |
+| Guided-sim run | Terminal | `riptide sim run`, deterministic guided-sim artifact path. |
+| Cartography build | Terminal | `riptide sim surface`, `risk-surface.json` + `campaign-summary.json`. |
+| Assessment | Terminal | `riptide assess`, generated `assessment.md`. |
+| Review boundary | Terminal | `riptide review`, accepted root, invariant section, exit-code note. |
+| Config handoff | Terminal | `/riptide-config` prompt/handoff surface; no automatic file edits. |
+| Determinism | Terminal | Second `riptide assess`, byte-identical artifacts. |
+| Closing | Trust docs | Link trust page, case-study readiness, and known limits. |
 
 ## Submission Copy
 
@@ -95,37 +80,34 @@ mainnet monitoring, Cloud, or a promise that every failure mode was found.
 
 Riptide is an open-source local simulation framework that helps Solana
 teams run deterministic multi-agent stress tests and forward
-reproducible evidence packs before launch or risk-parameter changes.
+reproducible evidence before launch or risk-parameter changes.
 
 ### Short Description
 
 Riptide runs declared Solana protocol scenarios in LiteSVM, drives them
 with configurable actor personas, and writes reviewer-facing evidence:
-reports, dashboards, canonical hashes, rerun scripts, and CI handoff
-workflows. The current trust path includes a flagship multi-program
-LST-to-lending contagion proof that reruns from committed inputs and
-asserts canonical hash
-`d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb`.
-Riptide Studio is the local visual workflow for inspecting real
-workspace artifacts, previewing allowlisted jobs, and preparing
-`riptide-config` handoff prompts.
+guided-sim artifacts, risk-surface and assessment reports, and exact rerun
+commands. The current trust path is the guided-sim assessment flow: generate
+a guided sim, run a parameter sweep, build the cartography artifacts with
+`riptide sim surface`, and generate a byte-deterministic report with
+`riptide assess`. `/riptide-config` is the agent handoff that finishes a
+repo's adapter and guided sim.
 
 ### Longer Summary
 
 Riptide is built for Solana teams that need more than a happy-path local
 test but cannot afford heavyweight bespoke risk infrastructure. A team
-declares adapters, accounts, personas, scenarios, campaigns, and
-invariants in its repo. Riptide executes those experiments locally in a
-deterministic LiteSVM-backed engine, then writes evidence that another
-engineer can inspect or rerun.
+declares adapters, accounts, personas, scenarios, and invariants in its
+repo. Riptide executes those experiments locally in a deterministic
+LiteSVM-backed simulation, then writes evidence that another engineer can
+inspect or rerun.
 
 The current pre-submission package focuses on trust over breadth. The
-flagship proof models an upstream liquid-staking slash propagating into
-downstream lending bad debt through one declared bridge. The proof ships
-with a runbook, expected canonical hash, review command, and GitHub
-Actions handoff. Studio shows the local workspace path: artifact library,
-report viewer, simulation graph, dashboard drilldown, campaign job
-preview, and setup handoff. The case-study readiness page separates
+guided-sim assessment flow takes a Solana program repo to a reviewable
+report: a guided-sim parameter sweep produces `risk-surface.json` and
+`campaign-summary.json` through `riptide sim surface`, and `riptide assess`
+turns a guided-sim root into a byte-deterministic assessment that another
+engineer can reproduce or rerun. The case-study readiness page separates
 demo-ready rows from blocked rows so the project does not claim every
 external protocol is wired end to end.
 
@@ -137,11 +119,9 @@ risk parameter or launch plan needs more review.
 ## Links
 
 - [Trust and review path](trust.md)
-- [Flagship proof runbook](../fixtures/replays/lst-lending-contagion-proof/README.md)
-- [Evidence packs](pack.md)
-- [CI handoff](ci-handoff.md)
+- [Protocol assessment workflow](protocol-assessment.md)
+- [Guided sim](guided-sim.md)
 - [Case-study corpus readiness](case-study-corpus.md)
-- [Studio](studio.md)
 - [Audit handoff packet](audit-handoff.md)
 
 ## Explicit Cuts

@@ -53,7 +53,7 @@ Until Agave ships an SBF toolchain that cleanly supports the newer Rust ecosyste
 
 Off-chain:
 
-- `cargo test -p riptide-engine`
+- `cargo test --workspace`
 - `cd cli && npm test`
 
 On-chain:
@@ -73,35 +73,3 @@ These vendor copies can be removed once `cargo-build-sbf` ships a platform-tools
 release whose bundled rustc is `>= 1.85`. After that, drop the
 `[patch.crates-io]` block in `programs/lending_pool/Cargo.toml` and let cargo
 resolve from crates.io directly.
-
-## Running the LiteSVM benchmark (primary path)
-
-The shipped CLI uses an in-process LiteSVM backend. To benchmark the target
-workload (100 agents × 180 ticks):
-
-```bash
-cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
-BENCH_AGENTS=100 BENCH_TICKS=180 cargo run --release -p riptide-engine \
-    --features litesvm-backend --example litesvm_benchmark
-```
-
-No external validator or funded keypair is required.
-
-## Running the validator integration test (historical / parity reference)
-
-The deploy → deposit → borrow → liquidate sequence is exercised against a
-live `solana-test-validator` by an env-var-gated integration test. This is a
-**parity reference path**, not the primary execution backend.
-
-```bash
-# In one terminal:
-solana-test-validator
-
-# In another:
-cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
-RIPTIDE_RUN_VALIDATOR_TESTS=1 RIPTIDE_PAYER=$HOME/.config/solana/id.json \
-  cargo test -p riptide-engine --test lending_integration -- --nocapture
-```
-
-Without `RIPTIDE_RUN_VALIDATOR_TESTS=1` the test self-skips, so it is safe to
-run as part of the default `cargo test -p riptide-engine` gate in CI.

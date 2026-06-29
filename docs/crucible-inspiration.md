@@ -8,14 +8,14 @@ The license allows reuse, modification, and sublicensing, provided the Crucible 
 
 ## Product Fit
 
-Riptide should not become a generic byte fuzzer by default. Its strongest claim remains deterministic, declared economic simulation: adapters, personas, scenarios, invariants, replays, campaign results, and evidence packs that reviewers can rerun.
+Riptide should not become a generic byte fuzzer by default. Its strongest claim remains deterministic, declared economic simulation: adapters, project-owned guided-sim flows, invariants, and reviewable guided-sim artifacts that reviewers can rerun.
 
 The right fit is a **fuzz-assisted discovery layer** beside guided simulations:
 
 1. Search for interesting action sequences with coverage, state, and invariant feedback.
 2. Retain the seed, action sequence, account hashes, coverage summary, and failure reason.
 3. Minimize the sequence.
-4. Promote the minimized finding into a normal Riptide replay, scenario, campaign cell, or guided-sim artifact.
+4. Promote the minimized finding into a normal Riptide guided-sim artifact.
 
 That keeps fuzzing as a discovery tool and Riptide evidence as the reviewed artifact.
 
@@ -32,14 +32,14 @@ That keeps fuzzing as a discovery tool and Riptide evidence as the reviewed arti
 | Bytecode and source-level LCOV coverage from LiteSVM traces | High value, but dependency-sensitive | Treat as a dedicated milestone. Validate LiteSVM trace API compatibility before copying coverage code. |
 | Stateful fuzzing with a coverage-indexed state pool | Valuable but heavy | Later-stage work. It changes execution semantics and memory behavior enough to need its own design and benchmark pass. |
 | Coverage/state-aware scheduling | Good fit after coverage and state fingerprints exist | Start simple: prefer seeds that add coverage, trigger new invariant observations, or reach rare action/state paths. |
-| Remote fuzzing protocol and pulse output | Useful later | Add only after local artifacts are stable. Riptide's first-class output should remain JSON artifacts and evidence packs. |
+| Remote fuzzing protocol and pulse output | Useful later | Add only after local artifacts are stable. Riptide's first-class output should remain JSON guided-sim artifacts. |
 
 ## What Not To Copy Wholesale
 
 - Do not import LibAFL as the first step. It would add a large engine dependency before Riptide has its own typed action artifact format.
 - Do not copy Crucible's public macro surface verbatim. Riptide should keep `#[riptide_sim]`, `#[flow]`, and generated crate ownership clear.
 - Do not make coverage a blanket safety claim. Coverage is diagnostic evidence; it does not mean the modeled economic experiment is sufficient.
-- Do not replace adapter campaigns with fuzzing. Campaigns answer "where does this declared risk frontier break?" Fuzzing answers "can the search find a surprising path worth promoting?"
+- Do not replace declared guided-sim sweeps with fuzzing. A declared sweep answers "where does this declared risk frontier break?" Fuzzing answers "can the search find a surprising path worth promoting?"
 
 ## Roadmap Layers
 
@@ -134,7 +134,7 @@ Add state-pool fuzzing only after the stateless structured runner has stable art
 5. Design minimization artifacts before exposing a minimization workflow.
 6. Add typed action metadata and range constraints.
 7. Add coverage artifact support behind the existing `sim.coverage` manifest flag.
-8. Promote minimized findings into replay/campaign artifacts so they enter normal Riptide review.
+8. Promote minimized findings into guided-sim artifacts so they enter normal Riptide review.
 
 ## Claim Boundary
 

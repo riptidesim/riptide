@@ -18,7 +18,7 @@ agent behavior, and shows where your protocol starts losing economic headroom.
 For a first assessment, open your Solana program repo in an agent and invoke
 [`riptide-assess`](skills/riptide-assess/SKILL.md). The skill detects the
 protocol family, asks up to three scoping questions, uses the existing Riptide
-commands to run the campaign, and returns `assessment.md`, `assessment.json`,
+commands to run the guided simulation, and returns `assessment.md`, `assessment.json`,
 the evidence-pack path, and the exact rerun commands.
 
 [Assess With The Skill](#assess-with-the-skill) - [Advanced / Power Users](#advanced--power-users) - [Trust & Review](docs/trust.md) - [Docs](#docs)
@@ -40,12 +40,6 @@ Install Riptide:
 curl -fsSL https://riptide.run/install | sh
 ```
 
-Windows PowerShell:
-
-```powershell
-irm https://riptide.run/install.ps1 | iex
-```
-
 Then open the Solana program repo you want to assess in your agent and ask it
 to use the front-door skill:
 
@@ -61,68 +55,39 @@ signoff or complete protocol safety.
 
 ## Advanced / Power Users
 
-Use Studio or the CLI directly when you want manual control, a terminal
-workflow, CI integration, or a scriptable path after the assessment flow has
-shown you the shape of the evidence.
-
-### Studio
-
-Open Studio from the Solana program repo you want to inspect:
-
-```bash
-riptide studio --workspace .
-```
-
-Studio opens in your browser and stays bound to localhost:
-
-- **Workspace overview** for the active repo, recent runs, reports, queued jobs,
-  and next actions.
-- **Config handoff** for repos that still need `.riptide/` setup. Studio
-  creates a structured handoff prompt; it does not silently edit files or run an
-  agent.
-- **Launch jobs** for allowlisted Riptide actions such as run, replay,
-  campaign, review, and readiness. Studio previews the exact job before it
-  starts.
-- **Evidence library** for runs, campaigns, packs, retained cases, guided-sim
-  artifacts, readiness reports, scenarios, and adapters.
-- **Simulation diagram** showing how adapter, semantics, personas, scenarios,
-  campaigns, invariants, engine runs, reports, and packs connect.
-- **Dashboard drilldown** for opening the run/replay dashboard against a scoped
-  artifact.
-
-Studio is not a generic shell, does not push or publish, and stays on the local
-machine. See [Studio](docs/studio.md) for flags, job kinds, persistence, and
-the trust boundary.
+Use the CLI directly when you want manual control, a terminal workflow, CI
+integration, or a scriptable path after the assessment flow has shown you the
+shape of the evidence.
 
 ### CLI Verbs
 
-Use the CLI when you want a terminal workflow, CI integration, or a scriptable
-path. After Riptide is installed and your repo has `.riptide/` configuration,
-the short path is:
+After Riptide is installed and your repo has a configured `.riptide/sim/`
+guided-sim crate, the guided-sim assessment flow is:
 
 ```bash
-riptide run --serve
-riptide campaign run .riptide/campaigns/<risk>.campaign.toml
-riptide review <campaign-root>
+riptide sim generate --adapter .riptide/adapters/<program>.toml
+riptide sim run .riptide/sim --flows 20 --out .riptide/sim/artifacts/run-001
+riptide sim surface .riptide/sim/artifacts/run-001 --sim .riptide/sim
+riptide assess .riptide/sim
+riptide review .riptide/sim/artifacts/run-001
 ```
 
 For first-time repo setup, use [Install: First Run In Your Repo](docs/install.md#first-run-in-your-repo).
-For the deeper command surface, read [Architecture](docs/architecture.md),
-[Campaign Runner](docs/campaigns.md), and [Evidence packs](docs/pack.md).
+For the deeper command surface, read [Architecture](docs/architecture.md) and
+[Guided simulations](docs/guided-sim.md).
 
 ## What Riptide Needs
 
-Studio and the CLI launch the same local Riptide engine. Riptide needs these
-project artifacts on disk:
+Riptide needs these project artifacts on disk:
 
 - A compiled Solana program and IDL.
 - An adapter that maps accounts, actions, observations, and invariants.
-- Personas and scenarios that describe the experiment.
-- An optional setup harness when accounts need custom bytes before tick 0.
+- A guided-sim crate (`.riptide/sim/`) with project-owned flows, invariants,
+  and services that describe the experiment.
 
 Those files stay reviewable in your repo. Riptide reads them, runs declared
-experiments, and writes reports, dashboards, and reviewer-ready packs back to
-disk.
+guided simulations, and writes reviewer-ready evidence and assessment reports
+back to disk.
 
 ## Docs
 
@@ -130,12 +95,10 @@ Detailed command-line workflows live in the docs, not in this README.
 
 | Read | Use it for |
 | --- | --- |
-| [Studio](docs/studio.md) | Studio capabilities, flags, workspace behavior, job launcher, config handoff, and trust boundary. |
-| [Install](docs/install.md) | Hosted installer, repository build, local npm package, Docker, upgrades, and first run in your repo. |
-| [Architecture](docs/architecture.md) | The adapter/persona/scenario stack, LiteSVM runtime, determinism, and dashboard artifacts. |
-| [Campaign Runner](docs/campaigns.md) | Deterministic campaign sweeps, retained cases, and review handoff. |
-| [Evidence packs](docs/pack.md) | Pack shape, canonical hashes, rerun scripts, and reviewer workflow. |
-| [Trust and review path](docs/trust.md) | Flagship proof rerun, CI handoff, case-study readiness, Studio, known limits, and reviewer ask. |
+| [Install](docs/install.md) | Hosted installer, repository build, Docker, upgrades, and first run in your repo. |
+| [Architecture](docs/architecture.md) | The adapter stack, the LiteSVM-backed guided-sim runtime, codegen, and determinism. |
+| [Guided simulations](docs/guided-sim.md) | The `.riptide/sim/` crate, the run/surface/assess/review flow, and generated-file ownership. |
+| [Trust and review path](docs/trust.md) | The guided-sim evidence path, known limits, and reviewer ask. |
 | [Audit handoff packet](docs/audit-handoff.md) | Launch/review checklist, reviewer packet template, and follow-up issue format. |
-| [Submission package](docs/submission-package.md) | Demo script, shot list, and bounded submission copy for the shipped trust path. |
+| [Submission package](docs/submission-package.md) | Demo script and bounded submission copy for the shipped guided-sim path. |
 | [Contributing](CONTRIBUTING.md) | Development setup, project structure, code style, and contribution rules. |
