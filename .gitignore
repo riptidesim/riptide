@@ -37,3 +37,6 @@ reports/case-study-readiness/
 
 # Local scratch artifacts from close gates, npm packs, and temporary reruns.
 tmp/
+
+# Internal sprint/close-gate records + raw logs — never public (see .specs/ + STATE.md)
+reports/
