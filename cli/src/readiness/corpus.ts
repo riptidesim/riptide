@@ -133,18 +133,18 @@ export const READINESS_GATE_DEFINITIONS: readonly ReadinessGateDefinition[] = [
   },
   {
     id: "adapter-lint",
-    title: "Adapter lint",
+    title: "Adapter readiness",
     description:
-      "Run static adapter lint against the repo-local adapter TOML and its declared lineage.",
-    command_template: "riptide lint <adapter>",
+      "Run the per-adapter static report against the repo-local adapter TOML and its declared lineage.",
+    command_template: "riptide doctor",
     executed_by_default: false,
   },
   {
     id: "direct-baseline-run",
-    title: "Direct baseline run",
+    title: "Guided-sim baseline run",
     description:
-      "Run a repo-local baseline run-config through riptide run with the repo-local adapter.",
-    command_template: "riptide run <run-config> --adapter <adapter>",
+      "Generate and run a repo-local guided simulation to produce baseline evidence from the repo-local adapter.",
+    command_template: "riptide sim generate --adapter <adapter>; riptide sim run .riptide/sim --flows <n>",
     executed_by_default: false,
   },
   {
@@ -157,11 +157,11 @@ export const READINESS_GATE_DEFINITIONS: readonly ReadinessGateDefinition[] = [
   },
   {
     id: "campaign-validate-plan-run",
-    title: "Campaign validate, plan, and run",
+    title: "Cartography and assessment",
     description:
-      "Validate, plan, execute, and review a repo-local campaign input without inferring campaign readiness from static files alone.",
+      "Build cartography artifacts from a guided-sim sweep and generate an assessment without inferring readiness from static files alone.",
     command_template:
-      "riptide campaign validate <campaign>; riptide campaign plan <campaign>; riptide campaign run <campaign>",
+      "riptide sim surface <run-path> --sim .riptide/sim; riptide assess <guided-sim-root>",
     executed_by_default: false,
   },
   {
@@ -352,25 +352,21 @@ function commandResultsFor(input: {
     staticHealthResult(input.repoPath, input.report),
     skippedGate({
       gate: "adapter-lint",
-      command: adapter
-        ? `cd ${shellQuote(input.repoPath)} && riptide lint ${shellQuote(adapter)}`
-        : `cd ${shellQuote(input.repoPath)} && riptide lint .riptide/adapters/<adapter>.toml`,
+      command: `cd ${shellQuote(input.repoPath)} && riptide doctor`,
       artifacts: adapter ? [adapter] : [],
       nextAction: adapter
-        ? "Run adapter lint in the validation lane before upgrading the launch claim."
-        : "Add a repo-local adapter TOML before running adapter lint.",
+        ? "Run the per-adapter doctor report in the validation lane before upgrading the launch claim."
+        : "Add a repo-local adapter TOML before running the per-adapter doctor report.",
     }),
     skippedGate({
       gate: "direct-baseline-run",
-      command:
-        adapter && baseline
-          ? `cd ${shellQuote(input.repoPath)} && riptide run ${shellQuote(baseline)} --adapter ${shellQuote(adapter)}`
-          : `cd ${shellQuote(input.repoPath)} && riptide run .riptide/scenarios/baseline/run-config.json --adapter .riptide/adapters/<adapter>.toml`,
+      command: adapter
+        ? `cd ${shellQuote(input.repoPath)} && riptide sim generate --adapter ${shellQuote(adapter)} && riptide sim run .riptide/sim --flows 8`
+        : `cd ${shellQuote(input.repoPath)} && riptide sim generate --adapter .riptide/adapters/<adapter>.toml && riptide sim run .riptide/sim --flows 8`,
       artifacts: [adapter, baseline].filter(isString),
-      nextAction:
-        adapter && baseline
-          ? "Run the baseline scenario from a fresh shell before claiming direct execution support."
-          : "Add a baseline run-config and adapter before attempting a direct baseline run.",
+      nextAction: adapter
+        ? "Generate and run the guided simulation from a fresh shell before claiming local execution support."
+        : "Add a repo-local adapter before generating and running a guided simulation.",
     }),
     skippedGate({
       gate: "guided-sim-run-review",
@@ -384,13 +380,13 @@ function commandResultsFor(input: {
     }),
     skippedGate({
       gate: "campaign-validate-plan-run",
-      command: campaign
-        ? `cd ${shellQuote(input.repoPath)} && riptide campaign validate ${shellQuote(campaign)} && riptide campaign plan ${shellQuote(campaign)} --out /tmp/riptide-campaign-${input.slug} && riptide campaign run ${shellQuote(campaign)} --out /tmp/riptide-campaign-${input.slug}`
-        : `cd ${shellQuote(input.repoPath)} && riptide campaign validate .riptide/campaigns/<campaign>.toml`,
-      artifacts: campaign ? [campaign] : [],
-      nextAction: campaign
-        ? "Run campaign validate, plan, and run before claiming campaign execution support."
-        : "No campaign input is present; keep this gate skipped unless a campaign is added.",
+      command: guidedManifest
+        ? `cd ${shellQuote(input.repoPath)} && riptide sim surface .riptide/sim/artifacts/<dir> --sim ${shellQuote(guidedManifest)} && riptide assess .riptide/sim`
+        : `cd ${shellQuote(input.repoPath)} && riptide sim surface .riptide/sim/artifacts/<dir> --sim .riptide/sim && riptide assess .riptide/sim`,
+      artifacts: [guidedManifest, campaign].filter(isString),
+      nextAction: guidedManifest
+        ? "Build cartography artifacts and run the assessment before claiming assessment support."
+        : "No guided-sim manifest is present; keep this gate skipped unless guided support is added.",
     }),
     skippedGate({
       gate: "fresh-clone-eligibility",

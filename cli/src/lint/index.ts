@@ -192,7 +192,7 @@ export async function lintAdapter(input: LintInput): Promise<LintReport> {
       subject: "[lineage]",
       message:
         "adapter has no [lineage] block — machine validation is unavailable, nothing to check.",
-      hint: "Author a [lineage] block with `idl_source`, or run `riptide lineage <adapter>` to inspect the current state.",
+      hint: "Author a [lineage] block with `idl_source` to record the adapter's IDL provenance for machine validation.",
     });
     return {
       adapterPath,
@@ -216,8 +216,8 @@ export async function lintAdapter(input: LintInput): Promise<LintReport> {
         ? "lineage source is non-JSON and remains inspection-only; the adapter's [semantics] block was machine-checked by lint."
         : "machine validation is only available for JSON IDL sources; this source kind is inspection-only.",
       hint: hasSemantics
-        ? "Use `riptide lineage <adapter>` for reviewer-readable lineage inspection; semantics lint has already validated the economic preflight."
-        : "Use `riptide lineage <adapter>` for reviewer-readable inspection of the authored lineage.",
+        ? "This lineage source stays inspection-only; semantics lint has already validated the economic preflight."
+        : "Provide a JSON IDL source to enable machine validation; this lineage source otherwise stays inspection-only.",
     });
     return {
       adapterPath,

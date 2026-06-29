@@ -38,9 +38,8 @@ inside that generated assessment; it is not audit signoff and must not
 become the protocol assessment itself. Assess records simulation
 evidence over the declared, fixed-seed region the campaign covered.
 
-Copy the voice of `docs/case-studies/lending.md`. That file is
-the canonical tone reference: causal, mechanical, modest about
-what the run proves, specific about what it observed. Do **not**
+Use a causal, mechanical voice: modest about what the run proves,
+specific about what it observed. Do **not**
 restate the mechanical report's summary table in prose — the point
 of the narrative is to explain *why the numbers in the table are
 what they are*, tick by tick.
@@ -102,7 +101,7 @@ you are both the reader and the writer.
 - Confirm `report.md` sits alongside the chosen
   `simulation-result.json`. If it does not, stop and tell the user
   to run the simulation with artifact generation enabled (or point
-  them at the artifact directory produced by `riptide run`) — the
+  them at the artifact directory produced by `riptide sim run`) — the
   narrative depends on the mechanical report as a
   co-signed fact set.
 

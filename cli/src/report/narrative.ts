@@ -190,7 +190,7 @@ export function renderNarrative(
     lines.push("```");
   } else {
     lines.push("```sh");
-    lines.push("riptide run path/to/run-config.json");
+    lines.push("riptide sim run .riptide/sim --flows 8");
     lines.push("```");
   }
   lines.push("");

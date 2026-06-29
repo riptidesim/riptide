@@ -41,7 +41,7 @@ import type { JsonScalar, ParameterDistribution } from "./schema.js";
  * ## Determinism contract (load-bearing)
  *
  * The surface must be byte-stable for a fixed campaign digest + seed policy, so
- * a reviewer can rerun `riptide campaign run` and `sha256sum risk-surface.json`
+ * a reviewer can rerun `riptide sim surface` and `sha256sum risk-surface.json`
  * to an identical value. Every ordering and numeric choice below is fixed and
  * derived only from the spec + sampled values — never from wall-clock, run
  * order, filesystem order, or `Map`/`Object` insertion order:

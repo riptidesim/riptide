@@ -142,7 +142,7 @@ export function renderDoctorReport(report: DoctorReport, opts: RenderOptions = {
 
   lines.push(
     colorize.dim(
-      "Static diagnostic only — no build, no network, no simulation. Use `riptide lint <adapter>` for the full per-adapter report."
+      "Static diagnostic only — no build, no network, no simulation. This is the per-adapter report; use `riptide readiness .` to inspect protocol evidence readiness."
     )
   );
   lines.push("");

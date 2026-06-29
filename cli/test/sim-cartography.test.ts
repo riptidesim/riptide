@@ -179,7 +179,7 @@ test("sim cartography: guided-sim root assesses as cartography, discloses proven
     assert.match(md, /## Risk Surface/);
     assert.doesNotMatch(md, /correctness-dominated assessment, so there is no risk-surface heatmap/);
     // Provenance is disclosed on the first screen and names the true source.
-    assert.match(md, /not produced by `riptide campaign run`/);
+    assert.match(md, /campaign-cartography artifacts via `riptide sim surface`/);
     assert.match(md, /guided-simulation parameter sweep converted into campaign-cartography artifacts/i);
     // Evidence tiers are guided-sim-labelled, never bare campaign tiers.
     assert.match(md, /guided-sim sweep/);

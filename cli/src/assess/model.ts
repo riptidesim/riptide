@@ -38,8 +38,8 @@ import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js"
  *
  * Ingestion is pure I/O over already-written artifacts: it reads the three JSON
  * files from a campaign root and folds caller-supplied scoping inputs over
- * them. It NEVER runs the engine or a campaign. You run `riptide campaign run`
- * first, then `riptide assess <campaign-root>`.
+ * them. It NEVER runs the engine. You run `riptide sim run` then
+ * `riptide sim surface` to write the root, then `riptide assess <guided-sim-root>`.
  *
  * ## Determinism contract (load-bearing, mirrors `surface.ts`)
  *
@@ -781,7 +781,7 @@ export interface BuildAssessmentInput {
 }
 
 export interface IngestAssessmentOptions {
-  /** Path to a campaign root produced by `riptide campaign run`. */
+  /** Path to a guided-sim root produced by `riptide sim surface`. */
   campaignRoot: string;
   /** Override the reviewer-facing root path. Defaults to the exact resolved campaign root. */
   campaignRootLabel?: string;
@@ -819,7 +819,7 @@ export async function ingestAssessment(options: IngestAssessmentOptions): Promis
     path.join(root, CAMPAIGN_SUMMARY_FILE),
     CAMPAIGN_SUMMARY_FILE,
     "campaign-summary.v1",
-    "Run `riptide campaign run <campaign.toml>` first, then assess the campaign root it writes."
+    "Run `riptide sim run` then `riptide sim surface` to write the root first, then `riptide assess <guided-sim-root>`."
   );
   if (summary.schema_version !== "campaign-summary.v1") {
     throw new AssessmentIngestError(
@@ -2313,20 +2313,19 @@ function declaredRationale(verdict: AssessmentVerdict): string {
 /** Adapter marker the guided-sim → cartography producer stamps on its summary. */
 export const GUIDED_SIM_ADAPTER = "guided-sim";
 
-/** Reproduction command for guided-sim-derived cartography (not a campaign run). */
+/** Reproduction command for guided-sim-derived cartography. */
 const GUIDED_SIM_REPRODUCTION_COMMAND =
   "riptide sim run (sweep) -> riptide sim surface -> riptide assess";
 
 /**
  * First-screen provenance disclosure for guided-sim-derived cartography. The
- * gradient and failure rates are real on-chain guided-sim execution, but the
- * cartography artifacts were synthesized from a sweep, not produced by
- * `riptide campaign run`. Stated up front so the report never reads as a
- * campaign run it was not.
+ * gradient and failure rates are real on-chain guided-sim execution, and the
+ * cartography artifacts were synthesized from a sweep by `riptide sim surface`.
+ * Stated up front so the report names its true evidence source.
  */
 export const GUIDED_SIM_PROVENANCE_DISCLOSURE =
   "Evidence source: a guided-simulation parameter sweep converted into " +
-  "campaign-cartography artifacts; this was not produced by `riptide campaign run`. " +
+  "campaign-cartography artifacts via `riptide sim surface`. " +
   "The failure rates and gradient are real guided-sim execution over the declared, " +
   "fixed-seed swept region.";
 

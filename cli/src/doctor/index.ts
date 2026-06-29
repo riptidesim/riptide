@@ -383,7 +383,7 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
       load: "pass",
       lint: "fail",
       note: `lint crashed: ${(err as Error).message ?? String(err)}`,
-      hint: "rerun `riptide lint <adapter>` for the full diagnostic",
+      hint: "fix the adapter TOML and rerun `riptide doctor` for the full diagnostic",
     };
   }
 
@@ -399,15 +399,15 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
   if (failCount > 0) {
     lintStatus = "fail";
     note = `${lintReport.sourceKind}: ${failCount} fail / ${warnCount} warn`;
-    hint = `run \`riptide lint ${d.name}\` for the full diagnostic`;
+    hint = `run \`riptide readiness .\` for the full diagnostic on ${d.name}`;
   } else if (warnCount > 0) {
     lintStatus = "warn";
     if (lintReport.sourceKind === "non-json") {
       note = "non-JSON lineage source — machine validation unavailable (inspection-only)";
-      hint = `run \`riptide lineage ${d.name}\` for the reviewer-readable inspection surface`;
+      hint = `run \`riptide readiness .\` for the reviewer-readable inspection surface on ${d.name}`;
     } else {
       note = `${lintReport.sourceKind}: ${warnCount} warn (uncovered surface)`;
-      hint = `run \`riptide lint ${d.name}\` to see uncovered fields`;
+      hint = `run \`riptide readiness .\` to see uncovered fields on ${d.name}`;
     }
   } else if (skipCount > 0 && passCount === 0) {
     // Pure SKIP — no [lineage] block at all. Skipped machine validation

@@ -610,7 +610,7 @@ test("runDoctor: discovered adapter with broken instruction → lint FAIL → do
   assert.equal(exit, 2, `expected 2, got ${exit}. stdout:\n${out}`);
   assert.match(out, /my-program/);
   assert.match(out, /lint=fail/);
-  assert.match(out, /riptide lint my-program/);
+  assert.match(out, /riptide readiness \.` for the full diagnostic on my-program/);
 });
 
 test("runDoctor: adapter present + no IDL on disk → idl-unreadable FAIL", async () => {

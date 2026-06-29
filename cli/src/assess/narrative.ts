@@ -215,7 +215,7 @@ function buildExecutiveSummary(
         `parameter region. ${recommendation.statement}`;
 
   // Lead with the provenance disclosure for guided-sim-derived cartography so
-  // the report never reads as a `riptide campaign run` it was not.
+  // the report names its true evidence source up front.
   return guidedSim
     ? [GUIDED_SIM_PROVENANCE_DISCLOSURE, whatRan, verdict, evidence, model.claim_boundary]
     : [whatRan, verdict, evidence, model.claim_boundary];
