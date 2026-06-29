@@ -5,14 +5,13 @@
 // - `--blank --name <program>` explicitly opts into a manual stub
 // - Anchor.toml or matching target artifacts identify the adapter name
 // - plain init never opens the questionnaire
-// - the --wizard path collects program name, protocol, setup harness,
+// - the --wizard path collects program name, protocol,
 //   inline personas, agents, ticks, seeds; defaults reproduce the non-interactive output
 // - non-interactive runs (--yes, no-TTY, --quiet) scaffold only the adapter,
 //   GETTING-STARTED.md, and .gitignore entries; no scenarios or personas are generated.
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
@@ -51,9 +50,6 @@ const SINGLE_ANCHOR = `[programs.localnet]
 widget_factory = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
 `;
 
-const INIT_ADAPT_E2E_ENABLED = process.env.RIPTIDE_INIT_ADAPT_E2E === "1";
-const CLI_ENTRYPOINT = path.resolve(process.cwd(), "dist/src/index.js");
-
 function initInvariant(protocol: "lending", name: string): InitInvariantConfig {
   const entry = invariantChoicesFor(protocol).find((choice) => choice.name === name);
   assert.ok(entry, `expected invariant catalog entry ${name}`);
@@ -62,37 +58,6 @@ function initInvariant(protocol: "lending", name: string): InitInvariantConfig {
 
 function countOccurrences(body: string, needle: string): number {
   return body.split(needle).length - 1;
-}
-
-async function runCli(args: string[], cwd: string): Promise<{ code: number; stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const env: NodeJS.ProcessEnv = {
-      PATH: process.env.PATH ?? "",
-      HOME: process.env.HOME ?? ""
-    };
-    if (process.env.RIPTIDE_ENGINE_BIN) {
-      env.RIPTIDE_ENGINE_BIN = process.env.RIPTIDE_ENGINE_BIN;
-    }
-    const child = spawn(process.execPath, [CLI_ENTRYPOINT, ...args], {
-      cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-      env
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      stdout += chunk;
-    });
-    child.stderr.on("data", (chunk: string) => {
-      stderr += chunk;
-    });
-    child.once("error", reject);
-    child.once("close", (code) => {
-      resolve({ code: code ?? -1, stdout, stderr });
-    });
-  });
 }
 
 async function captureStderr(fn: () => Promise<void>): Promise<string> {
@@ -419,10 +384,9 @@ anchor_uniswap_v2 = "11111111111111111111111111111111"
   assert.deepEqual(runConfig.personas, []);
 });
 
-test("renderGettingStarted: harnessed repos promote one-seed harness smoke", () => {
+test("renderGettingStarted: guided-sim commands and amm runtime note", () => {
   const body = renderGettingStarted("anchor-uniswap-v2", {
     scenarios: ["baseline"],
-    harnessCreated: true,
     seeds: 50,
     protocol: "amm",
     mode: "wizard"
@@ -430,10 +394,14 @@ test("renderGettingStarted: harnessed repos promote one-seed harness smoke", () 
 
   assert.match(
     body,
-    /riptide run baseline --adapter \.riptide\/adapters\/anchor-uniswap-v2\.toml --harness \.riptide\/harness --seeds 1 --seed-root 1337/
+    /riptide sim generate --adapter \.riptide\/adapters\/anchor-uniswap-v2\.toml/
   );
-  assert.doesNotMatch(body, /bare `riptide run` executes a 50-seed sweep/);
+  assert.match(body, /riptide sim run \.riptide\/sim --flows 8/);
+  assert.match(body, /riptide assess <guided-sim-root>/);
   assert.match(body, /AMM currently uses `protocol = "generic"`/);
+  assert.doesNotMatch(body, /riptide run/);
+  assert.doesNotMatch(body, /--harness/);
+  assert.doesNotMatch(body, /riptide campaign/);
 });
 
 test("init: next steps point at riptide-config by default", async () => {
@@ -460,12 +428,14 @@ anchor_uniswap_v2 = "11111111111111111111111111111111"
   assert.equal(wizardCalled, false);
   assert.match(stderr, /Next steps:/);
   assert.match(stderr, /1\. Invoke \/riptide-config/);
-  assert.match(stderr, /riptide campaign run \.riptide\/campaigns\/<risk>\.campaign\.toml/);
-  assert.match(stderr, /riptide review <campaign-root>/);
-  assert.match(stderr, /Manual \/ advanced path: run riptide init --wizard --force/);
+  assert.match(stderr, /riptide sim generate --adapter \.riptide\/adapters\/anchor-uniswap-v2\.toml/);
+  assert.match(stderr, /riptide sim run \.riptide\/sim --flows 8/);
+  assert.match(stderr, /riptide assess <guided-sim-root>/);
+  assert.match(stderr, /Advanced: run riptide init --wizard --force/);
   assert.match(stderr, /replace this thin scaffold with questionnaire-selected starter files/);
   assert.match(stderr, /More detail: \.riptide\/GETTING-STARTED\.md/);
-  assert.doesNotMatch(stderr, /Fill the adapter TODOs/);
+  assert.doesNotMatch(stderr, /riptide campaign/);
+  assert.doesNotMatch(stderr, /riptide review/);
   assert.ok(!existsSync(path.join(cwd, ".riptide", "scenarios", "baseline", "run-config.json")));
 });
 
@@ -561,7 +531,7 @@ test("scaffold: protocol + personas → matching persona blocks are inlined in t
   assert.ok(adapterBody.includes("[personas.arbitrageur]"));
 });
 
-test("scaffold: one seed and harness mode create seeded run-config plus TODO harness", async () => {
+test("scaffold: one seed writes a seeded run-config and never scaffolds a Rust harness", async () => {
   const cwd = await mkTempRepo();
   const result = await scaffold({
     cwd,
@@ -573,20 +543,12 @@ test("scaffold: one seed and harness mode create seeded run-config plus TODO har
     agents: 100,
     ticks: 10,
     seeds: 1,
-    harnessMode: "todo",
     mode: "wizard"
   });
 
-  assert.equal(result.harnessCreated, true);
   assert.equal(result.seeds, 1);
-  assert.ok(result.created.includes(".riptide/harness/Cargo.toml"));
-  assert.ok(result.created.includes(".riptide/harness/src/main.rs"));
-  assert.ok(result.created.includes(".riptide/harness/README.md"));
-  assert.ok(result.created.includes(".riptide/harness/rust-toolchain.toml"));
-  assert.match(
-    await readFile(path.join(cwd, ".riptide", "harness", "rust-toolchain.toml"), "utf8"),
-    /channel = "1\.91\.1"/
-  );
+  assert.equal(result.created.some((rel) => rel.startsWith(".riptide/harness")), false);
+  assert.ok(!existsSync(path.join(cwd, ".riptide", "harness")));
 
   const runConfig = JSON.parse(
     await readFile(
@@ -599,20 +561,10 @@ test("scaffold: one seed and harness mode create seeded run-config plus TODO har
   assert.equal(runConfig.agents, 100);
   assert.equal(runConfig.ticks, 10);
 
-  const harnessMain = await readFile(
-    path.join(cwd, ".riptide", "harness", "src", "main.rs"),
-    "utf8"
-  );
-  assert.match(harnessMain, /impl RiptideHarness for ProjectHarness/);
-  assert.match(harnessMain, /spl_token_account/);
-
   const gettingStarted = await readFile(path.join(cwd, ".riptide", "GETTING-STARTED.md"), "utf8");
-  assert.match(gettingStarted, /"seed": 1337/);
-  assert.match(gettingStarted, /--harness \.riptide\/harness/);
-  assert.match(gettingStarted, /--seeds 1 --seed-root 1337/);
-
-  const harnessReadme = await readFile(path.join(cwd, ".riptide", "harness", "README.md"), "utf8");
-  assert.match(harnessReadme, /--harness \.riptide\/harness --seeds 1 --seed-root 1337/);
+  assert.match(gettingStarted, /riptide sim run \.riptide\/sim --flows 8/);
+  assert.doesNotMatch(gettingStarted, /--harness/);
+  assert.doesNotMatch(gettingStarted, /riptide-engine/);
 });
 
 test("scaffold: explicit scenario battery writes each run-config with scenario-specific sizing", async () => {
@@ -832,7 +784,7 @@ test("renderRunConfig: multiple seeds emits a sweep count", () => {
   assert.equal("seed" in parsed, false);
 });
 
-test("renderGettingStarted: references scaffolded scenarios; no-personas variant stays terse", () => {
+test("renderGettingStarted: guided-sim copy with no references to removed commands", () => {
   const withBoth = renderGettingStarted("my-program", {
     scenarios: ["baseline", "oracle-price-shock"],
     mode: "wizard"
@@ -840,30 +792,25 @@ test("renderGettingStarted: references scaffolded scenarios; no-personas variant
   assert.ok(withBoth.includes("my-program"));
   assert.ok(withBoth.includes("scenarios/baseline/run-config.json"));
   assert.ok(withBoth.includes("scenarios/oracle-price-shock/run-config.json"));
-  assert.ok(withBoth.includes("riptide run baseline --adapter .riptide/adapters/my-program.toml"));
+  assert.ok(withBoth.includes("riptide sim generate --adapter .riptide/adapters/my-program.toml"));
+  assert.ok(withBoth.includes("riptide sim run .riptide/sim --flows 8"));
+  assert.ok(withBoth.includes("riptide assess <guided-sim-root>"));
   assert.ok(withBoth.includes("adapters/my-program.toml` `[personas.*]"));
   assert.ok(withBoth.includes("## Skill-First Setup"));
   assert.ok(withBoth.includes("`/riptide-config`"));
-  assert.ok(withBoth.includes("personas, scenarios, invariants, and campaign creation"));
   assert.ok(withBoth.includes("`riptide-narrative`"));
-  assert.ok(withBoth.includes('"seeds": 50'));
-  assert.ok(withBoth.includes("50-seed sweep"));
   assert.ok(!withBoth.includes("personas/*.toml"));
   assert.ok(!withBoth.includes("amm.v1"));
-
-  const withHarness = renderGettingStarted("my-program", {
-    scenarios: ["baseline"],
-    harnessCreated: true,
-    seeds: 1,
-    mode: "wizard"
-  });
-  assert.ok(withHarness.includes("harness/"));
-  assert.ok(withHarness.includes("--harness .riptide/harness"));
-  assert.ok(withHarness.includes('"seed": 1337'));
+  assert.ok(!withBoth.includes("riptide run"));
+  assert.ok(!withBoth.includes("riptide campaign"));
+  assert.ok(!withBoth.includes("riptide lint"));
+  assert.ok(!withBoth.includes("--harness"));
+  assert.ok(!withBoth.includes("riptide-engine"));
 
   const minimal = renderGettingStarted("my-program");
   assert.ok(minimal.includes("/riptide-config"));
-  assert.ok(minimal.includes("riptide campaign run .riptide/campaigns/<risk>.campaign.toml"));
+  assert.ok(minimal.includes("riptide sim generate --adapter .riptide/adapters/my-program.toml"));
+  assert.ok(minimal.includes("riptide assess <guided-sim-root>"));
   assert.ok(!minimal.includes("adapters/my-program.toml` `[personas.*]"));
   assert.ok(!minimal.includes("personas/*.toml"));
   assert.ok(!minimal.includes("scenarios/baseline/run-config.json"));
@@ -1009,27 +956,3 @@ test("init: --yes with non-lending protocol emits no invariant templates", async
   assert.equal("invariants" in parsed, false);
   assert.equal("semantics" in parsed, false);
 });
-
-test(
-  "init: generated lending adapter passes adapt smoke",
-  { skip: !INIT_ADAPT_E2E_ENABLED, timeout: 180_000 },
-  async () => {
-    const cwd = await mkTempRepo();
-    const exit = await runInit({
-      force: false,
-      dir: cwd,
-      blank: true,
-      name: "foo",
-      protocol: "lending",
-      yes: true
-    });
-    assert.equal(exit, 0);
-
-    const smoke = await runCli(["adapt", "--adapter", ".riptide/adapters/foo.toml"], cwd);
-    assert.equal(
-      smoke.code,
-      0,
-      `adapt smoke failed\nstdout:\n${smoke.stdout}\nstderr:\n${smoke.stderr}`
-    );
-  }
-);

@@ -10,10 +10,8 @@ import path from "node:path";
 
 import TOML from "toml";
 
-import { cliPackageVersion } from "../banner.js";
 import { FALLBACK_POLICIES } from "../compiler/fallback.js";
 import { validatePolicy, type Policy } from "../compiler/schema.js";
-import { monorepoRootFromModule } from "../orchestrator/index.js";
 import {
   personaPathCandidates,
   type Protocol
@@ -30,9 +28,7 @@ import {
 } from "./invariants-catalog.js";
 import {
   resolveSeedCount,
-  seedForSeedCount,
-  shouldScaffoldHarness,
-  type InitHarnessMode
+  seedForSeedCount
 } from "./options.js";
 import { installBundledSkills } from "./skills.js";
 
@@ -57,8 +53,6 @@ export interface ScaffoldOptions {
   scenarios?: InitScenarioConfig[];
   /** Invariants to inline into the scaffolded adapter. */
   invariants?: InitInvariantConfig[];
-  /** Whether to scaffold a Rust setup harness under .riptide/harness. */
-  harnessMode?: InitHarnessMode;
   /** Number of seeds generated run-configs should request by default. */
   seeds?: number;
   /**
@@ -74,7 +68,6 @@ export interface ScaffoldResult {
   created: string[];
   programName: string;
   warnings: string[];
-  harnessCreated: boolean;
   seeds: number;
   scenarios: string[];
   mode: "minimal" | "wizard";
@@ -396,9 +389,11 @@ export function renderAdapterStub(
 `;
   return `# Riptide adapter for ${programName}.
 #
-${intro}# When TODOs are filled, run \`riptide lint .riptide/adapters/${programName}.toml\`.
-${thin ? "# Default next step: invoke `/riptide-config`.\n" : `# First smoke: \`riptide run --adapter .riptide/adapters/${programName}.toml --seeds 1 --seed-root 1337\`.
-# If setup-dependent accounts are needed later, run \`riptide harness generate --adapter .riptide/adapters/${programName}.toml\`.
+${intro}# Recommended next step: invoke \`/riptide-config\` to finish this adapter
+# and author the guided simulation.
+${thin ? "" : `# When TODOs are filled, generate the guided sim with
+# \`riptide sim generate --adapter .riptide/adapters/${programName}.toml\`,
+# then \`riptide sim run .riptide/sim --flows 8\`.
 `}
 ${intentLine}${genericRuntimeNote}
 protocol = "${protocolValue}"
@@ -882,7 +877,6 @@ function errMessage(err: unknown): string {
 export interface GettingStartedOptions {
   scenarios?: string[];
   hasBaselineScenario?: boolean;
-  harnessCreated?: boolean;
   seeds?: number;
   protocol?: Protocol;
   mode?: "minimal" | "wizard";
@@ -893,63 +887,45 @@ export function renderGettingStarted(
   options: GettingStartedOptions = {}
 ): string {
   const { hasBaselineScenario = false } = options;
-  const harnessCreated = options.harnessCreated ?? false;
-  const seeds = resolveSeedCount(options.seeds);
   const protocol = options.protocol ?? "custom";
   const mode = options.mode ?? "minimal";
   const scenarioNames = options.scenarios ?? (hasBaselineScenario ? ["baseline"] : []);
+  const adapterRel = `.riptide/adapters/${programName}.toml`;
   const scenariosLine = scenarioNames.length > 0
     ? `- \`scenarios/\` — advanced questionnaire run-configs created by \`riptide init --wizard\`:\n${scenarioNames
         .map((name) => `  - \`scenarios/${name}/run-config.json\``)
         .join("\n")}\n`
-    : "";
-  const firstRunCommand = scenarioNames.length > 0
-    ? `riptide run ${scenarioNames[0]} --adapter .riptide/adapters/${programName}.toml${harnessCreated ? " --harness .riptide/harness" : ""} --seeds 1 --seed-root 1337`
-    : `riptide run .riptide/scenarios/<experiment>/run-config.json --adapter .riptide/adapters/${programName}.toml${harnessCreated ? " --harness .riptide/harness" : ""} --seeds 1 --seed-root 1337`;
-  const runCommand = scenarioNames.length > 0
-    ? `riptide run --adapter .riptide/adapters/${programName}.toml${harnessCreated ? " --harness .riptide/harness" : ""}`
-    : `riptide run .riptide/scenarios/your-scenario/run-config.json --adapter .riptide/adapters/${programName}.toml`;
-  const harnessLayoutLine = harnessCreated
-    ? "- `harness/` — Rust setup crate for account bytes, sibling programs, SPL mints/vaults, PDAs, and other pre-tick-0 state.\n"
-    : "";
-  const manualRunSteps = mode === "wizard"
-    ? harnessCreated
-      ? "5. Edit `.riptide/harness/src/main.rs` and fill in setup for account bytes, SPL mints/vaults, PDAs, or sibling programs.\n6. Run the one-seed harness smoke:\n\n   ```\n   " + firstRunCommand + "\n   ```\n\n7. Optional after the harness smoke passes: `riptide adapt --adapter .riptide/adapters/" + programName + ".toml` — adapter-only engine smoke for repos that do not need setup.\n8. Run the full scenario battery:\n\n   ```\n   " + runCommand + "\n   ```\n"
-      : "5. Run the one-seed smoke:\n\n   ```\n   " + firstRunCommand + "\n   ```\n\n6. Optional only if the smoke shows you need custom pre-tick-0 setup: `riptide harness generate --adapter .riptide/adapters/" + programName + ".toml`, then rerun with `--harness .riptide/harness`.\n7. Optional after the smoke passes: `riptide adapt --adapter .riptide/adapters/" + programName + ".toml` — adapter-only engine smoke for repos that do not need setup.\n8. Run the full scenario battery:\n\n   ```\n   " + runCommand + "\n   ```\n"
-    : "5. Create `.riptide/scenarios/<experiment>/run-config.json` or write a Campaign TOML once the adapter is real.\n6. Optional only if setup bytes are needed: `riptide harness generate --adapter .riptide/adapters/" + programName + ".toml`.\n7. Run one bounded smoke after a scenario exists:\n\n   ```\n   " + firstRunCommand + "\n   ```\n";
-  const seedCountNote = seeds === 1
-    ? `Generated run-configs include \`"seed": ${seedForSeedCount(1)}\`, so the scaffolded scenario pins one deterministic seed. Pass \`--seeds <N>\` when you want a larger sweep.`
-    : `Generated run-configs include \`"seeds": ${seeds}\`, so the full scenario battery is a ${seeds}-seed sweep. Start with \`--seeds 1 --seed-root 1337\` for the first smoke, then drop the override for the full sweep.`;
-  const seedSection = mode === "wizard" && scenarioNames.length > 0
-    ? `\n## Seed Count\n\n${seedCountNote}\n\nPass \`--seed-root <N>\` when you want a reproducible sweep seed stream. When using \`--harness .riptide/harness\`, the first run may compile the release harness; warm runs reuse the built binary.\n`
     : "";
   const ammRuntimeLine = protocol === "amm"
     ? "- AMM currently uses `protocol = \"generic\"` and Riptide's generic SBF/IDL runtime; `amm.v1` semantics is future work.\n"
     : "";
   const wizardLayoutLine = mode === "wizard"
     ? `- \`adapters/${programName}.toml\` \`[personas.*]\` — inline persona archetypes selected during the advanced wizard.
-- \`adapters/${programName}.toml\` \`[[invariants]]\` and \`[semantics]\` — advanced wizard checks to validate or edit before running.
+- \`adapters/${programName}.toml\` \`[[invariants]]\` and \`[semantics]\` — advanced wizard checks to validate or edit before authoring the simulation.
 `
     : "";
 
   return `# Getting Started With Riptide
 
-Riptide just created a thin \`.riptide/\` workspace. The default configuration path is:
+Riptide just created a thin \`.riptide/\` workspace. The guided-sim path is:
 
 \`\`\`bash
-/riptide-config
-riptide campaign run .riptide/campaigns/<risk>.campaign.toml
-riptide review <campaign-root>
+riptide readiness .
+riptide doctor
+riptide sim generate --adapter ${adapterRel}
+riptide sim run .riptide/sim --flows 8
+riptide sim surface .riptide/sim/artifacts/<dir> --sim .riptide/sim
+riptide review <guided-sim-root>
+riptide assess <guided-sim-root>
 \`\`\`
 
-\`/riptide-config\` should finish the adapter, add a Rust setup harness when account bytes or sibling programs are needed, create starter scenarios, write and validate a Campaign TOML, and report the exact run/review commands.
+\`/riptide-config\` is the recommended way to finish the adapter and author the guided simulation. \`riptide assess\` is the headline outcome.
 
 ## Directory layout
 
 - \`adapters/${programName}.toml\` — placeholder adapter with program artifact paths and TODO blocks for the config skill or a manual author.
 ${ammRuntimeLine}${wizardLayoutLine}
 ${scenariosLine}
-${harnessLayoutLine}
 ## Skill-First Setup
 
 \`riptide init\` also dropped the bundled \`riptide-config\` skill into \`.claude/skills/riptide-config/\` so any coding agent run from this repo picks it up automatically — even on a fresh clone or a machine that doesn't have it installed under \`~/.claude/skills/\`. Pass \`--no-skills\` if you want to opt out.
@@ -957,10 +933,9 @@ ${harnessLayoutLine}
 Invoke \`/riptide-config\` from your coding agent at the repo root. It treats this thin scaffold as normal input and owns:
 
 - adapter TOML repair and validation
-- Rust harness generation and setup, when needed
-- personas, scenarios, invariants, and campaign creation
-- bounded smoke runs and Campaign TOML validation
-- final next commands for \`riptide campaign run\` and \`riptide review\`
+- personas, invariants, and guided-simulation authoring
+- bounded smoke runs and validation
+- final next commands for \`riptide sim run\` and \`riptide assess\`
 
 It preserves existing \`.riptide\` files when they are user-authored. If this repo was initialized with \`riptide init --wizard\`, it should preserve those persona and scenario choices unless validation proves they are invalid.
 
@@ -968,20 +943,23 @@ It preserves existing \`.riptide\` files when they are user-authored. If this re
 
 Use this path if you are not using the config skill. To replace this thin scaffold with questionnaire-selected starter files, rerun \`riptide init --wizard --force\`.
 
-1. \`riptide doctor\` — static health check; confirms toolchain + engine binary.
-2. Build your program so \`target/deploy/*.so\` and \`target/idl/*.json\` exist.
-3. Open \`.riptide/adapters/${programName}.toml\` and fill in the TODO blocks for accounts, instructions, state mapping, actions, observations, personas, invariants, semantics, oracle bindings, and lineage. The untouched placeholder is intentionally not lint-clean.
-4. \`riptide lint .riptide/adapters/${programName}.toml\` — static validation against the JSON IDL named in the adapter.
-${manualRunSteps}
-${seedSection}
-After a campaign finishes, \`riptide-narrative\` can turn a completed run's \`simulation-result.json\` and \`report.md\` into \`report-narrative.md\`.
+1. \`riptide readiness .\` — confirm the repo is ready for a guided sim.
+2. \`riptide doctor\` — static health check for the toolchain.
+3. Build your program so \`target/deploy/*.so\` and \`target/idl/*.json\` exist.
+4. Open \`${adapterRel}\` and fill in the TODO blocks for accounts, instructions, state mapping, actions, observations, personas, invariants, semantics, oracle bindings, and lineage. The untouched placeholder is intentionally incomplete.
+5. \`riptide sim generate --adapter ${adapterRel}\` — scaffold the guided simulation under \`.riptide/sim\`.
+6. \`riptide sim run .riptide/sim --flows 8\` — run the guided simulation.
+7. \`riptide sim surface .riptide/sim/artifacts/<dir> --sim .riptide/sim\` — surface the run's findings.
+8. \`riptide assess <guided-sim-root>\` — the headline assessment outcome.
+
+After a guided sim finishes, \`riptide-narrative\` can turn a completed run's result and report into \`report-narrative.md\`.
 
 ## Reference
 
 - Shipping adapter examples: [riptidesim/riptide — fixtures/adapters/](https://github.com/riptidesim/riptide/tree/main/fixtures/adapters)
 - Architecture deep-dive: [docs/architecture.md](https://github.com/riptidesim/riptide/blob/main/docs/architecture.md)
 
-Problems? Drop the adapter file + the engine stderr tail into an issue at https://github.com/riptidesim/riptide/issues.
+Problems? Drop the adapter file + the command output into an issue at https://github.com/riptidesim/riptide/issues.
 `;
 }
 
@@ -1132,134 +1110,6 @@ function scenarioNameSegments(name: string): string[] {
   return segments;
 }
 
-async function scaffoldHarness(input: {
-  riptideDir: string;
-  programName: string;
-  adapterRel: string;
-}): Promise<string[]> {
-  const harnessDir = path.join(input.riptideDir, "harness");
-  const srcDir = path.join(harnessDir, "src");
-  await mkdir(srcDir, { recursive: true });
-  await writeFile(
-    path.join(harnessDir, "Cargo.toml"),
-    renderInitHarnessCargoToml(`${input.programName}-harness`),
-    "utf8"
-  );
-  await writeFile(
-    path.join(srcDir, "main.rs"),
-    renderInitHarnessMain(input.adapterRel),
-    "utf8"
-  );
-  await writeFile(
-    path.join(harnessDir, "README.md"),
-    renderInitHarnessReadme(input.adapterRel),
-    "utf8"
-  );
-  await writeFile(
-    path.join(harnessDir, "rust-toolchain.toml"),
-    renderInitHarnessRustToolchainToml(),
-    "utf8"
-  );
-
-  return [
-    path.join(".riptide", "harness", "Cargo.toml"),
-    path.join(".riptide", "harness", "src", "main.rs"),
-    path.join(".riptide", "harness", "README.md"),
-    path.join(".riptide", "harness", "rust-toolchain.toml")
-  ];
-}
-
-function renderInitHarnessCargoToml(crateName: string): string {
-  return `[package]
-name = "${sanitizeCrateName(crateName)}"
-version = "0.1.0"
-edition = "2021"
-publish = false
-
-[workspace]
-
-[dependencies]
-anyhow = "1.0"
-riptide-engine = ${engineDependency()}
-`;
-}
-
-function engineDependency(): string {
-  const root = monorepoRootFromModule();
-  if (root) {
-    const engineDir = path.join(root, "engine");
-    if (existsSync(path.join(engineDir, "Cargo.toml"))) {
-      return `{ path = ${JSON.stringify(engineDir)} }`;
-    }
-  }
-  return JSON.stringify(cliPackageVersion());
-}
-
-function renderInitHarnessMain(adapterRel: string): string {
-  return `use riptide_engine::harness::{run_harness_cli, HarnessContext, RiptideHarness};
-
-struct ProjectHarness;
-
-impl RiptideHarness for ProjectHarness {
-    fn setup(&self, ctx: &mut HarnessContext<'_>) -> anyhow::Result<()> {
-        // TODO: replace zeroed bootstrap accounts with the concrete bytes
-        // your adapter expects before tick 0.
-        //
-        // Common helpers:
-        //   let mint = ctx.spl_mint("mint", ctx.admin_pubkey(), 1_000_000_000, 6)?;
-        //   let authority = ctx.admin_pubkey();
-        //   ctx.spl_token_account("vault", mint, authority, 500_000)?;
-        //   ctx.agent_spl_token_account("user_ata", 0, mint, ctx.agent_pubkey(0)?, 100_000)?;
-        //   ctx.load_program_from_so("../target/deploy/dependency.so")?;
-        //
-        // Adapter: ${adapterRel}
-        let _ = ctx;
-        Ok(())
-    }
-}
-
-fn main() -> std::process::ExitCode {
-    run_harness_cli(ProjectHarness)
-}
-`;
-}
-
-function renderInitHarnessReadme(adapterRel: string): string {
-  return `# Riptide Rust Harness
-
-This crate owns protocol-specific setup for the adapter:
-
-\`${adapterRel}\`
-
-Use it when your program needs real account bytes, sibling programs, SPL mints,
-token accounts, PDAs, or other setup that should not become Riptide core code.
-
-Run it through the CLI:
-
-\`\`\`sh
-riptide run --adapter ${adapterRel} --harness .riptide/harness --seeds 1 --seed-root 1337
-\`\`\`
-
-After the one-seed smoke passes, drop \`--seeds 1 --seed-root 1337\` for the
-full scenario sweep.
-`;
-}
-
-function renderInitHarnessRustToolchainToml(): string {
-  return `[toolchain]
-channel = "1.91.1"
-`;
-}
-
-function sanitizeCrateName(value: string): string {
-  const sanitized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return sanitized.length > 0 ? sanitized : "riptide-setup";
-}
-
 export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult> {
   const { cwd, force } = options;
   const mode = options.mode ?? "minimal";
@@ -1294,7 +1144,6 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
   const ticks = options.ticks ?? 30;
   const seeds = resolveSeedCount(options.seeds);
   const runSeed = seedForSeedCount(seeds);
-  const harnessCreated = richScaffold && shouldScaffoldHarness(options.harnessMode);
   const scenarios = richScaffold
     ? resolveScaffoldScenarios(protocol, options.scenarios, {
         agents,
@@ -1365,7 +1214,6 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
     path.join(riptideDir, "GETTING-STARTED.md"),
     renderGettingStarted(programName, {
       scenarios: resolvedScenarios.map((scenario) => scenario.name),
-      harnessCreated,
       seeds,
       protocol,
       mode
@@ -1373,15 +1221,6 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
     "utf8"
   );
   created.push(path.join(".riptide", "GETTING-STARTED.md"));
-
-  if (harnessCreated) {
-    const harnessCreatedPaths = await scaffoldHarness({
-      riptideDir,
-      programName,
-      adapterRel
-    });
-    created.push(...harnessCreatedPaths);
-  }
 
   // .gitignore entries for volatile run output. Appends to
   // an existing .gitignore when present, creates a fresh one otherwise.
@@ -1408,7 +1247,6 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
     created,
     programName,
     warnings,
-    harnessCreated,
     seeds,
     scenarios: resolvedScenarios.map((scenario) => scenario.name),
     mode
