@@ -50,7 +50,7 @@ export interface DoctorOptions {
 export function createDoctorCommand(deps: DoctorCommandDeps = {}): Command {
   const command = new Command("doctor")
     .description(
-      "Static health check — toolchain presence, engine binary resolution, and adapter load + lint status. No build, no network, no simulation."
+      "Static health check — toolchain presence and adapter load + lint status. No build, no network, no simulation."
     )
     .option("--quiet", "Suppress interactive banner", false);
 

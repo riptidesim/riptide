@@ -37,7 +37,7 @@ addRootCommand(createReadinessCommand(), "Inspect local protocol evidence readin
 addRootCommand(createSimCommand(), "Generate, refresh, and run guided Rust simulations", "Start here:");
 addRootCommand(createReviewCommand(), "Review a guided-sim evidence root", "Start here:");
 addRootCommand(createAssessCommand(), "Generate a protocol assessment from a guided-sim root", "Start here:");
-addRootCommand(createDoctorCommand(), "Check toolchain and engine", "Start here:");
+addRootCommand(createDoctorCommand(), "Check the local toolchain", "Start here:");
 
 program.addHelpText(
   "after",
