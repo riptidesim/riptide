@@ -5,32 +5,34 @@ review, external pilot, audit-prep discussion, or security-minded
 engineering review. The goal is to make the ask concrete: rerun this,
 falsify it, or explain what blocks trust.
 
-For protocol-team outreach that spans multiple campaigns, guided sims, blocked
-surfaces, or non-findings, first assemble a
+For protocol-team outreach that spans multiple guided-sim sweeps, guided sims,
+blocked surfaces, or non-findings, first assemble a
 [Protocol assessment workflow](protocol-assessment.md) coverage matrix and fill
 the [protocol assessment report template](templates/protocol-assessment-report.md).
 Then attach that report alongside the reviewer packet below.
 
 ## Launch and review checklist
 
-1. **Pick the evidence path.** Start with the flagship
-   `lst-lending-contagion-proof` unless your review has its own
-   committed replay, scenario, campaign, or guided-sim artifact.
-2. **Run the proof or workflow.** For the flagship local path:
+1. **Pick the evidence path.** Start with the committed guided-sim assessment
+   evidence for the protocol under review: a guided-sim root with its generated
+   artifacts and assessment.
+2. **Run the guided-sim flow.** From the workspace root:
 
    ```bash
-   bash fixtures/replays/lst-lending-contagion-proof/rerun.sh
-   riptide review .riptide/pack/replay-multi-lst-lending-contagion-proof-upstream
+   riptide sim run .riptide/sim --flows <N> --out <run-path>
+   riptide sim surface <run-path> --sim .riptide/sim
+   riptide assess <run-path>
+   riptide review <run-path>
    ```
 
-   For CI, use the green
-   [contagion proof workflow](../.github/workflows/contagion-proof-ci.yml)
-   run and download the `contagion-proof-pack` artifact.
+   If the review runs in CI, attach the workflow run URL and download the
+   generated guided-sim artifacts from it.
 
-3. **Attach the expected evidence.** Include the pack directory or
-   artifact, rerun stdout, review stdout, canonical hash, commit SHA,
-   toolchain notes, any completed assessment report, and any Studio
-   screenshots or report links used in the review.
+3. **Attach the expected evidence.** Include the guided-sim root, the generated
+   artifacts (`risk-surface.json`, `campaign-summary.json`,
+   `retention-manifest.json`, `assessment.json`, `assessment.md`), the rerun
+   commands, `riptide assess`/`riptide review` stdout, commit SHA, toolchain
+   notes, and any completed assessment report.
 4. **Write reviewer notes.** State what was reproduced, what did not
    reproduce, which assumptions were inspected, and which claim remains
    untrusted.
@@ -38,17 +40,17 @@ Then attach that report alongside the reviewer packet below.
    confusing docs, adapter gaps, or missing provenance into the
    original claim. Track them as explicit follow-up work.
 
-## Expected flagship evidence
+## Expected evidence
 
 | Item | Expected value |
 | --- | --- |
-| Proof path | `fixtures/replays/lst-lending-contagion-proof/` |
-| Local rerun command | `bash fixtures/replays/lst-lending-contagion-proof/rerun.sh` |
-| Pack review command | `riptide review .riptide/pack/replay-multi-lst-lending-contagion-proof-upstream` |
-| Canonical hash | `d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb` |
-| CI workflow | `.github/workflows/contagion-proof-ci.yml` |
-| CI artifact | `contagion-proof-pack` |
-| Review exit behavior | `riptide review` exits `1` for this proof because invariant firings are the expected signal; hash verification must still pass. |
+| Guided-sim root | `<path to the guided-sim root under review>` |
+| Sweep run command | `riptide sim run .riptide/sim --flows <N> --out <run-path>` |
+| Cartography build command | `riptide sim surface <run-path> --sim .riptide/sim` |
+| Assessment command | `riptide assess <run-path>` |
+| Review command | `riptide review <run-path>` |
+| Generated artifacts | `risk-surface.json`, `campaign-summary.json`, `retention-manifest.json`, `assessment.json`, `assessment.md` |
+| Review exit behavior | `riptide review` can exit non-zero when invariant firings or absent provenance are the expected signal; the deterministic artifacts must still reproduce. |
 
 ## Reviewer packet template
 
@@ -65,37 +67,34 @@ Then attach that report alongside the reviewer packet below.
 
 ## Please do one or more
 
-- Reproduce the run and compare the canonical hash.
-- Falsify the input, bridge, invariant, or scope assumptions.
-- Identify any trust blocker in the pack, CI workflow, runbook, or docs.
+- Reproduce the guided-sim run and compare the generated artifacts.
+- Falsify the input, invariant, sweep range, or scope assumptions.
+- Identify any trust blocker in the guided-sim root, CI run, runbook, or docs.
 - Report whether the evidence changes your launch, review, or risk decision.
 
 ## Commands
 
 ```bash
-bash fixtures/replays/lst-lending-contagion-proof/rerun.sh
-riptide review .riptide/pack/replay-multi-lst-lending-contagion-proof-upstream
-```
-
-Expected canonical hash:
-
-```text
-d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb
+riptide sim run .riptide/sim --flows <N> --out <run-path>
+riptide sim surface <run-path> --sim .riptide/sim
+riptide assess <run-path>
+riptide review <run-path>
 ```
 
 ## Attachments
 
-- Rerun stdout:
-- Review stdout:
-- Pack artifact:
+- Guided-sim root:
+- Generated artifacts (`risk-surface.json`, `assessment.md`, ...):
+- `riptide assess` stdout:
+- `riptide review` stdout:
+- Rerun commands:
 - CI run URL:
-- Studio notes or screenshots:
 - Case-study readiness notes:
 
 ## Result
 
 - Reproduced? yes/no/partial
-- Hash matched? yes/no
+- Artifacts matched? yes/no
 - Trust blockers:
 - Suggested follow-up:
 ````
@@ -114,10 +113,10 @@ d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb
 
 ## Evidence path
 
-- Proof, scenario, campaign, or guided artifact:
-- Expected canonical hash:
-- Actual canonical hash:
-- Pack path or artifact URL:
+- Guided-sim root, sweep run, or guided artifact:
+- Rerun command:
+- Generated artifacts (`risk-surface.json` / `assessment.md` / ...):
+- Reproduced artifacts match? yes/no/partial:
 
 ## Commands and output
 
@@ -150,7 +149,7 @@ outcomes:
 - Reproduced and accepted as useful simulation evidence for the named
   claim.
 - Reproduced but not decision-changing; document why.
-- Drifted; investigate before updating the pinned hash.
+- Drifted; investigate before updating the pinned evidence.
 - Blocked by missing inputs, weak invariants, unclear docs, or
   toolchain concerns.
 - Out of scope for Riptide; route to audit, formal methods, manual

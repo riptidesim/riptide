@@ -1,9 +1,6 @@
 {
   "private": true,
   "scripts": {
-    "demo:dev": "npm --prefix demo run dev",
-    "demo:build": "npm --prefix demo run build",
-    "demo:preview": "npm --prefix demo run preview",
     "test": "npm --prefix cli test --"
   }
 }

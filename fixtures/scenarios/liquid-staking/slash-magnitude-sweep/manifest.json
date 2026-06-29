@@ -1,6 +1,0 @@
-{
-  "adapter": "fixtures/adapters/liquid-staking.toml",
-  "slug": "slash-magnitude-sweep",
-  "failure_mode": "depeg_after_slash",
-  "rationale": "Midpoint (slash 2000 bps = 20%) of a slash-magnitude sweep {1000, 2000, 3000} against a mixed 20-agent population (5 steady-staker + 5 yield-maxi + 7 panic-exiter + 3 arb-redeemer). Classification flagged depeg_after_slash because the IDL declares an admin-gated apply_slash(slash_bps) with pool.exchange_rate_bps + pool.cumulative_slashed observable and panic-exiter triggers on exchange_rate_bps < 9500. apply_slash is not runtime-dispatchable; this is the scenario-level companion to the named replay proof path — it exercises the persona-mix side of the depeg (how the 7 panic-exiter agents react when the rate drops) and stages the full on-chain slash trajectory for riptide replay."
-}

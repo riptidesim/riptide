@@ -1,5 +1,0 @@
-{
-  "adapter": "./adapter.toml",
-  "trajectory_dir": ".",
-  "output_path": "riptide-output/replays/euler-donate-and-liquidate"
-}

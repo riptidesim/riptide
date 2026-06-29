@@ -406,7 +406,7 @@ function buildReasons(
       code: "missing-harness",
       layer: "harness",
       message:
-        "No .riptide harness was discovered. Some adapters may still be inspectable, but local E2E execution will need a harness entry point.",
+        "No `.riptide/harness` was discovered. Some adapters may still be inspectable, but local E2E execution will need a harness entry point.",
     });
   }
 

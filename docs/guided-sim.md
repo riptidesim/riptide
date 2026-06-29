@@ -12,12 +12,11 @@ manual setups that external-account Solana fuzzers rely on; it does not
 mean Riptide automatically infers every protocol flow, models every
 oracle layout, proves complete coverage, or provides audit signoff.
 
-The harness still owns pre-tick-0 setup for adapter/campaign runs.
-Guided simulations can bootstrap their own external programs and account
-snapshots through `Riptide.toml`, then own dynamic behavior:
-multi-instruction transactions, computed `remaining_accounts`,
-target-vs-agent selection, and local services such as oracle or
-orderbook models.
+Guided simulations own their own pre-tick-0 setup: they bootstrap their
+external programs and account snapshots through `Riptide.toml`, then own
+dynamic behavior: multi-instruction transactions, computed
+`remaining_accounts`, target-vs-agent selection, and local services such
+as oracle or orderbook models.
 
 ## Support boundary
 
@@ -32,7 +31,7 @@ orderbook models.
 | Metrics, regression, and artifacts | Supported for guided runs | `riptide sim run --out <dir>` writes stable JSON with seeds, flow counts, tx outcomes, compute units, service ticks, failing seed, selected account hashes, and a reviewer rerun script. |
 | Coverage | Guarded gap | LiteSVM binary loading does not emit local guided-run coverage yet. `sim.coverage.enabled = true` fails lint until an entrypoint/binary coverage collector exists. |
 | Review integration | Supported for guided artifacts | `riptide review <artifact-dir>` and `riptide sim review <artifact-dir>` read `guided-sim-run.json`, validate `rerun.sh` when present, and summarize flow counts, transaction labels, failure reason, retained seed, and rerun command. |
-| Campaign scheduling | Future / separate | `riptide campaign run` remains the adapter/scenario campaign runner. Guided-sim campaign scheduling needs an explicit future command path rather than hidden adapter-campaign behavior. |
+| Cartography / assessment | Supported | `riptide sim surface <run-path> --sim .riptide/sim` turns a guided-sim parameter sweep into a risk surface, and `riptide assess <guided-sim-root>` renders the assessment report. |
 | Audit-equivalent or automatic universal fuzzing | Out of scope | A green guided simulation is simulation evidence for the declared setup, not an audit result or complete coverage proof. |
 
 ## Worked example
@@ -226,7 +225,7 @@ riptide review .riptide/sim/artifacts/run-001
 ```
 
 Review mode reads the artifact cold. It does not rerun the simulation,
-execute `rerun.sh`, or claim adapter-campaign coverage. It summarizes the
+execute `rerun.sh`, or claim exhaustive coverage. It summarizes the
 retained failing seed, flow table, compact flow trace, labelled
 transaction outcomes, failure reason, first failing flow step when one is
 present, and rerun command so another reviewer can decide whether to
@@ -262,21 +261,20 @@ for hand-written builders or IDL type overrides that should survive
 refresh. Use the `--force-generated` flag only when you intentionally
 want a clean slate for user-owned files too.
 
-## When not to use it
+## Turning a sweep into an assessment
 
-Use the adapter and harness path when the protocol fits static action
-dispatch and deterministic setup. Guided simulations are for flows that
-need Rust code during the action loop; they don't replace campaign
-runs, scenario presets, or evidence packs.
+A single `riptide sim run` produces one guided-sim artifact. To produce a
+risk surface you run a parameter sweep and then summarize it:
 
-`riptide campaign run` remains the adapter/scenario campaign runner. A
-future guided-sim scheduling path should be explicit, for example:
-
-```text
-# Future shape only; not implemented by the current CLI.
-riptide campaign run --guided-sim .riptide/sim --sim-iterations <n> --sim-flows <n>
+```bash
+riptide sim surface .riptide/sim/artifacts/run-001 --sim .riptide/sim
+riptide assess .riptide/sim
 ```
 
-Until that exists, run guided sims with `riptide sim run --out <dir>` and
-review the artifact directory with `riptide sim review` or
-`riptide review`.
+`riptide sim surface` reads the guided-sim run plus the `[sim.sweep]`
+block in `Riptide.toml` and writes cartography artifacts
+(`risk-surface.json`, `campaign-summary.json`, `retention-manifest.json`)
+into the assess root. `riptide assess <guided-sim-root>` then renders the
+heatmap-led assessment report from those artifacts. Run guided sims with
+`riptide sim run --out <dir>` and review any artifact directory with
+`riptide sim review` or `riptide review`.

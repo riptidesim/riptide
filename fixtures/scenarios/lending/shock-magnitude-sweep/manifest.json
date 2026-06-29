@@ -1,6 +1,0 @@
-{
-  "adapter": "fixtures/adapters/lending.toml",
-  "slug": "shock-magnitude-sweep",
-  "failure_mode": "shock_cascades",
-  "rationale": "Middle point (30% shock) of a shock-magnitude sweep. Classification flagged shock_cascades because protocol=lending exposes the collateral-price → liquidation-cascade path by definition, and pool.bad_debt is an observable that only becomes non-zero when a cascade realizes shortfall. Sweep axis: shock magnitude in {20%, 30%, 40%} over the price-shock scenario."
-}

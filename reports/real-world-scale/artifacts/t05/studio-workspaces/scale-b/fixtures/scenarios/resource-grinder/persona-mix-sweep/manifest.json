@@ -1,6 +1,0 @@
-{
-  "adapter": "fixtures/adapters/resource-grinder.toml",
-  "slug": "persona-mix-sweep",
-  "failure_mode": "persona_mix_instability",
-  "rationale": "Middle point of a grinder:botter:casual mix sweep (8:8:4 out of 20). Classification flagged persona_mix_instability because the adapter declares three personas in [personas.*] with meaningfully different action-weight vectors (grinder balanced mine/craft, botter spam list_for_sale, casual uniform) — the ratio is a plausible fragility axis that Solend-style lending adapters cannot express."
-}

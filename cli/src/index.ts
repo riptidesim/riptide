@@ -2,25 +2,12 @@
 
 import { Command } from "commander";
 
-import { createAdaptCommand } from "./commands/adapt.js";
 import { createAssessCommand } from "./commands/assess.js";
-import { createCampaignCommand } from "./commands/campaign.js";
 import { createDoctorCommand } from "./commands/doctor.js";
-import { createExplainCommand } from "./commands/explain.js";
-import { createHarnessCommand } from "./commands/harness.js";
 import { createInitCommand } from "./commands/init.js";
-import { createLineageCommand } from "./commands/lineage.js";
-import { createLintCommand } from "./commands/lint.js";
-import { createListCommand } from "./commands/list.js";
-import { createPackStateCommand } from "./commands/pack-state.js";
 import { createReadinessCommand } from "./commands/readiness.js";
 import { createReviewCommand } from "./commands/review.js";
-import { createReplayCommand } from "./commands/replay.js";
-import { createRunCommand } from "./commands/run.js";
-import { createScenariosCommand } from "./commands/scenarios.js";
 import { createSimCommand } from "./commands/sim.js";
-import { createStudioCommand } from "./commands/studio.js";
-import { createTemplateCommand } from "./commands/template.js";
 import { cliPackageVersion } from "./banner.js";
 import { renderCliError } from "./errors/render.js";
 
@@ -29,7 +16,7 @@ const program = new Command();
 program
   .name("riptide")
   .description(
-    "Deterministic Solana simulations, campaigns, and reviewer-ready evidence."
+    "Deterministic Solana guided simulations and reviewer-ready evidence."
   )
   .version(cliPackageVersion())
   .addHelpCommand(false);
@@ -47,24 +34,10 @@ program.addHelpText(
 
 addRootCommand(createInitCommand(), "Scaffold .riptide/ in the current repo", "Start here:");
 addRootCommand(createReadinessCommand(), "Inspect local protocol evidence readiness", "Start here:");
-addRootCommand(createCampaignCommand(), "Validate, plan, and run campaign sweeps", "Start here:");
-addRootCommand(createRunCommand(), "Run scenarios or a single run-config", "Start here:");
-addRootCommand(createReviewCommand(), "Review an evidence pack or campaign root", "Start here:");
-addRootCommand(createAssessCommand(), "Generate a protocol assessment from a campaign root", "Start here:");
-addRootCommand(createStudioCommand(), "Open Riptide Studio (local visual control plane)", "Start here:");
-addRootCommand(createDoctorCommand(), "Check toolchain, engine, and adapters", "Start here:");
-
-addRootCommand(createReplayCommand(), "Replay a declared trajectory", "Advanced/support:");
-addRootCommand(createHarnessCommand(), "Generate Rust setup harnesses", "Advanced/support:");
-addRootCommand(createSimCommand(), "Generate, refresh, and run guided Rust simulations", "Advanced/support:");
-addRootCommand(createLintCommand(), "Lint an adapter against its lineage IDL", "Advanced/support:");
-addRootCommand(createExplainCommand(), "Inspect a parsed adapter", "Advanced/support:");
-addRootCommand(createLineageCommand(), "Show adapter lineage and assumptions", "Advanced/support:");
-addRootCommand(createScenariosCommand(), "List or validate scenario presets", "Advanced/support:");
-addRootCommand(createListCommand(), "List discovered local scenarios", "Advanced/support:");
-addRootCommand(createAdaptCommand(), "Smoke-test an adapter against the engine", "Advanced/support:");
-addRootCommand(createTemplateCommand(), "Create transaction-template actions", "Advanced/support:");
-addRootCommand(createPackStateCommand(), "Capture current-state account packs", "Advanced/support:");
+addRootCommand(createSimCommand(), "Generate, refresh, and run guided Rust simulations", "Start here:");
+addRootCommand(createReviewCommand(), "Review a guided-sim evidence root", "Start here:");
+addRootCommand(createAssessCommand(), "Generate a protocol assessment from a guided-sim root", "Start here:");
+addRootCommand(createDoctorCommand(), "Check the local toolchain", "Start here:");
 
 program.addHelpText(
   "after",
@@ -75,14 +48,11 @@ program.addHelpText(
     "  riptide init",
     "  riptide readiness .",
     "  riptide doctor",
-    "  riptide list",
-    "  riptide run --adapter .riptide/adapters/<program-name>.toml --seeds 1 --seed-root 1337",
-    "  riptide campaign validate .riptide/campaigns/<risk>.campaign.toml",
-    "  riptide campaign plan .riptide/campaigns/<risk>.campaign.toml",
-    "  riptide campaign run .riptide/campaigns/<risk>.campaign.toml",
-    "  riptide review <campaign-root>",
-    "  riptide assess <campaign-root>",
-    "  riptide studio --no-open",
+    "  riptide sim generate --adapter .riptide/adapters/<program-name>.toml",
+    "  riptide sim run .riptide/sim --flows 8",
+    "  riptide sim surface .riptide/sim/artifacts/<dir> --sim .riptide/sim",
+    "  riptide review <guided-sim-root>",
+    "  riptide assess <guided-sim-root>",
     "",
     "Run `riptide <command> --help` for command-specific options.",
     ""

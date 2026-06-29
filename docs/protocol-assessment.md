@@ -20,7 +20,8 @@ carries:
   a gradient over swept parameters: as inputs move, a declared invariant's
   failure rate rises or falls. The assessment leads with a risk-surface
   heatmap (the swept cells and their failure rates) plus the safe-region
-  bounds, backed by a campaign sweep.
+  bounds, backed by a guided-sim parameter sweep processed by
+  `riptide sim surface`.
 - **Correctness (correctness-dominated protocols — accounting, payments,
   authority).** Risk is binary: accounting drift, double-payment,
   wrong-recipient settlement, or unauthorized control either happens or it
@@ -30,8 +31,8 @@ carries:
   negative-control rejections. The risk-surface section degrades to an
   explicit, bounded note rather than a forced or all-zero heatmap.
 
-`riptide assess` produces both shapes from an existing run root and picks the
-shape from the evidence present (see [Generating the report](#generating-the-report)).
+`riptide assess` produces both shapes from an existing guided-sim root and
+picks the shape from the evidence present (see [Generating the report](#generating-the-report)).
 A correctness-shape assessment is no weaker than a cartography one — it is the
 honest form for a protocol whose risk is not a parameter gradient.
 
@@ -40,34 +41,39 @@ honest form for a protocol whose risk is not a parameter gradient.
 Move through the assessment in this order.
 
 1. **Write the Risk Plan.** Name the protocol class, P0 and P1 economic flows,
-   expected failure modes, evidence profile, campaign shape, guided-sim
-   boundaries, invariants, and known coverage limits. Reuse the Risk Plan
-   mental model in [Campaign Runner](campaigns.md) instead of inventing a new
-   hierarchy.
+   expected failure modes, evidence profile, guided-sim sweep shape, guided-sim
+   boundaries, invariants, and known coverage limits. The Risk Plan is a short
+   declaration — target claim, the inputs you will sweep or exercise, the
+   invariants that decide pass/fail, and the limits you already know — so the
+   coverage matrix and report stay bound to it. See [Guided sim](guided-sim.md)
+   for the guided-sim model behind it.
 2. **Check harness readiness.** Confirm that the adapter, setup harness,
    scenarios, account fixtures, program binaries, IDL, personas, invariants,
-   and replay or campaign commands can run from the repo. If a flow needs
-   dynamic `remaining_accounts`, multi-instruction transactions, or
-   project-owned services, route that flow to a guided sim instead of forcing
-   it through Campaign Runner.
+   and guided-sim commands can run from the repo. If a flow needs dynamic
+   `remaining_accounts`, multi-instruction transactions, or project-owned
+   services, make sure the guided sim models them rather than assuming an
+   adapter-only path can express them.
 3. **Run a calibration slice.** Execute the smallest meaningful run that
    proves the harness boots and the declared invariant can observe the target
    state. Calibration is useful setup evidence, but it does not cover an
    economic flow by itself.
-4. **Run focused campaign evidence.** Use a focused campaign for each critical
-   economic objective that Campaign Runner can express, such as deposit
-   pressure, redemption pressure, oracle lag, liquidation stress, or reserve
-   imbalance. Retain the case paths, commands, sampled parameters, summary,
-   and canonical hashes.
-5. **Run adversarial campaign evidence.** Add stress ranges, hostile personas,
-   boundary values, or failure-mode scenarios that could falsify the Risk
-   Plan's target claim. This is still scoped to declared inputs and
-   invariants.
-6. **Run guided sims when needed.** Use guided simulations for flows that need
-   project-owned Rust logic, dynamic account lists, dependency services,
-   multi-instruction transactions, or richer setup than adapter campaigns can
-   express. Keep guided sim evidence separate from campaign evidence in the
-   report.
+4. **Run a baseline guided-sim sweep.** For each critical economic objective —
+   deposit pressure, redemption pressure, oracle lag, liquidation stress, or
+   reserve imbalance — run a guided-sim parameter sweep
+   (`riptide sim run .riptide/sim --flows <N> --out <dir>`), then build the
+   cartography artifacts with
+   `riptide sim surface <run-path> --sim .riptide/sim`. That writes
+   `risk-surface.json`, `campaign-summary.json`, and `retention-manifest.json`.
+   Retain the run paths, commands, sampled parameters, and summary.
+5. **Run an adversarial/stress guided-sim sweep.** Add stress ranges, hostile
+   personas, boundary values, or failure-mode parameters that could falsify the
+   Risk Plan's target claim, then surface that run the same way. This is still
+   scoped to declared inputs and invariants.
+6. **Run single-flow guided sims when needed.** Use a focused guided sim for a
+   correctness flow or any path that needs project-owned Rust logic, dynamic
+   account lists, dependency services, or multi-instruction transactions but is
+   not a parameter gradient. Keep single-flow guided-sim evidence distinct from
+   the swept cartography evidence in the report.
 7. **Run negative controls.** Include at least one control that demonstrates
    the invariant or test can fail when the relevant assumption is broken.
    Negative controls help reviewers trust that a green result is not caused by
@@ -87,8 +93,8 @@ Use these tiers consistently in the coverage matrix and report.
 | Tier | Meaning | Typical evidence |
 | --- | --- | --- |
 | Calibration | The harness boots and the target metric or invariant is observable. | One small run, smoke scenario, or generated guided-sim crate that reaches the target state. |
-| Focused campaign | A declared economic objective ran through Campaign Runner under fixed inputs and retained artifacts. | Campaign summary, retained case, parameters, rerun command, review output, and hash. |
-| Adversarial campaign | A campaign intentionally stressed a failure mode from the Risk Plan. | Stress scenarios, hostile personas, sampled ranges, retained failures or no-failure summaries, and review output. |
+| Baseline guided-sim sweep | A declared economic objective ran as a guided-sim parameter sweep and was surfaced by `riptide sim surface` under declared inputs. | `risk-surface.json`, `campaign-summary.json`, sampled cells, rerun command, review output, and run hash. |
+| Adversarial/stress guided-sim sweep | A guided-sim sweep intentionally stressed a failure mode from the Risk Plan. | Stress ranges, hostile personas, sampled cells, retained failures or no-failure summaries, and review output. |
 | Guided sim | A project-owned Rust simulation exercised a flow that adapter campaigns cannot express. | `riptide sim run` artifact, `guided-sim-run.json`, `rerun.sh`, review output, and selected account hashes when configured. |
 | Negative control | A control run showed that the invariant or metric fails when the relevant assumption is violated. | Expected-error run, intentionally broken fixture, failing scenario, or guided-sim assertion. |
 | Blocked | The flow could not be assessed with current inputs, harness support, dependency state, or tooling. | Exact blocker, missing artifact, failed command, or required protocol input. |
@@ -107,8 +113,9 @@ For P0 flows:
 - Every P0 row must appear in the coverage matrix.
 - Each P0 row must be `covered`, `covered by guided sim`, `blocked`, `out of
   scope`, or `not assessed`.
-- At least one P0 flow must reach focused campaign, adversarial campaign, or
-  guided sim evidence before the assessment can be ready to send.
+- At least one P0 flow must reach baseline guided-sim sweep, adversarial/stress
+  guided-sim sweep, or single-flow guided sim evidence before the assessment can
+  be ready to send.
 - A P0 row marked `covered` or `covered by guided sim` must include exact
   commands, artifact paths, hashes when emitted, and the invariant or metric
   that backs the row.
@@ -132,8 +139,9 @@ A protocol assessment is ready to send when it meets all of these conditions:
 - The harness readiness check is complete, or each harness gap is listed as
   `blocked`, `out of scope`, or `not assessed`.
 - The coverage matrix classifies every P0 flow.
-- At least one P0 flow has focused campaign, adversarial campaign, or guided
-  sim evidence that a reviewer can rerun from exact commands.
+- At least one P0 flow has baseline guided-sim sweep, adversarial/stress
+  guided-sim sweep, or single-flow guided sim evidence that a reviewer can rerun
+  from exact commands.
 - Every headline claim points to an artifact path, command, hash when present,
   and invariant or metric.
 - Findings and non-findings are separate. A no-failure result is phrased as
@@ -154,9 +162,10 @@ describe that as a full protocol assessment.
 Use `ready_to_send` when all of those conditions are met. If they are not met,
 use one of these verdicts:
 
-- `needs_guided_sim` when Campaign Runner cannot express a P0 flow.
-- `needs_campaign_tuning` when the harness runs but the campaign does not yet
-  cover the target flow or stress range.
+- `needs_guided_sim` when a P0 flow needs a project-owned single-flow guided sim
+  that the current evidence does not provide.
+- `needs_campaign_tuning` when the harness runs but the guided-sim sweep does
+  not yet cover the target flow or stress range.
 - `blocked` when missing inputs, dependencies, build artifacts, private
   protocol context, or tool support prevent assessment.
 - `unsupported` when the requested claim is outside Riptide's simulation
@@ -169,12 +178,12 @@ artifacts, and invariants.
 
 Safe claim examples:
 
-- "Riptide reproduced a deposit-pressure campaign for the declared adapter,
-  scenario family, seed policy, and invariants. No declared invariant fired in
-  the retained runs listed below."
+- "Riptide reproduced a deposit-pressure guided-sim sweep for the declared
+  adapter, scenario family, seed policy, and invariants. No declared invariant
+  fired in the retained runs listed below."
 - "The delegated-deposit P0 flow is covered by guided sim evidence for the
   commands and artifacts in this report. Authority rotation is not assessed."
-- "This finding is reproducible with the retained campaign case and canonical
+- "This finding is reproducible with the retained guided-sim sweep run and run
   hash listed below."
 - "The oracle-lag path is blocked because the protocol-owned oracle account
   layout is not available in the harness."
@@ -184,7 +193,7 @@ Treat the following as unsafe claim examples:
 - "Riptide proves the protocol is safe."
 - "This is an audit replacement."
 - "No vulnerabilities exist in the protocol."
-- "The protocol is certified because the campaign passed."
+- "The protocol is certified because the guided-sim sweep passed."
 - "The guided sim covers all possible authority, oracle, and liquidity paths."
 
 When a report is ready to send, the claim should sound like a reviewable lab
@@ -213,26 +222,27 @@ Once a run root exists, do not hand-write the coverage matrix and verdict.
 Generate the report:
 
 ```bash
-riptide assess <run-root>
+riptide assess <guided-sim-root>
 ```
 
-`riptide assess` is ingest-only: it reads an existing root and writes
+`riptide assess` is ingest-only: it reads an existing guided-sim root and writes
 `assessment.json` plus a byte-deterministic `assessment.md` into it (add
 `--html`/`--pdf` for presentation exports, which are out of the byte-hash
-gate). It does not run the engine — run the campaign or guided sim first,
-then assess its root. Two runs over the same root produce byte-identical
+gate). It does not run any simulation — run the guided-sim sweep or guided sim
+first, then assess its root. Two runs over the same root produce byte-identical
 `assessment.json` + `assessment.md`, so a reviewer can reproduce the exact
 bytes.
 
 It selects the assessment shape from the evidence in the root
 (see [Two assessment shapes](#two-assessment-shapes)):
 
-- a `campaign-summary.json` + `risk-surface.json` root produces the
-  **cartography** assessment, led by the risk-surface heatmap;
-- a root with guided-sim evidence
-  (`sim/artifacts/<run>/guided-sim-run.json`), a run-collection, and packs
-  but no `risk-surface.json` produces the **correctness** assessment, led by
-  the coverage matrix + findings/non-findings, with the risk-surface section
+- a root with `campaign-summary.json` + `risk-surface.json` (written by
+  `riptide sim surface` from a guided-sim sweep) produces the **cartography**
+  assessment, led by the risk-surface heatmap;
+- a root with single-flow guided-sim evidence
+  (`sim/artifacts/<run>/guided-sim-run.json`) and a run-collection but no
+  `risk-surface.json` produces the **correctness** assessment, led by the
+  coverage matrix + findings/non-findings, with the risk-surface section
   rendered as an explicit bounded note instead of a heatmap.
 
 Pass `--input <json-file>` to fold a Risk Plan, coverage rows, verdict, and

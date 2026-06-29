@@ -6,25 +6,26 @@
 # Scope:
 # - Linux only. Assumes Rust (rustup) and Node.js are already installed.
 # - macOS is not tested. It may work because every step is POSIX-ish,
-# but nothing here is validated on Darwin.
+#   but nothing here is validated on Darwin.
 # - Windows is explicitly out of scope.
 #
 # What it does:
 # 1. Detects required toolchains and prints actionable hints on the
-# ones it cannot find.
-# 2. Builds the Rust engine (release), the on-chain programs the
-# post-install smoke tests need (lending_pool, resource_grinder,
-# admin_mock_oracle, stablecoin) via cargo-build-sbf, and the
-# TypeScript CLI.
+#    ones it cannot find (rustc, cargo, node, npm, cargo-build-sbf).
+# 2. Installs CLI dependencies and builds the TypeScript CLI.
 # 3. Installs a `riptide` launcher into $HOME/.local/bin.
-# 4. Verifies the CLI responds to --help, runs
-# `riptide run examples/configs/safe.json` as the lending smoke test,
-# and runs a short resource-grinder simulation as the generic
-# adapter smoke test.
+# 4. Verifies the CLI responds to `--version`/`--help` and runs
+#    `riptide doctor` as a toolchain self-check.
 #
-# Idempotent: running it twice is safe. Cargo and npm handle their own
-# incremental builds; the symlink step uses `ln -sfn` so it never errors
-# on an existing target.
+# Riptide runs deterministic guided simulations: `riptide sim generate`
+# scaffolds a project-owned Rust crate that builds against the vendored
+# `riptide-sim` runtime, so there is no separate engine binary to build
+# or ship. You bring your own Solana program; the SBF toolchain builds
+# its `.so`.
+#
+# Idempotent: running it twice is safe. npm handles its own incremental
+# builds; the launcher step uses an atomic rewrite so it never errors on
+# an existing target.
 #
 # Never runs sudo. If a dependency is missing the script tells you the
 # exact command to run yourself and exits.
@@ -51,7 +52,7 @@ ok()    { printf '%s[%s]%s %s%s%s\n' "$DIM" "$(ts)" "$RESET" "$GREEN" "$*" "$RES
 warn()  { printf '%s[%s]%s %s%s%s\n' "$DIM" "$(ts)" "$RESET" "$YELLOW" "$*" "$RESET"; }
 fail()  { printf '%s[%s]%s %s%s%s\n' "$DIM" "$(ts)" "$RESET" "$RED"   "$*" "$RESET" >&2; }
 
-TOTAL_STEPS=8
+TOTAL_STEPS=5
 STEP_NUM=0
 CURRENT_STEP="startup"
 banner() {
@@ -65,9 +66,9 @@ on_error() {
   local lineno=${1:-?}
   fail "install failed at step: ${CURRENT_STEP} (line ${lineno}, exit ${exit_code})"
   fail "see the output above for the underlying error. fixes to try:"
-  fail "  * re-run ./install.sh — transient network errors (cargo/npm) usually clear on retry"
+  fail "  * re-run ./install.sh — transient network errors (npm) usually clear on retry"
   fail "  * if a toolchain is wrong, check riptide/TOOLCHAIN.md for the pinned versions"
-  fail "  * if cargo-build-sbf fails, confirm you are on solana-cli 3.0.13 (solana --version)"
+  fail "  * if cargo-build-sbf is missing, see https://solana.com/docs/intro/installation"
   exit "$exit_code"
 }
 trap 'on_error $LINENO' ERR
@@ -110,8 +111,10 @@ require_or_hint npm \
 NPM_VER="$(npm --version || true)"
 ok   "npm: ${NPM_VER}"
 
-# Solana SBF toolchain detection. The script never installs it on your
-# behalf without an explicit opt-in because the Solana installer writes
+# Solana SBF toolchain detection. `riptide sim run` builds a generated
+# guided-sim crate with regular cargo, but you still need cargo-build-sbf
+# to build the Solana program you are simulating into its `.so`. The
+# script never installs it for you because the Solana installer writes
 # into $HOME/.local/share/solana and edits PATH.
 log "running: cargo-build-sbf --version"
 SBF_VER=""
@@ -143,64 +146,13 @@ else
   warn "no apt-get or dnf detected. the build path does not use either; this is only a note."
 fi
 
-# ---------- Step 2: cargo build engine ----------
-banner "building engine (cargo build --release -p riptide-engine)"
-log "running: cargo build --release -p riptide-engine"
-cargo build --release -p riptide-engine
-ok   "engine build done"
-
-# ---------- Step 3: cargo build-sbf (all shipped on-chain programs) ----------
-banner "building on-chain programs (cargo build-sbf — shipped programs)"
-
-# Helper: build a single program with a clear banner and an existence
-# assertion on the resulting.so.
-build_program_so() {
-  local prog_dir="$1" so_name="$2"
-  local so_path="$REPO_ROOT/programs/$prog_dir/target/deploy/$so_name"
-  if [ -f "$so_path" ]; then
-    info "existing $so_name detected — cargo-build-sbf will fast-forward if up to date"
-  fi
-  log "running: cargo build-sbf --manifest-path programs/$prog_dir/Cargo.toml"
-  if have cargo-build-sbf; then
-    cargo build-sbf --manifest-path "programs/$prog_dir/Cargo.toml"
-  else
-    cargo +solana build-sbf --manifest-path "programs/$prog_dir/Cargo.toml"
-  fi
-  if [ ! -f "$so_path" ]; then
-    fail "cargo build-sbf reported success but $so_name is missing at:"
-    fail "  $so_path"
-    fail "re-run:  cd programs/$prog_dir && cargo build-sbf"
-    fail "and inspect the output for SBF toolchain errors."
-    exit 1
-  fi
-  ok   "$so_name ready at $so_path"
-}
-
-build_program_so lending_pool       lending_pool.so
-build_program_so resource_grinder   resource_grinder.so
-build_program_so admin_mock_oracle  admin_mock_oracle.so
-# Stablecoin is a shipping adapter (fixtures/adapters/stablecoin.toml);
-# its .so must be built here or a fresh `riptide adapt --adapter
-# fixtures/adapters/stablecoin.toml` will fail with a missing-program-so
-# error instead of the expected smoke pass.
-build_program_so stablecoin    stablecoin.so
-
-LENDING_SO_PATH="$REPO_ROOT/programs/lending_pool/target/deploy/lending_pool.so"
-GENERIC_SO_PATH="$REPO_ROOT/programs/resource_grinder/target/deploy/resource_grinder.so"
-ADMIN_MOCK_ORACLE_SO_PATH="$REPO_ROOT/programs/admin_mock_oracle/target/deploy/admin_mock_oracle.so"
-STABLECOIN_SO_PATH="$REPO_ROOT/programs/stablecoin/target/deploy/stablecoin.so"
-
-# ---------- Step 4: npm install ----------
+# ---------- Step 2: npm install ----------
 banner "installing CLI dependencies (npm install --ignore-scripts)"
-# Repository builds build the engine locally in Step 2. The CLI's
-# postinstall hook is only for published npm installs, where it fetches
-# a prebuilt engine from GitHub Releases. Skip it here so pre-release
-# source checkouts do not try to download a not-yet-cut release asset.
 log "running: (cd cli && npm install --no-audit --no-fund --ignore-scripts)"
 ( cd cli && npm install --no-audit --no-fund --ignore-scripts )
 ok   "npm install done"
 
-# ---------- Step 5: npm run build ----------
+# ---------- Step 3: npm run build ----------
 banner "building CLI (npm run build)"
 log "running: (cd cli && npm run build)"
 ( cd cli && npm run build )
@@ -212,13 +164,13 @@ if [ ! -f "$CLI_ENTRY" ]; then
   exit 1
 fi
 # The built file ships a `#!/usr/bin/env node` shebang; make it
-# executable so direct invocation works too. The symlink path below
+# executable so direct invocation works too. The launcher path below
 # uses a bash shim so this chmod is not load-bearing, but it costs
 # nothing and keeps direct-path usage working.
 chmod +x "$CLI_ENTRY" || true
 ok   "CLI build done (entry: $CLI_ENTRY)"
 
-# ---------- Step 6: install riptide shim into ~/.local/bin ----------
+# ---------- Step 4: install riptide shim into ~/.local/bin ----------
 banner "installing riptide launcher into \$HOME/.local/bin"
 BIN_DIR="$HOME/.local/bin"
 LAUNCHER="$BIN_DIR/riptide"
@@ -269,96 +221,39 @@ case ":$PATH:" in
     ;;
 esac
 
-# ---------- Step 7: verify & smoke test ----------
+# ---------- Step 5: verify & toolchain self-check ----------
 banner "verifying install"
-log "running: $LAUNCHER --help"
-if ! HELP_OUT="$("$LAUNCHER" --help 2>&1)"; then
-  fail "'$LAUNCHER --help' failed. output:"
-  printf '%s\n' "$HELP_OUT" >&2
+log "running: $LAUNCHER --version"
+if ! VERSION_OUT="$("$LAUNCHER" --version 2>&1)"; then
+  fail "'$LAUNCHER --version' failed. output:"
+  printf '%s\n' "$VERSION_OUT" >&2
   fail "check that node can execute $CLI_ENTRY directly:"
+  fail "  node $CLI_ENTRY --version"
+  exit 1
+fi
+ok   "riptide --version: ${VERSION_OUT}"
+
+log "running: $LAUNCHER --help"
+if ! "$LAUNCHER" --help >/dev/null 2>&1; then
+  fail "'$LAUNCHER --help' failed."
   fail "  node $CLI_ENTRY --help"
   exit 1
 fi
 ok   "riptide --help responded"
 
-LENDING_ADAPTER_PATH="$REPO_ROOT/fixtures/adapters/lending.toml"
-log "running safe lending smoke test: riptide run examples/configs/safe.json --adapter fixtures/adapters/lending.toml"
-SMOKE_OUT_DIR="$REPO_ROOT/.riptide/runs/configs"
-rm -rf "$SMOKE_OUT_DIR"
-
-# Shock knob matches examples/run-demo.sh — the canonical demo runs this way
-# and we want our smoke test to execute the same path.
-export RIPTIDE_PRICE_SHOCK_DROP=0.5
-unset RIPTIDE_ENGINE_BIN RIPTIDE_POOL_LTV_BPS RIPTIDE_POOL_LIQ_THRESHOLD_BPS \
-      RIPTIDE_POOL_LIQ_BONUS_BPS RIPTIDE_SEED_COLLATERAL RIPTIDE_STARTING_BALANCE || true
-
-# The demo JSON lives outside the scenario bundle tree, so it does not
-# get an adapter from the bundle-name fallback. Pin the shipped lending
-# adapter explicitly.
-if ! ( cd "$REPO_ROOT" && "$LAUNCHER" run examples/configs/safe.json --adapter "$LENDING_ADAPTER_PATH" ); then
-  fail "smoke test failed: 'riptide run examples/configs/safe.json --adapter fixtures/adapters/lending.toml' did not exit cleanly."
-  fail "try reproducing manually from the repo root:"
-  fail "  riptide run examples/configs/safe.json --adapter fixtures/adapters/lending.toml"
-  fail "  bash examples/run-demo.sh      # fuller demo"
-  fail "if either passes, this is an install-flow bug; open an issue with the full output."
+# `riptide doctor` is the toolchain self-check. It is static (no build,
+# no network, no simulation) and exits non-zero on a hard toolchain
+# failure; a WARN verdict (e.g. a Solana version drift) is acceptable for
+# a successful install, so do not treat exit 1 as fatal here.
+log "running: $LAUNCHER doctor"
+DOCTOR_EXIT=0
+"$LAUNCHER" doctor || DOCTOR_EXIT=$?
+if [ "$DOCTOR_EXIT" -ge 2 ]; then
+  fail "'riptide doctor' reported a hard failure (exit ${DOCTOR_EXIT})."
+  fail "address the FAIL rows above, then re-run: riptide doctor"
   exit 1
 fi
-
-if [ ! -f "$SMOKE_OUT_DIR/simulation-result.json" ]; then
-  fail "smoke test exited 0 but no run artifact was written at:"
-  fail "  $SMOKE_OUT_DIR/simulation-result.json"
-  fail "this usually means the CLI's run artifact layout changed shape."
-  exit 1
-fi
-ok   "lending smoke test green (artifact: $SMOKE_OUT_DIR/simulation-result.json)"
-
-# ---------- Step 8: generic adapter smoke test ----------
-banner "verifying the shipped generic adapter (resource-grinder)"
-# The generic smoke bypasses the CLI persona compiler and invokes the
-# engine binary directly with the shipped `generic-demo.run.json` + the
-# `resource-grinder.toml` adapter. The engine's generic primitive pulls
-# personas straight from the adapter TOML (unlike the CLI simulate
-# path, which compiles personas via the LLM/fallback catalog and does
-# not know about custom generic persona names).
-GENERIC_OUT_DIR="$REPO_ROOT/examples/outputs/generic-smoke"
-rm -rf "$GENERIC_OUT_DIR"
-mkdir -p "$GENERIC_OUT_DIR"
-GENERIC_RESULT="$GENERIC_OUT_DIR/simulation-result.json"
-# Generic adapters source their personas from the adapter TOML, so the
-# engine accepts an empty external-policies array for this path.
-GENERIC_POLICIES="$GENERIC_OUT_DIR/policies.json"
-printf '[]' > "$GENERIC_POLICIES"
-ENGINE_BIN="$REPO_ROOT/target/release/riptide-engine"
-ENGINE_LOG="$GENERIC_OUT_DIR/engine.log"
-log "running: $ENGINE_BIN --adapter fixtures/adapters/resource-grinder.toml --config fixtures/generic-demo.run.json"
-# Engine emits its own progress chatter (TICK 1/12 …, "LiteSVM ready: …",
-# etc.) — capture it here so a green install stays quiet, then surface
-# the full log on failure where it is actually load-bearing.
-if ! ( cd "$REPO_ROOT" && "$ENGINE_BIN" \
-        --adapter "$REPO_ROOT/fixtures/adapters/resource-grinder.toml" \
-        --config  "$REPO_ROOT/fixtures/generic-demo.run.json" \
-        --policies "$GENERIC_POLICIES" \
-        --output  "$GENERIC_RESULT" ) >"$ENGINE_LOG" 2>&1; then
-  fail "generic smoke test failed: the engine did not accept the resource-grinder adapter cleanly."
-  fail "engine output (also at $ENGINE_LOG):"
-  cat "$ENGINE_LOG" >&2 || true
-  fail "reproduce manually from the repo root:"
-  fail "  echo '[]' > /tmp/empty-policies.json"
-  fail "  target/release/riptide-engine \\"
-  fail "    --adapter fixtures/adapters/resource-grinder.toml \\"
-  fail "    --config  fixtures/generic-demo.run.json \\"
-  fail "    --policies /tmp/empty-policies.json \\"
-  fail "    --output  examples/outputs/generic-smoke/simulation-result.json"
-  fail "common cause: $GENERIC_SO_PATH missing or stale. Re-run install.sh."
-  exit 1
-fi
-
-if [ ! -f "$GENERIC_RESULT" ]; then
-  fail "generic smoke test exited 0 but no simulation-result.json was written at:"
-  fail "  $GENERIC_RESULT"
-  exit 1
-fi
-ok   "generic smoke test green (artifact: $GENERIC_RESULT)"
+ok   "riptide doctor passed (exit ${DOCTOR_EXIT})"
 
 # ---------- completion ----------
 ELAPSED=$SECONDS
@@ -371,5 +266,5 @@ printf '\nnext steps:\n'
 printf '  1. %sriptide doctor%s                        # verify your toolchain\n' "$BOLD" "$RESET"
 printf '  2. %scd <your-program>%s                     # the Solana program you want to simulate\n' "$BOLD" "$RESET"
 printf '  3. %sriptide init%s                          # thin .riptide/ bootstrap\n' "$BOLD" "$RESET"
-printf '  4. %s/riptide-config%s                       # configure adapter, harness, scenarios, campaign readiness\n' "$BOLD" "$RESET"
+printf '  4. %s/riptide-config%s                       # finish the adapter and author the guided simulation\n' "$BOLD" "$RESET"
 printf '\n%sNew to Riptide?%s %sriptide --help%s walks through the full surface.\n' "$DIM" "$RESET" "$BOLD" "$RESET"

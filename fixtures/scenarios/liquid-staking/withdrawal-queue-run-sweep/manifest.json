@@ -1,6 +1,0 @@
-{
-  "adapter": "fixtures/adapters/liquid-staking.toml",
-  "slug": "withdrawal-queue-run-sweep",
-  "failure_mode": "withdrawal_queue_run",
-  "rationale": "Midpoint (redemption share 0.50 = 10 redemption-heavy agents of 20) of a withdrawal-queue-run sweep {0.25, 0.50, 0.75}. Classification flagged withdrawal_queue_run because the IDL declares request_unstake + claim_unstake as distinct instructions, the adapter observes pool.reserve_buffer + pool.pending_unstake_assets + pool.pending_unstake_count, and panic-exiter + arb-redeemer together weight request_unstake heavily enough to outrun the 20%-reserve-fraction refill from stake flow. reserve_buffer_exhaustion is cited as a secondary downstream mode per propose.md Rule 17 — the reserve drain is what forces claims onto the queue. Baseline scenario (no oracle shock) so the queue forms from organic persona pressure alone."
-}

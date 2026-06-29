@@ -1,3 +1,0 @@
-run_index,run_id,status,scenario_family,run_seed,first_failure_tick,total_bad_debt,max_utilization,min_tvl,total_liquidations,fixed_one,oracle_lag_ticks,whale_share_bps
-0,run_000000_41c052cc85f5,pass,whale_exit_pressure,2026050832,,,,,,,,5000
-1,run_000001_8e5af07005a7,pass,fee_growth_churn,2026050846,,,,,,,4,0

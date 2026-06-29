@@ -8,11 +8,12 @@
 #   dist/riptide-<target-triple>.zip
 #   dist/riptide-<target-triple>.zip.sha256
 #
-# The archive includes a bundled Node runtime, the compiled TypeScript
-# CLI with production npm dependencies, the native engine, shipped
-# fixtures/examples, and the shipped program .so files plus their
-# fixture deploy keypairs. End users who install this bundle do not need
-# Rust, npm, Node, or cargo-build-sbf.
+# The archive includes a bundled Node runtime and the compiled TypeScript
+# CLI with production npm dependencies (whose `dist/sim-runtime` carries
+# the vendored `riptide-sim` guided-simulation runtime), plus the shipped
+# skills, adapter fixtures, and docs. End users who install this
+# bundle do not need npm or Node; they bring their own Solana program and
+# the SBF toolchain to build it.
 
 set -euo pipefail
 
@@ -24,7 +25,6 @@ TARGET="${RIPTIDE_TARGET:-x86_64-unknown-linux-gnu}"
 NODE_VERSION="${RIPTIDE_NODE_VERSION:-24.11.1}"
 NODE_SHA256="${RIPTIDE_NODE_SHA256:-}"
 SKIP_BUILDS=0
-SKIP_SBF=0
 
 usage() {
   cat <<'EOF'
@@ -38,8 +38,7 @@ Options:
                       aarch64-apple-darwin
                       x86_64-pc-windows-msvc
   --out-dir <dir>     Output directory. Defaults to ./dist.
-  --skip-builds       Reuse existing engine/CLI build outputs.
-  --skip-sbf          Reuse existing shipped program .so files.
+  --skip-builds       Reuse existing CLI build outputs.
   -h, --help          Show this help.
 EOF
 }
@@ -60,10 +59,6 @@ while [ "$#" -gt 0 ]; do
       SKIP_BUILDS=1
       shift
       ;;
-    --skip-sbf)
-      SKIP_SBF=1
-      shift
-      ;;
     -h|--help)
       usage
       exit 0
@@ -81,28 +76,24 @@ case "$TARGET" in
     DEFAULT_NODE_SHA256="60e3b0a8500819514aca603487c254298cd776de0698d3cd08f11dba5b8289a8"
     NODE_ARCHIVE_EXT="tar.xz"
     RELEASE_ARCHIVE_EXT="tar.gz"
-    ENGINE_BIN="riptide-engine"
     ;;
   x86_64-apple-darwin)
     NODE_PLATFORM="darwin-x64"
     DEFAULT_NODE_SHA256="3793aa4aa52eb1f464d7848cd4e254880d9abca989c7cdc79a32c51bfeec1806"
     NODE_ARCHIVE_EXT="tar.xz"
     RELEASE_ARCHIVE_EXT="tar.gz"
-    ENGINE_BIN="riptide-engine"
     ;;
   aarch64-apple-darwin)
     NODE_PLATFORM="darwin-arm64"
     DEFAULT_NODE_SHA256="064b017da9efd6b5d2bd0fadd56d3b8a50fcb369af3ccf91102c7a07a6cf4deb"
     NODE_ARCHIVE_EXT="tar.xz"
     RELEASE_ARCHIVE_EXT="tar.gz"
-    ENGINE_BIN="riptide-engine"
     ;;
   x86_64-pc-windows-msvc)
     NODE_PLATFORM="win-x64"
     DEFAULT_NODE_SHA256="5355ae6d7c49eddcfde7d34ac3486820600a831bf81dc3bdca5c8db6a9bb0e76"
     NODE_ARCHIVE_EXT="zip"
     RELEASE_ARCHIVE_EXT="zip"
-    ENGINE_BIN="riptide-engine.exe"
     ;;
   *)
     echo "unsupported target: $TARGET" >&2
@@ -122,8 +113,6 @@ require() {
 
 require node
 require npm
-require cargo
-require rustc
 require curl
 require tar
 if [ "$NODE_ARCHIVE_EXT" = "zip" ]; then
@@ -185,90 +174,22 @@ write_sha256_file() {
 }
 
 version="$(node -e "const fs=require('fs'); process.stdout.write(JSON.parse(fs.readFileSync('cli/package.json','utf8')).version)")"
-engine_version="$(awk -F' = ' '$1 == "version" { gsub(/"/, "", $2); print $2; exit }' engine/Cargo.toml)"
-if [ "$version" != "$engine_version" ]; then
-  echo "version mismatch: cli/package.json=$version engine/Cargo.toml=$engine_version" >&2
-  exit 1
-fi
-
-host_target="$(rustc -vV | awk '/^host: / { host=$2 } END { print host }')"
-[ -n "$host_target" ] || {
-  echo "could not detect rustc host target" >&2
-  exit 1
-}
-cargo_target_args=()
-engine_release_dir="$ROOT/target/release"
-if [ "$TARGET" != "$host_target" ]; then
-  cargo_target_args=(--target "$TARGET")
-  engine_release_dir="$ROOT/target/$TARGET/release"
-fi
-
-build_program_so() {
-  local prog_dir="$1"
-  local so_name="$2"
-  local so_path="$ROOT/programs/$prog_dir/target/deploy/$so_name"
-  local keypair_name="${so_name%.so}-keypair.json"
-  local keypair_path="$ROOT/programs/$prog_dir/target/deploy/$keypair_name"
-
-  if [ "$SKIP_SBF" -eq 0 ]; then
-    if command -v cargo-build-sbf >/dev/null 2>&1; then
-      cargo build-sbf --manifest-path "programs/$prog_dir/Cargo.toml"
-    else
-      cargo +solana build-sbf --manifest-path "programs/$prog_dir/Cargo.toml"
-    fi
-  fi
-
-  [ -f "$so_path" ] || {
-    echo "missing shipped program artifact: $so_path" >&2
-    echo "build it with: cargo build-sbf --manifest-path programs/$prog_dir/Cargo.toml" >&2
-    exit 1
-  }
-  [ -f "$keypair_path" ] || {
-    echo "missing shipped program keypair: $keypair_path" >&2
-    echo "build it with: cargo build-sbf --manifest-path programs/$prog_dir/Cargo.toml" >&2
-    exit 1
-  }
-}
 
 if [ "$SKIP_BUILDS" -eq 0 ]; then
-  cargo build --release -p riptide-engine "${cargo_target_args[@]}"
   (cd cli && npm ci --no-audit --no-fund --ignore-scripts && npm run build)
 fi
 
-if [ "$TARGET" = "x86_64-pc-windows-msvc" ]; then
-  [ -f "$engine_release_dir/$ENGINE_BIN" ] || {
-    echo "missing $engine_release_dir/$ENGINE_BIN" >&2
-    exit 1
-  }
-else
-  [ -x "$engine_release_dir/$ENGINE_BIN" ] || {
-    echo "missing $engine_release_dir/$ENGINE_BIN" >&2
-    exit 1
-  }
-fi
 [ -f "$ROOT/cli/dist/src/index.js" ] || {
   echo "missing cli/dist/src/index.js" >&2
   exit 1
 }
-
-build_program_so lending_pool lending_pool.so
-build_program_so resource_grinder resource_grinder.so
-build_program_so admin_mock_oracle admin_mock_oracle.so
-build_program_so perpetuals perpetuals.so
-build_program_so amm amm.so
-build_program_so liquid-staking liquid_staking.so
-build_program_so stablecoin stablecoin.so
 
 rm -rf "$OUT_DIR/stage"
 mkdir -p "$OUT_DIR/stage"
 
 bundle_name="riptide-$version-$TARGET"
 bundle="$OUT_DIR/stage/$bundle_name"
-mkdir -p "$bundle/bin" "$bundle/target/release" "$bundle/cli" "$bundle/node"
-
-cp "$engine_release_dir/$ENGINE_BIN" "$bundle/target/release/$ENGINE_BIN"
-cp "$engine_release_dir/$ENGINE_BIN" "$bundle/bin/$ENGINE_BIN"
-chmod +x "$bundle/target/release/$ENGINE_BIN" "$bundle/bin/$ENGINE_BIN"
+mkdir -p "$bundle/bin" "$bundle/cli" "$bundle/node"
 
 node_archive="node-v$NODE_VERSION-$NODE_PLATFORM.$NODE_ARCHIVE_EXT"
 node_url="https://nodejs.org/dist/v$NODE_VERSION/$node_archive"
@@ -300,50 +221,17 @@ cp -R "$ROOT/cli/dist" "$bundle/cli/dist"
 cp -R "$ROOT/cli/assets" "$bundle/cli/assets"
 (cd "$bundle/cli" && npm ci --omit=dev --no-audit --no-fund --ignore-scripts)
 
-copy_program_artifact() {
-  local prog_dir="$1"
-  local so_name="$2"
-  local keypair_name="${so_name%.so}-keypair.json"
-  mkdir -p "$bundle/programs/$prog_dir/target/deploy"
-  cp "$ROOT/programs/$prog_dir/target/deploy/$so_name" \
-     "$bundle/programs/$prog_dir/target/deploy/$so_name"
-  # The shipped demo deploy keypairs are public fixture material, not
-  # production authority keys. Owner-aware generic adapters derive local
-  # sibling program owners from these companion files, so omitting them
-  # makes release installs fail `riptide doctor` and engine boot.
-  cp "$ROOT/programs/$prog_dir/target/deploy/$keypair_name" \
-     "$bundle/programs/$prog_dir/target/deploy/$keypair_name"
-}
-
-copy_program_artifact lending_pool lending_pool.so
-copy_program_artifact resource_grinder resource_grinder.so
-copy_program_artifact admin_mock_oracle admin_mock_oracle.so
-copy_program_artifact perpetuals perpetuals.so
-copy_program_artifact amm amm.so
-copy_program_artifact liquid-staking liquid_staking.so
-copy_program_artifact stablecoin stablecoin.so
-
 cp -R "$ROOT/fixtures" "$bundle/fixtures"
-cp -R "$ROOT/examples" "$bundle/examples"
-cp -R "$ROOT/scripts" "$bundle/scripts"
 cp -R "$ROOT/skills" "$bundle/skills"
 cp "$ROOT/README.md" "$bundle/README.md"
 cp "$ROOT/TOOLCHAIN.md" "$bundle/TOOLCHAIN.md"
 cp "$ROOT/LICENSE" "$bundle/LICENSE"
-
-mkdir -p "$bundle/.riptide"
-if [ "$TARGET" = "x86_64-pc-windows-msvc" ]; then
-  cp -R "$bundle/fixtures/scenarios" "$bundle/.riptide/scenarios"
-else
-  ln -s ../fixtures/scenarios "$bundle/.riptide/scenarios"
-fi
 
 if [ "$TARGET" = "x86_64-pc-windows-msvc" ]; then
   cat > "$bundle/bin/riptide.cmd" <<'EOF'
 @echo off
 setlocal
 set "ROOT=%~dp0.."
-if not defined RIPTIDE_ENGINE_BIN set "RIPTIDE_ENGINE_BIN=%ROOT%\bin\riptide-engine.exe"
 "%ROOT%\node\node.exe" "%ROOT%\cli\dist\src\index.js" %*
 EOF
 else
@@ -351,8 +239,6 @@ else
 #!/usr/bin/env sh
 set -eu
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-: "${RIPTIDE_ENGINE_BIN:=$ROOT/bin/riptide-engine}"
-export RIPTIDE_ENGINE_BIN
 exec "$ROOT/node/bin/node" "$ROOT/cli/dist/src/index.js" "$@"
 EOF
   chmod +x "$bundle/bin/riptide"

@@ -33,17 +33,14 @@
     "dist/sim-runtime",
     "dist/skills",
     "assets",
-    "scripts/install-binary.js",
     "README.md",
     "LICENSE-MIT",
     "LICENSE-APACHE",
     "npm-shrinkwrap.json"
   ],
   "scripts": {
-    "build": "node ./scripts/clean-dist.mjs && tsc -p tsconfig.json && node ./scripts/build-studio-app.mjs && node ./scripts/copy-personas.mjs",
-    "build:studio-app": "node ./scripts/build-studio-app.mjs",
-    "test": "npm run build && node ./scripts/run-tests.mjs",
-    "postinstall": "node scripts/install-binary.js"
+    "build": "node ./scripts/clean-dist.mjs && tsc -p tsconfig.json && node ./scripts/copy-personas.mjs",
+    "test": "npm run build && node ./scripts/run-tests.mjs"
   },
   "engines": {
     "node": ">=20"

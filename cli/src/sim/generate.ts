@@ -8,9 +8,9 @@ import { resolveAdapterRuntime, resolveRuntimePath, type Adapter } from "../sche
 import { loadGenericIdl } from "./idl.js";
 import { renderAccounts } from "./render-accounts.js";
 import { renderBootstrapManifest } from "./render-manifest.js";
+import { renderInvariants } from "./render-invariants.js";
+import { renderFlows } from "./render-flows.js";
 import {
-  renderFlows,
-  renderInvariants,
   renderMain,
   renderOracleService,
   renderServicesMod,
@@ -87,8 +87,16 @@ export async function generateSim(
       }),
       "utf8"
     );
-    await writeIfFirst(path.join(srcDir, "flows.rs"), renderFlows(), forceUserOwned);
-    await writeIfFirst(path.join(srcDir, "invariants.rs"), renderInvariants(), forceUserOwned);
+    await writeIfFirst(path.join(srcDir, "flows.rs"), renderFlows(resolved.adapter, idl), forceUserOwned);
+    await writeIfFirst(
+      path.join(srcDir, "invariants.rs"),
+      renderInvariants(resolved.adapter, idl),
+      forceUserOwned
+    );
+    // Pin the sim crate's toolchain so a case-study root that pins an older
+    // channel (for its own program build) doesn't break the sim's edition2024
+    // dependency tree via cargo's upward rust-toolchain.toml resolution.
+    await writeIfFirst(path.join(outDir, "rust-toolchain.toml"), renderRustToolchain(), forceUserOwned);
     await writeIfFirst(path.join(srcDir, "types_ext.rs"), renderTypesExt(), forceUserOwned);
     await writeIfFirst(path.join(servicesDir, "mod.rs"), renderServicesMod(), forceUserOwned);
     await writeIfFirst(path.join(servicesDir, "oracle.rs"), renderOracleService(), forceUserOwned);
@@ -102,6 +110,12 @@ export async function generateSim(
 async function writeIfFirst(filePath: string, content: string, force: boolean): Promise<void> {
   if (!force && existsSync(filePath)) return;
   await writeFile(filePath, content, "utf8");
+}
+
+export function renderRustToolchain(): string {
+  return `[toolchain]
+channel = "1.89.0"
+`;
 }
 
 export function renderCargoToml(crateName: string, runtime: RuntimeCratePaths): string {

@@ -1,8 +1,0 @@
-{
-  "ticks": [
-    { "tick": 0, "price": 1.00, "exponent": -2 },
-    { "tick": 3, "price": 0.90, "exponent": -2 },
-    { "tick": 4, "price": 0.20, "exponent": -2 },
-    { "tick": 5, "price": 0.20, "exponent": -2 }
-  ]
-}

@@ -1,6 +1,0 @@
-{
-  "adapter": "./adapter.toml",
-  "slug": "reserve-buffer-exhaustion-sweep",
-  "failure_mode": "reserve_buffer_exhaustion",
-  "rationale": "Sweep midpoint over redemption rate versus reserve-buffer pressure. A fixture-local adapter schedules pool initialization, collateral seeding, minting, a reserve-covering redeem, and a second redeem that forces the position-level queue. The declared no_redemption_queue_formation invariant is expected to fire once the reserve buffer is exhausted and a queued claim appears."
-}

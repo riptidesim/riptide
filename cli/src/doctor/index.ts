@@ -28,13 +28,9 @@ import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import {
-  resolveEngineBinary,
-  monorepoRootFromModule,
-} from "../orchestrator/index.js";
+import { monorepoRootFromModule } from "../orchestrator/index.js";
 import { loadAdapter } from "../adapter/resolve.js";
-import { lintAdapter } from "../lint/index.js";
-import { deriveRepoRoot } from "../commands/lint.js";
+import { lintAdapter, deriveRepoRoot } from "../lint/index.js";
 import { resolveAdapterRuntime, type Adapter } from "../schemas/adapter.js";
 
 const execFileAsync = promisify(execFile);
@@ -234,8 +230,6 @@ export interface BuildReportInput {
   env?: NodeJS.ProcessEnv;
   /** Test seam — override the toolchain probe to avoid spawning subprocesses. */
   probeTool?: (spec: ToolSpec) => Promise<ToolProbeResult>;
-  /** Test seam — override engine resolution. */
-  resolveEngine?: () => Promise<string>;
   /** Test seam — override the adapter discovery directories. */
   discoverAdapters?: (cwd: string) => DiscoveredAdapter[];
 }
@@ -254,7 +248,6 @@ export interface DiscoveredAdapter {
 }
 
 export async function buildDoctorReport(input: BuildReportInput): Promise<DoctorReport> {
-  const env = input.env ?? process.env;
   const probe = input.probeTool ?? defaultProbeTool;
 
   const environment: DoctorCheck[] = [];
@@ -286,31 +279,6 @@ export async function buildDoctorReport(input: BuildReportInput): Promise<Doctor
       expected: spec.expected,
       actual: probed.version + (probed.resolved ? ` (${probed.resolved})` : ""),
       hint: inBand ? undefined : spec.driftHint,
-    });
-  }
-
-  // ---- engine binary resolution ----
-  try {
-    const enginePath = input.resolveEngine
-      ? await input.resolveEngine()
-      : await resolveEngineBinary(env, input.cwd);
-    environment.push({
-      id: "riptide-engine",
-      status: "pass",
-      label: "riptide-engine",
-      expected: "<repo>/target/release/riptide-engine or $RIPTIDE_ENGINE_BIN",
-      actual: enginePath,
-    });
-  } catch (err) {
-    environment.push({
-      id: "riptide-engine",
-      status: "fail",
-      label: "riptide-engine",
-      expected: "<repo>/target/release/riptide-engine or $RIPTIDE_ENGINE_BIN",
-      actual: "(not found)",
-      hint:
-        "build it from this repo with `cargo build --release -p riptide-engine`, or set $RIPTIDE_ENGINE_BIN to an existing binary. Original message: " +
-        ((err as Error).message ?? String(err)).split("\n")[0],
     });
   }
 
@@ -415,7 +383,7 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
       load: "pass",
       lint: "fail",
       note: `lint crashed: ${(err as Error).message ?? String(err)}`,
-      hint: "rerun `riptide lint <adapter>` for the full diagnostic",
+      hint: "fix the adapter TOML and rerun `riptide doctor` for the full diagnostic",
     };
   }
 
@@ -431,15 +399,15 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
   if (failCount > 0) {
     lintStatus = "fail";
     note = `${lintReport.sourceKind}: ${failCount} fail / ${warnCount} warn`;
-    hint = `run \`riptide lint ${d.name}\` for the full diagnostic`;
+    hint = `run \`riptide readiness .\` for the full diagnostic on ${d.name}`;
   } else if (warnCount > 0) {
     lintStatus = "warn";
     if (lintReport.sourceKind === "non-json") {
       note = "non-JSON lineage source — machine validation unavailable (inspection-only)";
-      hint = `run \`riptide lineage ${d.name}\` for the reviewer-readable inspection surface`;
+      hint = `run \`riptide readiness .\` for the reviewer-readable inspection surface on ${d.name}`;
     } else {
       note = `${lintReport.sourceKind}: ${warnCount} warn (uncovered surface)`;
-      hint = `run \`riptide lint ${d.name}\` to see uncovered fields`;
+      hint = `run \`riptide readiness .\` to see uncovered fields on ${d.name}`;
     }
   } else if (skipCount > 0 && passCount === 0) {
     // Pure SKIP — no [lineage] block at all. Skipped machine validation

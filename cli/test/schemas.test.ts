@@ -12,8 +12,8 @@ async function readToml(relativeToRepo: string): Promise<unknown> {
 }
 
 test("schemas: adapter schema accepts shared semantics breadth fixture", async () => {
-  const raw = await readToml("engine/tests/fixtures/semantics-breadth-demo.toml");
-  const adapter = validateAdapter(raw, "engine/tests/fixtures/semantics-breadth-demo.toml");
+  const raw = await readToml("fixtures/semantics-breadth-demo.toml");
+  const adapter = validateAdapter(raw, "fixtures/semantics-breadth-demo.toml");
   const semantics = adapter.semantics;
 
   assert.ok(semantics);
@@ -30,7 +30,7 @@ test("schemas: adapter schema accepts shared semantics breadth fixture", async (
 
 test("schemas: adapter schema accepts mainnet-rpc replay at parse time", async () => {
   const raw = await readFile(
-    path.resolve(process.cwd(), "..", "engine/tests/fixtures/semantics-breadth-demo.toml"),
+    path.resolve(process.cwd(), "..", "fixtures/semantics-breadth-demo.toml"),
     "utf8"
   );
   const parsed = TOML.parse(raw.replace('state_source = "fixture"', 'state_source = "mainnet-rpc"'));
@@ -58,7 +58,7 @@ test("schemas: legacy semantics adapter keeps new breadth fields empty", async (
 
 test("schemas: malformed semantics breadth blocks have typed diagnostics", async () => {
   const raw = await readFile(
-    path.resolve(process.cwd(), "..", "engine/tests/fixtures/semantics-breadth-demo.toml"),
+    path.resolve(process.cwd(), "..", "fixtures/semantics-breadth-demo.toml"),
     "utf8"
   );
 

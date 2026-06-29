@@ -1,3 +1,0 @@
-run_index,run_id,status,scenario_family,run_seed,first_failure_tick,total_bad_debt,max_utilization,min_tvl,total_liquidations,fixed_one
-0,run_000000_5d7d52662d22,pass,swap_pressure,1350,,,,,,
-1,run_000001_37cd9a6bfe2b,pass,swap_pressure,1338,,,,,,

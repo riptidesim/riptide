@@ -1,232 +1,234 @@
 # Architecture
 
-**Purpose:** How Riptide is assembled — the six-layer stack, the LiteSVM runtime, and the determinism model.
+**Purpose:** How Riptide is assembled — the CLI, the project-owned
+guided-sim crate, the `riptide-sim` runtime it builds against, and the
+determinism model.
 
-**Audience:** adapter authors, contributors, and reviewers who need to understand the engine's shape before reading code.
+**Audience:** adapter authors, contributors, and reviewers who need to
+understand Riptide's shape before reading code.
 
-Riptide runs on two processes: a Rust engine (`engine/`) that drives the simulation, and a TypeScript CLI (`cli/`) that compiles personas, pre-validates inputs, orchestrates runs, and serves the dashboard. Every claim the engine makes is declared in TOML on disk, so nothing about a run is carried only in a binary.
+Riptide has two pieces:
 
-## The six-layer stack
+- a **TypeScript CLI** (`cli/`) that scaffolds projects, validates
+  inputs, generates the guided-sim crate, drives runs, and produces
+  review and assessment artifacts; and
+- a **Rust guided-sim runtime** (`riptide-sim/` + `riptide-sim-macros/`)
+  that the generated, project-owned simulation crate builds against.
 
-Each bundle layers six declarative surfaces on top of your program.
-Shipping fixtures live under `fixtures/`; downstream projects write the
-same plain-file shapes under `.riptide/` without editing engine code.
+There is no separate engine binary. The simulation is ordinary Rust: a
+crate Riptide generates into your repo at `.riptide/sim/`, compiled with
+`cargo` and run against an in-process LiteSVM world. Everything
+load-bearing is either declared in TOML on disk or written as
+project-owned Rust you can read and edit.
+
+## The two declarative-plus-code surfaces
+
+A configured repo has two surfaces on top of your program:
 
 ```mermaid
 flowchart TB
     P(["Your Solana Program<br>BPF .so + IDL"])
 
-    subgraph Stack["Six-Layer Stack — all declarative TOML"]
-        direction TB
-        L1["1. Adapter<br><small>program wiring: accounts, actions,<br>observations, invariants</small>"]
-        L2["2. Personas<br><small>agent behavior via trigger DSL</small>"]
-        L3["3. Scenarios<br><small>engine shocks: oracle trajectories,<br>scheduled actions</small>"]
-        L4["4. Parameters<br><small>run-config knobs that sweep dimensions</small>"]
-        L5["5. Failure-mode taxonomy<br><small>named categories the riptide-config<br>skill matches after smoke</small>"]
-        L6["6. Invariants<br><small>machine-checkable properties<br>in the adapter</small>"]
+    subgraph Decl["Adapter — declarative TOML"]
+        A["Accounts, actions, observations,<br>oracle bindings, invariants, semantics"]
     end
 
-    P --> Stack
-    Stack --> R["Riptide Engine<br>+ LiteSVM"]
-    R --> O["simulation-result.json<br>byte-deterministic"]
+    subgraph Code["Guided-sim crate — project-owned Rust"]
+        F["flows.rs — protocol behavior"]
+        I["invariants.rs — checks"]
+        S["services/ — local oracle/orderbook models"]
+        M["Riptide.toml — bootstrap manifest"]
+    end
+
+    P --> Decl
+    P --> Code
+    Decl -->|riptide sim generate| Code
+    Code --> R["riptide-sim runtime<br>+ LiteSVM"]
+    R --> O["guided-sim-run.json<br>byte-deterministic"]
 ```
 
-1. **Adapter** — one TOML under `fixtures/adapters/` declaring your program, its accounts, actions, observations, oracle bindings, lineage, semantics, and invariants. Examples: `lending.toml`, `perpetuals.toml`, `amm.toml`, `liquid-staking.toml`, `stablecoin.toml`, `resource-grinder.toml`.
-2. **Personas** — user repos declare personas inline in the adapter's `[personas.*]` tables. The `fixtures/personas/` libraries are monorepo fixture assets for intentionally authored fixture-mode scenarios; they are not copied to `.riptide/personas/`.
-3. **Scenarios** — engine shocks (oracle trajectories, scheduled actions) mounted from declarative presets. Replay scenarios additionally read `initial-state.json`, `trajectory.json`, and `oracle-trajectory.json`, with an optional replay-scoped adapter override when the recorded program shape diverges from the one your repo currently builds. See `fixtures/scenarios/` and `engine/src/scenario/preset_spec.rs`.
-4. **Parameters** — run-config knobs that sweep over the dimensions that matter: whale share, shock magnitude, trade size, leverage, depositor concentration.
-5. **Failure-mode taxonomy** — categories like `whale_concentration`, `margin_cascade_from_oracle_shock`, `price_manipulation_via_swap`, `impermanent_loss_spike`. The `riptide-config` skill uses this taxonomy after adapter lint and harness smoke pass.
-6. **Invariants** — machine-checkable properties (`no_bad_debt`, `reserve_a > 0`, `k == reserve_a * reserve_b` within tolerance) declared inline in the adapter. The engine exits non-zero when any invariant fires, so invariants double as CI gates. `/riptide-config` creates or repairs starter invariants after it has inspected the adapter surface; `riptide init` itself stays a thin bootstrap.
+1. **Adapter** — one TOML under `.riptide/adapters/` (shipping fixtures
+   live under `fixtures/adapters/`) declaring your program, its accounts,
+   actions, observations, oracle bindings, semantics, and invariants.
+   Examples: `lending.toml`, `perpetuals.toml`, `amm.toml`,
+   `liquid-staking.toml`, `stablecoin.toml`, `resource-grinder.toml`. The
+   adapter is the wiring contract and the input to codegen.
+2. **Guided-sim crate** — the Rust crate `riptide sim generate` scaffolds
+   at `.riptide/sim/`. Generated `types.rs` (typed IDL builders) and
+   `accounts.rs` (address storage) are regenerated code; `flows.rs`,
+   `invariants.rs`, `types_ext.rs`, and `services/` are project-owned.
+   This is where protocol behavior lives: dynamic `remaining_accounts`,
+   multi-instruction transactions, target-vs-agent dispatch, and local
+   oracle/orderbook/stake service models.
 
-Two optional Rust-owned paths sit beside the six layers when TOML is not
-expressive enough:
+> **Economic semantics.** Versioned `[semantics]` blocks are authorable
+> in the adapter today. The shipping lending, perps, AMM, liquid-staking,
+> and stablecoin adapters declare `lending.v1`, `perps-margin.v1`,
+> `amm.v1`, `lst.v1`, and `stablecoin.v1` role mappings with derived
+> observations and expression invariants. Semantics add economic meaning
+> on top of the raw field bindings; they do not change the runtime.
 
-- **Rust harness** — setup code generated by `riptide harness generate`. It runs before tick 0 and creates the account bytes, PDAs, SPL accounts, state packs, or sibling programs your protocol needs without adding protocol-specific code to Riptide core.
-- **Guided Rust simulation** — flow code generated by `riptide sim generate`. Use it when the protocol needs dynamic `remaining_accounts`, multi-instruction transactions, target-vs-agent dispatch, or local oracle/orderbook services that don't fit static TOML.
+> **Skill-first setup, plain-file output.** The `riptide-config` skill is
+> the default way to turn a thin `riptide init` scaffold into adapter TOML
+> and a working guided-sim crate (flows, invariants, services, readiness
+> notes) in one loop. `riptide-narrative` can summarize a completed run.
+> Every artifact the skills generate is plain TOML, Rust, or JSON you can
+> hand-author instead — see `fixtures/adapters/resource-grinder.toml` for
+> a minimal from-scratch example.
 
-> **Economic semantics status.** Versioned `[semantics]` blocks are implemented and authorable today. The shipping lending, perps, AMM, liquid-staking, and stablecoin adapters declare `lending.v1`, `perps-margin.v1`, `amm.v1`, `lst.v1`, and `stablecoin.v1` role mappings with derived observations and expression invariants. Non-lending protocol bundles still run through the generic SBF/IDL dispatch path; semantics adds economic meaning on top of that runtime, not a dedicated primitive enum variant.
+## Codegen pipeline — adapter to crate
 
-Five shipping protocol-class bundles exercise every layer end-to-end: **lending** (Solend fork), **perps** (perps-lite), **AMM** (constant-product), **liquid staking** (`liquid-staking` — a minimal pooled-stake / withdrawal-queue surface, not a fork of any real LST codebase), and **stablecoin** (`stablecoin` — a minimal collateral / stable-supply / reserve-buffer / redemption-queue surface with one admin-gated `apply_hedge_loss` stress mutation, not a fork of any real stablecoin codebase). A sixth generic bundle (`resource-grinder`) drives a non-DeFi SBF program end-to-end — if it runs, you can wire Riptide to your protocol.
+`riptide sim generate --adapter .riptide/adapters/<program>.toml` reads
+the adapter and its IDL and writes the crate:
 
-The liquid-staking bundle ships two named rerunnable single-program proof artifacts at `fixtures/replays/liquid-staking-depeg-redemption-run/` and `fixtures/replays/liquid-staking-slash-with-open-queue/` — depeg + withdrawal-run pressure replays against the minimal fork, historical inspiration: the 2024 Kelp / rsETH depeg. Framed explicitly as **simulation evidence**, not audit signoff. See the bundle-local READMEs for the load-bearing invariant firings, rerun commands, and what the proofs do and do not prove.
+```text
+.riptide/sim/
+├── Cargo.toml
+├── Riptide.toml
+└── src/
+    ├── main.rs
+    ├── types.rs        — generated typed builders from the adapter IDL
+    ├── accounts.rs     — generated address-storage fields
+    ├── flows.rs        — project-owned protocol behavior
+    ├── invariants.rs   — project-owned checks
+    └── services/       — project-owned local service models
+```
 
-The stablecoin bundle ships one named rerunnable single-program proof artifact at `fixtures/replays/stablecoin-uxd-style-collateral-cascade/` — a UXD-style collateral-cascade + redemption-run pressure replay against the minimal `stablecoin`, historical inspiration: the November 2022 UXD delta-neutral backing gap after the Mango exploit wiped the hedge leg. The proof is explicitly framed as **UXD-style pressure geometry** rather than a literal UXD replay: the hedge-gap is internalized as an admin-gated program-local `apply_hedge_loss` mutation, not a cross-program stablecoin ↔ perps-venue composition. Three declared adapter invariants fire at named ticks (`no_hedge_loss_during_healthy_run` @ T3, `full_backing` @ T3, `no_redemption_queue_formation` @ T4). The proof's regression hash is pinned by `engine/tests/replay_stablecoin_uxd_style_collateral_cascade.rs`.
+The crate depends on the `riptide-sim` runtime. From a Riptide source
+checkout, the generator writes live path dependencies into the checkout,
+so runtime changes are picked up without regenerating. From an installed
+CLI, it copies the runtime crates into `.riptide/sim/vendor/` and writes
+relative path dependencies, so the crate is self-contained: it builds
+with only Rust and Cargo present, can be committed alongside your
+program, and survives CLI upgrades.
 
-The lending replay catalog also ships a Drift-inspired fake-collateral/vault-drain proof at `fixtures/replays/drift-fake-collateral-vault-drain/` — accepted collateral mark collapses from 1000 to 20 after the attacker borrows against the accepted value, realizing a `collateral_backing` bad-debt invariant firing at tick 2. This is explicitly an **economic-shape replay** inspired by the April 2026 Drift incident, not a byte-level reconstruction of Drift's mainnet program, admin-control surface, oracle accounts, or slot state. The proof's regression hash is pinned by `engine/tests/replay_drift_fake_collateral_vault_drain.rs`.
+`riptide sim refresh` replaces only the generated files (`types.rs`,
+`accounts.rs`) after an IDL or account-list change, preserving the
+project-owned files. See [guided simulations](guided-sim.md) for the
+full ownership rules and the `Riptide.toml` schema.
 
-One **cross-protocol contagion proof** also ships at `fixtures/replays/lst-lending-contagion-proof/` — upstream liquid-staking slash propagates through one declared scalar-observation → scalar-oracle-write bridge into a downstream lending oracle inside a single deterministic replay, realizing a machine-checkable bad-debt firing that attributes to the upstream shock. This is a **replay-scoped multi-program proof** of contagion, not a generalized N-protocol scenario engine or an audit artifact — see the bundle-local README for the bridge description, per-tick trace, and honest scope notes. The proof's regression hash is pinned by `engine/tests/replay_lst_lending_contagion_proof.rs`.
+## The `riptide-sim` runtime
 
-> **Skill-first setup, plain-file output.** The `riptide-config` skill is the default way to turn a thin init scaffold into adapter TOML, Rust setup, run-configs, invariants, campaign readiness, and validation notes in one loop. `riptide-narrative` can summarize completed runs. Every artifact the skills generate is plain TOML, Rust, JSON, or markdown you can hand-author instead — see `fixtures/adapters/resource-grinder.toml` for a minimal from-scratch example.
+The generated crate builds against `riptide-sim`, the Rust workspace
+crate that provides the generic simulation substrate:
 
-## Guided simulations
+- **`World`** — the LiteSVM control surface guided code drives. It exposes
+  `process_transaction` / `process_transaction_expect_success` /
+  `process_transaction_expect_error`, raw `get_account` / `set_account` /
+  `mutate_account`, Borsh read/write helpers, sysvar and clock controls
+  (`set_clock`, `advance_clock`, slot/epoch/timestamp warps), and
+  dependency-program loading. `svm()` / `svm_mut()` are the final escape
+  hatch into LiteSVM directly.
+- **Bootstrap** — applies the `Riptide.toml` manifest before
+  `flows::init`: local dependency programs, base64 account snapshots, and
+  explicit account-snapshot forks cached to disk (not a live validator
+  fork).
+- **Runner + RNG** — deterministic seed derivation, iteration/flow
+  scheduling, labelled transaction outcomes, and the JSON artifact +
+  `rerun.sh` writer.
+- **Macros** (`riptide-sim-macros`) — `#[riptide_sim]` and `#[flow]`
+  generate the dispatch glue around project-owned flow methods.
 
-The adapter and harness paths stay declarative: adapters describe the
-program surface, and harnesses seed the world before tick 0. Guided
-simulations are the parallel path for protocol flow that must be written
-in Rust. `riptide sim generate --adapter <adapter.toml>` creates
-`.riptide/sim/`, including generated IDL builders in `types.rs`,
-generated account storage skeletons in `accounts.rs`, a preserved
-`types_ext.rs` override seam, and user-owned flow code in `flows.rs`,
-`invariants.rs`, and `services/`. The
-generated crate also includes `Riptide.toml`, a Trident-style bootstrap
-manifest for sibling programs, local account snapshots, and explicit
-RPC account forks cached to disk.
-
-Use guided simulations when a flow needs dynamic `remaining_accounts`,
-multiple instructions in one transaction, target-vs-agent selection, or
-project-local service models such as oracle, orderbook, or stake mocks.
-The claim is manually guided support: the project supplies the manifest,
-cached external state, and Rust code that models protocol-specific
-behavior. Riptide provides the generic SVM bootstrap, generated builders,
-world mutation APIs, deterministic seeds, guided-run JSON artifacts, and
-a direct guided artifact review path; it does not provide automatic
-universal fuzzing, protocol-specific oracle/orderbook layouts in core,
-complete coverage proof, or audit signoff. Guided-sim coverage remains a
-guarded gap until the local runner has an entrypoint or binary coverage
-collector.
-Run them with `riptide sim run .riptide/sim --iterations <n> --flows <n>
---seed <hex> --out <dir>`, then inspect the artifact directory with
-`riptide sim review <dir>` or `riptide review <dir>`. See
-[guided simulations](guided-sim.md) for the command workflow, bootstrap
-manifest, and file ownership rules.
+`riptide-sim` deliberately contains generic SVM mechanics only. Pyth,
+Switchboard, OpenBook, Drift, Mango, Marinade, Whirlpool, and similar
+protocol-specific account layouts are not in core — projects model those
+in their own `services/` code through `World`.
 
 ## LiteSVM runtime — default, with honest caveats
 
-The engine's default backend is **LiteSVM** (in-process SVM). For the same `100 agents × 180 ticks` lending workload, LiteSVM completes in **0.898s** end-to-end; `solana-test-validator` with `--bpf-program` preload and warm caches takes **901.461s** (measured 2026-04-12, see `TOOLCHAIN.md`). That is roughly **~900x**, entirely from RPC and confirmation overhead removal — both paths execute the same `lending_pool.so` BPF program logic.
+Simulations run against **LiteSVM** (in-process SVM). LiteSVM removes the
+RPC and confirmation overhead of `solana-test-validator`, so the same
+program logic executes orders of magnitude faster end-to-end — both paths
+run the same compiled BPF program.
 
-What LiteSVM does not model: gossip, vote, PoH, full consensus behavior. The speedup is infrastructure overhead removal, not a program-level optimization. When validator-level parity matters, the parity test at `engine/tests/lending_integration.rs` stays gated on `RIPTIDE_RUN_VALIDATOR_TESTS=1` as the diagnostic reference path. LiteSVM is the default runtime; the validator path is diagnostic only.
+What LiteSVM does not model: gossip, vote, PoH, full consensus behavior.
+The speedup is infrastructure overhead removal, not a program-level
+optimization. When validator-level parity matters, run your program
+against `solana-test-validator` separately as the diagnostic reference
+path. See [TOOLCHAIN.md](../TOOLCHAIN.md) for the pins both paths build
+against.
 
 ## Determinism
 
-Same seed in, same bytes out, byte-for-byte, across the lending, perps, AMM, and generic bundles. The `e2e_determinism` integration test enforces this on every `cargo test -p riptide-engine` run by executing the same fixture twice and asserting the result JSON is byte-identical. Replay mode extends the same byte-stable contract to declared trajectories — `riptide replay fixtures/replays/lending-whale-bad-debt/config.json` runs the shipping whale-concentrated-borrow bad-debt trajectory (historical inspiration: Solend's June 2022 whale-risk incident) deterministically against its replay-scoped adapter and asserts the declared `no_bad_debt` invariant fires at the declared cascade tick. The replay is a byte-stable run of a declared scenario, not a forensic reconstruction of mainnet state.
+Same seed in, same bytes out. `riptide sim run` derives per-iteration
+seeds from a base seed and writes a byte-stable `guided-sim-run.json`:
+base seed, per-iteration derived seeds, flow counts, labelled transaction
+outcomes, compute units, expected-error counts, service-tick counts,
+selected regression account hashes when configured, ordered flow-trace
+metadata, and the retained failing seed. A `rerun.sh` script captures the
+exact invocation.
 
-Determinism is what makes the grid re-derivable by an adversarial reviewer: the adapter TOML (including inline `[personas.*]` definitions) + run-config + engine binary are the whole input. Nothing else is load-bearing.
+Determinism is what makes a run re-derivable by an adversarial reviewer:
+the adapter TOML, the committed guided-sim crate, `Riptide.toml`, and the
+seed are the whole input. Nothing else is load-bearing. Reviewers
+reproduce a run cold and compare the artifact.
 
-## Adapter pipeline — TOML to engine
+## Input validation
 
-Inputs flow through two validators that share one mental model. The CLI reads adapter + persona + run-config TOML and runs them through Zod schemas (`cli/src/schemas/adapter.ts`, `cli/src/compiler/schema.ts`) before ever invoking the engine — this is the user-facing error surface, tuned for readable messages. The engine then deserializes the same shapes with serde. The two schemas mirror each other on purpose: the Zod layer catches shape errors fast in TypeScript with a friendly error; serde is the canonical truth at the Rust boundary. When they drift, serde wins and the CLI schema is the bug.
+The CLI reads the adapter TOML through Zod schemas
+(`cli/src/schemas/adapter.ts`, `cli/src/compiler/schema.ts`) before
+generating or refreshing the crate — this is the user-facing error
+surface, tuned for readable messages. `riptide sim lint` then validates
+the `Riptide.toml` manifest: local program/account paths, pubkeys,
+base64 snapshots, duplicate bootstrap addresses, cached-snapshot pubkey
+matches, and guarded metrics/regression/coverage declarations. Neither
+step builds, fetches RPC accounts, or runs a simulation.
 
-On a run, the CLI compiles personas, pre-validates adapter + run-config, then shells out to the release-build engine binary with the config, policies, and output paths. The engine loads the adapter, boots LiteSVM, deploys the pinned `.so` from `programs/<name>/target/deploy/`, ticks the scenario, and writes `simulation-result.json`. Invariants are evaluated at exit; any firing causes a non-zero exit. The dashboard reads the result JSON — the engine has no network surface of its own.
+## The assessment flow
 
-## Scenario discovery
+The end-to-end path is guided-sim first, then surface and assess:
 
-`riptide run` with no positional argument discovers every scenario the current repo declares and executes them sequentially. The convention is `.riptide/scenarios/**/run-config.json` walked recursively from the CWD — every matching file is treated as a scenario, and the scenario name is the directory path relative to `.riptide/scenarios/` with `/` preserved as the grouping separator (so `.riptide/scenarios/lending/whale-shock-grid/run-config.json` becomes scenario name `lending/whale-shock-grid`, matching jest's `describe` nesting). Names are stable and sorted, so reruns produce identical scenario ordering regardless of filesystem traversal order.
+```bash
+riptide sim generate --adapter .riptide/adapters/<program>.toml
+riptide sim run .riptide/sim --flows 20 --out .riptide/sim/artifacts/run-001
+riptide sim surface .riptide/sim/artifacts/run-001 --sim .riptide/sim
+riptide assess .riptide/sim
+riptide review .riptide/sim/artifacts/run-001
+```
 
-Three invocation shapes share one command. `riptide run` runs everything discovered. `riptide run <pattern>` filters the discovered list by glob (`'*whale*'`, `'lending/*grid'`). `riptide run <file-path>` runs a single run-config directly — the backward-compat path that scripts, CI, and the shipping fixtures still rely on; the file-existence check disambiguates it from a pattern. `riptide list` prints the discovered scenario list one per line, useful for CI integrations that want to know what will run before running it.
-
-Per-scenario results and the aggregate summary land in `.riptide/last-run.json` (schema pinned in `cli/src/run/last-run.ts`); `riptide run --only-failing` reads that file to rerun only the scenarios that failed or aborted most recently. Each `riptide run` also writes `.riptide/run-collection.json`, a reviewer-facing collection with the selected pattern, totals by status/verdict/coverage, per-scenario verdict, confidence, coverage checks, artifact paths, and a small metric preview. `riptide run --serve` serves that run collection, so multi-scenario sweeps can be reviewed as a collection before drilling into one scenario. The convention pairs `.riptide/adapters/` with `.riptide/scenarios/`: personas are declared inline in the adapter TOML's `[personas.*]` tables, which is what the engine reads.
-
-Inside the Riptide monorepo itself, `.riptide/scenarios/` is a symlink to `fixtures/scenarios/`, so shipping scenarios are discoverable via the same convention as user-authored scenarios in any other repo — `riptide list` and `riptide run` work identically in both contexts. The symlink is tracked in git (mode `120000`), keeps every existing `fixtures/scenarios/…` reference in scripts and CI resolving unchanged, and adds no determinism risk because the engine never observes which path it traversed to reach a run-config.
-
-The public protocol-family matrix is generated from `fixtures/scenarios/catalog.toml`; see the [scenario family catalog](scenario-catalog.md) for the 25 counted families, claim levels, fixture paths, and result hashes.
-
-## Oracle binding for generic adapters
-
-Generic adapters can bind one shared account as the oracle the engine targets for shock injection. The binding lives in a single `[[oracles]]` block plus an optional `owner` on the referenced `[accounts.<name>]`:
-
-- **`kind`** — `"admin-mock"` (shipping mock layout). Protocol-specific oracle layouts belong in a project harness or helper crate, not the MVP engine core.
-- **`account`** — the declared `[accounts.<name>]` the oracle layout bytes live in. Must be `kind = "shared"`; binding to an agent-scoped account or to a missing name is a loader error.
-- **`base_price` + `exponent`** — the oracle state the harness writes into the bound account before tick 0, so the first observation already sees the adapter-declared price.
-- **`confidence`** — optional metadata. The built-in admin-mock layout does not expose market confidence.
-- **`owner`** on the bound account — optional. Omitted, the shared account is owned by the simulated program. Declared, exactly one of `owner.program_so = "<path>.so"` (owner pubkey derived from the companion `target/deploy/<name>-keypair.json` the rest of the repo already uses) or `owner.pubkey = "<base58>"` (literal external owner) is accepted. Declaring both or neither is a key-level loader error.
-
-On every scenario/replay oracle update the generic harness encodes through the shipping `admin_mock_oracle` layout, then writes into the bound account preserving owner and lamports — so a program that enforces account-owner asserts at read time sees the configured owner, not a silent fallback to the simulated program id. The end-to-end proof for the sibling-owned admin-mock case lives in `engine/tests/perps_sibling_oracle_proof.rs`.
-
-Semantic oracle bindings are broader than the top-level shock-injection binding. `[semantics.oracles.<role>]` can bind multiple oracle accounts for a semantic role; derived observations expose indexed fields such as `<role>.0.price`, `<role>.1.confidence`, and a synthetic `<role>.weighted_price` or `<role>.median_price`. That surface is for semantic evaluation and reporting. It does not turn the scenario/replay shock stream into a multi-oracle writer.
-
-What this surface does **not** yet cover:
-
-- **Multi-stream generic oracle shock injection.** Declaring 2+ top-level `[[oracles]]` entries on a generic adapter still fails fast with a single-oracle-for-now diagnostic — the current scenario/replay surfaces emit one oracle-update stream.
-- **Protocol-specific oracle layouts.** Pyth, Switchboard, and similar account shapes are intentionally out of core adapter dispatch. Projects that need them should use guided sim: declare external programs/accounts/forked snapshots in `.riptide/sim/Riptide.toml`, then update account bytes from project-owned `services/` code.
-- **Pairwise generic liquidation.** `GenericHarness::execute_action` still ignores `target_idx`, so `liquidate_position`'s victim plumbing is a follow-up.
-- **Automatic guided-sim inference.** `riptide sim generate` creates the Rust workspace and typed IDL builders, but it does not infer protocol flows from source. Users or skills write `flows.rs` explicitly.
-- **Generalized multi-program scenario sweeps.** The cross-protocol proof at `fixtures/replays/lst-lending-contagion-proof/` is replay-only composition: two shipping bundles plus one declared scalar-observation → scalar-oracle-write bridge in one deterministic replay run. Synthetic multi-program persona sweeps, arbitrary cross-program transaction graphs, a multi-program LST → stablecoin → lending chain, governance-contagion bundles, and cascade-graph dashboards are not in today's claim surface.
-- **Production LST / stablecoin / DeFi codebase coverage.** The `liquid-staking`, `stablecoin`, and `lending_pool` programs the bundles ship against are minimal forks chosen for determinism and clarity of the failure shape. No real Kelp / rsETH / Marinade / Jito / Sanctum / Kamino / Marginfi / UXD / Perena / Parrot / Ethena program is wired as an adapter today.
-- **Literal UXD / live hedge-venue integration / generalized peg-defense.** The `stablecoin` bundle captures UXD-style *pressure geometry* via a program-local `apply_hedge_loss(loss_bps)` stress mutation, not a stablecoin ↔ perps-venue composition. There is no live hedge-venue plumbing, no dynamic peg-defense policy engine, and no oracle-gated mint/redeem pricing in the shipping bundle — the stablecoin proof's backing stress is driven by on-account state only. A later bundle can add those layers without reshaping the current adapter.
-- **Watch mode / parallel scenario execution / broad parameter-grid generation** remain follow-ups. The existing `riptide run --serve` path reviews the collection of scenarios selected by one `riptide run`; it is not a new sweep generator or watch service.
-- **Machine validation of non-JSON lineage sources.** `riptide lint` (added in the DX-hardening pass) machine-checks adapters whose `[lineage].idl_source` is a JSON IDL — mapped instructions, args, accounts, and `account.field` references must all resolve in the IDL. Rust-source-of-record adapters like `lending` stay inspection-only and warn honestly; there is no Rust parser in the linter today.
-- **Auto-adapter-from-program-id, live mainnet IDL fetch, LSP / editor tooling, adapter-diff CLI.** Adapter/campaign artifacts stay disk-first. Guided sim can explicitly fork account snapshots through `.riptide/sim/Riptide.toml`, but there is no automatic mainnet discovery or IDE integration.
+- **`riptide sim run`** compiles and runs the crate and writes the
+  guided-sim artifact.
+- **`riptide sim surface`** reads the run plus the `[sim.sweep]` block in
+  `Riptide.toml` and writes cartography artifacts (`risk-surface.json`,
+  `campaign-summary.json`, `retention-manifest.json`) into the assess
+  root, so `riptide assess` can render a risk-surface heatmap.
+- **`riptide assess <guided-sim-root>`** is ingest-only: it reads an
+  existing root and writes a byte-deterministic `assessment.json` +
+  `assessment.md`. It does not run the simulation — run it first, then
+  assess the root.
 
 ## Operator DX surfaces
 
-Several commands share one mental model for first-run diagnosis before any scenario runs:
+Several commands share one mental model for first-run diagnosis before
+any simulation runs:
 
-- **`riptide doctor`** is a static health check. It probes the documented toolchain surface (`node`, `npm`, `rustc`, `cargo`, `solana`, `cargo-build-sbf`) via `execFile` without spawning a shell, resolves the `riptide-engine` binary through the same path `adapt` / `run` already trust (`$RIPTIDE_ENGINE_BIN` → `<repo>/target/release/` fallback → module-derived monorepo fallback), walks adapters under `<cwd>/.riptide/adapters/*.toml` and `<cwd>/fixtures/adapters/*.toml` (layered — the downstream user-repo layer wins when it exists, so a user repo's own adapters never accidentally inherit shipping fixtures), and runs the lint analyzer in-process against each. No build, no network, no simulation, no engine spawn. Exit codes are `0` all-pass / `1` warnings-only / `2` at least one fail.
-- **`riptide lint <adapter>`** is the static validator. When `[lineage].idl_source` is a JSON IDL, it cross-checks every adapter-mapped instruction, arg, account, and dotted `account.field` reference against the IDL. Positive mismatches fail loudly (`exit 2`) with a next-step hint naming the missing symbol; uncovered source surfaces may warn when the adapter neither maps them nor names them in `[lineage].unsupported_fields`. Non-JSON lineage sources (for example `programs/<name>/src/state.rs` on `lending`) land as explicit `WARN` with no false PASS — there is no Rust parser today. Missing `[lineage]` blocks land as explicit `SKIP`.
-- **`riptide adapt --adapter <toml>`** is the adapter-only smoke with a lint preflight: when the adapter's lineage source is machine-checkable, adapt runs lint first and aborts before engine spawn on a concrete fail. The default first end-to-end smoke is `riptide run --adapter <toml> --seeds 1 --seed-root 1337`; add `--harness .riptide/harness` only after you explicitly generate a harness setup layer.
-- **`riptide sim lint <path>`** is the guided-sim manifest validator. It reads a `.riptide/sim/Riptide.toml` file or simulation directory, validates local program/account paths, pubkeys, base64 snapshots, duplicate bootstrap addresses, cached snapshot pubkey matches, guarded metrics/regression/coverage declarations, and unsupported loader declarations. No build, RPC fetch, or simulation run is performed.
-- **`riptide sim review <artifact-dir>`** is the guided-sim artifact reviewer. It reads `guided-sim-run.json`, validates `rerun.sh` when present, and emits markdown or `--json` with retained seed, flow counts, labelled transaction outcomes, failure reason, and rerun command.
-- **`riptide review <pack-or-artifact>`** is the read-only reviewer surface for evidence packs, campaigns, retained cases, and guided-sim artifacts. For packs it parses `manifest.json`, resolves `inputs/paths.json` and `outputs/paths.json` relative to the pack root, verifies the engine canonical hash of the indexed simulation result, checks `rerun.sh` with `sh -n` without executing it, and emits markdown or `--json`. For guided artifacts it reads `guided-sim-run.json` directly. No engine spawn, no network, no pack mutation.
+- **`riptide doctor`** is a static health check. It probes the documented
+  toolchain surface (`node`, `npm`, `rustc`, `cargo`, `solana`,
+  `cargo-build-sbf`) via `execFile` without spawning a shell, and walks
+  adapters under `<cwd>/.riptide/adapters/*.toml` and
+  `<cwd>/fixtures/adapters/*.toml`. No build, no network, no simulation.
+  Exit codes are `0` all-pass / `1` warnings-only / `2` at least one fail.
+- **`riptide readiness`** inspects local protocol evidence readiness
+  (adapter, guided-sim crate, artifacts) without building, fetching, or
+  simulating.
+- **`riptide sim lint <path>`** validates the guided-sim `Riptide.toml`
+  manifest (see [Input validation](#input-validation)).
+- **`riptide sim review <artifact-dir>`** and **`riptide review
+  <path>`** read a guided-sim artifact cold, validate `rerun.sh` with
+  `sh -n` without executing it, and emit reviewer markdown or `--json`
+  with retained seed, flow counts, labelled transaction outcomes, the
+  compact flow trace, failure reason, and rerun command.
+- **`riptide sim debug <path> --seed <hex>`** reruns one seed with
+  verbose labelled transaction logging.
 
-These commands are the install-first operator surface — they exist so a new user can install Riptide, confirm their environment, static-check their adapter, and smoke-test it end-to-end before running a single scenario. They do not replace `cargo test -p riptide-engine` or the repo's regression gates; they exist upstream of them.
-
-## Reviewer handoff surfaces
-
-Riptide's reviewer-forwardable substrate is the run evidence written on
-disk plus the local dashboard view over it:
-
-- **Every `riptide run` writes a run collection.**
-  `.riptide/run-collection.json` records the selected pattern/source,
-  status totals, verdict totals, coverage totals,
-  `allow_invariant_violations`, and one entry per scenario with
-  verdict, confidence, coverage checks, invariant fires, metric preview,
-  report path, and simulation-result path. The dashboard serves this
-  collection so a reviewer can switch scenarios and read the
-  interpretation without opening raw JSON first.
-- **Every run emits a pack.** `.riptide/pack/<run-id>/` carries
-  `manifest.json`, `summary.md`, `trace.md`, `rerun.sh`, and
-  `inputs/` + `outputs/` path indices with repo-relative paths only.
-  The pack is byte-stable for byte-stable input — see
-  [`pack.md`](pack.md) for the shape reference and the pinned
-  per-file hashes.
-- **Every pack can be reviewed cold.** `riptide review <pack>` verifies
-  the manifest, path indexes, canonical hash, and rerun script syntax,
-  then synthesizes a reviewer markdown summary from `manifest.json`,
-  `summary.md`, the indexed simulation result, and `provenance.json`
-  when present. It never executes the rerun recipe.
-- **Every guided artifact directory can be reviewed cold.**
-  `riptide sim review <artifact-dir>` and
-  `riptide review <artifact-dir>` read `guided-sim-run.json`, validate
-  the rerun script, and summarize retained seed, flow counts,
-  transaction labels, failure reason, and rerun command. This is a
-  guided-sim evidence path, not adapter campaign scheduling.
-- **One named proof reruns cold in GitHub Actions.** The shipping
-  `.github/workflows/contagion-proof-ci.yml` workflow reruns the
-  cross-protocol contagion proof from a cold checkout on every push /
-  PR / `workflow_dispatch`, emits the pack, and asserts the canonical
-  hash against the committed pin via
-  `scripts/ci/assert-canonical-hash.sh`. A copy-friendly template
-  ships at `.github/workflows/riptide-handoff-template.yml.example`
-  for downstream adopters pinning their own replay to their own hash
-  — see [`ci-handoff.md`](ci-handoff.md).
-- **Shipping adapters declare their lineage, and JSON-IDL-backed
-  adapters get positive machine validation.** The five shipping
-  protocol-class adapters (`lending`, `perpetuals`, `amm`,
-  `liquid-staking`, `stablecoin`) carry `[lineage]` blocks
-  naming the IDL source, inferred assumptions, and unsupported
-  fields. `riptide lineage <adapter>` prints the block
-  reviewer-readably (inspection-only — no IDL fetch). `riptide lint
-  <adapter>` then cross-checks every mapped instruction, arg,
-  account, and dotted `account.field` reference against the JSON IDL
-  when `[lineage].idl_source` is a JSON IDL, and `riptide adapt`
-  runs the same analyzer in-process as a preflight. Non-JSON lineage
-  sources (e.g. `lending`'s Rust source of record) stay
-  inspection-only WARN with no false PASS; no live mainnet IDL
-  fetch in either command. See [`adapter-lineage.md`](adapter-lineage.md).
-
-These surfaces are **simulation evidence**, not audit signoff.
-A green CI run is a reproducibility check, not a security
-attestation; a run verdict describes the declared simulation
-run, not audit signoff on the program; and a lineage block is
-an authored declaration, not a machine-verified coverage claim.
+These surfaces are **simulation evidence**, not audit signoff. A run
+verdict describes the declared simulation run, not a security
+attestation on the program.
 
 ## Further reading
 
 - [`vision.md`](vision.md) — why this shape, what's in scope, what isn't.
 - [`install.md`](install.md) — the installer, Docker, and repository build paths.
-- [`pack.md`](pack.md) — the reviewer-ready evidence pack shape.
-- [`guided-sim.md`](guided-sim.md) — when to use `.riptide/sim/` and how to refresh generated builders safely.
-- [`scenario-catalog.md`](scenario-catalog.md) — the generated 25-family protocol-class catalog and fixture hash index.
-- [`ci-handoff.md`](ci-handoff.md) — the cold-start CI handoff recipe and downstream template.
-- [`adapter-lineage.md`](adapter-lineage.md) — the optional `[lineage]` block and the `riptide lineage` inspection command.
-- [`../TOOLCHAIN.md`](../TOOLCHAIN.md) — the Rust / Solana CLI / SBF / Node pins the engine and programs build against.
+- [`guided-sim.md`](guided-sim.md) — when to use `.riptide/sim/`, the bootstrap manifest, and how to refresh generated builders safely.
+- [`protocol-assessment.md`](protocol-assessment.md) — turning guided-sim evidence into a protocol-team assessment.
+- [`../TOOLCHAIN.md`](../TOOLCHAIN.md) — the Rust / Solana CLI / SBF / Node pins the runtime and programs build against.

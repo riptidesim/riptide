@@ -1,5 +1,7 @@
 import type { AssessmentModel, AssessmentNarrative } from "./model.js";
 
+type BriefSurfaceAxis = NonNullable<AssessmentModel["surface"]>["axes"][number];
+
 /**
  * render-brief.ts — the one-page executive brief (sibling to `render-html.ts`).
  *
@@ -101,15 +103,82 @@ function whatWeDid(model: AssessmentModel): string[] {
 
   const bullets = [
     `Risk objective: ${inlineBrief(campaign.risk_objective)}`,
-    ...(model.surface?.axes ?? []).map((axis) => {
-      const first = axis.bins[0]?.label ?? "";
-      const last = axis.bins[axis.bins.length - 1]?.label ?? "";
-      const unit = axis.unit ? ` ${escapeHtml(axis.unit)}` : "";
-      return `Swept <code>${escapeHtml(axis.name)}</code> across ${escapeHtml(first)}–${escapeHtml(last)}${unit}.`;
-    }),
+    ...(model.surface?.axes ?? []).map(sweepAxisBullet),
+    ...guidedSimExplanationBullets(model),
     reproducibilityPhrase(campaign.seed_policy)
   ];
   return [paragraph(ran), bulletList(bullets.map((text) => bullet("mut", "›", text)))];
+}
+
+function sweepAxisBullet(axis: BriefSurfaceAxis): string {
+  const first = axis.bins[0]?.label ?? "";
+  const last = axis.bins[axis.bins.length - 1]?.label ?? "";
+  const unit = axis.unit ? ` ${escapeHtml(axis.unit)}` : "";
+  const meaning = describeAxisMeaning(axis);
+  return `Swept <code>${escapeHtml(axis.name)}</code>${meaning} across ${escapeHtml(first)}–${escapeHtml(last)}${unit}.`;
+}
+
+function guidedSimExplanationBullets(model: AssessmentModel): string[] {
+  if (model.campaign?.adapter !== "guided-sim") return [];
+  const axisCount = model.surface?.axes.length ?? 0;
+  const cellCount = model.surface?.axes.reduce((count, axis) => count + axis.bins.length, 0) ?? 0;
+  const runsPerCell = uniformRunCountPerStressCell(model);
+  const flows = model.risk_plan.p0_flows.slice(0, 5);
+  return [
+    ...(axisCount > 0 && model.totals
+      ? [
+          `This was a custom guided-simulation stress sweep, not a catalog scenario: Riptide varied ` +
+            `the named axis as an applied stress across ${cellCount} stress cell(s)` +
+            `${runsPerCell === null ? "" : ` (${runsPerCell} iteration(s) per cell)`}, then reported invariant failure rates from ` +
+            `${model.totals.completed_runs} completed iteration(s).`
+        ]
+      : []),
+    ...(flows.length > 0
+      ? [`Lifecycle under test: ${flows.map((flow) => `<code>${escapeHtml(flow)}</code>`).join(", ")}.`]
+      : []),
+    `A fired invariant is the declared risk signal for that stress cell; it is not audit signoff or a claim about untested flows.`
+  ];
+}
+
+function describeAxisMeaning(axis: BriefSurfaceAxis): string {
+  const notes = [
+    humanizeAxisName(axis.name, axis.unit),
+    ...(isBasisPointAxis(axis) ? ["100 bps = 1.00%"] : []),
+    shockAxisNote(axis.name)
+  ].filter(Boolean);
+  return notes.length > 0 ? ` (${escapeHtml(notes.join("; "))})` : "";
+}
+
+function humanizeAxisName(name: string, unit?: string): string {
+  const parts = name
+    .split(/[_\-\s]+/)
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean);
+  if (parts.length === 0) return unit ? unit.toLowerCase() : "";
+  const endsWithBps = parts[parts.length - 1] === "bps";
+  const words = endsWithBps ? parts.slice(0, -1) : parts;
+  const phrase = words.join(" ");
+  if (endsWithBps || unit?.toLowerCase() === "bps") return phrase ? `${phrase} in basis points` : "basis points";
+  return phrase;
+}
+
+function isBasisPointAxis(axis: BriefSurfaceAxis): boolean {
+  return axis.unit?.toLowerCase() === "bps" || /(^|[_\-\s])bps($|[_\-\s])/.test(axis.name.toLowerCase());
+}
+
+function shockAxisNote(name: string): string {
+  const normalized = name.toLowerCase();
+  if (!/(^|[_\-\s])shock($|[_\-\s])/.test(normalized)) return "";
+  return /(^|[_\-\s])rate($|[_\-\s])/.test(normalized)
+    ? "shock means a sudden applied move in the modeled rate/index"
+    : "shock means a sudden applied change to the modeled input";
+}
+
+function uniformRunCountPerStressCell(model: AssessmentModel): number | null {
+  const populatedCells = model.surface?.cells.filter((cell) => cell.run_count > 0) ?? [];
+  if (populatedCells.length === 0) return null;
+  const counts = new Set(populatedCells.map((cell) => cell.run_count));
+  return counts.size === 1 ? populatedCells[0]!.run_count : null;
 }
 
 /**

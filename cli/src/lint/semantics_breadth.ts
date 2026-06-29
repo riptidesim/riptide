@@ -215,7 +215,7 @@ function lintReplay(semantics: Semantics, findings: LintFinding[]): void {
       subject: '[semantics.replay].state_source = "mainnet-rpc"',
       message:
         "MainnetRpcNotImplemented; mainnet-rpc state import is not implemented in v1.",
-      hint: "Export accounts to a fixture pack via `riptide pack-state` when fixture-backed replay is required.",
+      hint: "Capture accounts into a guided-sim snapshot cache via `riptide sim fork` when fixture-backed runs are required.",
     });
   }
 

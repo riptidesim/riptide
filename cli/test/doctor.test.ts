@@ -336,7 +336,6 @@ test("runDoctor: healthy toolchain + clean adapter → exit 0", async () => {
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -350,7 +349,6 @@ test("runDoctor: healthy toolchain + clean adapter → exit 0", async () => {
   for (const id of TOOL_IDS) {
     assert.match(out, new RegExp(id), `tool ${id} missing from output`);
   }
-  assert.match(out, /riptide-engine/);
   assert.match(out, /shipping-fork/);
   assert.match(out, /Verdict: PASS/);
 });
@@ -369,7 +367,6 @@ test("runDoctor: missing required tool → exit 2 with hint", async () => {
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, "cargo-build-sbf": undefined }),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -382,35 +379,6 @@ test("runDoctor: missing required tool → exit 2 with hint", async () => {
   assert.match(out, /cargo-build-sbf/);
   assert.match(out, /not found on PATH/);
   assert.match(out, /Verdict: FAIL/);
-});
-
-test("runDoctor: missing engine binary → exit 2 with build hint", async () => {
-  const { cwd } = await setupRepo({ layout: "monorepo" });
-  let out = "";
-  const exit = await runDoctor(
-    {},
-    {
-      cwd,
-      stdoutWrite: (c) => { out += c; },
-      stderrWrite: () => {},
-      color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
-          ...input,
-          probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => {
-            throw new Error("Could not locate the riptide-engine binary");
-          },
-          // No sandboxed discovery override — discovery is
-          // layered, not unioned. The real `discoverAdapters` must
-          // honour that contract under test, not be filtered into
-          // false-correctness at the call site.
-        }),
-    }
-  );
-  assert.equal(exit, 2);
-  assert.match(out, /riptide-engine/);
-  assert.match(out, /cargo build --release -p riptide-engine/);
 });
 
 // Review regression: npm / cargo / cargo-build-sbf used to ship
@@ -462,7 +430,6 @@ triggers = []
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
         }),
     }
   );
@@ -493,7 +460,6 @@ test("runDoctor: downstream user repo is isolated — does NOT inherit shipping 
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
         }),
     }
   );
@@ -526,7 +492,6 @@ test("runDoctor: drifted npm version → exit 1 (WARN)", async () => {
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, npm: "0.0.1" }),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -552,7 +517,6 @@ test("runDoctor: drifted cargo version → exit 1 (WARN)", async () => {
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, cargo: "cargo 0.1.0 (old)" }),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -578,7 +542,6 @@ test("runDoctor: drifted cargo-build-sbf version → exit 1 (WARN)", async () =>
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, "cargo-build-sbf": "0.0.1" }),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -604,7 +567,6 @@ test("runDoctor: drifted Rust version → exit 1 (WARN), no FAIL", async () => {
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, rustc: "rustc 1.50.0 (very old)" }),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -638,7 +600,6 @@ test("runDoctor: discovered adapter with broken instruction → lint FAIL → do
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -649,7 +610,7 @@ test("runDoctor: discovered adapter with broken instruction → lint FAIL → do
   assert.equal(exit, 2, `expected 2, got ${exit}. stdout:\n${out}`);
   assert.match(out, /my-program/);
   assert.match(out, /lint=fail/);
-  assert.match(out, /riptide lint my-program/);
+  assert.match(out, /riptide readiness \.` for the full diagnostic on my-program/);
 });
 
 test("runDoctor: adapter present + no IDL on disk → idl-unreadable FAIL", async () => {
@@ -666,7 +627,6 @@ test("runDoctor: adapter present + no IDL on disk → idl-unreadable FAIL", asyn
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -692,7 +652,6 @@ test("runDoctor: monorepo fixture with missing program_so → bounded optional-r
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
         }),
     }
   );
@@ -723,7 +682,6 @@ test("runDoctor: monorepo fixture with missing idl_path → load=fail", async ()
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
         }),
     }
   );
@@ -749,7 +707,6 @@ test("runDoctor: empty repo (no adapters anywhere) → exit 1 with init hint", a
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // CRITICAL: also disable the module-derived monorepo fallback,
           // otherwise tests pick up shipping fixtures from this very repo.
           discoverAdapters: () => [] as DiscoveredAdapter[],
@@ -777,7 +734,6 @@ test("runDoctor: shipping monorepo fixtures are pass or bounded warnings", async
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
       }),
     }
   );
@@ -856,7 +812,6 @@ test("runDoctor: generic adapter with dead program_so → load=fail (mirrors eng
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -896,7 +851,6 @@ test("runDoctor: generic adapter with dead idl_path → load=fail", async () => 
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -966,7 +920,6 @@ generator = "hand-authored"
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
         }),
     }
   );
@@ -1034,7 +987,6 @@ triggers = []
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -1107,7 +1059,6 @@ triggers = []
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -1158,7 +1109,6 @@ deposit = { action = "deposit", amount = "amount" }
         buildDoctorReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
-          resolveEngine: async () => "/fake/target/release/riptide-engine",
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -1175,14 +1125,8 @@ deposit = { action = "deposit", amount = "amount" }
 
 // ---- regression: doctor must not spawn the engine ----
 
-test("runDoctor: never spawns the engine — resolveEngine stub is the only call", async () => {
-  // Drive the report builder with stubs that throw if anyone tries to
-  // run the engine. resolveEngine returns a fake path; if the doctor
-  // path ever spawned the binary, the underlying call would reach the
-  // real `resolveEngineBinary` (which we are not invoking) and we'd
-  // see test failures on machines without the engine built.
+test("runDoctor: walks the documented tool spec list, one probe per tool", async () => {
   const { cwd } = await setupRepo({ layout: "monorepo" });
-  let resolveCalls = 0;
   let probeCalls = 0;
   let out = "";
   const exit = await runDoctor(
@@ -1199,10 +1143,6 @@ test("runDoctor: never spawns the engine — resolveEngine stub is the only call
             probeCalls += 1;
             return fakeProbe(HEALTHY_VERSIONS)(spec);
           },
-          resolveEngine: async () => {
-            resolveCalls += 1;
-            return "/fake/target/release/riptide-engine";
-          },
           // No sandboxed discovery override — discovery is
           // layered, not unioned. The real `discoverAdapters` must
           // honour that contract under test, not be filtered into
@@ -1211,7 +1151,6 @@ test("runDoctor: never spawns the engine — resolveEngine stub is the only call
     }
   );
   assert.equal(exit, 0);
-  assert.equal(resolveCalls, 1, "engine resolver should be called exactly once (no spawn)");
   // One probe per documented tool — confirms doctor walked the spec
   // list rather than ad-hoc shelling out.
   assert.equal(probeCalls, TOOL_IDS.length);

@@ -1,7 +1,7 @@
-// `riptide assess <campaign-root>` — ingest existing campaign artifacts and
-// generate a protocol assessment (canonical-hashed assessment.json +
-// byte-deterministic assessment.md). Ingest-only: it never runs the engine or a
-// campaign. Run `riptide campaign run` first, then assess the root it writes.
+// `riptide assess <campaign-root>` — ingest existing guided-sim cartography
+// artifacts and generate a protocol assessment (canonical-hashed assessment.json +
+// byte-deterministic assessment.md). Ingest-only: it never runs the engine. Run
+// `riptide sim run` then `riptide sim surface` first, then assess the root it writes.
 
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -104,7 +104,7 @@ export function createAssessCommand(deps: AssessCommandDeps = {}): Command {
       "Generate a protocol assessment (assessment.json + assessment.md) from an existing campaign root. " +
         "Ingest-only: it reports simulation evidence over the campaign's declared region, not audit signoff or protocol safety."
     )
-    .argument("<campaign-root>", "Path to a campaign root written by `riptide campaign run`")
+    .argument("<campaign-root>", "Path to a guided-sim root written by `riptide sim surface`")
     .option("--out <dir>", "Directory to write assessment artifacts (default: the campaign root)")
     .option("--input <file>", "JSON file of Risk Plan / coverage / verdict inputs to fold over campaign defaults")
     .option("--protocol-name <name>", "Protocol display name (default: the campaign name)")

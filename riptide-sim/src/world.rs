@@ -572,6 +572,13 @@ impl World {
         self.set_clock(clock);
     }
 
+    /// Advance to a fresh blockhash so otherwise-identical transactions — e.g. a
+    /// persona repeating the same fixed-size action across flows — don't dedup to
+    /// `AlreadyProcessed` in LiteSVM. Deterministic (no wall clock).
+    pub fn expire_blockhash(&mut self) {
+        self.svm.expire_blockhash();
+    }
+
     pub fn advance_slots(&mut self, slots: u64) {
         let current = self.clock().slot;
         self.warp_to_slot(current.saturating_add(slots));

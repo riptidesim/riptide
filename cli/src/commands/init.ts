@@ -118,27 +118,18 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
       process.stderr.write(chalk.yellow(`  warning: ${warning}\n`));
     }
     const adapterRel = `.riptide/adapters/${result.programName}.toml`;
-    const harnessRel = ".riptide/harness";
     process.stderr.write("\nNext steps:\n\n");
     process.stderr.write(`  1. Invoke ${chalk.cyan("/riptide-config")} in your coding agent.\n`);
-    process.stderr.write("     It will finish the adapter, harness, scenarios, campaign readiness, and validation.\n\n");
-    process.stderr.write(
-      `  2. Run the campaign it creates:\n     ${chalk.cyan("riptide campaign run .riptide/campaigns/<risk>.campaign.toml")}\n\n`
-    );
-    process.stderr.write(`  3. Review the printed campaign root:\n     ${chalk.cyan("riptide review <campaign-root>")}\n\n`);
-    if (useWizardScaffold) {
-      const firstScenario = result.scenarios[0] ?? "baseline";
-      const oneSeedRun = `riptide run ${firstScenario} --adapter ${adapterRel}${result.harnessCreated ? ` --harness ${harnessRel}` : ""} --seeds 1 --seed-root 1337`;
-      process.stderr.write("Manual / advanced path:\n\n");
-      process.stderr.write(`     ${chalk.cyan(`riptide lint ${adapterRel}`)}\n`);
-      if (!result.harnessCreated) {
-        process.stderr.write(`     ${chalk.cyan(`riptide harness generate --adapter ${adapterRel}`)}  ${dim("# only when setup bytes are needed")}\n`);
-      }
-      process.stderr.write(`     ${chalk.cyan(oneSeedRun)}\n\n`);
-    } else {
+    process.stderr.write("     It finishes the adapter and authors the guided simulation.\n\n");
+    process.stderr.write("  2. Generate and run the guided sim:\n");
+    process.stderr.write(`     ${chalk.cyan(`riptide sim generate --adapter ${adapterRel}`)}\n`);
+    process.stderr.write(`     ${chalk.cyan("riptide sim run .riptide/sim --flows 8")}\n`);
+    process.stderr.write(`     ${chalk.cyan("riptide sim surface .riptide/sim/artifacts/<dir> --sim .riptide/sim")}\n\n`);
+    process.stderr.write(`  3. Get the assessment:\n     ${chalk.cyan("riptide assess <guided-sim-root>")}\n\n`);
+    if (!useWizardScaffold) {
       process.stderr.write(
         dim(
-          `Manual / advanced path: run ${chalk.cyan("riptide init --wizard --force")} only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.\n\n`
+          `Advanced: run ${chalk.cyan("riptide init --wizard --force")} only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.\n\n`
         )
       );
     }

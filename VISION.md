@@ -42,5 +42,5 @@ The engine runs those files against the real BPF program in LiteSVM and emits de
 ## Where To Read Next
 
 - [README](README.md) for the project tour and quick start.
-- [Architecture](docs/architecture.md) for the engine model and determinism contract.
-- [Solend-fork case study](docs/case-studies/lending.md) for the canonical parameter-region example.
+- [Architecture](docs/architecture.md) for the guided-simulation model and determinism contract.
+- [Guided simulation](docs/guided-sim.md) for the authoring-to-assessment flow.
