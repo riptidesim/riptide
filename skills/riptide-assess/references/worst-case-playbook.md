@@ -67,7 +67,7 @@ keep the five fields above as the working structure.
   result** worth stating plainly; the heatmap "failure rate" is the rate at
   which outflow crossed the chosen line, not an insolvency rate. If an external
   reserve is inert in stub-oracle mode, say the on-chain threshold is a
-  conservative (early) bound. *(Validated on Anemone: solvency held to the 490
+  conservative (early) bound. *(Validated on a real interest-rate-swap protocol: solvency held to the 490
   bps breaker; LP outflow crossed 1% of the $1M reserve above ~300 bps.)*
 
 ## lending
@@ -109,7 +109,7 @@ keep the five fields above as the working structure.
   deliberate design question (no third-party backstop on an active underwater
   loan), not a defect. If you drive the oracle directly, state the oracle's own
   staleness/confidence/verification guards are out of scope — you are isolating
-  the protocol's response to a price *path*. *(Validated on Agio: liquidation
+  the protocol's response to a price *path*. *(Validated on a real lending protocol: liquidation
   accounting correct at every level; lender bad-debt onset at ~33% crash —
   liquidation eligible at ~20%, lender whole until ~33%; `liquidate_loan`
   lender-only.)*
@@ -154,7 +154,7 @@ keep the five fields above as the working structure.
   itself and you rely on them). When the guard holds, explain the **structural
   reason** (e.g. the NAV cap is one-sided and can only *lower* a payout priced
   off the real vault balance) rather than asserting safety. *(Validated on
-  Defunds: zero dilution across 0–50% markdown; the audit-fix NAV cap held
+  a real NAV-vault protocol: zero dilution across 0–50% markdown; the audit-fix NAV cap held
   structurally; positive control at markdown 0 paid exact pro-rata.)*
 
 ## amm

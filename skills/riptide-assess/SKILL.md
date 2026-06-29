@@ -127,8 +127,8 @@ implement.
 takes an enum, struct, `String`, or `Vec` argument, which raw scalar dispatch
 cannot encode. Detect: IDL argument types other than integers, bools, and
 pubkeys — `"defined"`, `"string"`, or `"vec"` entries in the IDL, or
-enum/struct parameters in the handler signature. Worked example: Anemone's
-`swap` takes a `SwapDirection` enum, and plut0x's order placement takes
+enum/struct parameters in the handler signature. Worked example: a protocol's
+`swap` takes a `SwapDirection` enum, and a protocol's order placement takes
 side/kind enums — both need typed argument builders in a generated sim crate.
 
 **Trigger B — external oracle accounts needing byte-construction.** The
@@ -138,8 +138,8 @@ is that account's contents, so the sim must construct and mutate those bytes
 deterministically. Detect: external SDK account types in the handler (for
 example `pyth_solana_receiver_sdk::price_update::PriceUpdateV2`), calls like
 `get_price_no_older_than`, or freshness windows checked against the clock.
-Worked example: Agio's liquidation reads a Pyth `PriceUpdateV2`, so the sim
-builds the account bytes and crashes the price; Defunds' withdrawal checks a
+Worked example: a protocol's liquidation reads a Pyth `PriceUpdateV2`, so the sim
+builds the account bytes and crashes the price; a protocol's withdrawal checks a
 NAV-attestation account inside a freshness window.
 
 **Trigger C — third-party / target-vs-agent actions.** An actor signs an
@@ -147,31 +147,31 @@ instruction that operates on another actor's position or order — liquidator,
 keeper, matcher, settler. A self-signed persona action only expresses an agent
 acting on its own accounts. Detect: instruction account sets that contain
 both a signer and a different user's position/order PDA — `liquidate`,
-`settle`, `slash`, keeper cranks. Worked example: Paralend's liquidation lets
-any third party repay a borrower's debt and seize collateral; plut0x's keeper
+`settle`, `slash`, keeper cranks. Worked example: a protocol's liquidation lets
+any third party repay a borrower's debt and seize collateral; a protocol's keeper
 settles a buyer and a seller it does not own.
 
 **Trigger D — multi-instruction sequences.** A flow only completes across an
 ordered multi-instruction transaction or a multi-transaction sequence
 (request, then execute, then claim). Detect: request/execute instruction
 pairs, pending-state accounts, or instruction-introspection requirements such
-as a required ed25519 verification instruction. Worked example: Defunds'
+as a required ed25519 verification instruction. Worked example: a protocol's
 withdrawal is a multi-transaction sequence whose execute step must land
-inside the attestation window; PRISM requires an ed25519 signature
+inside the attestation window; a protocol requires an ed25519 signature
 verification instruction ahead of the consuming instruction in the same
 transaction.
 
 **Trigger E — dynamic `remaining_accounts`.** The instruction's account set
 varies per call with protocol state, so no static account mapping exists.
 Detect: `ctx.remaining_accounts` in handlers, or loops over member/position
-lists. Worked example: Susu's slash redistribution iterates every remaining
-member's account; Cushion passes a Kamino account set that changes per call.
+lists. Worked example: a protocol's slash redistribution iterates every remaining
+member's account; a protocol passes a dependency-program account set that changes per call.
 
 **Trigger F — custom CPI bootstrapping.** Reaching a runnable tick-0 state
 needs CPIs into external programs, or manual deployment and configuration of
 sibling programs. Detect: init handlers that CPI into a dependency program,
 multi-program genesis in `Anchor.toml` test config, or registration steps in
-the test suite. Worked example: PRISM must bootstrap its dependency programs
+the test suite. Worked example: a protocol must bootstrap its dependency programs
 and register its signature oracle before any flow can run.
 
 ### Verdict
