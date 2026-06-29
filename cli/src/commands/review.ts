@@ -1,6 +1,6 @@
-// `riptide review <pack>` — read-only evidence-pack reviewer surface.
+// `riptide review <path>` — read-only reviewer for campaign roots, retained
+// cases, and guided-sim artifacts.
 
-import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
@@ -16,10 +16,7 @@ import {
   type Colorizer
 } from "../display/index.js";
 import { renderCliError } from "../errors/render.js";
-import { verifyCanonicalHash } from "../review/hash.js";
-import { buildReviewJsonPayload } from "../review/json.js";
-import { buildReviewMarkdown, collectInvariantFires } from "../review/markdown.js";
-import { loadPackManifest, ReviewValidationError, type ValidationResult } from "../review/manifest.js";
+import { ReviewValidationError, type ValidationResult } from "../review/manifest.js";
 import { printBanner } from "../banner.js";
 import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
 
@@ -100,8 +97,8 @@ const GUIDED_FAILURE_STATUSES = new Set(["returned_error", "panic"]);
 
 export function createReviewCommand(deps: ReviewCommandDeps = {}): Command {
   return new Command("review")
-    .description("Validate a Riptide evidence pack, campaign root, or guided-sim artifact and emit reviewer markdown")
-    .argument("<pack>", "Path to a Riptide evidence pack, campaign root, retained campaign case, or guided-sim artifact")
+    .description("Validate a Riptide campaign root, retained case, or guided-sim artifact and emit reviewer markdown")
+    .argument("<path>", "Path to a Riptide campaign root, retained campaign case, or guided-sim artifact directory")
     .option("--out <md-path>", "Write reviewer markdown to a file instead of stdout")
     .option("--json", "Emit a structured JSON review payload", false)
     .option("--quiet", "Suppress interactive banner", false)
@@ -117,7 +114,6 @@ export async function runReview(
   options: ReviewOptions,
   deps: ReviewCommandDeps = {}
 ): Promise<number> {
-  const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
   const stderr = deps.stderrWrite ?? ((chunk: string) => process.stderr.write(chunk));
 
   try {
@@ -133,74 +129,12 @@ export async function runReview(
       return await runGuidedSimReview(reviewRoot, options, deps);
     }
 
-    const packData = await loadPackManifest(reviewRoot, { workspaceRoot: reviewCwd });
-    const validationResults: ValidationResult[] = [...packData.validationResults];
-    const warnings: string[] = [];
-
-    const { result: simulationResult, verification } = await verifyCanonicalHash(
-      packData.manifest,
-      packData.simulationResultPath,
-      validationResults
+    throw new ReviewValidationError(
+      `not a recognized Riptide review root\n  path: ${reviewRoot}\n` +
+        "  expected: a campaign root (campaign-summary.json + retention-manifest.json), " +
+        "a retained case (case.json + rerun.sh), or a guided-sim artifact directory (guided-sim-run.json)\n" +
+        "  next: pass a campaign root, retained case directory, or guided-sim artifact directory / guided-sim-run.json"
     );
-
-    const rerunPath = path.join(packData.packRoot, "rerun.sh");
-    await validateRerunScript(rerunPath, validationResults);
-
-    const provenancePath = path.join(packData.packRoot, "provenance.json");
-    let provenance: Record<string, unknown> | undefined;
-    if (existsSync(provenancePath)) {
-      provenance = await readOptionalJson(provenancePath);
-      validationResults.push({
-        step: "provenance",
-        status: "pass",
-        message: "provenance.json present",
-        path: provenancePath,
-      });
-    } else if (!manifestHasProofMetadata(packData.manifest)) {
-      const message = "provenance.json missing and manifest has no proof metadata; omitting proof-level badge";
-      warnings.push(message);
-      validationResults.push({
-        step: "provenance",
-        status: "warn",
-        message,
-        path: provenancePath,
-      });
-    }
-
-    const invariantFires = collectInvariantFires(simulationResult);
-    const markdown = buildReviewMarkdown({
-      packRoot: packData.packRoot,
-      manifest: packData.manifest,
-      provenance,
-      simulationResult,
-      hash: verification,
-      rerunPath,
-    });
-
-    if (options.json) {
-      stdout(
-        JSON.stringify(
-          buildReviewJsonPayload({
-            manifest: packData.manifest,
-            manifestDigest: sha256(Buffer.from(packData.manifestRaw, "utf8")),
-            validationResults,
-            invariantFires,
-            hash: verification,
-            warnings,
-          }),
-          null,
-          2
-        ) + "\n"
-      );
-    } else if (typeof options.out === "string" && options.out.length > 0) {
-      const outPath = path.resolve(deps.cwd ?? process.cwd(), options.out);
-      await writeFile(outPath, markdown, "utf8");
-      stdout(`wrote review markdown: ${outPath}\n`);
-    } else {
-      stdout(colorizeReviewMarkdown(markdown, deps));
-    }
-
-    return warnings.length > 0 ? 1 : 0;
   } catch (error) {
     const exitCode = error instanceof ReviewValidationError ? error.exitCode : 2;
     stderr(
@@ -1481,7 +1415,7 @@ function relativizeIfInside(baseDir: string, value: string): string {
 async function readRequiredJsonObject(filePath: string, label: string): Promise<JsonRecord> {
   if (!existsSync(filePath)) {
     throw new ReviewValidationError(
-      `${label} not found\n  expected: ${filePath}\n  next: pass a campaign root, retained case directory, or evidence pack directory`
+      `${label} not found\n  expected: ${filePath}\n  next: pass a campaign root, retained case directory, or guided-sim artifact directory`
     );
   }
   try {
@@ -1740,7 +1674,7 @@ async function validateRerunScript(
 ): Promise<void> {
   if (!existsSync(rerunPath)) {
     throw new ReviewValidationError(
-      `rerun.sh not found\n  expected: ${rerunPath}\n  next: restore the pack rerun recipe before review`
+      `rerun.sh not found\n  expected: ${rerunPath}\n  next: restore the rerun recipe before review`
     );
   }
   try {
@@ -1756,37 +1690,6 @@ async function validateRerunScript(
     message: "rerun.sh is present and sh -n parseable",
     path: rerunPath,
   });
-}
-
-function sha256(bytes: Buffer): string {
-  return createHash("sha256").update(bytes).digest("hex");
-}
-
-function manifestHasProofMetadata(manifest: Record<string, unknown>): boolean {
-  if (typeof manifest.proof_level === "number") return true;
-  const proofLevel = manifest.proof_level;
-  if (proofLevel && typeof proofLevel === "object" && !Array.isArray(proofLevel)) {
-    return typeof (proofLevel as Record<string, unknown>).level === "number";
-  }
-  const proof = manifest.proof;
-  if (proof && typeof proof === "object" && !Array.isArray(proof)) {
-    return typeof (proof as Record<string, unknown>).level === "number";
-  }
-  return false;
-}
-
-async function readOptionalJson(filePath: string): Promise<Record<string, unknown>> {
-  try {
-    const parsed = JSON.parse(await readFile(filePath, "utf8")) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("expected a JSON object");
-    }
-    return parsed as Record<string, unknown>;
-  } catch (error) {
-    throw new ReviewValidationError(
-      `malformed provenance.json\n  path: ${filePath}\n  parse error: ${errorMessage(error)}\n  next: fix or remove optional provenance.json before review`
-    );
-  }
 }
 
 function errorMessage(error: unknown): string {

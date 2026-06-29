@@ -5,10 +5,9 @@ import type { SimulationResult } from "../compiler/schema.js";
 import type { ExecutionHonestyReport } from "../sim/honesty-gates.js";
 import { renderRiskSurfaceNarrative } from "../report/surface-narrative.js";
 import type { RunSummary } from "../run/loop.js";
+import type { ScenarioRecord } from "../run/last-run.js";
 import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
 
-import type { CampaignExpansionPlan, CampaignRunPlan } from "./expansion.js";
-import type { CampaignRunRecord } from "./execution.js";
 import {
   buildRiskSurfaceDocument,
   serializeRiskSurface,
@@ -23,6 +22,78 @@ import {
   type RetentionLabel,
   type SeedPolicy
 } from "./schema.js";
+
+// Campaign run/plan shapes consumed by the aggregation artifacts. These describe
+// the deterministic expansion plan and the per-run metadata records the campaign
+// aggregation reads when it writes summaries and retained-case evidence.
+export interface PersonaRunSelection {
+  family: string;
+  source: string;
+  countParameter: string;
+  count: number;
+  scaleDepositsBy: string;
+  scaleDeposits: JsonScalar;
+  scaleBorrowsBy: string;
+  scaleBorrows: JsonScalar;
+}
+
+export interface CampaignRunPlan {
+  runIndex: number;
+  runId: string;
+  runSeed: string;
+  engineSeed: number;
+  runConfigDigest: string;
+  scenarioFamily: string;
+  scenarioSource: string;
+  sampledParameters: Record<string, JsonScalar>;
+  personas: PersonaRunSelection[];
+  runDir: string;
+  runConfigPath: string;
+  runConfig: JsonValue;
+  runConfigJson: string;
+}
+
+export interface CampaignIdentity {
+  canonicalCampaign: JsonValue;
+  canonicalCampaignJson: string;
+  campaignDigest: string;
+  campaignId: string;
+}
+
+export interface CampaignExpansionPlan extends CampaignIdentity {
+  campaignRoot: string;
+  runs: CampaignRunPlan[];
+}
+
+export interface CampaignRunMetadata {
+  schema_version: "campaign-run-metadata.v1";
+  campaign_id: string;
+  campaign_digest: string;
+  campaign_name: string;
+  class: string;
+  risk_objective: string;
+  run_id: string;
+  run_index: number;
+  run_seed: string;
+  engine_seed: number;
+  run_config_digest: string;
+  run_config_path: string;
+  scenario_family: string;
+  scenario_source: string;
+  sampled_parameters: Record<string, JsonScalar>;
+  personas: CampaignRunPlan["personas"];
+  config_status: "created" | "reused";
+  status: "pass" | "fail" | "error" | "skipped";
+  invariant_fires: ScenarioRecord["invariant_fires"];
+  setup_error?: string;
+  artifacts_dir?: string;
+  simulation_result_path?: string;
+  report_path?: string;
+}
+
+export interface CampaignRunRecord extends CampaignRunMetadata {
+  metadata_path: string;
+}
 
 export interface CampaignArtifactPaths {
   runsJsonlPath: string;
