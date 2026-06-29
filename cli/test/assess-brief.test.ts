@@ -59,6 +59,27 @@ test("assess brief: a fixed-seed policy renders as prose, not the raw seed blob"
   assert.match(html, /Deterministic execution under a fixed-seed policy/);
 });
 
+test("assess brief: guided-sim swept axes are explained for human readers", () => {
+  const html = briefFor(buildSweptStressModel({ shape: "bounded" }));
+  assert.match(html, /collateral price drop in basis points; 100 bps = 1\.00%/);
+  assert.match(html, /custom guided-simulation stress sweep, not a catalog scenario/);
+  assert.match(html, /applied stress/);
+  assert.match(html, /2 iteration\(s\) per cell/);
+  assert.match(html, /invariant failure rates/);
+  assert.match(html, /Lifecycle under test:/);
+});
+
+test("assess brief: rate-shock axes define shock in plain language", () => {
+  const model = buildSweptStressModel({ shape: "bounded" });
+  const narrative = generateAssessmentNarrative(model);
+  model.surface.axes[0] = { ...model.surface.axes[0]!, name: "rate_shock_bps" };
+  const html = renderAssessmentBrief(model, narrative);
+  assert.match(
+    html,
+    /rate shock in basis points; 100 bps = 1\.00%; shock means a sudden applied move in the modeled rate\/index/
+  );
+});
+
 test("assess brief: non-fixed seed policies are not described as fixed-seed", () => {
   const model = buildSweptStressModel({ shape: "bounded" });
   model.campaign.seed_policy = "range:1000..1002";
