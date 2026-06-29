@@ -52,7 +52,7 @@ test("rendered banner is compact and reads version from package.json", () => {
   assert.equal(rendered.split("\n").length, 5);
   assert.equal(rendered.endsWith("\n\n"), true);
   assert.match(rendered, /RIPTIDE/);
-  assert.match(rendered, /Riptide v0\.11\.0/);
+  assert.match(rendered, /Riptide v0\.12\.0/);
   assert.match(rendered, /Deterministic Solana simulation evidence\./);
 });
 
