@@ -1,0 +1,80 @@
+protocol = "lending"
+
+[instructions]
+deposit   = { action = "deposit",   amount = "amount" }
+borrow    = { action = "borrow",    amount = "amount" }
+repay     = { action = "repay",     amount = "amount" }
+withdraw  = { action = "withdraw",  amount = "amount" }
+liquidate = { action = "liquidate", amount = "repay_amount" }
+
+[state_mapping]
+"pool.total_deposits" = "tvl"
+"pool.total_borrows"  = "debt"
+"pool.bad_debt"       = "bad_debt"
+"position.collateral" = "collateral"
+"position.debt"       = "debt"
+"position.liquidated" = "liquidated"
+
+[semantics]
+class = "lending.v1"
+
+[semantics.roles.position]
+source = "instruction.deposit_or_borrow"
+fields.collateral_amount = "u128"
+fields.debt_amount = "u128"
+
+[semantics.roles.reserve]
+source = "account.reserve"
+fields.collateral_price = "u128"
+fields.max_ltv_bps = "u64"
+
+[semantics.roles.oracle]
+source = "account.oracle"
+fields.price = "u128"
+fields.confidence = "u128"
+fields.staleness = "u64"
+
+[semantics.roles.liquidation_config]
+source = "account.reserve"
+fields.liquidation_threshold_bps = "u64"
+
+[semantics.derived]
+collateral_value = "position.collateral_amount * reserve.collateral_price"
+debt_value = "position.debt_amount"
+max_borrow_value = "collateral_value * reserve.max_ltv_bps / 10000"
+health_factor = "collateral_value / max(debt_value, 1)"
+
+[[semantics.invariants]]
+name = "bad_debt_bound"
+expr = "debt_value <= collateral_value"
+severity = "warn"
+
+[[semantics.oracles.oracle]]
+program_id = "11111111111111111111111111111111"
+account = "So11111111111111111111111111111111111111112"
+confidence = "oracle.confidence"
+staleness = "oracle.staleness"
+weight = 60
+
+[[semantics.oracles.oracle]]
+program_id = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+account = "SysvarC1ock11111111111111111111111111111111"
+confidence = "oracle.confidence"
+staleness = "oracle.staleness"
+weight = 40
+
+[semantics.collections.worst_health_factor]
+over = "reserves"
+formula = "worst"
+expr = "collateral_value / max(debt_value, 1)"
+
+[semantics.replay]
+state_source = "fixture"
+pack_path = "state-packs/semantics-breadth-demo"
+slot = 123456789
+
+[semantics.replay.roles]
+position = "So11111111111111111111111111111111111111112"
+reserve = "SysvarC1ock11111111111111111111111111111111"
+oracle = "11111111111111111111111111111111"
+liquidation_config = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
