@@ -54,7 +54,7 @@ import {
  * byte-identical narrative blocks (the byte-stability the renderer relies on).
  */
 export const generateAssessmentNarrative: NarrativeProvider = (rawModel) => {
-  // Branch on shape: the surface-less correctness assessment (Defunds-shaped)
+  // Branch on shape: the surface-less correctness assessment (NAV-vault-shaped)
   // gets its own guided-sim-led narrative; the cartography (risk-surface-led)
   // path is unchanged below.
   if (assessmentShape(rawModel) === "correctness") {

@@ -531,7 +531,7 @@ function passingFamily(completedRuns: number): CampaignSummaryJson["scenario_fam
 // --- correctness-shape (surface-less) fixtures ------------------------------
 
 /**
- * A guided-sim-run.json document with Defunds-shaped families (happy + negative
+ * A guided-sim-run.json document with NAV-vault-shaped families (happy + negative
  * controls). `unexpected`/`panics`/`status` are overridable so suites can build
  * both the clean (non-finding) and dirty (finding) cases. `flows` scales the
  * total so the deterministic "most flows wins" selection can be exercised.
@@ -663,7 +663,7 @@ export function buildCorrectnessModelWithBlockedCoverage(): AssessmentModel {
           commands: [],
           artifacts: [],
           notes:
-            "Requires hard-coded Defunds NAV authority or platform-authority signer material not available in this checkout."
+            "Requires hard-coded vault NAV authority or platform-authority signer material not available in this checkout."
         },
         {
           priority: "P1",
@@ -698,7 +698,7 @@ export function buildFindingCorrectnessModel(): AssessmentModel {
 }
 
 /**
- * Write a Defunds-shaped, surface-less workspace to a temp dir: a smoke guided
+ * Write a NAV-vault-shaped, surface-less workspace to a temp dir: a smoke guided
  * sim (fewer flows) plus a main guided sim (more flows) so the deterministic
  * "most flows wins" selection is exercised, a run-collection, and a pack.
  */

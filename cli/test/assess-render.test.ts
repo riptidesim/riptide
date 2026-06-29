@@ -168,7 +168,7 @@ test("assess render: correctness shape preserves blocked and not-assessed covera
   assert.match(md, /## Blocked and out-of-scope surfaces/);
   assert.match(
     md,
-    /\| Positive NAV, whitelist-admin, and fee-authority flows \| blocked \| Requires hard-coded Defunds NAV authority/
+    /\| Positive NAV, whitelist-admin, and fee-authority flows \| blocked \| Requires hard-coded vault NAV authority/
   );
   assert.match(
     md,
@@ -176,11 +176,11 @@ test("assess render: correctness shape preserves blocked and not-assessed covera
   );
   assert.match(
     md,
-    /Primary limit: Positive NAV, whitelist-admin, and fee-authority flows are blocked: Requires hard-coded Defunds NAV authority/
+    /Primary limit: Positive NAV, whitelist-admin, and fee-authority flows are blocked: Requires hard-coded vault NAV authority/
   );
   assert.match(
     md,
-    /- \*\*Main limit:\*\* Positive NAV, whitelist-admin, and fee-authority flows are blocked: Requires hard-coded Defunds NAV authority/
+    /- \*\*Main limit:\*\* Positive NAV, whitelist-admin, and fee-authority flows are blocked: Requires hard-coded vault NAV authority/
   );
   assert.doesNotMatch(md, /No blocked, out-of-scope, or not-assessed flows are recorded/);
 });
