@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn liquidation_set_makes_actor_the_sole_signer() {
-        // Anemone-shaped liquidate_position: liquidator (A) acts on owner (B).
+        // Third-party liquidate_position: liquidator (A) acts on owner (B).
         let liquidator = pk(1);
         let owner = pk(2);
         let mut dispatch = ThirdPartyDispatch::new(liquidator, owner);
