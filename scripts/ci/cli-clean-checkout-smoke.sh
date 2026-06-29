@@ -1,17 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXPECTED_FLAGSHIP_HASH="d04feab99390d63de6625bad4994a05e89cede359b4599431e815fe327cd0aeb"
-EXPECTED_PROOF_REVIEW_EXIT=1
+# Riptide CLI clean-checkout smoke.
+#
+# Proves the engine-free install path works from a pristine clone of
+# git HEAD: clone the current commit into a temp dir, run `./install.sh`
+# (detect toolchains -> npm install -> npm build -> install launcher ->
+# verify), then re-assert the read-only CLI surface from a clean shell:
+#   - `riptide --version`
+#   - `riptide --help`
+#   - `riptide doctor`  (exit >= 2 is a hard failure; a WARN verdict at
+#                         exit 1 is acceptable, matching install.sh)
+#
+# Network boundary: npm/cargo may use configured package caches or
+# registries; no RPC, mainnet writes, secrets, push, or publish.
 
 SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SOURCE_SHA="$(git -C "$SOURCE_ROOT" rev-parse HEAD)"
 TMP_PARENT="$(mktemp -d "${TMPDIR:-/tmp}/riptide-cli-clean-checkout.XXXXXX")"
 CHECKOUT="$TMP_PARENT/checkout"
-ARTIFACTS="$TMP_PARENT/artifacts"
-DOCTOR_WORKSPACE="$TMP_PARENT/doctor-workspace"
-SETUP_LOG_DIR="$TMP_PARENT/setup-logs"
-SETUP_STEP=0
+# Keep install.sh's launcher + any per-user state inside the temp root
+# so the smoke never writes to the runner's real $HOME/.local/bin.
+HOME="$TMP_PARENT/home"
+export HOME
+LOCAL_BIN="$HOME/.local/bin"
+LAUNCHER="$LOCAL_BIN/riptide"
 
 dirty_status="$(git -C "$SOURCE_ROOT" status --porcelain=v1 -uall)"
 if [[ -n "$dirty_status" ]]; then
@@ -35,33 +48,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-run_setup() {
-  SETUP_STEP=$((SETUP_STEP + 1))
-  local label="$1"
-  shift
-  local log="$SETUP_LOG_DIR/${SETUP_STEP}.log"
-  printf '\n$ %s\n' "$*"
-  if "$@" >"$log" 2>&1; then
-    printf '[ok] %s\n' "$label"
-  else
-    local status=$?
-    printf '[exit %s] %s\n' "$status" "$label"
-    printf '%s\n' "--- setup log: $log ---"
-    cat "$log"
-    exit "$status"
-  fi
-}
-
 run_checked() {
-  local cwd="$1"
-  local expected="$2"
-  shift 2
-  printf '\n$ (cd %s && %s)\n' "$cwd" "$*"
+  local expected="$1"
+  shift
+  printf '\n$ %s\n' "$*"
   set +e
-  (
-    cd "$cwd"
-    NO_COLOR=1 RIPTIDE_ENGINE_BIN="$CHECKOUT/target/release/riptide-engine" "$@"
-  ) 2>&1
+  NO_COLOR=1 "$@"
   local status=$?
   set -e
   printf '[exit %s]\n' "$status"
@@ -75,38 +67,45 @@ printf '== Riptide CLI clean-checkout smoke ==\n'
 printf 'source: %s\n' "$SOURCE_ROOT"
 printf 'source commit: %s\n' "$SOURCE_SHA"
 printf 'temp checkout: %s\n' "$CHECKOUT"
-printf 'expected flagship canonical hash: %s\n' "$EXPECTED_FLAGSHIP_HASH"
-printf 'accepted proof review exit: %s\n' "$EXPECTED_PROOF_REVIEW_EXIT"
+printf 'temp HOME: %s\n' "$HOME"
 printf 'network boundary: npm/cargo may use configured package caches or registries; no RPC, mainnet writes, secrets, push, or publish.\n'
 if [[ "$CLEAN_CHECKOUT_DIRTY_NOTE" == "yes" ]]; then
   printf 'warning: source worktree is dirty; this smoke clones and tests git HEAD only. Set RIPTIDE_CLEAN_CHECKOUT_REQUIRE_CLEAN=1 to fail closed.\n'
   printf '%s\n' "$dirty_status"
 fi
 
-mkdir -p "$CHECKOUT" "$ARTIFACTS" "$DOCTOR_WORKSPACE/.riptide/adapters" "$SETUP_LOG_DIR"
+mkdir -p "$CHECKOUT" "$LOCAL_BIN"
 git clone --quiet --no-checkout "$SOURCE_ROOT" "$CHECKOUT"
 git -C "$CHECKOUT" checkout --quiet --detach "$SOURCE_SHA"
 
-cd "$CHECKOUT"
+# install.sh does the full engine-free bootstrap: detect toolchains,
+# npm install + build, install the launcher into $HOME/.local/bin, and
+# verify --version / --help / doctor. A clean exit here already proves
+# the install path; the explicit assertions below re-check the
+# read-only CLI surface from a fresh shell.
+printf '\n$ (cd %s && ./install.sh)\n' "$CHECKOUT"
+( cd "$CHECKOUT" && ./install.sh )
 
-run_setup "install CLI dependencies" npm --prefix cli ci --ignore-scripts --no-audit --no-fund
-run_setup "build CLI" npm --prefix cli run build
-run_setup "build riptide-engine" cargo build --release -p riptide-engine
-run_setup "build lending_pool SBF program" cargo build-sbf --manifest-path programs/lending_pool/Cargo.toml
-run_setup "build admin_mock_oracle SBF program" cargo build-sbf --manifest-path programs/admin_mock_oracle/Cargo.toml
-run_setup "build liquid_staking SBF program" cargo build-sbf --manifest-path programs/liquid-staking/Cargo.toml
+if [[ ! -x "$LAUNCHER" ]]; then
+  printf 'install.sh did not produce an executable launcher at %s\n' "$LAUNCHER" >&2
+  exit 1
+fi
 
-cp fixtures/adapters/lending.toml "$DOCTOR_WORKSPACE/.riptide/adapters/lending.toml"
+run_checked 0 "$LAUNCHER" --version
+run_checked 0 "$LAUNCHER" --help
 
-RIPTIDE=(node "$CHECKOUT/cli/dist/src/index.js")
-FLAGSHIP_PACK=".riptide/pack/replay-multi-lst-lending-contagion-proof-upstream"
-FLAGSHIP_MANIFEST="$FLAGSHIP_PACK/manifest.json"
-
-run_checked "$DOCTOR_WORKSPACE" 0 "${RIPTIDE[@]}" doctor --quiet
-run_checked "$CHECKOUT" 0 "${RIPTIDE[@]}" run examples/configs/safe.json --adapter fixtures/adapters/lending.toml --output-dir "$ARTIFACTS/run-safe" --quiet
-run_checked "$CHECKOUT" 0 "${RIPTIDE[@]}" campaign run fixtures/campaigns/lending/solend-shape-liquidation-safety/campaign.toml --max-runs 1 --out "$ARTIFACTS/campaign"
-run_checked "$CHECKOUT" 0 "${RIPTIDE[@]}" replay fixtures/replays/lst-lending-contagion-proof/config.json --allow-invariant-violations --quiet
-run_checked "$CHECKOUT" 0 ./scripts/ci/assert-canonical-hash.sh "$FLAGSHIP_MANIFEST" "$EXPECTED_FLAGSHIP_HASH"
-run_checked "$CHECKOUT" "$EXPECTED_PROOF_REVIEW_EXIT" "${RIPTIDE[@]}" review "$FLAGSHIP_PACK" --quiet
+# `riptide doctor` is the toolchain self-check. It exits 1 on a WARN
+# verdict (acceptable) and >= 2 on a hard failure. Mirror install.sh:
+# only exit >= 2 fails the smoke.
+printf '\n$ %s doctor\n' "$LAUNCHER"
+set +e
+NO_COLOR=1 "$LAUNCHER" doctor
+DOCTOR_EXIT=$?
+set -e
+printf '[exit %s]\n' "$DOCTOR_EXIT"
+if [[ "$DOCTOR_EXIT" -ge 2 ]]; then
+  printf 'riptide doctor reported a hard failure (exit %s)\n' "$DOCTOR_EXIT" >&2
+  exit 1
+fi
 
 printf '\ncli clean-checkout smoke passed\n'

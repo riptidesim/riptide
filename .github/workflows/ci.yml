@@ -1,0 +1,119 @@
+name: ci
+
+# Build-and-test gate for the Riptide repository.
+#
+# On every push and PR it sets up the toolchains and runs the two
+# real test suites that guard the surviving guided-sim product:
+#
+#   1. Checks out the repo on a clean runner (no warm cache).
+#   2. Installs Rust (stable), Node.js, and the pinned Solana release
+#      tarball from anza-xyz/agave — its SHA256 is verified against the
+#      checksum committed under `scripts/ci/solana-release.sha256`
+#      before extraction. No `curl | sh`: a swapped installer fails the
+#      checksum step and the workflow exits loudly.
+#   3. Builds + tests the TypeScript CLI: `cd cli && npm ci && npm test`
+#      (npm test runs the build first, then the node test runner).
+#   4. Runs the Rust workspace tests: `cargo test --workspace`
+#      (riptide-sim + riptide-sim-macros).
+#
+# Supply-chain posture:
+#   - Every `uses:` reference is pinned to an immutable commit SHA
+#     (not a floating tag) with the released version recorded inline.
+#     A compromised or moved tag cannot change what this workflow
+#     executes; a SHA flip produces a diff reviewers can inspect.
+#   - The Solana toolchain is downloaded + checksum-verified against
+#     a committed `.sha256` file. Bumping the toolchain version bumps
+#     both the pin AND the checksum in the same PR.
+#   - `npm ci --ignore-scripts` skips postinstall hooks so no npm
+#     dependency can run code on the runner during install.
+#   - No external RPC, no live IDL fetch, no LLM call.
+#   - No secrets beyond the default `GITHUB_TOKEN`.
+#   - No publishing, no release creation.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned Solana CLI version — matches TOOLCHAIN.md. Bumping here
+  # MUST land in the same commit as an updated
+  # `scripts/ci/solana-release.sha256` checksum, or the verify step
+  # exits loudly.
+  SOLANA_VERSION: v3.0.13
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout (fresh)
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Install Rust toolchain (stable)
+        # dtolnay/rust-toolchain @stable branch as of 2026-04-22
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+        with:
+          toolchain: stable
+
+      - name: Install Solana CLI (pinned + checksum-verified)
+        run: |
+          set -euo pipefail
+          tarball="solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          url="https://github.com/anza-xyz/agave/releases/download/${SOLANA_VERSION}/${tarball}"
+          workdir="$(mktemp -d)"
+          curl -fsSL --retry 3 --retry-all-errors -o "${workdir}/${tarball}" "${url}"
+          # Verify against the checksum committed to the repo BEFORE
+          # extracting. If the upstream release was altered (or the
+          # CDN served something else), `sha256sum -c` exits non-zero
+          # and the workflow bails before any code runs.
+          (
+            cd "${workdir}" && \
+            sha256sum -c "${GITHUB_WORKSPACE}/scripts/ci/solana-release.sha256"
+          )
+          mkdir -p "${HOME}/.local/share/solana/install/active_release"
+          tar -xjf "${workdir}/${tarball}" \
+            -C "${HOME}/.local/share/solana/install/active_release" \
+            --strip-components=1
+          echo "${HOME}/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Sanity-check toolchain
+        run: |
+          set -euo pipefail
+          solana --version
+          cargo --version
+          rustc --version
+          cargo-build-sbf --version || true
+
+      - name: Set up Node.js
+        # actions/setup-node v4.1.0
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version: "24"
+
+      - name: Build + test CLI
+        working-directory: cli
+        run: |
+          set -euo pipefail
+          # `npm ci` respects package-lock.json byte-for-byte; the
+          # integrity hashes in the lockfile are the supply-chain
+          # check for every installed npm dependency. `npm test`
+          # builds the TypeScript CLI, then runs the node test runner.
+          npm ci --ignore-scripts
+          npm test
+
+      - name: Run Rust workspace tests
+        run: |
+          set -euo pipefail
+          cargo test --workspace
