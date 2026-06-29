@@ -11,7 +11,7 @@
 # The archive includes a bundled Node runtime and the compiled TypeScript
 # CLI with production npm dependencies (whose `dist/sim-runtime` carries
 # the vendored `riptide-sim` guided-simulation runtime), plus the shipped
-# skills, adapter fixtures, examples, and docs. End users who install this
+# skills, adapter fixtures, and docs. End users who install this
 # bundle do not need npm or Node; they bring their own Solana program and
 # the SBF toolchain to build it.
 
@@ -222,7 +222,6 @@ cp -R "$ROOT/cli/assets" "$bundle/cli/assets"
 (cd "$bundle/cli" && npm ci --omit=dev --no-audit --no-fund --ignore-scripts)
 
 cp -R "$ROOT/fixtures" "$bundle/fixtures"
-cp -R "$ROOT/examples" "$bundle/examples"
 cp -R "$ROOT/skills" "$bundle/skills"
 cp "$ROOT/README.md" "$bundle/README.md"
 cp "$ROOT/TOOLCHAIN.md" "$bundle/TOOLCHAIN.md"

@@ -41,7 +41,7 @@ install, Docker, release, and upgrade paths live in [docs/install.md](docs/insta
 
 Riptide has two main runtime pieces:
 
-- `engine/` - Rust simulation engine and LiteSVM runtime.
+- `riptide-sim/` - Rust simulation engine and LiteSVM runtime.
 - `cli/` - TypeScript CLI, Studio server, job orchestration, validation, and
   dashboard assets.
 
@@ -49,12 +49,12 @@ The simulator is configured through files:
 
 - adapters map programs, accounts, actions, observations, and invariants;
 - personas describe agent behavior;
-- scenarios and campaigns describe experiments;
+- guided simulations describe experiments;
 - evidence packs and reports capture what ran.
 
 Most new protocol work should add or improve those declared layers. Engine
 changes are rare and should be justified by a capability that cannot be
-expressed in TOML, scenarios, campaigns, or skills.
+expressed in TOML, guided simulations, or skills.
 
 ## Common Changes
 
@@ -62,9 +62,8 @@ expressed in TOML, scenarios, campaigns, or skills.
 | --- | --- | --- |
 | Docs | `README.md`, `docs/`, or `CONTRIBUTING.md` | `git diff --check` and link review |
 | Studio or CLI | `cli/src/`, `cli/studio-app/` | `npm --prefix cli test` |
-| Engine | `engine/src/`, `engine/tests/` | `cargo test -p riptide-engine` |
-| Adapter or scenario | `fixtures/adapters/`, `fixtures/scenarios/` | a focused `riptide run` plus relevant CLI tests |
-| Campaigns | `docs/campaigns.md`, `cli/src/campaign/` | campaign validation, plan, and run tests |
+| Engine | `riptide-sim/src/`, `riptide-sim/tests/` | `cargo test -p riptide-sim` |
+| Adapter | `fixtures/adapters/` | relevant CLI tests |
 | Skills | `skills/riptide-*/` | cold-read before/after output on the same repo |
 
 If you change Studio source under `cli/studio-app/`, rebuild the bundled assets
@@ -76,11 +75,11 @@ Determinism is the main project discipline. If a change alters byte-stable
 simulation output, treat that as a blocker until you can explain why the new
 bytes are correct.
 
-For engine or simulation changes, run focused tests first, then the broader
-engine suite:
+For Rust simulation changes, run focused tests first, then the broader
+simulation suite:
 
 ```bash
-cargo test -p riptide-engine
+cargo test -p riptide-sim
 ```
 
 For CLI or Studio changes:
@@ -108,12 +107,12 @@ Use Conventional Commits:
 ```text
 docs(readme): simplify studio-first landing page
 fix(cli): preserve workspace-relative job paths
-feat(adapter): add stablecoin scenario family
-test(engine): cover replay hash stability
+feat(adapter): add stablecoin guided simulation
+test(sim): cover determinism hash stability
 ```
 
-Useful scopes include `engine`, `cli`, `studio`, `adapter`, `scenario`,
-`campaign`, `skill`, `docs`, `install`, and `ci`.
+Useful scopes include `sim`, `cli`, `studio`, `adapter`, `skill`, `docs`,
+`install`, and `ci`.
 
 ## Where To Read More
 
@@ -134,7 +133,7 @@ Include the OS, relevant tool versions, exact command, full error output, and a
 minimal reproduction when possible.
 
 For determinism regressions, include the expected hash, the actual hash, and the
-fixture or scenario that produced it.
+fixture or simulation that produced it.
 
 ## License
 
