@@ -18,6 +18,9 @@ configuration contract.
 - [detect-and-scope.md](./detect-and-scope.md) — step 1 (Detect the protocol
   family) + step 2 (Scope with the full A–F trigger taxonomy and the three
   scoped questions).
+- [family-library.md](./family-library.md) — per-family starting menu of
+  personas (→ `[personas]`), invariants (→ `[[invariants]]`), and stress
+  scenarios (→ `[sim.sweep]`); consulted during Scope before campaign design.
 - [setup.md](./setup.md) — step 3: author the adapter, generate the sim crate,
   fill the `TODO(setup)` seams with deterministic facts, declare external
   programs/accounts/forks.

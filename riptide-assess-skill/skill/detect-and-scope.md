@@ -27,6 +27,12 @@ the sim crate lands the flows right the first time.
    (`high`/`medium`/`low`), evidence paths, competing interpretations. If
    confidence is low between two families, ask one classification question
    (counts toward the three-question limit).
+6. Once the family is fixed, read that family's entry in
+   [family-library.md](./family-library.md) — the recurring personas,
+   invariants, and stress scenarios for the archetype. Treat it as the starting
+   menu: apply/adapt the entries that fit the target program's real
+   instructions and accounts, then add protocol-specific ones the program's own
+   flows demand. Do this **before** designing the campaign, not instead of it.
 
 Read the P0/P1 state-changing instructions: for each, read the IDL `args` and
 `accounts` entries plus the handler source. This feeds the next step.
@@ -116,9 +122,12 @@ authoring patterns: <per trigger — A typed-argument builders; B oracle-account
 verdict: <baseline-sim | guided-sim-authored | unsupported>
 ```
 
-When any trigger fires, read [worst-case-playbook.md](./worst-case-playbook.md)
-for the archetype's worst case to hunt, the axis to sweep, and the deciding
-invariant/metric — **before** asking any scoping question.
+Before asking any scoping question, pair two references for the archetype:
+[family-library.md](./family-library.md) for the recurring personas,
+invariants, and stress scenarios to start from, and
+[worst-case-playbook.md](./worst-case-playbook.md) for the worst case to hunt,
+the axis to sweep, and the deciding invariant/metric. The library seeds the
+campaign; the playbook sharpens it to the worst case.
 
 Then ask **no more than three questions total**, one at a time, never for facts
 already visible in source/IDL/tests/`.riptide`:

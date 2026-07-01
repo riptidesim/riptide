@@ -76,6 +76,7 @@ riptide-assess-skill/
 │   ├── detect-and-scope.md      # Detect the family + the A–F trigger taxonomy
 │   ├── setup.md                 # Adapter, sim crate, deterministic setup seams
 │   ├── run-and-assess.md        # Run → Surface → Assess
+│   ├── family-library.md        # Per-family personas, invariants, stress scenarios
 │   ├── authoring-patterns.md    # Oracle bytes, third-party dispatch, sweep scaffold
 │   ├── honesty.md               # The non-negotiable honesty discipline + gates
 │   ├── worst-case-playbook.md   # Per-archetype worst case to hunt

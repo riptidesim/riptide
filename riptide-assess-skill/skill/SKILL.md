@@ -106,6 +106,10 @@ Each step's depth lives in a focused file:
 
 Supporting depth:
 
+- **Family library** — the recurring personas, invariants, and stress scenarios
+  per protocol family; consult the detected family's entry during Scope before
+  designing the campaign →
+  [family-library.md](./family-library.md)
 - **Authoring patterns (guided sim)** — the library code to wire when triggers
   fire (oracle-account construction, third-party dispatch, the sweep scaffold) →
   [authoring-patterns.md](./authoring-patterns.md)
