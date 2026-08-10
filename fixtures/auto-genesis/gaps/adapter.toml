@@ -1,0 +1,71 @@
+# Non-derivable tick-0 genesis — one seam per refusal class.
+#
+# The adapter is complete enough to *generate* (personas, mapped instruction,
+# resolvable args), so `riptide sim generate` still succeeds and the crate still
+# compiles as a no-op guided flow. What it cannot do is invent the genesis, and
+# each account below fails for a different declared reason:
+#
+# - `collateral_ata` declares a `decoder`: an SPL token account's mint, owner,
+#   and balance at tick 0 are a scenario choice, not a derivable fact.
+# - `deposit_receipt` is Anchor-discriminated in the IDL, so the program writes
+#   its first 8 bytes itself; a zero-filled allocation would fail that check.
+# - `fee_sink` is not declared under `[accounts]`, is not the signer seat, and is
+#   not a well-known program or sysvar.
+# - `price_feed` is pinned to a literal address: reproducible as an address,
+#   unknowable as bytes.
+# - `vault` is program-constrained (`pda` in the IDL) with no adapter seeds, so
+#   genesis cannot reproduce the address the program will check.
+#
+# `token_program` resolves as a well-known program and is deliberately not a gap.
+
+protocol = "generic"
+program_so = "program/target/deploy/vault_market.so"
+idl_path = "program.json"
+
+[accounts.vault]
+kind = "shared"
+space = 48
+
+[accounts.deposit_receipt]
+kind = "agent"
+space = 48
+
+[accounts.collateral_ata]
+kind = "agent"
+space = 165
+decoder = "spl_token_account"
+
+[accounts.price_feed]
+kind = "shared"
+space = 128
+address = "H6ARHf6YXhGYeQfUzQNGk6rDNnLBQKrenN712K4AQJEG"
+
+[instructions.deposit]
+action = "deposit"
+amount = "amount"
+
+[state_mapping]
+"vault.deposited" = "vault.deposited"
+
+[actions.deposit]
+label = "Deposit collateral"
+takes = ["amount"]
+
+[observations]
+"vault.deposited" = "uint"
+
+[personas.depositor]
+label = "Depositor"
+action_rate_multiplier = 1.0
+amount = 1000.0
+action_weights = { deposit = 1.0 }
+
+[lineage]
+idl_source = "fixtures/auto-genesis/gaps/program.json"
+generator = "hand-authored"
+inferred_assumptions = [
+  "This adapter exists to pin the genesis classifier's refusal classes; it is not backed by a built program and is never executed.",
+]
+unsupported_fields = [
+  "instruction `deposit` is mapped so the classifier has a reachable account set; no simulation is expected to run against it",
+]

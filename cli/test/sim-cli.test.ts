@@ -41,6 +41,63 @@ test("sim generate CLI writes expected files", async () => {
   assert.match(linted.stdout, /Verdict: PASS \(exit 0\)/);
 });
 
+test("sim generate CLI routes an unresolvable genesis to the agent skill on stderr", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-cli-gaps-"));
+  const adapter = path.resolve(
+    process.cwd(),
+    "..",
+    "fixtures",
+    "auto-genesis",
+    "gaps",
+    "adapter.toml"
+  );
+  const outDir = path.join(root, ".riptide", "sim");
+
+  const generated = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "sim", "generate", "--adapter", adapter, "--dir", outDir],
+    { cwd: root }
+  );
+
+  // Routing copy is human chrome: stderr only, so a --json consumer keeps a
+  // clean stdout.
+  assert.equal(generated.stdout, "");
+  assert.match(generated.stderr, /riptide sim: tick-0 genesis has 5 unresolved seams/);
+  assert.match(generated.stderr, /accounts\.vault \(program_constrained_address\)/);
+  assert.match(generated.stderr, /next: \/riptide-config/);
+  assert.match(generated.stderr, /report .*setup-gaps\.json/);
+
+  const report = JSON.parse(await readFile(path.join(outDir, "setup-gaps.json"), "utf8")) as {
+    schema_version: string;
+    genesis: string;
+  };
+  assert.equal(report.schema_version, "setup-gaps.v1");
+  assert.equal(report.genesis, "gaps");
+});
+
+test("sim generate CLI states the derived genesis is a baseline, never a safety claim", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-cli-derived-"));
+  const adapter = path.resolve(
+    process.cwd(),
+    "..",
+    "fixtures",
+    "auto-genesis",
+    "derivable",
+    "adapter.toml"
+  );
+  const outDir = path.join(root, ".riptide", "sim");
+
+  const generated = await execFileAsync(
+    process.execPath,
+    [cliEntrypoint, "sim", "generate", "--adapter", adapter, "--dir", outDir],
+    { cwd: root }
+  );
+
+  assert.match(generated.stderr, /riptide sim: tick-0 genesis derived from declared adapter facts/);
+  assert.match(generated.stderr, /baseline starting state — not a model of/);
+  assert.doesNotMatch(generated.stderr, /\baudit\b|\bverified safe\b|\bno vulnerabilities\b|\bsafe\b/i);
+});
+
 test("sim lint CLI accepts a valid manifest", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-lint-pass-"));
   const simDir = path.join(root, ".riptide", "sim");

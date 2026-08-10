@@ -1,0 +1,46 @@
+{
+  "address": "HGRekLYd2arFZFL3BiyHRjTHhJk8fA9RamYDtcjiRsAV",
+  "name": "contribution_pool",
+  "description": "Derivable-genesis fixture. Raw Borsh state (no Anchor account discriminators) at PDAs the program re-derives and checks, pre-created by the caller. Instruction discriminators are the Borsh enum tags.",
+  "instructions": [
+    {
+      "name": "contribute",
+      "discriminator": [0],
+      "accounts": [
+        { "name": "authority", "signer": true, "writable": false },
+        { "name": "ledger", "signer": false, "writable": true },
+        { "name": "treasury", "signer": false, "writable": true }
+      ],
+      "args": [{ "name": "amount", "type": "u64" }]
+    },
+    {
+      "name": "withdraw",
+      "discriminator": [1],
+      "accounts": [
+        { "name": "authority", "signer": true, "writable": false },
+        { "name": "ledger", "signer": false, "writable": true },
+        { "name": "treasury", "signer": false, "writable": true }
+      ],
+      "args": [{ "name": "amount", "type": "u64" }]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ledger",
+      "size": 40,
+      "fields": [
+        { "name": "owner", "type": "pubkey" },
+        { "name": "contributed", "type": "u64" }
+      ]
+    },
+    {
+      "name": "treasury",
+      "size": 16,
+      "fields": [
+        { "name": "total", "type": "u64" },
+        { "name": "contributors", "type": "u64" }
+      ]
+    }
+  ],
+  "types": []
+}

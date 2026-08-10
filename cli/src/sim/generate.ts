@@ -5,8 +5,16 @@ import path from "node:path";
 import { loadAdapter, type AdapterLoadError } from "../adapter/resolve.js";
 import { cliPackageRootFromModule, monorepoRootFromModule } from "../orchestrator/index.js";
 import { resolveAdapterRuntime, resolveRuntimePath, type Adapter } from "../schemas/adapter.js";
+import { planGenesis } from "./genesis.js";
 import { loadGenericIdl } from "./idl.js";
 import { renderAccounts } from "./render-accounts.js";
+import {
+  buildSetupGapsReport,
+  renderSetupGapsJson,
+  renderSetupGapsSummary,
+  SETUP_GAPS_FILENAME,
+  type SetupGapsReport
+} from "./setup-gaps.js";
 import { renderBootstrapManifest } from "./render-manifest.js";
 import { renderInvariants } from "./render-invariants.js";
 import { renderFlows } from "./render-flows.js";
@@ -24,6 +32,11 @@ export interface SimGenerateOptions {
   dir?: string;
   forceGenerated?: boolean;
   regenTypesOnly?: boolean;
+  /**
+   * Where the genesis summary is written. Defaults to stderr so `--json`
+   * consumers keep a clean stdout; pass a sink to silence it.
+   */
+  writeSummary?: (text: string) => void;
 }
 
 export interface SimGenerateResult {
@@ -32,6 +45,13 @@ export interface SimGenerateResult {
   bootstrapManifestPath: string;
   adapterPath: string;
   idlPath: string;
+  /**
+   * The tick-0 genesis classification and its on-disk report. Undefined only for
+   * `regenTypesOnly` refreshes, which preserve the existing report alongside the
+   * user-owned files it describes.
+   */
+  setupGaps?: SetupGapsReport;
+  setupGapsPath?: string;
 }
 
 export async function generateSim(
@@ -60,6 +80,12 @@ export async function generateSim(
   const programSoPath = resolved.adapter.program_so
     ? resolveRuntimePath(resolved.adapter.program_so, resolved.path)
     : undefined;
+  // The genesis summary is the only operator-visible string this module emits.
+  // It lives here rather than in the command wrapper so every caller of
+  // `generateSim` — CLI, orchestrator, skill — sees the same routing copy.
+  const writeSummary = options.writeSummary ?? ((text: string) => process.stderr.write(text));
+  let setupGaps: SetupGapsReport | undefined;
+  let setupGapsPath: string | undefined;
 
   await mkdir(servicesDir, { recursive: true });
   await writeFile(path.join(srcDir, "types.rs"), renderTypes(idl), "utf8");
@@ -87,7 +113,17 @@ export async function generateSim(
       }),
       "utf8"
     );
-    await writeIfFirst(path.join(srcDir, "flows.rs"), renderFlows(resolved.adapter, idl), forceUserOwned);
+    const genesis = planGenesis(resolved.adapter, idl);
+    const flowsPath = path.join(srcDir, "flows.rs");
+    const flowsAuthored = existsSync(flowsPath) && !forceUserOwned;
+    await writeIfFirst(flowsPath, renderFlows(resolved.adapter, idl, genesis), forceUserOwned);
+    setupGaps = buildSetupGapsReport(genesis, {
+      adapterPath: resolved.path,
+      flowsAuthored
+    });
+    setupGapsPath = path.join(outDir, SETUP_GAPS_FILENAME);
+    await writeFile(setupGapsPath, renderSetupGapsJson(setupGaps), "utf8");
+    writeSummary(renderSetupGapsSummary(setupGaps, setupGapsPath));
     await writeIfFirst(
       path.join(srcDir, "invariants.rs"),
       renderInvariants(resolved.adapter, idl),
@@ -104,7 +140,15 @@ export async function generateSim(
     await copyRuntimeLockfile(outDir, runtimeSource);
   }
 
-  return { dir: outDir, manifestPath, bootstrapManifestPath, adapterPath: resolved.path, idlPath };
+  return {
+    dir: outDir,
+    manifestPath,
+    bootstrapManifestPath,
+    adapterPath: resolved.path,
+    idlPath,
+    setupGaps,
+    setupGapsPath
+  };
 }
 
 async function writeIfFirst(filePath: string, content: string, force: boolean): Promise<void> {

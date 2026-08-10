@@ -37,12 +37,18 @@ export const GenericInstructionAccountSchema = z.object({
   writable: z.boolean().default(false),
   isSigner: z.boolean().optional(),
   isMut: z.boolean().optional(),
-  address: z.string().min(1).optional()
+  address: z.string().min(1).optional(),
+  // Anchor emits `pda` for accounts the program constrains to its own seeds.
+  // Only its presence is kept: the seed encoding is Anchor-version-specific and
+  // the genesis classifier treats a program-constrained address it cannot
+  // reproduce as an unresolved seam rather than guessing bytes.
+  pda: z.unknown().optional()
 }).passthrough().transform((value) => ({
   name: value.name,
   signer: value.isSigner ?? value.signer,
   writable: value.isMut ?? value.writable,
-  address: value.address
+  address: value.address,
+  programConstrainedAddress: value.pda !== undefined && value.pda !== null
 }));
 export type GenericInstructionAccount = z.infer<typeof GenericInstructionAccountSchema>;
 

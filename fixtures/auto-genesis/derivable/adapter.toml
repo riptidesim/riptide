@@ -1,0 +1,80 @@
+# Derivable tick-0 genesis.
+#
+# Every fact the generated `flows::init` needs is declared here or in the IDL:
+#
+# - `[accounts.ledger].pda` gives the exact seeds the program re-derives, so
+#   genesis lands that account at the address the program checks.
+# - `treasury` declares no address at all: the program asserts owner and length
+#   only, so genesis derives a stable address of its own.
+# - `space` gives the allocation size the program asserts.
+# - the IDL declares plain `fields` (no Anchor account discriminator), so a
+#   zero-initialized allocation is a legitimate starting state rather than a
+#   guess about bytes the program would have written itself.
+#
+# `riptide sim generate --adapter fixtures/auto-genesis/derivable/adapter.toml`
+# therefore emits a wired `init` and a `setup-gaps.json` with `genesis:
+# "derived"` and an empty `gaps` array.
+
+protocol = "generic"
+program_so = "program/target/sbpf-solana-solana/release/contribution_pool.so"
+idl_path = "program.json"
+
+[accounts.treasury]
+kind = "shared"
+space = 16
+
+[accounts.ledger]
+kind = "agent"
+space = 40
+pda = { seeds = ["literal:ledger", "signer:agent"] }
+
+[instructions.contribute]
+action = "contribute"
+amount = "amount"
+
+[instructions.withdraw]
+action = "withdraw"
+amount = "amount"
+
+[state_mapping]
+"ledger.contributed" = "ledger.contributed"
+"treasury.total" = "treasury.total"
+"treasury.contributors" = "treasury.contributors"
+
+[actions.contribute]
+label = "Contribute to the pool"
+takes = ["amount"]
+
+[actions.withdraw]
+label = "Withdraw a prior contribution"
+takes = ["amount"]
+
+[observations]
+"ledger.contributed" = "uint"
+"treasury.total" = "uint"
+"treasury.contributors" = "uint"
+
+[personas.steady]
+label = "Steady contributor"
+action_rate_multiplier = 1.0
+amount = 1000.0
+action_weights = { contribute = 1.0, withdraw = 0.2 }
+
+[personas.churner]
+label = "Deposit-withdraw churner"
+action_rate_multiplier = 2.0
+amount = 500.0
+action_weights = { contribute = 1.0, withdraw = 1.0 }
+
+[lineage]
+idl_source = "fixtures/auto-genesis/derivable/program.json"
+generator = "hand-authored"
+inferred_assumptions = [
+  "Both state accounts are pre-created by the caller: the program asserts owner and data length (and, for `ledger`, the PDA address) rather than creating accounts itself, so allocating them at genesis is the declared contract.",
+  "`treasury` deliberately declares no `pda`: it covers the half of the derivable class where nothing constrains the address.",
+  "A zero-initialized `ledger` is a valid pre-first-contribution state; the program binds `ledger.owner` on first touch.",
+  "`withdraw` is mapped as a runtime action even though early ticks will overdraw an empty ledger; the resulting errors are the honest failure signal for the fixture, not a defect.",
+]
+unsupported_fields = [
+  "account `ledger.owner` — signer bookkeeping, not persona-observable state",
+]
