@@ -798,19 +798,31 @@ function collectIdlFacts(idl: unknown): IdlFacts {
   const root = asRecord(idl);
   const accounts = new Map<string, { size?: number; fields: IdlFieldFact[] }>();
   const instructions = new Map<string, { args: string[] }>();
+
+  // Anchor 0.30 IDLs list accounts as `{ name, discriminator }` and keep
+  // the struct layout under `types[]`. Index those so an account entry
+  // with no inline fields still resolves — the linter already does this,
+  // and without it `space = "auto"` and `[observations.auto]` silently
+  // see a fieldless account.
+  const typeFields = new Map<string, IdlFieldFact[]>();
+  const rawTypes = Array.isArray(root?.types) ? root.types : [];
+  for (const entry of rawTypes) {
+    const type = asRecord(entry);
+    const name = stringValue(type?.name);
+    if (!type || !name) continue;
+    typeFields.set(normalizeIdlName(name), idlFieldFacts(type));
+  }
+
   const rawAccounts = Array.isArray(root?.accounts) ? root.accounts : [];
   for (const entry of rawAccounts) {
     const account = asRecord(entry);
     if (!account) continue;
     const name = stringValue(account?.name);
     if (!name) continue;
-    const fields = idlFields(account).map((field) => ({
-      name: field.name,
-      observationType: observationTypeForIdlType(field.type)
-    }));
+    const inline = idlFieldFacts(account);
     accounts.set(normalizeIdlName(name), {
       size: numberValue(account?.size),
-      fields
+      fields: inline.length > 0 ? inline : (typeFields.get(normalizeIdlName(name)) ?? [])
     });
   }
   const rawInstructions = Array.isArray(root?.instructions) ? root.instructions : [];
@@ -965,6 +977,13 @@ function normalizeAutoObservations(adapter: RawAdapter, adapterPath: string, idl
 
 function normalizeIdlName(value: string): string {
   return value.replace(/-/g, "_").toLowerCase();
+}
+
+function idlFieldFacts(owner: Record<string, unknown>): IdlFieldFact[] {
+  return idlFields(owner).map((field) => ({
+    name: field.name,
+    observationType: observationTypeForIdlType(field.type)
+  }));
 }
 
 function idlFields(account: Record<string, unknown> | null): Array<{ name: string; type: unknown }> {

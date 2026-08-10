@@ -9,6 +9,9 @@
 //   inline personas, agents, ticks, seeds; defaults reproduce the non-interactive output
 // - non-interactive runs (--yes, no-TTY, --quiet) scaffold only the adapter,
 //   GETTING-STARTED.md, and .gitignore entries; no scenarios or personas are generated.
+// - every program in a workspace gets its own adapter; --program narrows to one
+// - an adapter backed by a readable IDL comes out with real entries and a
+//   [lineage] residual record instead of TODO prose.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -22,6 +25,7 @@ import TOML from "toml";
 import { runInit } from "../src/commands/init.js";
 import {
   detectProgram,
+  detectPrograms,
   inferProgramName,
   renderAdapterStub,
   renderGettingStarted,
@@ -185,22 +189,386 @@ test("init: missing Solana program fails before interactive wizard", async () =>
   assert.equal(existsSync(path.join(cwd, ".riptide")), false);
 });
 
-test("init: malformed or ambiguous Anchor.toml fails instead of guessing my-program", async () => {
+test("init: malformed Anchor.toml fails instead of guessing my-program", async () => {
   const malformed = await mkTempRepo();
   await writeAnchor(malformed, "this is not valid TOML { [ malformed },,,,\n");
   assert.equal(await runInit({ force: false, dir: malformed }), 2);
   assert.equal(existsSync(path.join(malformed, ".riptide")), false);
+});
 
-  const ambiguous = await mkTempRepo();
-  await writeAnchor(
-    ambiguous,
-    `[programs.localnet]
-alpha = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
-beta = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnT"
-`
+// ---------------------------------------------------------------------------
+// Multi-program detection + fully-defaulted adapters
+// ---------------------------------------------------------------------------
+
+const MULTI_ANCHOR = `[programs.localnet]
+widget_factory = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+token_vault = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnT"
+`;
+
+const WIDGET_FACTORY_IDL = {
+  address: "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS",
+  instructions: [
+    {
+      name: "mine",
+      discriminator: [1, 2, 3, 4, 5, 6, 7, 8],
+      accounts: [
+        { name: "authority", signer: true },
+        { name: "player", writable: true },
+        { name: "system_program" }
+      ],
+      args: [{ name: "amount", type: "u64" }]
+    },
+    {
+      name: "craft",
+      discriminator: [2, 3, 4, 5, 6, 7, 8, 9],
+      accounts: [
+        { name: "authority", signer: true },
+        { name: "player", writable: true }
+      ],
+      args: []
+    },
+    {
+      // Two runtime args: Riptide would have to invent the second literal.
+      name: "swap",
+      discriminator: [3, 4, 5, 6, 7, 8, 9, 10],
+      accounts: [
+        { name: "authority", signer: true },
+        { name: "player", writable: true }
+      ],
+      args: [
+        { name: "amount_in", type: "u64" },
+        { name: "min_out", type: "u64" }
+      ]
+    },
+    {
+      // Touches a dynamically-sized account: space is not derivable.
+      name: "list_for_sale",
+      discriminator: [4, 5, 6, 7, 8, 9, 10, 11],
+      accounts: [
+        { name: "authority", signer: true },
+        { name: "marketplace", writable: true }
+      ],
+      args: [{ name: "amount", type: "u64" }]
+    }
+  ],
+  accounts: [
+    { name: "Player", discriminator: [10, 11, 12, 13, 14, 15, 16, 17] },
+    { name: "Marketplace", discriminator: [20, 21, 22, 23, 24, 25, 26, 27] }
+  ],
+  types: [
+    {
+      name: "Player",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "owner", type: "pubkey" },
+          { name: "gold", type: "u64" },
+          { name: "wood", type: "u64" }
+        ]
+      }
+    },
+    {
+      name: "Marketplace",
+      type: {
+        kind: "struct",
+        fields: [{ name: "listings", type: { vec: "u64" } }]
+      }
+    }
+  ]
+};
+
+const TOKEN_VAULT_IDL = {
+  address: "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnT",
+  instructions: [
+    {
+      name: "deposit",
+      discriminator: [5, 6, 7, 8, 9, 10, 11, 12],
+      accounts: [
+        { name: "authority", signer: true },
+        { name: "vault", writable: true }
+      ],
+      args: [{ name: "amount", type: "u64" }]
+    },
+    {
+      name: "withdraw",
+      discriminator: [6, 7, 8, 9, 10, 11, 12, 13],
+      accounts: [
+        { name: "authority", signer: true },
+        { name: "vault", writable: true }
+      ],
+      args: [{ name: "amount", type: "u64" }]
+    }
+  ],
+  accounts: [{ name: "Vault", discriminator: [30, 31, 32, 33, 34, 35, 36, 37] }],
+  types: [
+    {
+      name: "Vault",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "authority", type: "pubkey" },
+          { name: "balance", type: "u64" },
+          { name: "frozen", type: "bool" }
+        ]
+      }
+    }
+  ]
+};
+
+async function writeArtifacts(
+  cwd: string,
+  programs: Array<{ soName: string; idl?: unknown }>
+): Promise<void> {
+  await mkdir(path.join(cwd, "target", "deploy"), { recursive: true });
+  await mkdir(path.join(cwd, "target", "idl"), { recursive: true });
+  for (const program of programs) {
+    await writeFile(path.join(cwd, "target", "deploy", `${program.soName}.so`), "so", "utf8");
+    if (program.idl !== undefined) {
+      await writeFile(
+        path.join(cwd, "target", "idl", `${program.soName}.json`),
+        JSON.stringify(program.idl, null, 2),
+        "utf8"
+      );
+    }
+  }
+}
+
+async function mkMultiProgramRepo(): Promise<string> {
+  const cwd = await mkTempRepo();
+  await writeAnchor(cwd, MULTI_ANCHOR);
+  await writeArtifacts(cwd, [
+    { soName: "widget_factory", idl: WIDGET_FACTORY_IDL },
+    { soName: "token_vault", idl: TOKEN_VAULT_IDL }
+  ]);
+  return cwd;
+}
+
+async function readAdapter(cwd: string, programName: string): Promise<string> {
+  return readFile(path.join(cwd, ".riptide", "adapters", `${programName}.toml`), "utf8");
+}
+
+function validateAdapterAt(cwd: string, programName: string, body: string) {
+  return validateAdapter(
+    TOML.parse(body),
+    path.join(cwd, ".riptide", "adapters", `${programName}.toml`)
   );
-  assert.equal(await runInit({ force: false, dir: ambiguous }), 2);
-  assert.equal(existsSync(path.join(ambiguous, ".riptide")), false);
+}
+
+test("detectPrograms: every Anchor.toml program is detected, sorted", async () => {
+  const cwd = await mkMultiProgramRepo();
+  const detected = detectPrograms(cwd);
+  assert.deepEqual(
+    detected.map((entry) => entry.programName),
+    ["token-vault", "widget-factory"]
+  );
+  assert.deepEqual(new Set(detected.map((entry) => entry.source)), new Set(["anchor"]));
+  assert.deepEqual(detected.flatMap((entry) => entry.warnings), []);
+});
+
+test("detectPrograms: every matching artifact pair is detected when there is no Anchor.toml", async () => {
+  const cwd = await mkTempRepo();
+  await writeArtifacts(cwd, [
+    { soName: "widget_factory", idl: WIDGET_FACTORY_IDL },
+    { soName: "token_vault", idl: TOKEN_VAULT_IDL }
+  ]);
+  const detected = detectPrograms(cwd);
+  assert.deepEqual(
+    detected.map((entry) => entry.programName),
+    ["token-vault", "widget-factory"]
+  );
+  assert.deepEqual(new Set(detected.map((entry) => entry.source)), new Set(["artifacts"]));
+});
+
+test("init: multi-program workspace scaffolds one adapter per program without prompting", async () => {
+  const cwd = await mkMultiProgramRepo();
+
+  let wizardCalled = false;
+  const stderr = await captureStderr(async () => {
+    const exit = await runInit(
+      { force: false, dir: cwd },
+      {
+        isTTY: true,
+        promptWizard: async () => {
+          wizardCalled = true;
+          throw new Error("default init must never prompt");
+        }
+      }
+    );
+    assert.equal(exit, 0);
+  });
+
+  assert.equal(wizardCalled, false);
+  assert.ok(existsSync(path.join(cwd, ".riptide", "adapters", "widget-factory.toml")));
+  assert.ok(existsSync(path.join(cwd, ".riptide", "adapters", "token-vault.toml")));
+  assert.match(stderr, /\.riptide\/adapters\/token-vault\.toml/);
+  assert.match(stderr, /\.riptide\/adapters\/widget-factory\.toml/);
+  assert.doesNotMatch(stderr, /could not infer exactly one program name/);
+});
+
+test("init: --program narrows a multi-program workspace to one adapter", async () => {
+  const cwd = await mkMultiProgramRepo();
+  const exit = await runInit({ force: false, dir: cwd, program: "token-vault" });
+  assert.equal(exit, 0);
+
+  assert.ok(existsSync(path.join(cwd, ".riptide", "adapters", "token-vault.toml")));
+  assert.ok(!existsSync(path.join(cwd, ".riptide", "adapters", "widget-factory.toml")));
+});
+
+test("init: --program with an unknown name fails and names every detected program", async () => {
+  const cwd = await mkMultiProgramRepo();
+  const stderr = await captureStderr(async () => {
+    const exit = await runInit({ force: false, dir: cwd, program: "nope" });
+    assert.equal(exit, 2);
+  });
+
+  assert.match(stderr, /nope/);
+  assert.match(stderr, /token-vault/);
+  assert.match(stderr, /widget-factory/);
+  assert.equal(existsSync(path.join(cwd, ".riptide")), false);
+});
+
+test("init: IDL-backed default adapter is runnable, not a TODO sheet", async () => {
+  const cwd = await mkMultiProgramRepo();
+  assert.equal(await runInit({ force: false, dir: cwd }), 0);
+
+  const body = await readAdapter(cwd, "widget-factory");
+  assert.doesNotMatch(body, /TODO/);
+
+  const adapter = validateAdapterAt(cwd, "widget-factory", body);
+
+  // Sized, IDL-derived account: 8-byte discriminator + pubkey + 2 * u64.
+  assert.equal(adapter.accounts.player?.kind, "agent");
+  assert.equal(adapter.accounts.player?.space, 56);
+  // Dynamically-sized account is never given an invented byte count.
+  assert.equal("marketplace" in adapter.accounts, false);
+
+  // Only instructions whose accounts and args fully resolve are mapped.
+  assert.deepEqual(Object.keys(adapter.instructions).sort(), ["craft", "mine"]);
+  assert.equal(adapter.instructions.mine?.amount, "amount");
+  assert.equal(adapter.instructions.craft?.amount, undefined);
+  assert.deepEqual(adapter.actions.mine?.takes, ["amount"]);
+  assert.deepEqual(adapter.actions.craft?.takes, []);
+
+  // Observations come from the IDL account fields, via [observations.auto].
+  assert.equal(adapter.observations["player.gold"], "uint");
+  assert.equal(adapter.observations["player.wood"], "uint");
+  assert.equal(adapter.observations["player.owner"], "pubkey");
+  assert.equal(adapter.state_mapping["player.gold"], "player.gold");
+
+  // At least one generic persona wired to the mapped actions.
+  const personas = Object.values(adapter.personas);
+  assert.ok(personas.length >= 1, "defaulted adapter must ship a runnable persona");
+  assert.deepEqual(Object.keys(personas[0]!.action_weights).sort(), ["craft", "mine"]);
+
+  // No invented protocol semantics or invariants in the deterministic tier.
+  assert.equal(adapter.semantics, undefined);
+  assert.deepEqual(adapter.invariants, []);
+});
+
+test("init: residual gaps are recorded in [lineage], not as TODO prose", async () => {
+  const cwd = await mkMultiProgramRepo();
+  assert.equal(await runInit({ force: false, dir: cwd }), 0);
+
+  const body = await readAdapter(cwd, "widget-factory");
+  const adapter = validateAdapterAt(cwd, "widget-factory", body);
+  const lineage = adapter.lineage;
+  assert.ok(lineage, "defaulted adapter must record lineage");
+  assert.equal(lineage.idl_source, "target/idl/widget_factory.json");
+  assert.match(lineage.generator ?? "", /riptide init/);
+
+  const unsupported = lineage.unsupported_fields.join("\n");
+  assert.match(unsupported, /swap/, "multi-arg instruction must be recorded as unsupported");
+  assert.match(unsupported, /list_for_sale/, "unresolvable-account instruction must be recorded");
+  assert.match(unsupported, /marketplace/, "dynamically-sized account must be recorded");
+
+  assert.ok(lineage.inferred_assumptions.length > 0, "kind/space inference must be disclosed");
+});
+
+test("init: every adapter in a multi-program workspace validates independently", async () => {
+  const cwd = await mkMultiProgramRepo();
+  assert.equal(await runInit({ force: false, dir: cwd }), 0);
+
+  const vault = validateAdapterAt(cwd, "token-vault", await readAdapter(cwd, "token-vault"));
+  assert.equal(vault.accounts.vault?.kind, "agent");
+  assert.equal(vault.accounts.vault?.space, 49);
+  assert.deepEqual(Object.keys(vault.instructions).sort(), ["deposit", "withdraw"]);
+  assert.equal(vault.observations["vault.balance"], "uint");
+  assert.equal(vault.observations["vault.frozen"], "bool");
+  assert.equal(vault.program_so, "target/deploy/token_vault.so");
+  assert.equal(vault.idl_path, "target/idl/token_vault.json");
+});
+
+test("init: a program with no IDL keeps the thin scaffold and says what is missing", async () => {
+  const cwd = await mkTempRepo();
+  await writeAnchor(cwd, SINGLE_ANCHOR);
+  await writeArtifacts(cwd, [{ soName: "widget_factory" }]);
+
+  const stderr = await captureStderr(async () => {
+    assert.equal(await runInit({ force: false, dir: cwd }), 0);
+  });
+
+  const body = await readAdapter(cwd, "widget-factory");
+  assert.match(body, /thin default bootstrap/);
+  assert.match(stderr, /target\/idl\/widget_factory\.json not found/);
+  assert.match(stderr, /anchor build/);
+});
+
+test("init: defaulted adapter output stays inside the bounded-evidence claim", async () => {
+  const cwd = await mkMultiProgramRepo();
+  const stderr = await captureStderr(async () => {
+    assert.equal(await runInit({ force: false, dir: cwd }), 0);
+  });
+
+  const body = await readAdapter(cwd, "widget-factory");
+  const gettingStarted = await readFile(
+    path.join(cwd, ".riptide", "GETTING-STARTED.md"),
+    "utf8"
+  );
+
+  for (const banned of [/\baudit\b/i, /\bverified safe\b/i, /no vulnerabilities/i, /\bsecure\b/i]) {
+    assert.doesNotMatch(body, banned);
+    assert.doesNotMatch(stderr, banned);
+    assert.doesNotMatch(gettingStarted, banned);
+  }
+
+  // Each surface self-labels what a run over these defaults actually is.
+  assert.match(body, /simulation evidence over the\n# inputs declared here/);
+  assert.match(stderr, /simulation evidence over the inputs they declare/);
+  assert.match(gettingStarted, /simulation evidence over the inputs your adapter declares/);
+
+  // No planning vocabulary leaks into the repo surface.
+  for (const surface of [body, gettingStarted]) {
+    assert.doesNotMatch(surface, /\bRT-\d{3}\b/);
+    assert.doesNotMatch(surface, /\bSprint\b/);
+  }
+});
+
+test("init: getting-started keeps multi-program sims in separate crate directories", async () => {
+  const cwd = await mkMultiProgramRepo();
+  assert.equal(await runInit({ force: false, dir: cwd }), 0);
+
+  const gettingStarted = await readFile(
+    path.join(cwd, ".riptide", "GETTING-STARTED.md"),
+    "utf8"
+  );
+  // `sim generate` defaults to .riptide/sim, so a shared directory would
+  // have the second program silently clobber the first.
+  assert.match(gettingStarted, /--dir \.riptide\/sim\/token-vault/);
+  assert.match(gettingStarted, /--dir \.riptide\/sim\/widget-factory/);
+  assert.match(gettingStarted, /riptide sim run \.riptide\/sim\/token-vault --flows 8/);
+  assert.doesNotMatch(gettingStarted, /riptide sim run \.riptide\/sim --flows 8/);
+});
+
+test("init: a single defaulted program keeps the plain .riptide/sim path", async () => {
+  const cwd = await mkMultiProgramRepo();
+  assert.equal(await runInit({ force: false, dir: cwd, program: "token-vault" }), 0);
+
+  const gettingStarted = await readFile(
+    path.join(cwd, ".riptide", "GETTING-STARTED.md"),
+    "utf8"
+  );
+  assert.match(gettingStarted, /riptide sim run \.riptide\/sim --flows 8/);
+  assert.doesNotMatch(gettingStarted, /--dir \.riptide\/sim\//);
 });
 
 test("detectProgram: matching target artifacts identify a non-Anchor program", async () => {

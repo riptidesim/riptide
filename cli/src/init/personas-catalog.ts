@@ -45,6 +45,17 @@ export interface PersonaChoice {
   label: string;
 }
 
+// The one persona `riptide init` can write for any program without
+// knowing what the program is. Its action weights come from whatever
+// instructions the adapter actually mapped, so it exercises the mapped
+// surface evenly. Anything more opinionated (whales, liquidators, panic
+// exits) needs protocol meaning and belongs to `/riptide-config`.
+export const DEFAULT_ACTOR_PERSONA = {
+  slug: "actor",
+  label: "Generic actor",
+  actionRateMultiplier: 1
+} as const;
+
 // Cross-protocol archetypes available under every protocol bucket.
 // Files live under cli/assets/init-personas/custom/<slug>.toml; the
 // path resolver falls back to `custom/` whenever a protocol-specific

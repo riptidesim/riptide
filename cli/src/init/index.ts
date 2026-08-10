@@ -30,6 +30,8 @@ import {
   resolveSeedCount,
   seedForSeedCount
 } from "./options.js";
+import { planDefaultAdapter, renderDefaultAdapter } from "./defaults.js";
+import { readIdlFacts } from "./idl-facts.js";
 import { installBundledSkills } from "./skills.js";
 
 export interface ScaffoldOptions {
@@ -41,6 +43,8 @@ export interface ScaffoldOptions {
   blank?: boolean;
   /** Optional program name override for the adapter filename and artifact paths. */
   programName?: string;
+  /** Restrict a multi-program workspace to the one named program. */
+  program?: string;
   /** Adapter protocol field. Defaults to "custom" (rendered as `generic`). */
   protocol?: Protocol;
   /** Persona slugs to copy from the bundled catalog. */
@@ -64,9 +68,27 @@ export interface ScaffoldOptions {
   installSkills?: boolean;
 }
 
+export interface ScaffoldedAdapter {
+  programName: string;
+  /** Workspace-relative path to the adapter TOML. */
+  path: string;
+  /** `defaults` means every entry came from the program's IDL. */
+  kind: "defaults" | "thin" | "wizard";
+  /** Instructions the adapter mapped; empty for thin/wizard scaffolds. */
+  mappedInstructions: string[];
+  /** Accounts the adapter declared; empty for thin/wizard scaffolds. */
+  declaredAccounts: string[];
+  /** Residual gaps recorded under `[lineage].unsupported_fields`. */
+  gaps: number;
+}
+
 export interface ScaffoldResult {
   created: string[];
+  /** First scaffolded program; the only one on the wizard/blank paths. */
   programName: string;
+  /** Every program that got an adapter, in adapter-write order. */
+  programNames: string[];
+  adapters: ScaffoldedAdapter[];
   warnings: string[];
   seeds: number;
   scenarios: string[];
@@ -119,44 +141,77 @@ export function preflightScaffold(
   return options.blank ? undefined : detectProgram(options.cwd);
 }
 
-export function inferProgramName(cwd: string): string | null {
-  const anchorPath = path.join(cwd, "Anchor.toml");
-  if (!existsSync(anchorPath)) {
-    return null;
+/**
+ * Preflight for the default (non-wizard) path: fails fast on an existing
+ * `.riptide/`, then reports every program it will scaffold. An explicit
+ * `--program` narrows the list here so an unknown name fails before any
+ * file is written.
+ */
+export function preflightScaffoldPrograms(
+  options: Pick<ScaffoldOptions, "cwd" | "force" | "blank" | "program">
+): ProgramDetection[] | undefined {
+  const riptideDir = path.join(options.cwd, ".riptide");
+  if (existsSync(riptideDir) && !options.force) {
+    throw new RiptideDirExistsError(riptideDir);
   }
-  let raw: string;
-  try {
-    // Sync read keeps the inference function synchronous to match the
-    // task contract — the file is tiny (< 1 KiB typical) and we only
-    // read it once at init time. Unreadable/malformed files return
-    // null so the caller can fail with an explicit detection error.
-    raw = readFileSync(anchorPath, "utf8");
-  } catch {
-    return null;
-  }
-  return parseAnchorTomlForProgramName(raw);
+  if (options.blank) return undefined;
+  const detected = detectPrograms(options.cwd);
+  return options.program === undefined
+    ? detected
+    : [selectProgram(detected, options.program)];
 }
 
-export function detectProgram(cwd: string): ProgramDetection {
+/**
+ * The single program name, when the workspace declares exactly one.
+ * Used by the wizard to default its program-name prompt.
+ */
+export function inferProgramName(cwd: string): string | null {
+  const names = inferProgramNames(cwd);
+  return names.length === 1 ? names[0]! : null;
+}
+
+/** Every program name declared by Anchor.toml, sorted and deduped. */
+export function inferProgramNames(cwd: string): string[] {
+  const anchorPath = path.join(cwd, "Anchor.toml");
+  if (!existsSync(anchorPath)) return [];
+  let raw: string;
+  try {
+    // Sync read keeps inference synchronous to match the caller
+    // contract — the file is tiny and read once at init time.
+    // Unreadable/malformed files yield no names so the caller can fail
+    // with an explicit detection error.
+    raw = readFileSync(anchorPath, "utf8");
+  } catch {
+    return [];
+  }
+  return parseAnchorTomlForProgramNames(raw);
+}
+
+/**
+ * Every program in the workspace, sorted by name. A single-program repo
+ * is the N=1 case of the same path — `riptide init` never has to ask
+ * which program it is looking at.
+ */
+export function detectPrograms(cwd: string): ProgramDetection[] {
   const anchorPath = path.join(cwd, "Anchor.toml");
   if (existsSync(anchorPath)) {
-    const programName = inferProgramName(cwd);
-    if (programName === null) {
+    const programNames = inferProgramNames(cwd);
+    if (programNames.length === 0) {
       throw new ProgramDetectionError(
-        "Anchor.toml found, but Riptide could not infer exactly one program name.\n" +
-          "Expected one [programs.localnet] entry, one [programs.mainnet] entry, or a top-level name = \"...\".\n" +
+        "Anchor.toml found, but Riptide could not read any program name from it.\n" +
+          "Expected [programs.localnet] entries, [programs.mainnet] entries, or a top-level name = \"...\".\n" +
           "Use `riptide init --blank --name <program-name>` if you want to scaffold manually."
       );
     }
-    return {
+    return programNames.map((programName) => ({
       programName,
-      source: "anchor",
+      source: "anchor" as const,
       warnings: missingArtifactWarnings(cwd, programName)
-    };
+    }));
   }
 
-  const fromArtifacts = detectProgramFromArtifacts(cwd);
-  if (fromArtifacts !== null) return fromArtifacts;
+  const fromArtifacts = detectProgramsFromArtifacts(cwd);
+  if (fromArtifacts.length > 0) return fromArtifacts;
 
   throw new ProgramDetectionError(
     "no Solana program detected in this directory.\n" +
@@ -165,10 +220,39 @@ export function detectProgram(cwd: string): ProgramDetection {
   );
 }
 
-function detectProgramFromArtifacts(cwd: string): ProgramDetection | null {
+/**
+ * Single-program detection, kept for the `--wizard` path which scaffolds
+ * exactly one adapter and for callers that need one name.
+ */
+export function detectProgram(cwd: string): ProgramDetection {
+  const detected = detectPrograms(cwd);
+  if (detected.length === 1) return detected[0]!;
+  throw new ProgramDetectionError(
+    `found ${detected.length} programs (${detected
+      .map((entry) => entry.programName)
+      .join(", ")}); this path scaffolds exactly one.\n` +
+      "Pass `riptide init --program <program-name>` to choose one, or run plain `riptide init` to scaffold every program."
+  );
+}
+
+/** Filter a detection list to a single named program. */
+export function selectProgram(
+  detected: ProgramDetection[],
+  requested: string
+): ProgramDetection {
+  const wanted = normalizeProgramName(requested);
+  const match = detected.find((entry) => entry.programName === wanted);
+  if (match) return match;
+  throw new ProgramDetectionError(
+    `program ${JSON.stringify(requested)} was not detected in this directory.\n` +
+      `Detected programs: ${detected.map((entry) => entry.programName).join(", ")}.`
+  );
+}
+
+function detectProgramsFromArtifacts(cwd: string): ProgramDetection[] {
   const deployDir = path.join(cwd, "target", "deploy");
   const idlDir = path.join(cwd, "target", "idl");
-  if (!existsSync(deployDir) || !existsSync(idlDir)) return null;
+  if (!existsSync(deployDir) || !existsSync(idlDir)) return [];
 
   const soStems = new Set(
     safeReaddir(deployDir)
@@ -189,20 +273,16 @@ function detectProgramFromArtifacts(cwd: string): ProgramDetection | null {
           "Build/regenerate the missing artifact, or use `riptide init --blank --name <program-name>` to scaffold manually."
       );
     }
-    return null;
-  }
-  if (matches.length > 1) {
-    throw new ProgramDetectionError(
-      `found multiple program artifact pairs (${matches.join(", ")}); Riptide will not guess.\n` +
-        "Use `riptide init --blank --name <program-name>` to choose one explicitly."
-    );
+    return [];
   }
 
-  return {
-    programName: normalizeProgramName(matches[0]!),
-    source: "artifacts",
-    warnings: []
-  };
+  return matches
+    .map((stem) => ({
+      programName: normalizeProgramName(stem),
+      source: "artifacts" as const,
+      warnings: [] as string[]
+    }))
+    .sort((a, b) => a.programName.localeCompare(b.programName, "en-US"));
 }
 
 function safeReaddir(dir: string): string[] {
@@ -219,10 +299,14 @@ function missingArtifactWarnings(cwd: string, programName: string): string[] {
   const expectedIdl = path.join(cwd, "target", "idl", `${soName}.json`);
   const warnings: string[] = [];
   if (!existsSync(expectedSo)) {
-    warnings.push(`target/deploy/${soName}.so not found yet; build your program before running adapt/run.`);
+    warnings.push(
+      `target/deploy/${soName}.so not found yet; run \`anchor build\` (or \`cargo build-sbf\`) before generating a simulation.`
+    );
   }
   if (!existsSync(expectedIdl)) {
-    warnings.push(`target/idl/${soName}.json not found yet; generate or commit an IDL before running adapt/run.`);
+    warnings.push(
+      `target/idl/${soName}.json not found yet; run \`anchor build\` or commit the IDL — without it Riptide can only write a thin bootstrap adapter.`
+    );
   }
   return warnings;
 }
@@ -293,30 +377,27 @@ function normalizeProgramName(value: string): string {
 // full-parse path would throw on the first stray character. Regex-based
 // extraction gives us the same "best-effort infer, fall through
 // cleanly" behavior the task contract demands.
-function parseAnchorTomlForProgramName(raw: string): string | null {
-  // Multi-program workspaces are ambiguous: picking the first key would
-  // quietly commit a user of a monorepo to the wrong adapter. Return
-  // null so init can ask for an explicit --blank/--name choice.
+// Program keys come from the first `[programs.*]` table that declares
+// any, falling back to a top-level `name = "..."`. Localnet wins over
+// mainnet because that is the artifact set a local sim runs against.
+function parseAnchorTomlForProgramNames(raw: string): string[] {
   const localnetKeys = extractProgramKeys(raw, "programs.localnet");
-  if (localnetKeys.length === 1) {
-    return localnetKeys[0]!.replace(/_/g, "-");
-  }
-  if (localnetKeys.length > 1) {
-    return null;
-  }
+  if (localnetKeys.length > 0) return toProgramNames(localnetKeys);
+
   const mainnetKeys = extractProgramKeys(raw, "programs.mainnet");
-  if (mainnetKeys.length === 1) {
-    return mainnetKeys[0]!.replace(/_/g, "-");
-  }
-  if (mainnetKeys.length > 1) {
-    return null;
-  }
-  // Fall back to `name = "..."` at the top of the file.
+  if (mainnetKeys.length > 0) return toProgramNames(mainnetKeys);
+
   const nameMatch = raw.match(/^\s*name\s*=\s*"([a-z][a-z0-9_-]*)"\s*$/m);
   if (nameMatch && nameMatch[1]) {
-    return nameMatch[1].replace(/_/g, "-");
+    return toProgramNames([nameMatch[1]]);
   }
-  return null;
+  return [];
+}
+
+function toProgramNames(keys: string[]): string[] {
+  return uniqueStrings(keys.map((key) => key.replace(/_/g, "-"))).sort((a, b) =>
+    a.localeCompare(b, "en-US")
+  );
 }
 
 function extractProgramKeys(raw: string, tableHeader: string): string[] {
@@ -880,12 +961,18 @@ export interface GettingStartedOptions {
   seeds?: number;
   protocol?: Protocol;
   mode?: "minimal" | "wizard";
+  /** Adapters written by this run, used to describe what already works. */
+  adapters?: ScaffoldedAdapter[];
 }
 
 export function renderGettingStarted(
   programName: string,
   options: GettingStartedOptions = {}
 ): string {
+  const defaulted = (options.adapters ?? []).filter((adapter) => adapter.kind === "defaults");
+  if (defaulted.length > 0) {
+    return renderDefaultsGettingStarted(defaulted);
+  }
   const { hasBaselineScenario = false } = options;
   const protocol = options.protocol ?? "custom";
   const mode = options.mode ?? "minimal";
@@ -953,6 +1040,108 @@ Use this path if you are not using the config skill. To replace this thin scaffo
 8. \`riptide assess <guided-sim-root>\` — the headline assessment outcome.
 
 After a guided sim finishes, \`riptide-narrative\` can turn a completed run's result and report into \`report-narrative.md\`.
+
+## Reference
+
+- Shipping adapter examples: [riptidesim/riptide — fixtures/adapters/](https://github.com/riptidesim/riptide/tree/main/fixtures/adapters)
+- Architecture deep-dive: [docs/architecture.md](https://github.com/riptidesim/riptide/blob/main/docs/architecture.md)
+
+Problems? Drop the adapter file + the command output into an issue at https://github.com/riptidesim/riptide/issues.
+`;
+}
+
+function pluralize(value: number, noun: string, plural = `${noun}s`): string {
+  return `${value} ${value === 1 ? noun : plural}`;
+}
+
+function renderDefaultsGettingStarted(adapters: ScaffoldedAdapter[]): string {
+  const first = adapters[0]!;
+  const gaps = adapters.reduce((total, adapter) => total + adapter.gaps, 0);
+  const inventory = adapters
+    .map((adapter) => {
+      const mapped = adapter.mappedInstructions.map((name) => `\`${name}\``).join(", ") || "none";
+      const declared = adapter.declaredAccounts.map((name) => `\`${name}\``).join(", ") || "none";
+      return `- \`${adapter.path}\` — accounts ${declared}; instructions ${mapped}${
+        adapter.gaps > 0
+          ? `; ${pluralize(adapter.gaps, "gap")} under \`[lineage].unsupported_fields\``
+          : ""
+      }`;
+    })
+    .join("\n");
+
+  // `sim generate` defaults to .riptide/sim, so multi-program workspaces
+  // need an explicit crate directory per program.
+  const perProgram = adapters.length > 1;
+  const simDir = perProgram ? `.riptide/sim/${first.programName}` : ".riptide/sim";
+  const repeats = perProgram
+    ? `\nRepeat for each remaining program:\n\n${adapters
+        .slice(1)
+        .map(
+          (adapter) =>
+            `\`\`\`bash\nriptide sim generate --adapter ${adapter.path} --dir .riptide/sim/${adapter.programName}\nriptide sim run .riptide/sim/${adapter.programName} --flows 8\n\`\`\``
+        )
+        .join("\n\n")}\n`
+    : "";
+
+  return `# Getting Started With Riptide
+
+\`riptide init\` read your program's IDL and wrote an adapter per program. Each
+one is runnable as generated — no TODO blocks to fill in first.
+
+\`\`\`bash
+riptide sim generate --adapter ${first.path}${perProgram ? ` --dir ${simDir}` : ""}
+riptide sim run ${simDir} --flows 8
+riptide sim surface ${simDir}/artifacts/<dir> --sim ${simDir}
+riptide assess <guided-sim-root>
+\`\`\`
+${repeats}
+What comes out is simulation evidence over the inputs your adapter declares — a
+bounded result over a declared surface, not a safety proof and not a review of
+code paths the adapter never exercises.
+
+## What init derived
+
+${inventory}
+
+Everything written down came from an IDL-declared fact: account byte sizes from
+declared sizes or fixed-width Borsh fields, \`kind\` from whether the account
+carries an owner/authority pubkey, and instruction mappings only where every
+account slot resolved. Anything that would have required a guess is recorded
+under \`[lineage]\`, not silently dropped.
+
+## What init could not derive
+
+${
+  gaps > 0
+    ? `Read \`[lineage].unsupported_fields\` in each adapter: ${pluralize(
+        gaps,
+        "entry",
+        "entries"
+      )} name the instruction or account Riptide refused to invent values for, and why.`
+    : "Nothing was skipped for lack of derivable facts."
+}
+
+Riptide never derives behavioral personas, invariants, or protocol semantics —
+those carry meaning an IDL does not. The generated \`[personas.actor]\` spreads
+evenly across the mapped actions so a first run exercises the whole surface.
+
+## Sharpening it
+
+Invoke \`/riptide-config\` from your coding agent at the repo root. It owns:
+
+- filling the residuals recorded under \`[lineage]\`
+- protocol-aware personas, invariants, and \`[semantics]\`
+- bounded smoke runs and validation
+
+It preserves user-authored \`.riptide\` files. \`riptide init\` also dropped the
+bundled skill into \`.claude/skills/riptide-config/\` so a fresh clone picks it up
+automatically; pass \`--no-skills\` to opt out.
+
+Prefer the questionnaire instead? \`riptide init --wizard --force\` replaces these
+IDL-derived adapters with questionnaire-selected starter files.
+
+After a guided sim finishes, \`riptide-narrative\` can turn a completed run's
+result and report into \`report-narrative.md\`.
 
 ## Reference
 
@@ -1123,16 +1312,30 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
     await rm(riptideDir, { recursive: true, force: true });
   }
 
-  const detection = options.blank
-    ? {
-        programName: normalizeProgramName(options.programName ?? PLACEHOLDER_PROGRAM_NAME),
-        warnings: [
-          "blank scaffold requested; Riptide did not verify this directory contains a Solana program."
-        ]
-      }
-    : detectProgram(cwd);
-  const programName = normalizeProgramName(options.programName ?? detection.programName);
-  const warnings = options.blank ? detection.warnings : missingArtifactWarnings(cwd, programName);
+  // The wizard and blank paths scaffold exactly one adapter; the default
+  // path scaffolds every detected program, optionally narrowed by
+  // `--program`.
+  const detected: ProgramDetection[] = options.blank
+    ? [
+        {
+          programName: normalizeProgramName(options.programName ?? PLACEHOLDER_PROGRAM_NAME),
+          source: "anchor",
+          warnings: [
+            "blank scaffold requested; Riptide did not verify this directory contains a Solana program."
+          ]
+        }
+      ]
+    : richScaffold
+      ? [detectProgram(cwd)]
+      : selectDetectedPrograms(cwd, options.program);
+
+  const programNames = options.blank || richScaffold
+    ? [normalizeProgramName(options.programName ?? detected[0]!.programName)]
+    : detected.map((entry) => entry.programName);
+  const programName = programNames[0]!;
+  const warnings = options.blank
+    ? [...detected[0]!.warnings]
+    : programNames.flatMap((name) => missingArtifactWarnings(cwd, name));
   const protocol: Protocol = options.protocol ?? "custom";
   const idlFacts = !richScaffold
     ? undefined
@@ -1170,21 +1373,27 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
 
   const created: string[] = [];
 
-  // adapters/
+  // adapters/ — one per detected program.
   const adaptersDir = path.join(riptideDir, "adapters");
   await mkdir(adaptersDir, { recursive: true });
-  const adapterRel = path.join(".riptide", "adapters", `${programName}.toml`);
-  await writeFile(
-    path.join(riptideDir, "adapters", `${programName}.toml`),
-    renderAdapterStub(programName, protocol, {
+  const adapters: ScaffoldedAdapter[] = [];
+  for (const name of programNames) {
+    const adapterRel = path.join(".riptide", "adapters", `${name}.toml`);
+    const rendered = renderScaffoldAdapter({
+      cwd,
+      programName: name,
+      protocol,
+      richScaffold,
+      blank: Boolean(options.blank),
       personaBlocks: personaArtifacts.map((artifact) => artifact.adapterBlock),
       invariants,
       idlFacts,
-      thin: !richScaffold
-    }),
-    "utf8"
-  );
-  created.push(adapterRel);
+      warnings
+    });
+    await writeFile(path.join(adaptersDir, `${name}.toml`), rendered.body, "utf8");
+    adapters.push({ programName: name, path: adapterRel, ...rendered.summary });
+    created.push(adapterRel);
+  }
 
   // scenarios/<name>/run-config.json — only the explicit advanced wizard path
   // creates scenario sizing/seed/persona choices during init.
@@ -1216,7 +1425,8 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
       scenarios: resolvedScenarios.map((scenario) => scenario.name),
       seeds,
       protocol,
-      mode
+      mode,
+      adapters
     }),
     "utf8"
   );
@@ -1246,10 +1456,102 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
   return {
     created,
     programName,
+    programNames,
+    adapters,
     warnings,
     seeds,
     scenarios: resolvedScenarios.map((scenario) => scenario.name),
     mode
+  };
+}
+
+function selectDetectedPrograms(cwd: string, program: string | undefined): ProgramDetection[] {
+  const detected = detectPrograms(cwd);
+  return program === undefined ? detected : [selectProgram(detected, program)];
+}
+
+interface ScaffoldAdapterInput {
+  cwd: string;
+  programName: string;
+  protocol: Protocol;
+  richScaffold: boolean;
+  blank: boolean;
+  personaBlocks: string[];
+  invariants: InitInvariantConfig[];
+  idlFacts?: InitIdlFacts;
+  warnings: string[];
+}
+
+type AdapterSummary = Omit<ScaffoldedAdapter, "programName" | "path">;
+
+/**
+ * The default path writes a defaulted adapter whenever the program's IDL
+ * is readable and declares something to act on. Everything else keeps
+ * the existing scaffold: the wizard's rich stub, or the thin bootstrap
+ * that states which artifact is missing.
+ */
+function renderScaffoldAdapter(
+  input: ScaffoldAdapterInput
+): { body: string; summary: AdapterSummary } {
+  if (!input.richScaffold && !input.blank) {
+    const defaulted = renderDefaultedAdapterFor(input.cwd, input.programName, input.warnings);
+    if (defaulted !== undefined) return defaulted;
+  }
+  return {
+    body: renderAdapterStub(input.programName, input.protocol, {
+      personaBlocks: input.personaBlocks,
+      invariants: input.invariants,
+      idlFacts: input.idlFacts,
+      thin: !input.richScaffold
+    }),
+    summary: {
+      kind: input.richScaffold ? "wizard" : "thin",
+      mappedInstructions: [],
+      declaredAccounts: [],
+      gaps: 0
+    }
+  };
+}
+
+function renderDefaultedAdapterFor(
+  cwd: string,
+  programName: string,
+  warnings: string[]
+): { body: string; summary: AdapterSummary } | undefined {
+  const soName = programName.replace(/-/g, "_");
+  const idlRelPath = `target/idl/${soName}.json`;
+  const idlPath = path.join(cwd, "target", "idl", `${soName}.json`);
+  if (!existsSync(idlPath)) return undefined;
+
+  const facts = readIdlFacts(idlPath);
+  if (!facts) {
+    warnings.push(
+      `${idlRelPath} could not be parsed as a JSON IDL; wrote the thin bootstrap adapter for ${programName} instead.`
+    );
+    return undefined;
+  }
+
+  const plan = planDefaultAdapter(facts);
+  if (!plan) {
+    warnings.push(
+      `${idlRelPath} declares no instructions Riptide can map by itself; wrote the thin bootstrap adapter for ${programName} instead.`
+    );
+    return undefined;
+  }
+  if (plan.instructions.length === 0) {
+    warnings.push(
+      `${programName}: no IDL instruction resolved without invented values; the adapter records why under [lineage] — run \`/riptide-config\` to finish it.`
+    );
+  }
+
+  return {
+    body: renderDefaultAdapter({ programName, soName, idlRelPath, plan }),
+    summary: {
+      kind: "defaults",
+      mappedInstructions: plan.instructions.map((instruction) => instruction.name),
+      declaredAccounts: plan.accounts.map((account) => account.name),
+      gaps: plan.unsupportedFields.length
+    }
   };
 }
 

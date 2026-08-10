@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import TOML from "toml";
 
@@ -123,4 +124,75 @@ test("schemas: malformed semantics breadth blocks have typed diagnostics", async
       ),
     /decoded to .* bytes/
   );
+});
+
+// Anchor 0.30 emits `accounts: [{ name, discriminator }]` and keeps the
+// struct layout under `types[]`. The fact collector used to read only
+// inline fields, so `space = "auto"` and `[observations.auto]` saw a
+// fieldless account and failed or silently observed nothing.
+test("schemas: account fields resolve from types[] when the account entry has none", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "riptide-schema-idl-"));
+  const idlPath = path.join(dir, "vault.json");
+  await writeFile(
+    idlPath,
+    JSON.stringify({
+      instructions: [
+        {
+          name: "deposit",
+          accounts: [{ name: "authority", signer: true }, { name: "vault", writable: true }],
+          args: [{ name: "amount", type: "u64" }]
+        }
+      ],
+      accounts: [{ name: "Vault", size: 49, discriminator: [1, 2, 3, 4, 5, 6, 7, 8] }],
+      types: [
+        {
+          name: "Vault",
+          type: {
+            kind: "struct",
+            fields: [
+              { name: "authority", type: "pubkey" },
+              { name: "balance", type: "u64" },
+              { name: "frozen", type: "bool" }
+            ]
+          }
+        }
+      ]
+    }),
+    "utf8"
+  );
+
+  const adapterPath = path.join(dir, "vault.toml");
+  const adapter = validateAdapter(
+    TOML.parse(`protocol = "generic"
+program_so = "vault.so"
+idl_path = "vault.json"
+
+[accounts.vault]
+kind = "agent"
+space = "auto"
+
+[instructions]
+deposit = { action = "deposit", amount = "amount" }
+
+[state_mapping]
+
+[actions.deposit]
+label = "Deposit"
+takes = ["amount"]
+
+[observations.auto]
+accounts = ["vault"]
+
+[personas.actor]
+label = "Generic actor"
+action_weights = { deposit = 1 }
+`),
+    adapterPath
+  );
+
+  assert.equal(adapter.accounts.vault?.space, 49);
+  assert.equal(adapter.observations["vault.balance"], "uint");
+  assert.equal(adapter.observations["vault.frozen"], "bool");
+  assert.equal(adapter.observations["vault.authority"], "pubkey");
+  assert.equal(adapter.state_mapping["vault.balance"], "vault.balance");
 });
