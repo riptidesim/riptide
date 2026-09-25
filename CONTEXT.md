@@ -44,6 +44,10 @@ _Avoid_: scoped questions, clarifications
 The instructions and actors of the target program that the simulation actually exercised. Every Assessment is graded by its Coverage.
 _Avoid_: completeness, score
 
+**Region Coverage**:
+The swept axes, bins and hot or no-signal cells that a run's declared region probed. This is Engine Output, distinct from Coverage.
+_Avoid_: coverage statement (in prose)
+
 **Gap**:
 A named part of the program that the simulation did not exercise, with the reason and what would unblock it. A Gap is never evidence of safety.
 _Avoid_: skipped, unsupported, N/A
@@ -60,12 +64,12 @@ _Avoid_: diff, regression report
 An invariant that the family library (or the generic Economic Protocol fallback) requires in every Assessment of that shape. Invariants the agent adds on top are labeled as agent-authored.
 _Avoid_: default invariant, catalog invariant
 
-**Sensitivity Check**:
+**Firing Check**:
 Deliberately injecting a known violation to prove an invariant can fire. An invariant only counts as evidence that something "held" after it passes this check. Otherwise it is reported as a Gap.
-_Avoid_: mutation test, invariant validation
+_Avoid_: sensitivity check (reserved for cartography parameter-sensitivity), mutation test, invariant validation
 
 **Breach**:
-A Sensitivity-Checked invariant that failed during a run. A Breach always carries its seed replay command and a Causal Trace.
+A Firing-Checked invariant that failed during a run. A Breach always carries its seed replay command and a Causal Trace.
 _Avoid_: bug, vulnerability, finding (use Breach for simulation evidence)
 
 **Causal Trace**:
