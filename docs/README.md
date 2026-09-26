@@ -21,7 +21,7 @@ Use this directory when the root [README](../README.md) gives you the shape and 
 | Read | Use it for |
 | --- | --- |
 | [Reviewer command](reviewer.md) | Validate a guided-sim evidence root with `riptide review` without rerunning the simulation. |
-| [Guided simulations](guided-sim.md) | Review guided artifacts with `riptide sim review` or `riptide review`. |
+| [Guided simulations](guided-sim.md) | Review guided artifacts with `riptide review`. |
 | [Audit handoff packet](audit-handoff.md) | Use the launch/review checklist, reviewer ask, and follow-up issue template. |
 | [Protocol assessment report template](templates/protocol-assessment-report.md) | Fill a coverage matrix, evidence list, claim boundary, and reviewer checklist for protocol-team handoff. |
 

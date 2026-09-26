@@ -104,7 +104,11 @@ const GUIDED_FAILURE_STATUSES = new Set(["returned_error", "panic"]);
 export function createReviewCommand(deps: ReviewCommandDeps = {}): Command {
   return new Command("review")
     .description("Validate a Riptide campaign root, retained case, or guided-sim artifact and emit reviewer markdown")
-    .argument("<path>", "Path to a Riptide campaign root, retained campaign case, or guided-sim artifact directory")
+    .argument(
+      "[path]",
+      "Path to a Riptide campaign root, retained campaign case, or guided-sim artifact directory",
+      ".riptide/sim/artifacts"
+    )
     .option("--out <md-path>", "Write reviewer markdown to a file instead of stdout")
     .option("--json", "Emit the review as a command envelope", false)
     .action(async (pack: string, options: ReviewOptions) => {
@@ -113,12 +117,10 @@ export function createReviewCommand(deps: ReviewCommandDeps = {}): Command {
     });
 }
 
-/** `command` names the envelope's command: `sim review` shares this runner. */
 export async function runReview(
   pack: string,
   options: ReviewOptions,
-  deps: ReviewCommandDeps = {},
-  command = "review"
+  deps: ReviewCommandDeps = {}
 ): Promise<number> {
   const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
   const stderr = deps.stderrWrite ?? ((chunk: string) => process.stderr.write(chunk));
@@ -127,13 +129,13 @@ export async function runReview(
     const reviewCwd = path.resolve(deps.cwd ?? process.cwd());
     const reviewRoot = path.resolve(reviewCwd, pack);
     if (isCampaignRoot(reviewRoot)) {
-      return await runCampaignReview(reviewRoot, options, deps, command);
+      return await runCampaignReview(reviewRoot, options, deps);
     }
     if (isRetainedCaseRoot(reviewRoot)) {
-      return await runRetainedCaseReview(reviewRoot, options, deps, command);
+      return await runRetainedCaseReview(reviewRoot, options, deps);
     }
     if (guidedSimArtifactPath(reviewRoot) !== null) {
-      return await runGuidedSimReview(reviewRoot, options, deps, command);
+      return await runGuidedSimReview(reviewRoot, options, deps);
     }
 
     throw new ReviewValidationError(
@@ -146,7 +148,7 @@ export async function runReview(
   } catch (error) {
     const exitCode = error instanceof ReviewValidationError ? error.exitCode : 2;
     if (options.json) {
-      stdout(renderEnvelope(errorEnvelope(command, reviewFailure(error))));
+      stdout(renderEnvelope(errorEnvelope("review", reviewFailure(error))));
       return exitCode;
     }
     stderr(
@@ -174,8 +176,7 @@ function reviewFailure(error: unknown): CommandError {
 async function runGuidedSimReview(
   inputPath: string,
   options: ReviewOptions,
-  deps: ReviewCommandDeps,
-  command: string
+  deps: ReviewCommandDeps
 ): Promise<number> {
   const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
   const artifactPath = guidedSimArtifactPath(inputPath);
@@ -224,7 +225,7 @@ async function runGuidedSimReview(
   if (options.json) {
     stdout(
       renderEnvelope(
-        successEnvelope(command, {
+        successEnvelope("review", {
           schema_version: "guided-sim-review.v1",
           artifact_root: artifactRoot,
           artifact_path: artifactPath,
@@ -837,8 +838,7 @@ function inferGuidedSimRerunCommand(artifactRoot: string, artifact: JsonRecord):
 async function runCampaignReview(
   campaignRoot: string,
   options: ReviewOptions,
-  deps: ReviewCommandDeps,
-  command: string
+  deps: ReviewCommandDeps
 ): Promise<number> {
   const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
   const summary = await readRequiredJsonObject(
@@ -890,7 +890,7 @@ async function runCampaignReview(
   if (options.json) {
     stdout(
       renderEnvelope(
-        successEnvelope(command, {
+        successEnvelope("review", {
           schema_version: "campaign-review.v1",
           campaign_root: campaignRoot,
           campaign: objectValue(summary.campaign) ?? {},
@@ -915,8 +915,7 @@ async function runCampaignReview(
 async function runRetainedCaseReview(
   caseRoot: string,
   options: ReviewOptions,
-  deps: ReviewCommandDeps,
-  command: string
+  deps: ReviewCommandDeps
 ): Promise<number> {
   const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
   const casePath = path.join(caseRoot, "case.json");
@@ -936,7 +935,7 @@ async function runRetainedCaseReview(
   if (options.json) {
     stdout(
       renderEnvelope(
-        successEnvelope(command, {
+        successEnvelope("review", {
           schema_version: "campaign-retained-case-review.v1",
           case_root: caseRoot,
           case: caseRecord,

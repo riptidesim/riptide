@@ -470,8 +470,8 @@ try {
   Write-Styled "/riptide-assess" -Color Cyan -NoNewline
   Write-Styled "         # run the Skill: simulate and write the Assessment" -Color DarkGray
   Write-Styled "    5. " -Color White -NoNewline
-  Write-Styled "riptide doctor" -Color Cyan -NoNewline
-  Write-Styled "          # check the configured workspace" -Color DarkGray
+  Write-Styled "riptide readiness ." -Color Cyan -NoNewline
+  Write-Styled "     # check the configured workspace" -Color DarkGray
   Write-Host ""
   Write-Styled "  New to Riptide? " -Color DarkGray -NoNewline
   Write-Styled "riptide --help" -Color White -NoNewline

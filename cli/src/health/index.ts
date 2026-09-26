@@ -1,6 +1,6 @@
-// Doctor — fast static health diagnosis surface.
+// Health — fast static health diagnosis, reported by `riptide readiness`.
 //
-// `riptide doctor` answers a small, sharp question: is this machine in
+// The health check answers a small, sharp question: is this machine in
 // a state where Riptide can run? It reports on three surfaces:
 //
 //   1. Toolchain — node, npm, rustc, cargo, solana, cargo-build-sbf
@@ -8,7 +8,7 @@
 //   3. Discovered adapter health (load + lint, when machine-checkable)
 //
 // Honesty rules baked in:
-// - No build, no network, no simulation. Doctor is a static diagnostic.
+// - No build, no network, no simulation. The health check is a static diagnostic.
 // - Toolchain version checks are presence-first; missing-but-required
 //   is FAIL, present-but-wrong-band is WARN.
 // - Adapter discovery walks `<repo>/.riptide/adapters/*.toml` AND
@@ -35,12 +35,12 @@ import { resolveAdapterRuntime, type Adapter } from "../schemas/adapter.js";
 
 const execFileAsync = promisify(execFile);
 
-export type DoctorStatus = "pass" | "warn" | "fail";
+export type HealthStatus = "pass" | "warn" | "fail";
 
-export interface DoctorCheck {
+export interface HealthCheck {
   /** Stable id used in tests. */
   id: string;
-  status: DoctorStatus;
+  status: HealthStatus;
   /** Human-readable label shown in the toolchain table. */
   label: string;
   /** Documented expected value (e.g. `>= 20.x`), when one exists. */
@@ -51,7 +51,7 @@ export interface DoctorCheck {
   hint?: string;
 }
 
-export interface DoctorAdapter {
+export interface HealthAdapter {
   /** Adapter short name (basename without `.toml`). */
   name: string;
   /** Absolute path to the adapter TOML. */
@@ -59,9 +59,9 @@ export interface DoctorAdapter {
   /** Where this adapter was discovered (`fixtures/adapters` vs `.riptide/adapters`). */
   source: AdapterDiscoverySource;
   /** Loaded successfully? */
-  load: DoctorStatus;
+  load: HealthStatus;
   /** Lint outcome — `pass` | `warn` | `fail` once load succeeded; `fail` mirrors load if loading failed. */
-  lint: DoctorStatus;
+  lint: HealthStatus;
   /** One-line note explaining the lint result (machine-validation availability + counts). */
   note?: string;
   /** One-line next-step hint when not pass. */
@@ -70,13 +70,13 @@ export interface DoctorAdapter {
 
 export type AdapterDiscoverySource = "monorepo-fixtures" | "user-repo-riptide-dir";
 
-export interface DoctorReport {
+export interface HealthReport {
   /** Repo root the report was assembled against (cwd-derived). */
   cwd: string;
   /** Toolchain + engine-binary checks, in display order. */
-  environment: DoctorCheck[];
+  environment: HealthCheck[];
   /** Per-adapter health rows, in discovery order. */
-  adapters: DoctorAdapter[];
+  adapters: HealthAdapter[];
   /** Aggregate exit code. */
   exitCode: 0 | 1 | 2;
 }
@@ -86,7 +86,7 @@ export interface AdapterDiscoveryOptions {
 }
 
 // Documented version bands from TOOLCHAIN.md. Drift outside the band
-// is WARN, not FAIL — Doctor is a hint, not a gate.
+// is WARN, not FAIL — the health check is a hint, not a gate.
 //
 // Off-chain band:
 //   - rust 1.91.1, cargo 1.91.1, node 24.11.1, npm 11.6.2
@@ -247,10 +247,10 @@ export interface DiscoveredAdapter {
   source: AdapterDiscoverySource;
 }
 
-export async function buildDoctorReport(input: BuildReportInput): Promise<DoctorReport> {
+export async function buildHealthReport(input: BuildReportInput): Promise<HealthReport> {
   const probe = input.probeTool ?? defaultProbeTool;
 
-  const environment: DoctorCheck[] = [];
+  const environment: HealthCheck[] = [];
 
   // ---- toolchain ----
   for (const spec of TOOL_SPECS) {
@@ -287,7 +287,7 @@ export async function buildDoctorReport(input: BuildReportInput): Promise<Doctor
     ? input.discoverAdapters(input.cwd)
     : discoverAdapters(input.cwd);
 
-  const adapters: DoctorAdapter[] = [];
+  const adapters: HealthAdapter[] = [];
   for (const adapter of discovered) {
     const row = await checkAdapter(adapter);
     adapters.push(row);
@@ -301,7 +301,7 @@ export async function buildDoctorReport(input: BuildReportInput): Promise<Doctor
       actual: "(none found)",
       expected: "fixtures/adapters/*.toml or .riptide/adapters/*.toml",
       hint:
-        "run `riptide init` to scaffold .riptide/adapters/, or invoke doctor from inside the Riptide monorepo where shipping fixtures live",
+        "run `riptide init` to scaffold .riptide/adapters/, or run `riptide readiness .` from inside the Riptide monorepo where shipping fixtures live",
     });
   }
 
@@ -311,7 +311,7 @@ export async function buildDoctorReport(input: BuildReportInput): Promise<Doctor
 
 // ---------- adapter health ----------
 
-async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
+async function checkAdapter(d: DiscoveredAdapter): Promise<HealthAdapter> {
   const loaded = await loadAdapter(d.path);
   if (!loaded.ok) {
     const message = loaded.error.kind === "validation-failed"
@@ -326,7 +326,7 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
       load: "fail",
       lint: "fail",
       note: message,
-      hint: "fix the adapter file before re-running doctor",
+      hint: "fix the adapter file before re-running `riptide readiness`",
     };
   }
 
@@ -335,7 +335,7 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
   // The CLI schema only asserts `program_so` / `idl_path` are non-empty
   // strings. The engine's loader additionally rejects adapters whose
   // resolved runtime artifacts are missing on disk (see
-  // `engine/src/adapter/loader.rs::validate_resolved_paths`). Doctor
+  // `engine/src/adapter/loader.rs::validate_resolved_paths`). The health check
   // must mirror that check statically so an adapter that would fail
   // the first engine spawn doesn't surface as `load=pass` here.
   //
@@ -359,7 +359,7 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
         ? `optional fixture runtime artifact not built — ${runtimeCheck.note}`
         : runtimeCheck.note,
       hint: optionalFixtureRuntime
-        ? "run `./install.sh` or build this fixture before running it; doctor treats missing fixture binaries as a bounded skip for first-run health"
+        ? "run `./install.sh` or build this fixture before running it; the health check treats missing fixture binaries as a bounded skip for first-run health"
         : runtimeCheck.hint,
     };
   }
@@ -383,7 +383,7 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
       load: "pass",
       lint: "fail",
       note: `lint crashed: ${(err as Error).message ?? String(err)}`,
-      hint: "fix the adapter TOML and rerun `riptide doctor` for the full diagnostic",
+      hint: "fix the adapter TOML and rerun `riptide readiness .` for the full diagnostic",
     };
   }
 
@@ -392,7 +392,7 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
   const passCount = lintReport.findings.filter((f) => f.level === "pass").length;
   const skipCount = lintReport.findings.filter((f) => f.level === "skip").length;
 
-  let lintStatus: DoctorStatus;
+  let lintStatus: HealthStatus;
   let note: string;
   let hint: string | undefined;
 
@@ -411,7 +411,7 @@ async function checkAdapter(d: DiscoveredAdapter): Promise<DoctorAdapter> {
     }
   } else if (skipCount > 0 && passCount === 0) {
     // Pure SKIP — no [lineage] block at all. Skipped machine validation
-    // belongs on the WARN surface, not PASS: a doctor run that exits 0 must
+    // belongs on the WARN surface, not PASS: a health check that exits 0 must
     // mean every discovered adapter is actually machine-checked clean, not
     // merely "nothing to check". Keep the note + hint actionable so the
     // operator knows how to upgrade.
@@ -474,7 +474,7 @@ function isOptionalFixtureRuntimeFailureKind(kind: RuntimePathFailureKind): bool
  *
  * Returns `null` when all checks pass (or the inferred runtime is
  * lending so this contract doesn't apply). Returns the first failure otherwise —
- * doctor only needs one reason to fail, with a concrete next-step hint.
+ * the health check only needs one reason to fail, with a concrete next-step hint.
  */
 function checkGenericRuntimePaths(adapter: Adapter, adapterPath: string): RuntimePathFailure | null {
   if (resolveAdapterRuntime(adapter) !== "generic") return null;
@@ -519,7 +519,7 @@ function checkGenericRuntimePaths(adapter: Adapter, adapterPath: string): Runtim
       continue;
     }
     // The engine also requires the companion `-keypair.json` next to
-    // the `.so`. Mirror that check so doctor catches the same pre-boot
+    // the `.so`. Mirror that check so the health check catches the same pre-boot
     // failure the engine does.
     const keypair = siblingDeployKeypairPath(resolved);
     if (keypair === null) {
@@ -575,7 +575,7 @@ function repoRootForUserRiptideAdapter(adapterPath: string): string | null {
  * Derive the `<program>-keypair.json` path that sits alongside a
  * compiled `<program>.so`. Mirrors
  * `engine/src/adapter/loader.rs::sibling_deploy_keypair_path` so the
- * static doctor check and the engine boot path agree on the same
+ * static health check and the engine boot path agree on the same
  * convention.
  */
 function siblingDeployKeypairPath(programSo: string): string | null {
@@ -603,7 +603,7 @@ function siblingDeployKeypairPath(programSo: string): string | null {
  *   1. `<cwd>/.riptide/adapters/*.toml`                 (user repo)
  *   2. `<cwd>/fixtures/adapters/*.toml`                 (in-tree monorepo)
  *   3. `<module-derived-monorepo>/fixtures/adapters/*.toml`
- *       (contributor running `cd cli && riptide doctor` from a source
+ *       (contributor running `cd cli && riptide readiness .` from a source
  *        checkout — the module's own on-disk location resolves back
  *        to the monorepo that contains it, so fixtures are still
  *        findable without trusting any parent of `<cwd>`.)
@@ -612,11 +612,11 @@ function siblingDeployKeypairPath(programSo: string): string | null {
  * directly under the CLI module's on-disk location. An earlier draft
  * included a `<cwd>/../fixtures/adapters` layer that trusted any
  * parent directory, which leaked unrelated adapters from a nested cwd
- * (e.g. running doctor inside `/tmp/.../child` inherited
+ * (e.g. running the health check inside `/tmp/.../child` inherited
  * `/tmp/.../fixtures/adapters/parent-hit.toml`). Dropped.
  *
  * **Scope note on packaged installs.** Release bundles ship examples and
- * fixtures for explicit commands, but `riptide doctor` should not inherit
+ * fixtures for explicit commands, but the health check should not inherit
  * bundled fixture warnings from an arbitrary user cwd. The module-derived
  * fallback is therefore gated to real source checkouts, identified by the
  * monorepo root's `Cargo.toml`. Packaged release roots have no `Cargo.toml`,
@@ -687,7 +687,7 @@ function readAdapterDir(
 
 // ---------- aggregate ----------
 
-function aggregateExitCode(env: DoctorCheck[], adapters: DoctorAdapter[]): 0 | 1 | 2 {
+function aggregateExitCode(env: HealthCheck[], adapters: HealthAdapter[]): 0 | 1 | 2 {
   const hasFail =
     env.some((c) => c.status === "fail") ||
     adapters.some((a) => a.load === "fail" || a.lint === "fail");

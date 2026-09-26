@@ -26,7 +26,7 @@ Classify each failure as exactly one of:
 
 - `skill prompt gap` — the authored adapter, setup or flow omitted a fact
   already visible in source or tests. Repair it from that fact.
-- `CLI validation gap` — `riptide doctor` or `riptide sim lint` passed, but a
+- `CLI validation gap` — the `riptide readiness` health check or `riptide sim lint` passed, but a
   later loader error was statically knowable. Repair the adapter and record
   the gap in the Assessment Context.
 - `setup source fact gap` — setup needs account bytes, owners, PDA seeds, feed
@@ -40,7 +40,7 @@ Classify each failure as exactly one of:
   multi-instruction transactions, target-vs-agent dispatch or project-local
   service models. Write the flow in `.riptide/sim/src/flows.rs`.
 - `guided-sim evidence ready` — `riptide sim lint`, `riptide sim run --out`
-  and `riptide sim review` all pass. Record the artifact directory, retained
+  and `riptide review` all pass. Record the artifact directory, retained
   seed status, flow labels, transaction labels and rerun command. Keep coverage marked unavailable when
   `sim.coverage.enabled = true` fails lint; do not describe guided-sim
   coverage as emitted until the runner has a coverage collector.
@@ -54,7 +54,7 @@ Classify each failure as exactly one of:
 
 ### Where to restart
 
-- After an adapter change: from `riptide doctor --json`.
+- After an adapter change: from `riptide readiness . --json`.
 - After a setup or flow change: from the crate build and the one-seed smoke.
 - After a sweep change: from the one-seed smoke.
 - After an invariant change: from its Firing Check.

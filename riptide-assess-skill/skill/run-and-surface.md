@@ -11,7 +11,7 @@ Validate, then smoke before the full sweep:
 ```bash
 riptide sim lint .riptide/sim --json
 riptide sim run .riptide/sim --iterations 5 --flows 20 --seed 1337 --out .riptide/sim/artifacts/smoke --json
-riptide sim review .riptide/sim/artifacts/smoke --json
+riptide review .riptide/sim/artifacts/smoke --json
 ```
 
 The review reads `guided-sim-run.json`, validates `rerun.sh` when present, and

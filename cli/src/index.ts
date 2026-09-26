@@ -3,7 +3,6 @@
 import { Command } from "commander";
 
 import { createAssessCommand } from "./commands/assess.js";
-import { createDoctorCommand } from "./commands/doctor.js";
 import { createInitCommand } from "./commands/init.js";
 import { createReadinessCommand } from "./commands/readiness.js";
 import { createReviewCommand } from "./commands/review.js";
@@ -33,11 +32,10 @@ program.addHelpText(
 );
 
 addRootCommand(createInitCommand(), "Scaffold .riptide/ in the current repo");
-addRootCommand(createReadinessCommand(), "Inspect local protocol evidence readiness");
+addRootCommand(createReadinessCommand(), "Inspect protocol evidence readiness and toolchain health");
 addRootCommand(createSimCommand(), "Generate, refresh, and run guided Rust simulations");
-addRootCommand(createReviewCommand(), "Review a guided-sim evidence root");
+addRootCommand(createReviewCommand(), "Review a campaign root, retained case, or guided-sim artifact");
 addRootCommand(createAssessCommand(), "Generate a protocol assessment from a guided-sim root");
-addRootCommand(createDoctorCommand(), "Check the local toolchain");
 
 program.addHelpText(
   "after",
@@ -47,7 +45,6 @@ program.addHelpText(
     "  # First assessment: use the riptide-assess agent skill from your protocol repo",
     "  riptide init",
     "  riptide readiness .",
-    "  riptide doctor",
     "  riptide sim generate --adapter .riptide/adapters/<program-name>.toml",
     "  riptide sim run .riptide/sim --flows 8",
     "  riptide sim surface .riptide/sim/artifacts/<dir> --sim .riptide/sim",

@@ -9,8 +9,8 @@ set -euo pipefail
 # verify), then re-assert the read-only CLI surface from a clean shell:
 #   - `riptide --version`
 #   - `riptide --help`
-#   - `riptide doctor`  (exit >= 2 is a hard failure; a WARN verdict at
-#                         exit 1 is acceptable, matching install.sh)
+#   - `riptide readiness .`  (exit >= 2 is a hard failure; a WARN verdict
+#                              exits 0, matching install.sh)
 #
 # Network boundary: npm/cargo may use configured package caches or
 # registries; no RPC, mainnet writes, secrets, push, or publish.
@@ -80,7 +80,7 @@ git -C "$CHECKOUT" checkout --quiet --detach "$SOURCE_SHA"
 
 # install.sh does the full engine-free bootstrap: detect toolchains,
 # npm install + build, install the launcher into $HOME/.local/bin, and
-# verify --version / --help / doctor. A clean exit here already proves
+# verify --version / --help / readiness. A clean exit here already proves
 # the install path; the explicit assertions below re-check the
 # read-only CLI surface from a fresh shell.
 printf '\n$ (cd %s && ./install.sh)\n' "$CHECKOUT"
@@ -94,17 +94,17 @@ fi
 run_checked 0 "$LAUNCHER" --version
 run_checked 0 "$LAUNCHER" --help
 
-# `riptide doctor` is the toolchain self-check. It exits 1 on a WARN
-# verdict (acceptable) and >= 2 on a hard failure. Mirror install.sh:
-# only exit >= 2 fails the smoke.
-printf '\n$ %s doctor\n' "$LAUNCHER"
+# `riptide readiness .` is the toolchain self-check. It exits 0 on a PASS
+# or WARN verdict and 2 on a hard failure. Mirror install.sh: only
+# exit >= 2 fails the smoke.
+printf '\n$ %s readiness .\n' "$LAUNCHER"
 set +e
-NO_COLOR=1 "$LAUNCHER" doctor
-DOCTOR_EXIT=$?
+NO_COLOR=1 "$LAUNCHER" readiness .
+HEALTH_EXIT=$?
 set -e
-printf '[exit %s]\n' "$DOCTOR_EXIT"
-if [[ "$DOCTOR_EXIT" -ge 2 ]]; then
-  printf 'riptide doctor reported a hard failure (exit %s)\n' "$DOCTOR_EXIT" >&2
+printf '[exit %s]\n' "$HEALTH_EXIT"
+if [[ "$HEALTH_EXIT" -ge 2 ]]; then
+  printf 'riptide readiness . reported a hard failure (exit %s)\n' "$HEALTH_EXIT" >&2
   exit 1
 fi
 

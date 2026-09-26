@@ -77,12 +77,12 @@ crate.
 Validate after every adapter edit:
 
 ```bash
-riptide doctor --json
+riptide readiness . --json
 ```
 
-If doctor names an adapter field error, fix that field before moving on. If
-doctor passes but a later sim load fails on missing account bindings, repair
-the adapter and rerun doctor — that is a `CLI validation gap` (see
+If `data.health` names an adapter field error, fix that field before moving
+on. If the health check passes but a later sim load fails on missing account
+bindings, repair the adapter and rerun readiness — that is a `CLI validation gap` (see
 [repair.md](./repair.md)).
 
 ## c. Generate the sim crate

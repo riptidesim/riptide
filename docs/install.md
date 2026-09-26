@@ -97,7 +97,7 @@ The installer is engine-free. It runs five steps:
    is a small shim that execs the built CLI entry point; it is rewritten
    atomically on every run, so installing twice is safe.
 5. **Verify the install.** Runs `riptide --version`, `riptide --help`, and
-   `riptide doctor` as a static toolchain self-check. A `doctor` WARN
+   `riptide readiness .` as a static toolchain self-check. A health WARN
    verdict is acceptable; a hard FAIL aborts the install.
 
 If `$HOME/.local/bin` is not on your `PATH`, the installer prints the
@@ -109,9 +109,9 @@ Verify the launcher:
 riptide --help
 ```
 
-`riptide doctor` is a static health check. Run it from a configured
-Riptide workspace; in an empty directory it reports that no adapters were
-found.
+`riptide readiness .` includes a static health check. Run it from a
+configured Riptide workspace; in an empty directory it reports that no
+adapters were found.
 
 ## Docker
 
@@ -120,13 +120,13 @@ Solana SBF toolchain already in place:
 
 ```bash
 docker build -t riptide .
-docker run --rm riptide doctor
+docker run --rm riptide readiness .
 ```
 
 To run Riptide against your own repo with that image, mount the repo:
 
 ```bash
-docker run --rm -v "$PWD:/work" -w /work riptide doctor
+docker run --rm -v "$PWD:/work" -w /work riptide readiness .
 ```
 
 The Dockerfile pins Rust, Node, npm, Solana CLI, `cargo-build-sbf`,
@@ -192,14 +192,13 @@ What each command does:
 
 | Command | Role |
 | --- | --- |
-| `riptide doctor` | Static health check. No build, no network, no simulation. |
 | `riptide init` | Non-interactive scaffold: `.riptide/adapters/<program>.toml` per detected program plus the Workspace ignore file `.riptide/.gitignore`. `--profile` / `--protocol` record adapter hints. |
 | `/riptide-assess` | The Skill: adapter TOML, the guided-sim crate, flows, invariants, services, and the Assessment. |
-| `riptide readiness` | Inspects local protocol evidence readiness without building or simulating. |
+| `riptide readiness` | Inspects local protocol evidence readiness and toolchain and adapter health. No build, no network, no simulation. |
 | `riptide sim generate` | Scaffolds the project-owned guided-sim crate from an IDL-backed adapter. |
 | `riptide sim run` | Runs the generated guided-sim crate and writes the guided-sim artifact. |
 | `riptide sim surface` | Builds cartography artifacts (risk-surface, summary, retention) from a guided-sim sweep so `riptide assess` can render a heatmap. |
-| `riptide sim review` / `riptide review` | Validate a guided-sim artifact directory and print reviewer markdown. |
+| `riptide review` | Validate a guided-sim artifact directory, campaign root or retained case and print reviewer markdown. |
 | `riptide assess` | Generates a protocol assessment (`assessment.json` + `assessment.md`) from a guided-sim root. |
 
 ## Upgrade

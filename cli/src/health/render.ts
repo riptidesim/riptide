@@ -1,128 +1,24 @@
-// `riptide doctor` — top-level health-check command.
-//
-// Static diagnostic only. NO build, NO network, NO simulation. Reports
-// on toolchain presence, engine binary resolution, and per-adapter
-// load + lint status in one compact summary table.
-//
-// Exit codes:
-//   0 — all checks passed
-//   1 — at least one warn, no fails
-//   2 — at least one fail
-//
-// `--json` writes one command envelope to stdout (src/contract): a
-// success envelope carrying the report for PASS and WARN, and the error
-// shape — with the report attached as `data` — for FAIL or when the
-// report cannot be assembled. Exit codes are the same in both modes.
-//
-// Output style mirrors the existing `riptide lint` voice: bold header,
-// per-section blocks, a verdict line. Color decisions defer to chalk's
-// own TTY / NO_COLOR / FORCE_COLOR detection unless tests force a
-// specific mode.
+// Rendering for the health check that `riptide readiness` reports: the
+// `health` block of the --json envelope, the error shape for a failing
+// check, and the text section that follows the readiness markdown.
 
 import chalk, { Chalk } from "chalk";
-import { Command } from "commander";
 import path from "node:path";
 
-import {
-  buildDoctorReport,
-  type DoctorAdapter,
-  type DoctorCheck,
-  type DoctorReport,
-  type DoctorStatus,
-} from "../doctor/index.js";
-import {
-  errorEnvelope,
-  renderEnvelope,
-  resolveCommandIO,
-  successEnvelope,
-  type CommandError,
-  type CommandIO,
-} from "../contract/index.js";
+import type { CommandError } from "../contract/index.js";
+import type { HealthAdapter, HealthCheck, HealthReport, HealthStatus } from "./index.js";
 
-export interface DoctorCommandDeps extends CommandIO {
-  /** Test seam — force color on/off. Defaults to chalk's own detection. */
-  color?: boolean;
-  /** Test seam — override report builder (used to inject toolchain probe stubs). */
-  buildReport?: typeof buildDoctorReport;
-  /** Test seam — override env. */
-  env?: NodeJS.ProcessEnv;
-}
-
-export interface DoctorOptions {
-  json?: boolean;
-}
-
-export function createDoctorCommand(deps: DoctorCommandDeps = {}): Command {
-  const command = new Command("doctor")
-    .description(
-      "Static health check — toolchain presence and adapter load + lint status. No build, no network, no simulation."
-    )
-    .option("--json", "Emit the report as a command envelope", false);
-
-  return command.action(async (options: DoctorOptions) => {
-    const code = await runDoctor(options, deps);
-    process.exit(code);
-  });
-}
-
-/** Returns the exit code instead of calling `process.exit`. Test seam. */
-export async function runDoctor(
-  options: DoctorOptions,
-  deps: DoctorCommandDeps = {}
-): Promise<number> {
-  const { stdout, stderr, cwd } = resolveCommandIO(deps);
-  const env = deps.env ?? process.env;
-  const builder = deps.buildReport ?? buildDoctorReport;
-
-  let report: DoctorReport;
-  try {
-    report = await builder({ cwd, env });
-  } catch (err) {
-    const message = `failed to assemble report: ${(err as Error).message ?? String(err)}`;
-    if (options.json) {
-      stdout(
-        renderEnvelope(
-          errorEnvelope("doctor", {
-            code: "doctor_report_failed",
-            message,
-            next: "check that the working directory and its .riptide/adapters/ are readable, then rerun `riptide doctor --json`",
-          })
-        )
-      );
-    } else {
-      stderr(`riptide doctor: ${message}\n`);
-    }
-    return 2;
-  }
-
-  if (options.json) {
-    const data = doctorReportJson(report);
-    stdout(
-      renderEnvelope(
-        report.exitCode === 2
-          ? errorEnvelope("doctor", doctorFailure(report), data)
-          : successEnvelope("doctor", data)
-      )
-    );
-  } else {
-    stdout(renderDoctorReport(report, { color: deps.color }));
-  }
-  return report.exitCode;
-}
-
-export interface DoctorReportJson {
-  verdict: DoctorStatus;
-  exit_code: 0 | 1 | 2;
+export interface HealthReportJson {
+  verdict: HealthStatus;
   counts: AggregateCounts;
   cwd: string;
-  environment: DoctorCheck[];
-  adapters: DoctorAdapter[];
+  environment: HealthCheck[];
+  adapters: HealthAdapter[];
 }
 
-function doctorReportJson(report: DoctorReport): DoctorReportJson {
+export function healthReportJson(report: HealthReport): HealthReportJson {
   return {
     verdict: report.exitCode === 0 ? "pass" : report.exitCode === 1 ? "warn" : "fail",
-    exit_code: report.exitCode,
     counts: aggregateCounts(report),
     cwd: report.cwd,
     environment: report.environment,
@@ -130,7 +26,7 @@ function doctorReportJson(report: DoctorReport): DoctorReportJson {
   };
 }
 
-function doctorFailure(report: DoctorReport): CommandError {
+export function healthFailure(report: HealthReport): CommandError {
   const failed = [
     ...report.environment
       .filter((c) => c.status === "fail")
@@ -141,13 +37,13 @@ function doctorFailure(report: DoctorReport): CommandError {
   ];
   const first = failed.find((f) => f.hint) ?? failed[0];
   return {
-    code: "doctor_checks_failed",
-    message: `${failed.length} doctor check${failed.length === 1 ? "" : "s"} failed: ${failed
+    code: "health_checks_failed",
+    message: `${failed.length} health check${failed.length === 1 ? "" : "s"} failed: ${failed
       .map((f) => f.subject)
       .join(", ")}`,
     next: first?.hint
       ? `${first.subject}: ${first.hint}`
-      : "fix the failing checks listed in data, then rerun `riptide doctor --json`",
+      : "fix the failing checks listed in data, then rerun `riptide readiness <path> --json`",
   };
 }
 
@@ -155,11 +51,11 @@ export interface RenderOptions {
   color?: boolean;
 }
 
-export function renderDoctorReport(report: DoctorReport, opts: RenderOptions = {}): string {
+export function renderHealthReport(report: HealthReport, opts: RenderOptions = {}): string {
   const colorize = createColorizer(opts.color);
   const lines: string[] = [];
 
-  lines.push(colorize.bold("Doctor — Riptide health check"));
+  lines.push(colorize.bold("Health — toolchain and adapters"));
   lines.push(colorize.dim(`cwd: ${report.cwd}`));
   lines.push("");
 
@@ -202,12 +98,12 @@ export function renderDoctorReport(report: DoctorReport, opts: RenderOptions = {
       : report.exitCode === 1
         ? colorize.yellow("WARN")
         : colorize.red("FAIL");
-  lines.push(`  Verdict: ${verdict} (exit ${report.exitCode})`);
+  lines.push(`  Verdict: ${verdict}`);
   lines.push("");
 
   lines.push(
     colorize.dim(
-      "Static diagnostic only — no build, no network, no simulation. This is the per-adapter report; use `riptide readiness .` to inspect protocol evidence readiness."
+      "Static diagnostic only — no build, no network, no simulation."
     )
   );
   lines.push("");
@@ -215,7 +111,7 @@ export function renderDoctorReport(report: DoctorReport, opts: RenderOptions = {
   return lines.join("\n");
 }
 
-function formatCheckLine(c: DoctorCheck, colorize: Colorizer): string {
+function formatCheckLine(c: HealthCheck, colorize: Colorizer): string {
   const head = `  ${formatStatus(c.status, colorize)} ${c.label}`;
   const detailParts: string[] = [];
   if (c.actual) detailParts.push(c.actual);
@@ -228,7 +124,7 @@ function formatCheckLine(c: DoctorCheck, colorize: Colorizer): string {
   return lines.join("\n");
 }
 
-function formatAdapterLine(a: DoctorAdapter, colorize: Colorizer, cwd: string): string {
+function formatAdapterLine(a: HealthAdapter, colorize: Colorizer, cwd: string): string {
   const status = effectiveAdapterStatus(a);
   const rel = relativizeIfInside(a.path, cwd);
   const sourceTag =
@@ -249,7 +145,7 @@ function formatAdapterLine(a: DoctorAdapter, colorize: Colorizer, cwd: string): 
   return lines.join("\n");
 }
 
-function effectiveAdapterStatus(a: DoctorAdapter): DoctorStatus {
+function effectiveAdapterStatus(a: HealthAdapter): HealthStatus {
   if (a.load === "fail" || a.lint === "fail") return "fail";
   if (a.load === "warn" || a.lint === "warn") return "warn";
   return "pass";
@@ -267,7 +163,7 @@ interface AggregateCounts {
   fail: number;
 }
 
-function aggregateCounts(report: DoctorReport): AggregateCounts {
+function aggregateCounts(report: HealthReport): AggregateCounts {
   const counts: AggregateCounts = { pass: 0, warn: 0, fail: 0 };
   for (const c of report.environment) counts[c.status] += 1;
   for (const a of report.adapters) counts[effectiveAdapterStatus(a)] += 1;
@@ -330,7 +226,7 @@ function createColorizer(force: boolean | undefined): Colorizer {
   };
 }
 
-function formatStatus(status: DoctorStatus, colorize: Colorizer): string {
+function formatStatus(status: HealthStatus, colorize: Colorizer): string {
   switch (status) {
     case "pass":
       return colorize.bgGreen(" PASS ");
@@ -341,7 +237,7 @@ function formatStatus(status: DoctorStatus, colorize: Colorizer): string {
   }
 }
 
-function plainStatus(status: DoctorStatus, colorize: Colorizer): string {
+function plainStatus(status: HealthStatus, colorize: Colorizer): string {
   switch (status) {
     case "pass":
       return colorize.green("pass");

@@ -158,7 +158,7 @@ test("review accepts guided sim artifacts with flow labels and rerun evidence", 
 
   const { stdout: jsonStdout } = await execFileAsync(
     process.execPath,
-    [cliEntrypoint, "sim", "review", artifactDir, "--json"],
+    [cliEntrypoint, "review", artifactDir, "--json"],
     { cwd: root }
   );
   const payload = (JSON.parse(jsonStdout) as { data: Record<string, unknown> }).data;
@@ -297,7 +297,7 @@ test("review summarizes trace-bearing passed guided sim artifacts", async () => 
 
   const { stdout: jsonStdout } = await execFileAsync(
     process.execPath,
-    [cliEntrypoint, "sim", "review", artifactDir, "--json"],
+    [cliEntrypoint, "review", artifactDir, "--json"],
     { cwd: root }
   );
   const payload = (JSON.parse(jsonStdout) as { data: Record<string, unknown> }).data;
@@ -448,7 +448,7 @@ test("review reports the first failing guided trace flow step", async () => {
 
   const { stdout: jsonStdout } = await execFileAsync(
     process.execPath,
-    [cliEntrypoint, "sim", "review", artifactDir, "--json"],
+    [cliEntrypoint, "review", artifactDir, "--json"],
     { cwd: root }
   );
   const payload = (JSON.parse(jsonStdout) as { data: Record<string, unknown> }).data;

@@ -1,15 +1,15 @@
-// `riptide doctor` integration tests.
+// Health check integration tests, driven through `riptide readiness`.
 //
 // Covers:
 // - all-pass exit 0
 // - missing tool → exit 2 (FAIL)
-// - drifted tool version → exit 1 (WARN)
+// - drifted tool version → WARN verdict, exit 0
 // - adapter discovery in monorepo (`fixtures/adapters`) and downstream
 //   user-repo (`.riptide/adapters`) shapes
 // - per-adapter load + lint status + next-step hint
 // - no-adapters-discovered surface
 // - shipping monorepo run produces a coherent report
-// - doctor is fast / static — no engine spawn even under failure
+// - the health check is fast / static — no engine spawn even under failure
 //
 // Implementation note: every test injects toolchain probe + engine
 // resolver stubs so the suite stays hermetic and never depends on
@@ -21,15 +21,15 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { runDoctor } from "../src/commands/doctor.js";
+import { runReadiness } from "../src/commands/readiness.js";
 import {
-  buildDoctorReport,
+  buildHealthReport,
   discoverAdapters,
   shouldUseModuleRootFixtureFallback,
   type DiscoveredAdapter,
-} from "../src/doctor/index.js";
+} from "../src/health/index.js";
 
-// Mirror of the spec list — keeps tests honest about which tools doctor
+// Mirror of the spec list — keeps tests honest about which tools the health check
 // is supposed to know about.
 const TOOL_IDS = ["node", "npm", "rustc", "cargo", "solana", "cargo-build-sbf"] as const;
 
@@ -120,13 +120,13 @@ async function setupRepo(opts: {
   idlContents?: string | null;
   /**
    * When true (default) drop a zero-byte stub `simple.so` next to each
-   * written adapter so the doctor's runtime-path existence check
+   * written adapter so the health check's runtime-path existence check
    * passes. Regression tests for the runtime-path contract set this
    * false to assert the check actually fires.
    */
   writeStubSo?: boolean;
 }): Promise<{ cwd: string }> {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-doctor-test-"));
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-health-test-"));
   const writeStubSo = opts.writeStubSo !== false;
 
   const idlsDir = path.join(cwd, "fixtures", "idls");
@@ -206,7 +206,7 @@ test("discoverAdapters: both-shapes user repo — `.riptide/adapters` wins over 
 
 test("discoverAdapters: does NOT trust an arbitrary parent `fixtures/adapters/`", async () => {
   // Review regression: an earlier draft added a `<cwd>/../fixtures/adapters`
-  // layer as a "contributor seam" for doctor run from `cli/`. It trusted
+  // layer as a "contributor seam" for a health check run from `cli/`. It trusted
   // any parent directory, so a nested cwd inherited adapters from a
   // sibling repo. Reviewer reproduced this by planting
   // `/tmp/.../fixtures/adapters/parent-hit.toml` and running discovery
@@ -214,7 +214,7 @@ test("discoverAdapters: does NOT trust an arbitrary parent `fixtures/adapters/`"
   //
   // Fix contract: only `<cwd>/...` and the module-derived monorepo root
   // are trusted. Any adapter living in `<cwd>/..` must not appear.
-  const parent = await mkdtemp(path.join(os.tmpdir(), "riptide-doctor-parent-"));
+  const parent = await mkdtemp(path.join(os.tmpdir(), "riptide-health-parent-"));
   const parentAdapters = path.join(parent, "fixtures", "adapters");
   await mkdir(parentAdapters, { recursive: true });
   await writeFile(
@@ -235,13 +235,13 @@ deposit = { action = "deposit", amount = "amount" }
 
   const found = discoverAdapters(child);
   const leaked = found.find((a) => a.name === "parent-hit");
-  assert.equal(leaked, undefined, `parent-dir leak: doctor picked up ${leaked?.path}`);
+  assert.equal(leaked, undefined, `parent-dir leak: the health check picked up ${leaked?.path}`);
   // Any hit must come from `<child>/...` or the module-derived monorepo.
   // Nothing may come from `<parent>/fixtures/adapters/`.
   for (const hit of found) {
     assert.ok(
       !hit.path.startsWith(parentAdapters + path.sep) && hit.path !== parentAdapters,
-      `doctor leaked an adapter from an arbitrary parent dir: ${hit.path}`
+      `the health check leaked an adapter from an arbitrary parent dir: ${hit.path}`
     );
   }
 });
@@ -251,13 +251,13 @@ test("discoverAdapters: module-root fallback — source-checkout CLI still finds
   // module-derived monorepo root is the last-resort layer; it fires
   // when the CLI module itself lives inside a source checkout of the
   // Riptide monorepo (the install-first path via `install.sh`, or the
-  // `cd cli && riptide doctor` contributor case after a build). This
+  // `cd cli && riptide readiness .` contributor case after a build). This
   // test runs in exactly that shape — it is a source-checkout
   // regression gate, NOT a claim about arbitrary npm-installed
   // packages. Release bundles intentionally ship fixtures, but they do
   // not ship the source root's Cargo.toml, so packaged installs return
   // `[]` here by design when the user cwd has no local adapters.
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-doctor-fallback-"));
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-health-fallback-"));
   const found = discoverAdapters(cwd);
   const monorepoHits = found.filter((a) => a.source === "monorepo-fixtures");
   assert.ok(
@@ -278,7 +278,7 @@ test("shouldUseModuleRootFixtureFallback: only real source checkouts use bundled
   assert.equal(
     shouldUseModuleRootFixtureFallback(releaseRoot),
     false,
-    "packaged release roots must not make doctor lint bundled fixtures from arbitrary user cwd"
+    "packaged release roots must not make the health check lint bundled fixtures from arbitrary user cwd"
   );
   assert.equal(shouldUseModuleRootFixtureFallback(undefined), false);
 });
@@ -294,7 +294,7 @@ test("discoverAdapters: release-shaped module roots do not leak bundled fixtures
   assert.deepEqual(
     found,
     [],
-    "packaged release roots must not make doctor lint bundled fixtures from arbitrary user cwd"
+    "packaged release roots must not make the health check lint bundled fixtures from arbitrary user cwd"
   );
 });
 
@@ -312,7 +312,7 @@ test("discoverAdapters: source-shaped module roots keep the contributor fixture 
   assert.equal(found[0]!.path, path.join(sourceAdapters, "source-hit.toml"));
 });
 
-// ---- runDoctor / buildDoctorReport ----
+// ---- runReadiness health / buildHealthReport ----
 //
 // Important: these tests deliberately do NOT filter discovery down to
 // the temp cwd. Adapter discovery makes discovery layered — the first
@@ -322,18 +322,19 @@ test("discoverAdapters: source-shaped module roots keep the contributor fixture 
 // unrelated monorepo adapters leak in, `discoverAdapters` has
 // regressed, not the test harness.
 
-test("runDoctor: healthy toolchain + clean adapter → exit 0", async () => {
+test("readiness health: healthy toolchain + clean adapter → exit 0", async () => {
   const { cwd } = await setupRepo({ layout: "monorepo" });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           // No sandboxed discovery override — discovery is
@@ -344,7 +345,7 @@ test("runDoctor: healthy toolchain + clean adapter → exit 0", async () => {
     }
   );
   assert.equal(exit, 0, `expected 0, got ${exit}. stdout:\n${out}`);
-  assert.match(out, /Doctor — Riptide health check/);
+  assert.match(out, /Health — toolchain and adapters/);
   // Every documented tool is named in the environment block.
   for (const id of TOOL_IDS) {
     assert.match(out, new RegExp(id), `tool ${id} missing from output`);
@@ -353,18 +354,19 @@ test("runDoctor: healthy toolchain + clean adapter → exit 0", async () => {
   assert.match(out, /Verdict: PASS/);
 });
 
-test("runDoctor: missing required tool → exit 2 with hint", async () => {
+test("readiness health: missing required tool → exit 2 with hint", async () => {
   const { cwd } = await setupRepo({ layout: "monorepo" });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, "cargo-build-sbf": undefined }),
           // No sandboxed discovery override — discovery is
@@ -385,11 +387,11 @@ test("runDoctor: missing required tool → exit 2 with hint", async () => {
 // without `inBand` checks, so an injected `0.0.1` surfaced as PASS
 // instead of WARN. These three assertions pin the fix.
 // Review regression #1: a generic adapter with no [lineage] block
-// must land as WARN (exit 1), not PASS. The prior behavior shortcut
+// must land as WARN, not PASS. The prior behavior shortcut
 // through exitCode: 0 because the only finding was a SKIP, which
 // violated skipped machine validation — skipped machine validation belongs on the
 // warning surface, not all-clear.
-test("runDoctor: adapter with no [lineage] block → lint=warn, doctor exit 1", async () => {
+test("readiness health: adapter with no [lineage] block → lint=warn, health WARN", async () => {
   const noLineage = `protocol = "generic"
 program_so = "./simple.so"
 idl_path = "../../fixtures/idls/simple.json"
@@ -419,21 +421,23 @@ triggers = []
 `;
   const { cwd } = await setupRepo({ layout: "user-repo", adapterToml: noLineage });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
         }),
     }
   );
-  assert.equal(exit, 1, `expected 1 (WARN) for no-[lineage] adapter, got ${exit}. stdout:\n${out}`);
+  assert.equal(exit, 0, `a warning-only health check exits 0, got ${exit}. stdout:\n${out}`);
+  assert.match(out, /Verdict: WARN/);
   assert.match(out, /lint=warn/);
   assert.match(out, /no \[lineage\] block — machine validation skipped/);
   assert.match(out, /add a \[lineage\] block/);
@@ -446,18 +450,19 @@ triggers = []
 // module-derived monorepo root was unioned into discovery and
 // unrelated warns/fails (`perpetuals`, `lending`) bubbled up into
 // the downstream operator's exit code.
-test("runDoctor: downstream user repo is isolated — does NOT inherit shipping monorepo adapters", async () => {
+test("readiness health: downstream user repo is isolated — does NOT inherit shipping monorepo adapters", async () => {
   const { cwd } = await setupRepo({ layout: "user-repo" });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
         }),
@@ -467,29 +472,30 @@ test("runDoctor: downstream user repo is isolated — does NOT inherit shipping 
   // disk) so exit is 0 here — the important thing is the isolation:
   // no shipping adapter names appear, and the surrounding Riptide
   // checkout cannot flip the verdict via a drifted fixture.
-  assert.ok(exit === 0 || exit === 1, `expected 0/1 from user-repo only, got ${exit}. stdout:\n${out}`);
+  assert.equal(exit, 0, `expected 0 from user-repo only, got ${exit}. stdout:\n${out}`);
   assert.match(out, /my-program/);
   for (const shipping of ["amm", "perpetuals", "liquid-staking", "lending", "resource-grinder"]) {
     assert.doesNotMatch(
       out,
       new RegExp(`\\b${shipping}\\b`),
-      `downstream doctor report leaked shipping adapter \`${shipping}\`:\n${out}`
+      `downstream health report leaked shipping adapter \`${shipping}\`:\n${out}`
     );
   }
 });
 
-test("runDoctor: drifted npm version → exit 1 (WARN)", async () => {
+test("readiness health: drifted npm version → WARN, exit 0", async () => {
   const { cwd } = await setupRepo({ layout: "monorepo" });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, npm: "0.0.1" }),
           // No sandboxed discovery override — discovery is
@@ -499,22 +505,24 @@ test("runDoctor: drifted npm version → exit 1 (WARN)", async () => {
         }),
     }
   );
-  assert.equal(exit, 1, `expected 1 (WARN), got ${exit}. stdout:\n${out}`);
+  assert.equal(exit, 0, `a warning-only health check exits 0, got ${exit}. stdout:\n${out}`);
+  assert.match(out, /Verdict: WARN/);
   assert.match(out, /WARN  npm/);
 });
 
-test("runDoctor: drifted cargo version → exit 1 (WARN)", async () => {
+test("readiness health: drifted cargo version → WARN, exit 0", async () => {
   const { cwd } = await setupRepo({ layout: "monorepo" });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, cargo: "cargo 0.1.0 (old)" }),
           // No sandboxed discovery override — discovery is
@@ -524,22 +532,24 @@ test("runDoctor: drifted cargo version → exit 1 (WARN)", async () => {
         }),
     }
   );
-  assert.equal(exit, 1, `expected 1 (WARN), got ${exit}. stdout:\n${out}`);
+  assert.equal(exit, 0, `a warning-only health check exits 0, got ${exit}. stdout:\n${out}`);
+  assert.match(out, /Verdict: WARN/);
   assert.match(out, /WARN  cargo\b/);
 });
 
-test("runDoctor: drifted cargo-build-sbf version → exit 1 (WARN)", async () => {
+test("readiness health: drifted cargo-build-sbf version → WARN, exit 0", async () => {
   const { cwd } = await setupRepo({ layout: "monorepo" });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, "cargo-build-sbf": "0.0.1" }),
           // No sandboxed discovery override — discovery is
@@ -549,22 +559,24 @@ test("runDoctor: drifted cargo-build-sbf version → exit 1 (WARN)", async () =>
         }),
     }
   );
-  assert.equal(exit, 1, `expected 1 (WARN), got ${exit}. stdout:\n${out}`);
+  assert.equal(exit, 0, `a warning-only health check exits 0, got ${exit}. stdout:\n${out}`);
+  assert.match(out, /Verdict: WARN/);
   assert.match(out, /WARN  cargo-build-sbf/);
 });
 
-test("runDoctor: drifted Rust version → exit 1 (WARN), no FAIL", async () => {
+test("readiness health: drifted Rust version → WARN, no FAIL", async () => {
   const { cwd } = await setupRepo({ layout: "monorepo" });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe({ ...HEALTHY_VERSIONS, rustc: "rustc 1.50.0 (very old)" }),
           // No sandboxed discovery override — discovery is
@@ -574,13 +586,14 @@ test("runDoctor: drifted Rust version → exit 1 (WARN), no FAIL", async () => {
         }),
     }
   );
-  assert.equal(exit, 1);
+  assert.equal(exit, 0);
+  assert.match(out, /Verdict: WARN/);
   assert.match(out, /WARN/);
   assert.match(out, /rustc/);
   assert.doesNotMatch(out, /Verdict: FAIL/);
 });
 
-test("runDoctor: discovered adapter with broken instruction → lint FAIL → doctor exit 2", async () => {
+test("readiness health: discovered adapter with broken instruction → lint FAIL → health exit 2", async () => {
   // Use the user-repo layout idl_path convention so the runtime-path
   // check passes and the only failure is the lint mismatch.
   const broken = cleanAdapterToml("../../fixtures/idls/simple.json").replace(
@@ -589,15 +602,16 @@ test("runDoctor: discovered adapter with broken instruction → lint FAIL → do
   );
   const { cwd } = await setupRepo({ layout: "user-repo", adapterToml: broken });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           // No sandboxed discovery override — discovery is
@@ -613,18 +627,19 @@ test("runDoctor: discovered adapter with broken instruction → lint FAIL → do
   assert.match(out, /riptide readiness \.` for the full diagnostic on my-program/);
 });
 
-test("runDoctor: adapter present + no IDL on disk → idl-unreadable FAIL", async () => {
+test("readiness health: adapter present + no IDL on disk → idl-unreadable FAIL", async () => {
   const { cwd } = await setupRepo({ layout: "user-repo", idlContents: null });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           // No sandboxed discovery override — discovery is
@@ -638,24 +653,26 @@ test("runDoctor: adapter present + no IDL on disk → idl-unreadable FAIL", asyn
   assert.match(out, /lint=fail/);
 });
 
-test("runDoctor: monorepo fixture with missing program_so → bounded optional-runtime WARN", async () => {
+test("readiness health: monorepo fixture with missing program_so → bounded optional-runtime WARN", async () => {
   const { cwd } = await setupRepo({ layout: "monorepo", writeStubSo: false });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
         }),
     }
   );
-  assert.equal(exit, 1, `expected 1 (WARN), got ${exit}. stdout:\n${out}`);
+  assert.equal(exit, 0, `a warning-only health check exits 0, got ${exit}. stdout:\n${out}`);
+  assert.match(out, /Verdict: WARN/);
   assert.match(out, /load=warn/);
   assert.match(out, /lint=warn/);
   assert.match(out, /optional fixture runtime artifact not built/);
@@ -663,7 +680,7 @@ test("runDoctor: monorepo fixture with missing program_so → bounded optional-r
   assert.match(out, /Verdict: WARN/);
 });
 
-test("runDoctor: monorepo fixture with missing idl_path → load=fail", async () => {
+test("readiness health: monorepo fixture with missing idl_path → load=fail", async () => {
   const brokenIdl = cleanAdapterToml("/nonexistent/simple.json");
   const { cwd } = await setupRepo({
     layout: "monorepo",
@@ -671,15 +688,16 @@ test("runDoctor: monorepo fixture with missing idl_path → load=fail", async ()
     writeStubSo: false,
   });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
         }),
@@ -693,18 +711,19 @@ test("runDoctor: monorepo fixture with missing idl_path → load=fail", async ()
   assert.match(out, /Verdict: FAIL/);
 });
 
-test("runDoctor: empty repo (no adapters anywhere) → exit 1 with init hint", async () => {
+test("readiness health: empty repo (no adapters anywhere) → WARN with init hint", async () => {
   const { cwd } = await setupRepo({ layout: "empty", idlContents: null });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           // CRITICAL: also disable the module-derived monorepo fallback,
@@ -713,38 +732,38 @@ test("runDoctor: empty repo (no adapters anywhere) → exit 1 with init hint", a
         }),
     }
   );
-  assert.equal(exit, 1, `expected 1, got ${exit}. stdout:\n${out}`);
+  assert.equal(exit, 0, `a warning-only health check exits 0, got ${exit}. stdout:\n${out}`);
   assert.match(out, /none discovered/);
   assert.match(out, /riptide init/);
   assert.match(out, /Verdict: WARN/);
 });
 
-test("runDoctor: shipping monorepo fixtures are pass or bounded warnings", async () => {
+test("readiness health: shipping monorepo fixtures are pass or bounded warnings", async () => {
   // Use the real shipping monorepo fixtures by pointing cwd at it.
   const cwd = path.resolve(process.cwd(), "..");
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
       }),
     }
   );
-  assert.ok(exit === 0 || exit === 1, `expected 0/1 on shipping monorepo, got ${exit}. stdout:\n${out}`);
+  assert.equal(exit, 0, `expected 0 on shipping monorepo, got ${exit}. stdout:\n${out}`);
   assert.match(out, /lending/);
   assert.doesNotMatch(out, /Verdict: FAIL/);
   assert.doesNotMatch(out, /lint=fail/);
   assert.doesNotMatch(out, /load=fail/);
-  if (exit === 1) {
+  if (/Verdict: WARN/.test(out)) {
     assert.match(out, /optional fixture runtime artifact not built|uncovered surface/);
-    assert.match(out, /Verdict: WARN/);
   } else {
     assert.match(out, /Verdict: PASS/);
   }
@@ -753,7 +772,7 @@ test("runDoctor: shipping monorepo fixtures are pass or bounded warnings", async
 // ---- review regression: runtime-path existence (mirrors engine loader) ----
 
 // A generic adapter whose `program_so` and `idl_path` are valid TOML
-// strings but point at files that don't exist on disk. Doctor must
+// strings but point at files that don't exist on disk. The health check must
 // flag this as `load=fail` — the engine would reject the same adapter
 // at the first run attempt, so a PASS surface here is a false positive.
 // User-repo layout adapter (placed at `<cwd>/.riptide/adapters/`).
@@ -795,21 +814,22 @@ const DEAD_IDL_PATH_TOML = DEAD_PROGRAM_SO_TOML
   .replace('program_so = "/nonexistent/simple.so"', 'program_so = "./simple.so"')
   .replace('idl_path = "../../fixtures/idls/simple.json"', 'idl_path = "/nonexistent/simple.json"');
 
-test("runDoctor: generic adapter with dead program_so → load=fail (mirrors engine loader)", async () => {
+test("readiness health: generic adapter with dead program_so → load=fail (mirrors engine loader)", async () => {
   const { cwd } = await setupRepo({
     layout: "user-repo",
     adapterToml: DEAD_PROGRAM_SO_TOML,
   });
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           // No sandboxed discovery override — discovery is
@@ -826,10 +846,10 @@ test("runDoctor: generic adapter with dead program_so → load=fail (mirrors eng
   assert.match(out, /cargo build-sbf/);
 });
 
-test("runDoctor: generic adapter with dead idl_path → load=fail", async () => {
+test("readiness health: generic adapter with dead idl_path → load=fail", async () => {
   // Give the adapter a real stub .so so only idl_path is the failing
   // path — confirms idl existence is checked independently.
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-doctor-test-"));
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-health-test-"));
   const adaptersDir = path.join(cwd, ".riptide", "adapters");
   await mkdir(adaptersDir, { recursive: true });
   // Drop a real zero-byte `.so` next to the adapter TOML so program_so
@@ -840,15 +860,16 @@ test("runDoctor: generic adapter with dead idl_path → load=fail", async () => 
   await writeFile(adapterPath, DEAD_IDL_PATH_TOML, "utf8");
 
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           // No sandboxed discovery override — discovery is
@@ -864,8 +885,8 @@ test("runDoctor: generic adapter with dead idl_path → load=fail", async () => 
   assert.match(out, /\/nonexistent\/simple\.json/);
 });
 
-test("runDoctor: user .riptide adapter resolves scaffolded target paths from repo root", async () => {
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-doctor-test-"));
+test("readiness health: user .riptide adapter resolves scaffolded target paths from repo root", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-health-test-"));
   const adaptersDir = path.join(cwd, ".riptide", "adapters");
   await mkdir(adaptersDir, { recursive: true });
   await mkdir(path.join(cwd, "target", "deploy"), { recursive: true });
@@ -909,15 +930,16 @@ generator = "hand-authored"
   );
 
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
         }),
@@ -928,11 +950,11 @@ generator = "hand-authored"
   assert.doesNotMatch(out, /\.riptide\/adapters\/target\/deploy\/simple\.so/);
 });
 
-test("runDoctor: generic adapter with dead owner.program_so → load=fail", async () => {
+test("readiness health: generic adapter with dead owner.program_so → load=fail", async () => {
   // Build a generic adapter with an oracle account owner pointing at a
-  // non-existent sibling .so. Doctor must catch this before the engine
+  // non-existent sibling .so. The health check must catch this before the engine
   // would at boot.
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-doctor-test-"));
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-health-test-"));
   const adaptersDir = path.join(cwd, ".riptide", "adapters");
   await mkdir(adaptersDir, { recursive: true });
   const stubSo = path.join(adaptersDir, "simple.so");
@@ -976,15 +998,16 @@ triggers = []
   );
 
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           // No sandboxed discovery override — discovery is
@@ -999,10 +1022,10 @@ triggers = []
   assert.match(out, /owner\.program_so not found on disk/);
 });
 
-test("runDoctor: generic adapter with present owner.program_so but missing sibling keypair → load=fail", async () => {
+test("readiness health: generic adapter with present owner.program_so but missing sibling keypair → load=fail", async () => {
   // Mirrors the engine's sibling-keypair existence check. Build a
   // sibling .so but omit its companion `-keypair.json`.
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-doctor-test-"));
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-health-test-"));
   const adaptersDir = path.join(cwd, ".riptide", "adapters");
   await mkdir(adaptersDir, { recursive: true });
   await writeFile(path.join(adaptersDir, "simple.so"), Buffer.alloc(0));
@@ -1048,15 +1071,16 @@ triggers = []
   );
 
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           // No sandboxed discovery override — discovery is
@@ -1072,11 +1096,11 @@ triggers = []
   assert.match(out, /oracle_mock-keypair\.json/);
 });
 
-test("runDoctor: lending adapter with no program_so/idl_path is fine (does NOT trigger runtime-path fail)", async () => {
+test("readiness health: lending adapter with no program_so/idl_path is fine (does NOT trigger runtime-path fail)", async () => {
   // Lending adapters legitimately omit program_so / idl_path; the
   // engine's own `.so` discovery runs in the harness. The runtime-path
   // check must ONLY apply to generic adapters.
-  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-doctor-test-"));
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-health-test-"));
   const adaptersDir = path.join(cwd, ".riptide", "adapters");
   await mkdir(adaptersDir, { recursive: true });
   const adapterPath = path.join(adaptersDir, "lending.toml");
@@ -1098,15 +1122,16 @@ deposit = { action = "deposit", amount = "amount" }
   );
 
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: fakeProbe(HEALTHY_VERSIONS),
           // No sandboxed discovery override — discovery is
@@ -1119,25 +1144,26 @@ deposit = { action = "deposit", amount = "amount" }
   // Exit may be 0 (everything clean) or 1 (lineage missing SKIP renders
   // as PASS but nothing else warns). Must NOT be 2 — the lending adapter
   // has no runtime-path contract to violate.
-  assert.ok(exit === 0 || exit === 1, `expected 0/1 on lending adapter, got ${exit}. stdout:\n${out}`);
+  assert.equal(exit, 0, `expected 0 on lending adapter, got ${exit}. stdout:\n${out}`);
   assert.doesNotMatch(out, /load=fail/);
 });
 
-// ---- regression: doctor must not spawn the engine ----
+// ---- regression: the health check must not spawn the engine ----
 
-test("runDoctor: walks the documented tool spec list, one probe per tool", async () => {
+test("readiness health: walks the documented tool spec list, one probe per tool", async () => {
   const { cwd } = await setupRepo({ layout: "monorepo" });
   let probeCalls = 0;
   let out = "";
-  const exit = await runDoctor(
+  const exit = await runReadiness(
+    ".",
     {},
     {
       cwd,
       stdoutWrite: (c) => { out += c; },
       stderrWrite: () => {},
       color: false,
-      buildReport: (input) =>
-        buildDoctorReport({
+      buildHealth: (input) =>
+        buildHealthReport({
           ...input,
           probeTool: async (spec) => {
             probeCalls += 1;
@@ -1151,7 +1177,7 @@ test("runDoctor: walks the documented tool spec list, one probe per tool", async
     }
   );
   assert.equal(exit, 0);
-  // One probe per documented tool — confirms doctor walked the spec
+  // One probe per documented tool — confirms the health check walked the spec
   // list rather than ad-hoc shelling out.
   assert.equal(probeCalls, TOOL_IDS.length);
 });

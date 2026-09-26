@@ -39,6 +39,7 @@ test("readiness case-studies emits deterministic corpus rows with required schem
 
   assert.equal(code, 0);
   assert.equal(stderr, "");
+  assert.equal((JSON.parse(stdout) as { data: Record<string, unknown> }).data.health, undefined);
 
   const parsed = (JSON.parse(stdout) as { data: unknown }).data as {
     schema_version: string;

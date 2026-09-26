@@ -202,19 +202,20 @@ riptide review .riptide/sim/artifacts/run-001
 Several commands share one mental model for first-run diagnosis before
 any simulation runs:
 
-- **`riptide doctor`** is a static health check. It probes the documented
+- **`riptide readiness <path>`** inspects local protocol evidence
+  readiness (adapter, guided-sim crate, artifacts) and runs the static
+  health check for that repo. The health check probes the documented
   toolchain surface (`node`, `npm`, `rustc`, `cargo`, `solana`,
   `cargo-build-sbf`) via `execFile` without spawning a shell, and walks
-  adapters under `<cwd>/.riptide/adapters/*.toml` and
-  `<cwd>/fixtures/adapters/*.toml`. No build, no network, no simulation.
-  Exit codes are `0` all-pass / `1` warnings-only / `2` at least one fail.
-- **`riptide readiness`** inspects local protocol evidence readiness
-  (adapter, guided-sim crate, artifacts) without building, fetching, or
-  simulating.
+  adapters under `<path>/.riptide/adapters/*.toml` and
+  `<path>/fixtures/adapters/*.toml`. No build, no network, no simulation.
+  A produced report exits `0` for a PASS or WARN health verdict and `2`
+  when at least one check fails. A `--case-studies` corpus run has no
+  health check.
 - **`riptide sim lint <path>`** validates the guided-sim `Riptide.toml`
   manifest (see [Input validation](#input-validation)).
-- **`riptide sim review <artifact-dir>`** and **`riptide review
-  <path>`** read a guided-sim artifact cold, validate `rerun.sh` with
+- **`riptide review [path]`** (default `.riptide/sim/artifacts`) reads a
+  guided-sim artifact, campaign root or retained case cold, validate `rerun.sh` with
   `sh -n` without executing it, and emit reviewer markdown or `--json`
   with retained seed, flow counts, labelled transaction outcomes, the
   compact flow trace, failure reason, and rerun command.
@@ -230,7 +231,7 @@ attestation on the program.
 The Engine CLI is an API the Skill drives (ADR 0001), so every command
 runner follows one IO contract, defined in `cli/src/contract/`:
 
-- **Injected streams.** A runner (`runDoctor`, `runInit`, `runSimRun`,
+- **Injected streams.** A runner (`runReadiness`, `runInit`, `runSimRun`,
   ...) takes `stdoutWrite`, `stderrWrite` and `cwd` through its deps and
   never writes to the process directly. Relative paths resolve against
   the injected `cwd`. When streams are injected, a child process such as
@@ -240,7 +241,7 @@ runner follows one IO contract, defined in `cli/src/contract/`:
   document to stdout, and its exit code still signals the outcome.
 
   ```json
-  { "schema_version": "riptide-command.v1", "command": "doctor", "ok": true, "data": { } }
+  { "schema_version": "riptide-command.v1", "command": "readiness", "ok": true, "data": { } }
   ```
 
 - **One error shape.** A failure is the same envelope with `ok: false`
@@ -251,11 +252,11 @@ runner follows one IO contract, defined in `cli/src/contract/`:
   ```json
   {
     "schema_version": "riptide-command.v1",
-    "command": "doctor",
+    "command": "readiness",
     "ok": false,
     "error": {
-      "code": "doctor_checks_failed",
-      "message": "1 doctor check failed: cargo-build-sbf",
+      "code": "health_checks_failed",
+      "message": "1 health check failed: cargo-build-sbf",
       "next": "cargo-build-sbf: cargo-build-sbf ships with the Solana CLI — install or repair the Solana CLI"
     },
     "data": { }
@@ -265,19 +266,21 @@ runner follows one IO contract, defined in `cli/src/contract/`:
 These commands are on the envelope. Without `--json` their human output
 is unchanged.
 
-- **`doctor`**: PASS and WARN reports are a success envelope carrying
-  the report, a FAIL report is `doctor_checks_failed` with the report as
-  `data`, and a report that cannot be assembled is `doctor_report_failed`.
 - **`init`**: `data` lists the programs, the files created, each
   adapter and the scaffold warnings. Failures: `init_workspace_exists`,
   `init_no_program_detected`, `init_anchor_toml_unreadable`,
   `init_artifacts_unpaired`, `init_program_not_found`,
   `init_invalid_program_name`, `init_invalid_option`,
   `init_scaffold_failed`.
-- **`readiness`**: `data` is the readiness report (or the case-study
-  corpus). Failures: `readiness_missing_target`,
-  `readiness_case_studies_not_found`, `readiness_failed`.
-- **`review`** (and `sim review`, which shares its runner): `data` is the
+- **`readiness`**: `data` is the readiness report with the health report
+  under `data.health` (or the case-study corpus, which has no health
+  block). PASS and WARN health are a success envelope; a FAIL is
+  `health_checks_failed` with the whole report still as `data`, and a
+  health report that cannot be assembled is `health_report_failed`. Other
+  failures: `readiness_missing_target`, `readiness_case_studies_not_found`,
+  `readiness_failed`. The `readiness.json` that `--out` writes carries no
+  health block.
+- **`review`**: `data` is the
   guided-sim, campaign or retained-case review. Failures:
   `review_unrecognized_root`, `review_artifact_not_found`,
   `review_artifact_malformed`, `review_artifact_schema_invalid`,

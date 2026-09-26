@@ -14,7 +14,6 @@ import path from "node:path";
 import chalk from "chalk";
 import { Command } from "commander";
 
-import { runReview, type ReviewOptions } from "./review.js";
 import {
   errorEnvelope,
   oneLineMessage,
@@ -147,16 +146,6 @@ export function createSimCommand(deps: SimCommandDeps = {}): Command {
     .option("--json", "Emit the result as a command envelope", false)
     .action(async (simPath: string, options: JsonOption) => {
       process.exitCode = await runSimLint(simPath, options, deps);
-    });
-
-  command
-    .command("review")
-    .description("Review a guided-sim artifact directory or guided-sim-run.json")
-    .argument("[path]", "Guided-sim artifact directory or guided-sim-run.json", ".riptide/sim/artifacts")
-    .option("--out <md-path>", "Write reviewer markdown to a file instead of stdout")
-    .option("--json", "Emit a structured JSON review payload", false)
-    .action(async (artifactPath: string, options: ReviewOptions) => {
-      process.exitCode = await runReview(artifactPath, options, deps, "sim review");
     });
 
   command
@@ -626,7 +615,7 @@ async function runCargoSim(
         {
           code: "sim_cargo_unavailable",
           message,
-          next: "install the Rust toolchain so `cargo` is on PATH (see `riptide doctor --json`), then rerun"
+          next: "install the Rust toolchain so `cargo` is on PATH (see `riptide readiness . --json`), then rerun"
         },
         2
       );

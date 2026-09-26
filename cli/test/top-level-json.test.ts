@@ -13,6 +13,7 @@ import type { CommandIO } from "../src/contract/index.js";
 import { runAssess } from "../src/commands/assess.js";
 import { runInit, type InitOptions } from "../src/commands/init.js";
 import { runReadiness } from "../src/commands/readiness.js";
+import type { HealthReport } from "../src/health/index.js";
 import { runReview } from "../src/commands/review.js";
 import { runSimSurface } from "../src/commands/sim.js";
 
@@ -180,10 +181,13 @@ test("init without --json keeps its human report on stderr", async () => {
 test("readiness --json: a repo report is a success envelope", async () => {
   const cwd = await anchorRepo();
   const data = assertSuccess(
-    await drive(cwd, (io) => runReadiness(".", { json: true }, io)),
+    await drive(cwd, (io) =>
+      runReadiness(".", { json: true }, { ...io, buildHealth: healthyReport })
+    ),
     "readiness"
   );
   assert.equal(data.schemaVersion, "readiness.v1");
+  assert.equal((data.health as { verdict: string }).verdict, "pass");
 });
 
 test("readiness --json: every known failure path carries a stable code and a next action", async () => {
@@ -434,3 +438,7 @@ test("assess --json: artifacts that drifted from the fresh render are reported, 
   );
   assert.match(await readFile(mdPath, "utf8"), /tampered\n$/);
 });
+
+async function healthyReport(input: { cwd: string }): Promise<HealthReport> {
+  return { cwd: input.cwd, environment: [], adapters: [], exitCode: 0 };
+}

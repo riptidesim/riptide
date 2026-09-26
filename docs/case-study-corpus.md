@@ -20,7 +20,7 @@ commands captured for the current release candidate.
 
 - You can demo the `anchor-uniswap-v2` row with guided-sim lint, build, run,
   guided review, and root review.
-- You can show the static `riptide readiness` and `riptide doctor` gates for
+- You can show the static `riptide readiness` gate for
   every inventoried repo, including `lending`.
 - You can tell external testers exactly which local case-study repos are only
   inventory and adapter-readiness evidence today.
@@ -50,14 +50,14 @@ commands captured for the current release candidate.
 | inventory-only | yes | Discover immediate child repositories under the case-study root that contain `.riptide/`. |
 | static-health | yes | Run readiness inspection without building, fetching, or executing simulations. |
 | guided-sim-run-review | no | Run and review a repo-local guided simulation artifact. |
-| fresh-clone-eligibility | no | Clone the public repo, install it with `./install.sh`, and check `riptide --version`, `riptide --help`, and `riptide doctor`. |
+| fresh-clone-eligibility | no | Clone the public repo, install it with `./install.sh`, and check `riptide --version`, `riptide --help`, and `riptide readiness .`. |
 
 ## Case-study matrix
 
 | Case study | Protocol class | Current public claim | Highest executed evidence | Boundary | Next action |
 | --- | --- | --- | --- | --- | --- |
 | `anchor-uniswap-v2` | AMM guided simulation | demo-ready | `riptide sim lint`, guided-sim Cargo build, `riptide sim run`, `riptide sim review`, and root `riptide review` exited 0. | Guided evidence covers the declared manifest, Rust flows, services, seed, and artifact. It does not claim swept cartography coverage or broad AMM incident coverage. | Keep the guided artifact available for the close note. Add a guided-sim parameter sweep (`riptide sim surface`) only if the demo needs cartography evidence. |
-| `lending` | Lending / Solend fork | blocked (historical demo path removed) | `riptide doctor` and static `riptide readiness` exited 0. | The earlier demo used a direct baseline-run and pack-review path that has been removed. The row has no surviving guided-sim artifact yet, so no demo-level claim holds. | Add a guided sim for the deposit and redemption flows (`riptide sim generate` -> `riptide sim run` -> `riptide sim review` / `riptide review`) to make it demo-ready again. |
+| `lending` | Lending / Solend fork | blocked (historical demo path removed) | `riptide doctor` and static `riptide readiness` exited 0. | The earlier demo used a direct baseline-run and pack-review path that has been removed. The row has no surviving guided-sim artifact yet, so no demo-level claim holds. | Add a guided sim for the deposit and redemption flows (`riptide sim generate` -> `riptide sim run` -> `riptide review`) to make it demo-ready again. |
 | `liquid-staking-program` | Liquid staking | blocked | Static readiness exited 0 and flagged the missing IDL. | The adapter still depends on a missing `target/idl/marinade_finance.json`. | Build or restore the IDL, or replace IDL-backed inference with explicit adapter fields, then rerun readiness. |
 | `mango-v4` | Perps / margin | blocked; external adapter candidate | Static readiness exited 0 and flagged the missing IDL. | The adapter still depends on a missing `target/idl/mango_v4.json`. | Restore/build the IDL or write explicit adapter fields, then regenerate trustworthy guided-sim evidence. |
 | `marinade-liquid-stake-fork` | Liquid staking | blocked | Static readiness exited 0 and flagged the missing IDL. | The adapter still depends on a missing `target/idl/marinade_forking_smart_contract.json`. | Build or restore the IDL, or replace IDL-backed inference with explicit adapter fields, then rerun readiness. |
@@ -99,7 +99,6 @@ riptide sim run .riptide/sim \
   --flows 20 \
   --seed 1337 \
   --out /tmp/riptide-auv2-guided-artifact
-riptide sim review /tmp/riptide-auv2-guided-artifact
 riptide review /tmp/riptide-auv2-guided-artifact
 ```
 
@@ -107,7 +106,7 @@ riptide review /tmp/riptide-auv2-guided-artifact
 
 The installer is engine-free: `./install.sh` runs `npm install`, builds the
 CLI, writes the `riptide` launcher, and verifies the install with
-`riptide --version`, `riptide --help`, and `riptide doctor`. It does not build a
+`riptide --version`, `riptide --help`, and `riptide readiness .`. It does not build a
 simulation engine binary.
 
 Use this sequence from a clean shell:
@@ -119,7 +118,7 @@ cd riptide-fresh-clone
 ./install.sh
 riptide --version
 riptide --help
-riptide doctor
+riptide readiness .
 ```
 
 Accepted caveats:
@@ -131,7 +130,7 @@ Accepted caveats:
   that clone available, reinstall from the intended checkout, or use the hosted
   installer before relying on the global `riptide` command after `/tmp` cleanup.
 - Hosted installer checks are separate from this path.
-- `riptide doctor` can return WARN when optional fixture binaries are not
+- `riptide readiness .` can return WARN when optional fixture binaries are not
   present; that is a warning, not a failed install.
 - To exercise a workspace after install, use the guided-sim demo row above
   (`anchor-uniswap-v2`).

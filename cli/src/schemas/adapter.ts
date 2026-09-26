@@ -1418,7 +1418,7 @@ function isWellKnownAccountAlias(value: string): boolean {
 // Mirrors `engine/src/adapter/loader.rs::validate_account_owners`:
 // exactly one of `owner.program_so` / `owner.pubkey` must be set, and
 // both must be non-empty after trimming. Keeping the CLI and engine
-// contracts aligned matters for downstream tools (lint, doctor) that
+// contracts aligned matters for downstream tools (lint, readiness health) that
 // need to treat a present `owner` block as a trustworthy signal.
 function validateAccountOwners(adapter: Adapter, path: string): void {
   for (const [name, account] of Object.entries(adapter.accounts)) {

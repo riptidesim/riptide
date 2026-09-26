@@ -11,9 +11,9 @@ import path from "node:path";
 
 import type { CommandIO } from "../src/contract/index.js";
 import { runAssess } from "../src/commands/assess.js";
-import { runDoctor } from "../src/commands/doctor.js";
 import { runInit } from "../src/commands/init.js";
 import { runReadiness } from "../src/commands/readiness.js";
+import type { HealthReport } from "../src/health/index.js";
 import { runReview } from "../src/commands/review.js";
 import {
   runSimDebug,
@@ -108,11 +108,11 @@ test("command io: init failures report through the injected stderr", async () =>
   assert.match(result.stderr, /riptide init:/);
 });
 
-test("command io: doctor text report goes to the injected stdout", async () => {
-  const cwd = await tempRepo("doctor");
-  const result = await drive(cwd, (io) => runDoctor({}, io));
+test("command io: readiness text report and its health section go to the injected stdout", async () => {
+  const cwd = await tempRepo("readiness-text");
+  const result = await drive(cwd, (io) => runReadiness(".", {}, io));
 
-  assert.match(result.stdout, /Doctor — Riptide health check/);
+  assert.match(result.stdout, /Health — toolchain and adapters/);
   assert.match(result.stdout, new RegExp(`cwd: ${cwd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
 });
 
@@ -151,7 +151,7 @@ test("command io: sim generate failures report through the injected stderr", asy
   assert.match(result.stderr, /riptide sim:/);
 });
 
-test("command io: sim surface, sim review, assess and readiness drive a fixture Workspace", async () => {
+test("command io: sim surface, review, assess and readiness drive a fixture Workspace", async () => {
   const cwd = await tempRepo("workspace");
   await writeGuidedSimWorkspace(cwd);
 
@@ -177,7 +177,9 @@ test("command io: sim surface, sim review, assess and readiness drive a fixture 
     "assess-cli.v1"
   );
 
-  const readiness = await drive(cwd, (io) => runReadiness(".", { json: true }, io));
+  const readiness = await drive(cwd, (io) =>
+    runReadiness(".", { json: true }, { ...io, buildHealth: healthyReport })
+  );
   assert.equal(readiness.exitCode, 0, readiness.stderr);
   assert.ok(JSON.parse(readiness.stdout));
 });
@@ -309,4 +311,8 @@ async function writeEchoCrate(dir: string): Promise<void> {
     ].join("\n"),
     "utf8"
   );
+}
+
+async function healthyReport(input: { cwd: string }): Promise<HealthReport> {
+  return { cwd: input.cwd, environment: [], adapters: [], exitCode: 0 };
 }

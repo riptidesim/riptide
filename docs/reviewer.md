@@ -8,7 +8,6 @@ guided-sim artifact directory containing `guided-sim-run.json` (and usually
 For a guided simulation artifact:
 
 ```sh
-riptide sim review .riptide/sim/artifacts/run-001
 riptide review .riptide/sim/artifacts/run-001
 ```
 

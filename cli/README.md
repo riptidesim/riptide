@@ -30,7 +30,6 @@ are added for those platforms.
 
 | Command | Purpose |
 | --- | --- |
-| `riptide doctor` | Static environment and adapter health check. |
 | `riptide init` | Create the thin `.riptide/` bootstrap in the current repo. |
 | `/riptide-assess` | The Skill: drives these commands from Classify through Report. |
 | `riptide list` | List discovered scenarios. |

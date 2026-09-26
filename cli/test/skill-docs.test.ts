@@ -197,6 +197,16 @@ test("the Setup and Repair references keep the repair guidance", async () => {
   assert.match(run, /Do not run the full sweep until the one-seed smoke passes/);
 });
 
+test("the Skill drives only the merged review and readiness commands", async () => {
+  for (const [name, raw] of await bundleMarkdown()) {
+    assert.doesNotMatch(raw, /\briptide doctor\b/, `${name} names the removed doctor command`);
+    assert.doesNotMatch(raw, /\briptide sim review\b/, `${name} names the removed sim review command`);
+  }
+  const body = await skillBody();
+  assert.match(body, /`riptide readiness <dir> --json`/);
+  assert.match(body, /`riptide review <path> --json`/);
+});
+
 test("the report reference carries the Causal Trace evidence rules", async () => {
   const report = await readFile(path.join(SKILL_DIR, "report.md"), "utf8");
   const trace = await readFile(path.join(SKILL_DIR, "causal-trace.md"), "utf8");

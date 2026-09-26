@@ -14,7 +14,6 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import type { CommandIO } from "../src/contract/index.js";
-import { runReview } from "../src/commands/review.js";
 import {
   runSimDebug,
   runSimFork,
@@ -91,7 +90,7 @@ async function tempRepo(prefix: string): Promise<string> {
 }
 
 test("sim --json: every subcommand accepts --json", async () => {
-  for (const sub of ["generate", "refresh", "run", "surface", "fork", "lint", "review", "debug"]) {
+  for (const sub of ["generate", "refresh", "run", "surface", "fork", "lint", "debug"]) {
     const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "sim", sub, "--help"]);
     assert.match(stdout, /--json\b/, `sim ${sub} --help lists no --json`);
   }
@@ -451,18 +450,6 @@ test("sim fork --json: a reused cache is a success envelope; a mismatched cache 
     "sim_fork_fetch_failed",
     2
   );
-});
-
-test("sim review --json: shares the review envelope under its own command name", async () => {
-  const cwd = await tempRepo("review");
-  await writeGuidedSimWorkspace(cwd);
-  const data = assertSuccess(
-    await drive(cwd, (io) =>
-      runReview(".riptide/sim/artifacts/smoke", { json: true }, io, "sim review")
-    ),
-    "sim review"
-  );
-  assert.ok(data);
 });
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -78,7 +78,7 @@ test("commands: root help is compact and lists the guided-sim core surface", asy
   assert.doesNotMatch(stdout, /^\s+campaign\b/m);
   assert.doesNotMatch(stdout, /^\s+run\b/m);
 
-  const ordered = ["init", "readiness", "sim", "review", "assess", "doctor"].map((command) => {
+  const ordered = ["init", "readiness", "sim", "review", "assess"].map((command) => {
     const index = stdout.indexOf(`  ${command}`);
     assert.notEqual(index, -1, `${command} missing from root help:\n${stdout}`);
     return index;
@@ -86,6 +86,66 @@ test("commands: root help is compact and lists the guided-sim core surface", asy
   assert.deepEqual([...ordered].sort((a, b) => a - b), ordered);
 
   assert.ok(stdout.split("\n").length < 80, stdout);
+});
+
+async function rejected(args: string[]): Promise<{ code: number | string | undefined; stderr: string }> {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-merged-cli-"));
+  try {
+    await execFileAsync(process.execPath, [cliEntrypoint, ...args], { cwd });
+  } catch (err) {
+    const execErr = err as { stderr?: string; code?: number | string };
+    return { code: execErr.code, stderr: execErr.stderr ?? "" };
+  }
+  assert.fail(`riptide ${args.join(" ")} was accepted`);
+}
+
+test("commands: review is the only review command", async () => {
+  const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "sim", "--help"]);
+  assert.doesNotMatch(stdout, /^\s+review\b/m);
+
+  const simReview = await rejected(["sim", "review", "--json"]);
+  assert.equal(simReview.code, 1);
+  assert.match(simReview.stderr, /unknown command 'review'/);
+});
+
+test("commands: readiness is the only health and readiness command", async () => {
+  const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "--help"]);
+  assert.doesNotMatch(stdout, /^\s+doctor\b/m);
+
+  const doctor = await rejected(["doctor", "--json"]);
+  assert.equal(doctor.code, 1);
+  assert.match(doctor.stderr, /unknown command 'doctor'/);
+});
+
+test("review: with no path it reviews the Workspace's guided-sim artifacts", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-review-default-"));
+  const artifacts = path.join(cwd, ".riptide", "sim", "artifacts");
+  await mkdir(artifacts, { recursive: true });
+  await writeFile(
+    path.join(artifacts, "guided-sim-run.json"),
+    `${JSON.stringify({
+      schema_version: 1,
+      status: "passed",
+      base_seed: "52".repeat(32),
+      retained_failing_seed: null,
+      iterations: [
+        {
+          iteration: 0,
+          seed: "0".repeat(64),
+          status: "passed",
+          panic: false,
+          tx_outcomes: [{ label: "deposit", ok: true }]
+        }
+      ]
+    })}\n`,
+    "utf8"
+  );
+
+  const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "review", "--json"], { cwd });
+  const envelope = JSON.parse(stdout) as { command: string; ok: boolean; data: { schema_version: string } };
+  assert.equal(envelope.command, "review");
+  assert.equal(envelope.ok, true);
+  assert.equal(envelope.data.schema_version, "guided-sim-review.v1");
 });
 
 test("init: completes without input while stdin stays open", async () => {

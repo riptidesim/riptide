@@ -50,7 +50,7 @@ export function resolveAdapterArg(
   }
 
   // Bare-name layering, mirroring `discoverAdapters` in
-  // `cli/src/doctor/index.ts`:
+  // `cli/src/health/index.ts`:
   //   1. `<cwd>/.riptide/adapters/<name>.toml`  (downstream user repo)
   //   2. `<cwd>/fixtures/adapters/<name>.toml`  (in-tree monorepo checkout)
   //   3. `<fixturesRoot>/adapters/<name>.toml`  (explicit override / module-derived fallback)

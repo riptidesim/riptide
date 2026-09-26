@@ -136,7 +136,7 @@ export const READINESS_GATE_DEFINITIONS: readonly ReadinessGateDefinition[] = [
     title: "Adapter readiness",
     description:
       "Run the per-adapter static report against the repo-local adapter TOML and its declared lineage.",
-    command_template: "riptide doctor",
+    command_template: "riptide readiness <repo>",
     executed_by_default: false,
   },
   {
@@ -152,7 +152,7 @@ export const READINESS_GATE_DEFINITIONS: readonly ReadinessGateDefinition[] = [
     title: "Guided-sim run and review",
     description:
       "Run a repo-local guided simulation manifest and review the produced guided artifact.",
-    command_template: "riptide sim run <manifest> --out <artifact-dir>; riptide sim review <artifact-dir>",
+    command_template: "riptide sim run <manifest> --out <artifact-dir>; riptide review <artifact-dir>",
     executed_by_default: false,
   },
   {
@@ -367,11 +367,11 @@ function commandResultsFor(input: {
     staticHealthResult(input.repoPath, input.report),
     skippedGate({
       gate: "adapter-lint",
-      command: `cd ${shellQuote(input.repoPath)} && riptide doctor`,
+      command: `cd ${shellQuote(input.repoPath)} && riptide readiness .`,
       artifacts: adapter ? [adapter] : [],
       nextAction: adapter
-        ? "Run the per-adapter doctor report in the validation lane before upgrading the launch claim."
-        : "Add a repo-local adapter TOML before running the per-adapter doctor report.",
+        ? "Run the per-adapter health report in the validation lane before upgrading the launch claim."
+        : "Add a repo-local adapter TOML before running the per-adapter health report.",
     }),
     skippedGate({
       gate: "direct-baseline-run",
@@ -386,7 +386,7 @@ function commandResultsFor(input: {
     skippedGate({
       gate: "guided-sim-run-review",
       command: guidedManifest
-        ? `cd ${shellQuote(input.repoPath)} && riptide sim run ${shellQuote(guidedManifest)} --out /tmp/riptide-guided-sim-${input.slug} && riptide sim review /tmp/riptide-guided-sim-${input.slug}`
+        ? `cd ${shellQuote(input.repoPath)} && riptide sim run ${shellQuote(guidedManifest)} --out /tmp/riptide-guided-sim-${input.slug} && riptide review /tmp/riptide-guided-sim-${input.slug}`
         : `cd ${shellQuote(input.repoPath)} && riptide sim run .riptide/sim --out /tmp/riptide-guided-sim-${input.slug}`,
       artifacts: guidedManifest ? [guidedManifest] : [],
       nextAction: guidedManifest

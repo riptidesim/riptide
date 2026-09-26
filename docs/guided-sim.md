@@ -30,7 +30,7 @@ as oracle or orderbook models.
 | Account mutation and local services | Supported in project-owned Rust | Services can mutate generic SVM accounts through `World`; Riptide core does not contain Pyth, Switchboard, OpenBook, Drift, Mango, Marinade, Whirlpool, or similar layouts. |
 | Metrics, regression, and artifacts | Supported for guided runs | `riptide sim run --out <dir>` writes stable JSON with seeds, flow counts, tx outcomes, compute units, service ticks, failing seed, selected account hashes, and a reviewer rerun script. |
 | Coverage | Guarded gap | LiteSVM binary loading does not emit local guided-run coverage yet. `sim.coverage.enabled = true` fails lint until an entrypoint/binary coverage collector exists. |
-| Review integration | Supported for guided artifacts | `riptide review <artifact-dir>` and `riptide sim review <artifact-dir>` read `guided-sim-run.json`, validate `rerun.sh` when present, and summarize flow counts, transaction labels, failure reason, retained seed, and rerun command. |
+| Review integration | Supported for guided artifacts | `riptide review <artifact-dir>` reads `guided-sim-run.json`, validates `rerun.sh` when present, and summarizes flow counts, transaction labels, failure reason, retained seed, and rerun command. |
 | Cartography / assessment | Supported | `riptide sim surface <run-path> --sim .riptide/sim` turns a guided-sim parameter sweep into a risk surface, and `riptide assess <guided-sim-root>` renders the assessment report. |
 | Audit-equivalent or automatic universal fuzzing | Out of scope | A green guided simulation is simulation evidence for the declared setup, not an audit result or complete coverage proof. |
 
@@ -220,7 +220,6 @@ remain valid review inputs.
 Review the artifact directly:
 
 ```bash
-riptide sim review .riptide/sim/artifacts/run-001
 riptide review .riptide/sim/artifacts/run-001
 ```
 
@@ -277,4 +276,4 @@ block in `Riptide.toml` and writes cartography artifacts
 into the assess root. `riptide assess <guided-sim-root>` then renders the
 heatmap-led assessment report from those artifacts. Run guided sims with
 `riptide sim run --out <dir>` and review any artifact directory with
-`riptide sim review` or `riptide review`.
+`riptide review`.

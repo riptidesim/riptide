@@ -90,8 +90,10 @@ every one of them: each writes one envelope to stdout, and on failure its
 `error.code` and `error.next` name the repair to make.
 
 - `riptide init --json` — scaffold the Workspace (non-interactive).
-- `riptide readiness <dir> --json` — read-only repo classification evidence.
-- `riptide doctor --json` — toolchain presence plus adapter load and lint.
+- `riptide readiness <dir> --json` — read-only repo classification evidence,
+  plus toolchain presence and adapter load and lint under `data.health`. A
+  warning-only health check is still `ok: true`; a failing one is
+  `health_checks_failed`, with the full report still in `data`.
 - `riptide sim generate --adapter <adapter.toml> --json` — scaffold the sim
   crate. Unresolved tick-0 seams come back as `sim_setup_gaps`.
 - `riptide sim refresh --adapter <adapter.toml> --dir .riptide/sim --json` —
@@ -102,12 +104,12 @@ every one of them: each writes one envelope to stdout, and on failure its
   `sim_build_failed`; a failing iteration is `sim_run_failed` with its seed.
 - `riptide sim debug <sim-dir> --seed <hex> --json` — replay one seed with
   verbose labelled transaction logging, returned as `data.log`.
-- `riptide sim review <artifact-dir> --json` — review a run's retained evidence.
 - `riptide sim surface <artifact-dir> --sim <sim-dir> --json` — build the cartography
   root the Assessment reads.
 - `riptide sim fork --address <pubkey> --out <path> --json` — fetch or reuse an
   account snapshot cache.
-- `riptide review <guided-sim-root> --json` — review a surfaced root.
+- `riptide review <path> --json` — review a run's artifact directory, a
+  surfaced root or a retained case.
 - `riptide assess <guided-sim-root> --json [--input <json>] [--brief]` — render
   the Engine Output for the Assessment.
 
