@@ -33,7 +33,7 @@ test("riptide-config skill frontmatter is present and names the merged flow", as
   assert.match(raw, /default configuration path after `riptide init`/);
   assert.match(raw, /Plain\s+init intentionally creates only a thin `\.riptide\/` bootstrap/);
   assert.match(raw, /Own adapter, persona, flow, sweep, and invariant authoring by default/);
-  assert.match(raw, /When the user explicitly ran `riptide init --wizard`/);
+  assert.match(raw, /When `\.riptide\/` already carries user-authored choices/);
   assert.match(raw, /Preserve selected personas in the adapter/);
   assert.match(raw, /Preserve selected flow emphasis and existing `\.riptide\/sim\/Riptide\.toml`/);
   assert.match(raw, /Do not rewrite the stored `\[sim\.sweep\] seeds_per_value`/);

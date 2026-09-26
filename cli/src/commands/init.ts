@@ -59,7 +59,8 @@ export function createInitCommand(deps: InitDeps = {}): Command {
     );
 
   return command.action(async (options: InitOptions) => {
-    process.exitCode = await runInit(options, deps);
+    const exitCode = await runInit(options, deps);
+    process.exit(exitCode);
   });
 }
 

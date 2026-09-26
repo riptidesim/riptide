@@ -132,7 +132,6 @@ export function detectPrograms(cwd: string): ProgramDetection[] {
   );
 }
 
-
 /** Filter a detection list to a single named program. */
 export function selectProgram(
   detected: ProgramDetection[],
@@ -208,7 +207,6 @@ function missingArtifactWarnings(cwd: string, programName: string): string[] {
   }
   return warnings;
 }
-
 
 function normalizeProgramName(value: string): string {
   const normalized = value.trim().replace(/_/g, "-");
@@ -352,7 +350,6 @@ function uniqueStrings(values: string[]): string[] {
   return out;
 }
 
-
 export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult> {
   const { cwd, force } = options;
   const riptideDir = path.join(cwd, ".riptide");
@@ -490,6 +487,8 @@ function renderDefaultedAdapterFor(
 
 // Build output and run scratch stay out of git; the sim crate, run
 // configuration and Assessments stay committable so anyone can rerun them.
+// sim/artifacts/ is not scratch: `assess` ingests and hashes the
+// guided-sim runs there as evidence.
 const WORKSPACE_IGNORE = `# Riptide Workspace: build output and run scratch.
 target/
 runs/

@@ -16,9 +16,9 @@ metadata:
 # riptide-config
 
 This skill is the default configuration path after `riptide init`. Plain
-init intentionally creates only a thin `.riptide/` bootstrap: adapter
-placeholder, artifact path hints when available, and
-`.riptide/GETTING-STARTED.md`. The same agent session owns the adapter
+init intentionally creates only a thin `.riptide/` bootstrap: one adapter
+per detected program and the Workspace ignore file `.riptide/.gitignore`.
+The same agent session owns the adapter
 TOML, the generated guided-sim crate (setup seams, personas, flows,
 sweep, invariants), validation, repair loops, and the final readiness
 report.
@@ -126,16 +126,15 @@ configuration report discusses them.
 Prefer editing the scaffolded adapter in place. Preserve user-authored
 `.riptide` files when present.
 
-## Thin Init And Wizard Choices
+## Thin Init And Existing Choices
 
 Treat a thin default `riptide init` scaffold as normal input, not as an
 incomplete user task. In the thin path, you are expected to create or
 repair the adapter, the generated guided-sim crate, inline personas,
 flows, the sweep, and invariants yourself.
 
-When the user explicitly ran `riptide init --wizard`, treat those
-questionnaire answers as source-of-truth inputs, not disposable
-scaffolding:
+When `.riptide/` already carries user-authored choices, treat them as
+source-of-truth inputs, not disposable scaffolding:
 
 - Preserve selected personas in the adapter unless source facts prove a
   persona cannot execute against the adapter. If you remove or rename one,
@@ -152,11 +151,11 @@ scaffolding:
   smoke gates. Do not rewrite the stored `[sim.sweep] seeds_per_value`
   just because the smoke used a one-seed override.
 
-When both wizard choices and a confirmed Risk Plan are present, preserve
+When both existing choices and a confirmed Risk Plan are present, preserve
 both unless they conflict. If they conflict, the confirmed Risk Plan is
 the newer source-of-truth for evidence profile, sweep shape, runtime
 ceiling, artifact ceiling, and guided-sim recommendations; record any
-changed wizard sizing in the final report.
+changed existing sizing in the final report.
 
 For any existing user-authored `.riptide` file, preserve the user's
 content unless validation proves it is invalid. If you change an existing
