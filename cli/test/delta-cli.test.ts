@@ -18,7 +18,14 @@ import { runValidate } from "../src/commands/validate.js";
 import { assessmentDigestOf } from "../src/assess/model.js";
 import { canonicalJson, type JsonValue } from "../src/state-pack/json.js";
 
-const EXAMPLE_CONTEXT = path.resolve(process.cwd(), "..", "riptide-assess-skill", "examples", "assessment-context.json");
+const EXAMPLE_CONTEXT = path.resolve(
+  process.cwd(),
+  "..",
+  "riptide-assess-skill",
+  "skill",
+  "examples",
+  "assessment-context.json"
+);
 const PREVIOUS = ".riptide/assessments/001";
 const CURRENT = ".riptide/assessments/002";
 
@@ -128,7 +135,16 @@ async function runSweep(cwd: string, fires: number[], badDebtShift: number, valu
 /** Render Engine Output into `dir`, keeping the Engine's own assessment.md for every later compose. */
 async function render(cwd: string, dir: string): Promise<Driven> {
   await mkdir(path.join(cwd, dir), { recursive: true });
-  const rendered = await drive(cwd, (io) => runAssess(".riptide", { json: true, out: dir }, io));
+  const context = JSON.parse(await readFile(EXAMPLE_CONTEXT, "utf8")) as { engine_version: string };
+  const input = path.join(cwd, ".riptide", "assessment-input.json");
+  await writeFile(
+    input,
+    JSON.stringify({
+      reproductionCommands: [`npx --yes @riptide/cli@${context.engine_version} assess .riptide --json --out ${dir}`]
+    }),
+    "utf8"
+  );
+  const rendered = await drive(cwd, (io) => runAssess(".riptide", { json: true, out: dir, input }, io));
   if (rendered.exitCode === 0) {
     await writeFile(engineRender(cwd, dir), await readFile(path.join(cwd, dir, "assessment.md"), "utf8"));
   }

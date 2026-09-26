@@ -35,14 +35,23 @@ exact rerun commands.
 
 ## Assess With The Skill
 
-Install Riptide:
+Install the Skill in one step. In Claude Code, from the plugin marketplace:
+
+```text
+/plugin marketplace add riptidesim/riptide
+/plugin install riptide@riptide
+```
+
+In any other agent host, including Codex:
 
 ```bash
-curl -fsSL https://riptide.run/install | sh
+npx skills add riptidesim/riptide
 ```
 
 Then open the Solana program repo you want to assess in your agent and run the
-Skill:
+Skill. On first use it checks for `cargo`, `cargo-build-sbf` and `node >= 20`
+and runs the exact Engine version it pins through `npx`; there is nothing else
+to install:
 
 ```text
 /riptide-assess

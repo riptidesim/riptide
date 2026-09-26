@@ -4,10 +4,10 @@
 
 - Riptide source and issues: `https://github.com/riptidesim/riptide`,
   `https://github.com/riptidesim/riptide/issues`
-- Engine Output input shape: [`../examples/assessment-input.json`](../examples/assessment-input.json)
-- Assessment Context shape: [`../examples/assessment-context.json`](../examples/assessment-context.json)
-- Out-of-Scope Note shape: [`../examples/out-of-scope-note.json`](../examples/out-of-scope-note.json)
-- Blocker Report shape: [`../examples/blocker-report.json`](../examples/blocker-report.json)
+- Engine Output input shape: [`./examples/assessment-input.json`](./examples/assessment-input.json)
+- Assessment Context shape: [`./examples/assessment-context.json`](./examples/assessment-context.json)
+- Out-of-Scope Note shape: [`./examples/out-of-scope-note.json`](./examples/out-of-scope-note.json)
+- Blocker Report shape: [`./examples/blocker-report.json`](./examples/blocker-report.json)
 
 ## Skill file index
 

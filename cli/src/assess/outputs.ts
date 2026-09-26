@@ -14,6 +14,7 @@ import {
   COMPOSED_REPORT_FILE,
   DEPTHS,
   ENGINE_OUTPUT_FILE,
+  checkEngineVersion,
   checkGapsCover,
   checkSections,
   parseVersioned,
@@ -196,6 +197,7 @@ async function checkOutOfScopeNote(
         );
   await checkComposed(dir, label, OUT_OF_SCOPE_NOTE_REPORT, OUT_OF_SCOPE_NOTE_SECTIONS, rerun, problems);
   if (note === null) return null;
+  checkEngineVersion(note.engine_version, OUT_OF_SCOPE_NOTE_FILE, { dir, label, rerun }, problems);
   return {
     kind: "out-of-scope-note",
     assessment_dir: label,
@@ -225,6 +227,7 @@ async function checkBlockerReport(
           problems
         );
   if (report !== null) {
+    checkEngineVersion(report.engine_version, BLOCKER_REPORT_FILE, { dir, label, rerun }, problems);
     checkGapsCover(report.not_exercised.instructions, report.not_exercised.actors, report.gaps, rerun, problems);
   }
   const markdown = await checkComposed(

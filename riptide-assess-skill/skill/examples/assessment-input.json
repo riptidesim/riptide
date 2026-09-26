@@ -35,8 +35,8 @@
       "status": "covered by guided sim",
       "evidence_tier": "guided sim",
       "commands": [
-        "riptide sim run .riptide/sim --flows 20 --out .riptide/sim/artifacts/crash",
-        "riptide sim surface .riptide/sim/artifacts/crash --sim .riptide/sim"
+        "npx --yes @riptide/cli@0.12.0 sim run .riptide/sim --flows 20 --out .riptide/sim/artifacts/crash --json",
+        "npx --yes @riptide/cli@0.12.0 sim surface .riptide/sim/artifacts/crash --sim .riptide/sim --json"
       ],
       "artifacts": [
         ".riptide/sim/artifacts/crash/guided-sim-run.json"
@@ -52,5 +52,10 @@
       "artifacts": [],
       "notes": "No deterministic local fixtures for the external venues; named as a scope boundary, not silently skipped."
     }
+  ],
+  "reproductionCommands": [
+    "npx --yes @riptide/cli@0.12.0 sim run .riptide/sim --flows 20 --out .riptide/sim/artifacts/crash --json",
+    "npx --yes @riptide/cli@0.12.0 sim surface .riptide/sim/artifacts/crash --sim .riptide/sim --json",
+    "npx --yes @riptide/cli@0.12.0 assess .riptide/sim/artifacts/crash --json --input .riptide/assessment-input.json --out .riptide/assessments/001"
   ]
 }

@@ -17,8 +17,8 @@ command beyond classification and the gate. Write two files into
 ```json
 {
   "schema_version": "out-of-scope-note.v1",
-  "skill_version": "<this Skill's version>",
-  "engine_version": "<riptide --version>",
+  "skill_version": "<the Version Pin>",
+  "engine_version": "<the Version Pin>",
   "target": "<program path>",
   "classification": {
     "verdict": "not-economic-protocol",
@@ -38,7 +38,7 @@ command beyond classification and the gate. Write two files into
    the target, such as auditor-skill, solana-security-standard or
    solana-cpi-safety-skill, each with what it checks.
 
-Example: [`../examples/out-of-scope-note.json`](../examples/out-of-scope-note.json).
+Example: [`./examples/out-of-scope-note.json`](./examples/out-of-scope-note.json).
 
 ## Blocker Report
 
@@ -51,8 +51,8 @@ Write two files into `.riptide/blocker-report/`:
 ```json
 {
   "schema_version": "blocker-report.v1",
-  "skill_version": "<this Skill's version>",
-  "engine_version": "<riptide --version>",
+  "skill_version": "<the Version Pin>",
+  "engine_version": "<the Version Pin>",
   "depth": "default",
   "scope_declaration": [
     { "assumption": "...", "reason": "...", "override": "/riptide-assess <Steering Hint>" }
@@ -63,10 +63,23 @@ Write two files into `.riptide/blocker-report/`:
 }
 ```
 
+- `skill_version` and `engine_version` are both the Version Pin named in
+  [SKILL.md](./SKILL.md), in all three outputs.
 - `not_exercised` lists every instruction and actor in scope; each one is the
   `subject` of a Gap. Blocked before Classify named any, both lists are empty
   and the Gap names the missing prerequisite.
 - There is at least one Gap.
+
+A missing prerequisite (see Prerequisites in [SKILL.md](./SKILL.md)) blocks
+before Classify. `blocker.command` is the failed check, `blocker.error` starts
+with `prerequisite_missing`, and one Gap per missing prerequisite names it as
+its `subject`, with what to install as its `unblock`:
+
+```json
+"blocker": { "command": "cargo-build-sbf --version", "error": "prerequisite_missing: cargo-build-sbf not found on PATH" },
+"not_exercised": { "instructions": [], "actors": [] },
+"gaps": [{ "subject": "cargo-build-sbf", "reason": "...", "unblock": "install the Solana CLI, which ships cargo-build-sbf" }]
+```
 
 `blocker-report.md`, in this order:
 
@@ -74,7 +87,10 @@ Write two files into `.riptide/blocker-report/`:
 2. `## Blocker` — the exact failed command and its error summary.
 3. `## Gaps` — every Gap by its subject, with its reason and unblock.
 
-Example: [`../examples/blocker-report.json`](../examples/blocker-report.json).
+Examples: [`./examples/blocker-report.json`](./examples/blocker-report.json)
+(the program does not build) and
+[`./examples/blocker-report-prerequisite.json`](./examples/blocker-report-prerequisite.json)
+(a missing prerequisite).
 
 ## No risk surface in either
 
@@ -102,8 +118,10 @@ riptide validate .riptide/blocker-report --json
 
 The gate rejects an Assessment whose Coverage is zero
 (`validate_coverage_zero`): write a Blocker Report instead. The one delivery
-the gate cannot check is a Blocker Report for a missing or failed Engine
-install; deliver it with the failed command and the missing piece named.
+the gate cannot check is a Blocker Report for a missing `node >= 20`, since the
+Engine cannot run without it; deliver it with the failed check and the missing
+piece named. Every output's `engine_version` must be the Engine running the
+gate (`validate_engine_version_mismatch`).
 
 Deliver an Out-of-Scope Note or a Blocker Report as its composed report,
 verbatim.
@@ -122,7 +140,25 @@ row per P0 flow (`priority`, `flow`, `status`, `evidence_tier`, `commands`,
 verdict is one of `ready_to_send`, `needs_guided_sim`,
 `needs_campaign_tuning`, `blocked` or `unsupported`. Every line must be backed
 by what ran; the input adds protocol nouns and figures, never new Breaches.
-See [`../examples/assessment-input.json`](../examples/assessment-input.json).
+See [`./examples/assessment-input.json`](./examples/assessment-input.json).
+
+`reproductionCommands` is required: the exact commands that reproduce this
+Assessment, in order — the `sim run` and `sim surface` invocations that
+produced the root, then the `assess` render — each written out in full
+against the pinned Engine, so the Engine Output's reproduction block never
+depends on a local install:
+
+```json
+"reproductionCommands": [
+  "npx --yes @riptide/cli@<Version Pin> sim run .riptide/sim --out .riptide/sim/artifacts/crash --json",
+  "npx --yes @riptide/cli@<Version Pin> sim surface .riptide/sim/artifacts/crash --sim .riptide/sim --json",
+  "npx --yes @riptide/cli@<Version Pin> assess .riptide --json --input .riptide/assessment-input.json --out <fresh-dir>"
+]
+```
+
+The gate rejects an Assessment whose `assessment.json` lists a rerun command
+that does not start with `npx --yes @riptide/cli@<engine_version> `
+(`validate_rerun_unpinned`).
 
 Each Assessment has its own directory under `.riptide/assessments/`: `001`
 for the first, and the next number for each rerun (see
@@ -156,7 +192,7 @@ shape is versioned by `schema_version`; every string is non-empty:
 ```json
 {
   "schema_version": "assessment-context.v1",
-  "skill_version": "<this Skill's version>",
+  "skill_version": "<the Version Pin>",
   "engine_version": "<the Version Pin>",
   "depth": "default",
   "family": "lending",
@@ -223,7 +259,7 @@ shape is versioned by `schema_version`; every string is non-empty:
   `new_instructions`. The Engine computes it; never edit it (see
   [reuse.md](./reuse.md)).
 
-A complete example: [`../examples/assessment-context.json`](../examples/assessment-context.json).
+A complete example: [`./examples/assessment-context.json`](./examples/assessment-context.json).
 
 ### Composed assessment.md
 
@@ -298,8 +334,9 @@ complete:
 6. Paths: `assessment.md`, `assessment.json`, `assessment-context.json`, the
    brief, and the evidence pack (`campaign-summary.md`,
    `retention-manifest.json`, `retained/`, any `rerun.sh`).
-7. The exact rerun commands executed: every `riptide sim run`,
-   `riptide sim surface` and `riptide assess` invocation with its options.
+7. The exact rerun commands, verbatim from the Engine Output's reproduction
+   block: every `sim run`, `sim surface` and `assess` invocation with its
+   options, each against the pinned Engine.
 8. The execution-honesty gate results as `riptide assess` printed them.
 9. The boundary: simulation evidence over the declared region, not an audit
    signoff.

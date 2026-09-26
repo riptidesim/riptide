@@ -1,6 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "test": "npm --prefix cli test --"
+    "test": "npm --prefix cli test --",
+    "release": "node scripts/release.mjs"
   }
 }

@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { FAMILY_CLASS, FLOOR_INVARIANTS, type Family } from "../src/sim/floor-invariants.js";
@@ -295,7 +297,7 @@ test("the Report stage writes the Assessment Context and passes the validation g
   const body = await skillBody();
   const report = await readFile(path.join(SKILL_DIR, "report.md"), "utf8");
   const example = JSON.parse(
-    await readFile(path.join(BUNDLE_ROOT, "examples", "assessment-context.json"), "utf8")
+    await readFile(path.join(SKILL_DIR, "examples", "assessment-context.json"), "utf8")
   ) as { schema_version: string };
 
   assert.match(body, /`riptide validate <assessment-dir> --json`/);
@@ -341,7 +343,7 @@ test("the Classify stage documents the Economic Protocol evidence rules and lets
 
 test("the Report stage defines the Out-of-Scope Note and Blocker Report, gated and free of risk-surface claims", async () => {
   const report = await readFile(path.join(SKILL_DIR, "report.md"), "utf8");
-  const examples = path.join(BUNDLE_ROOT, "examples");
+  const examples = path.join(SKILL_DIR, "examples");
 
   for (const [kind, sections] of [
     ["out-of-scope-note", ["Classification", "Code-Level Auditing"]],
@@ -401,15 +403,159 @@ test("no Skill file words a Breach as a vulnerability", async () => {
   }
 });
 
+async function cliPackage(): Promise<{ name: string; version: string }> {
+  return JSON.parse(await readFile(path.join(REPO_ROOT, "cli", "package.json"), "utf8")) as {
+    name: string;
+    version: string;
+  };
+}
+
+/** Every file an installed Skill carries: the whole `skill/` directory. */
+async function installedFiles(dir = SKILL_DIR): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) for (const [file, raw] of await installedFiles(full)) files.set(file, raw);
+    else files.set(path.relative(SKILL_DIR, full), await readFile(full, "utf8"));
+  }
+  return files;
+}
+
 test("SKILL.md names one Version Pin, the CLI package version, and the Assessment Context records it", async () => {
   const body = await skillBody();
   const report = await readFile(path.join(SKILL_DIR, "report.md"), "utf8");
-  const { version } = JSON.parse(await readFile(path.join(REPO_ROOT, "cli", "package.json"), "utf8")) as {
-    version: string;
-  };
+  const { version } = await cliPackage();
   const pins = [...body.matchAll(/\*\*Version Pin:\*\* `([^`]+)`/g)].map((match) => match[1]);
   assert.deepEqual(pins, [version]);
   assert.match(report, /"engine_version": "<the Version Pin>"/);
+  assert.match(report, /"skill_version": "<the Version Pin>"/);
+  assert.doesNotMatch(report, /this Skill's version/);
+});
+
+test("the Skill resolves the Engine only through the pinned npm package", async () => {
+  const body = await skillBody();
+  const { name, version } = await cliPackage();
+  assert.ok(body.includes(`npx --yes ${name}@${version} <command>`), "SKILL.md does not give the pinned invocation");
+  assert.match(body, /resolves the Engine only through npm at the Version Pin/);
+  assert.match(body, /Never run\s+a `riptide` found on PATH/);
+
+  for (const [file, raw] of await installedFiles()) {
+    for (const [, pinned] of raw.matchAll(/@riptide\/cli@([^\s`"<>]+)/g)) {
+      assert.equal(pinned, version, `${file} names Engine ${pinned}, not the Version Pin`);
+    }
+    for (const installer of [/\bcurl\b/, /\bwget\b/, /install\.sh/, /riptide\.run\/install/, /\bnpm (i|install) (-g|--global)\b/, /`riptide --version`/]) {
+      assert.doesNotMatch(raw, installer, `${file} resolves the Engine outside the Version Pin`);
+    }
+    if (file.startsWith(`examples${path.sep}`) && file.endsWith(".json")) {
+      const example = JSON.parse(raw) as Record<string, unknown>;
+      for (const field of ["skill_version", "engine_version"]) {
+        if (field in example) assert.equal(example[field], version, `${file} ${field} is not the Version Pin`);
+      }
+    }
+  }
+  assert.equal(existsSync(path.join(BUNDLE_ROOT, "install.sh")), false);
+});
+
+test("the Skill checks every prerequisite first and stops with a Blocker Report naming what is missing", async () => {
+  const body = await skillBody();
+  const report = await readFile(path.join(SKILL_DIR, "report.md"), "utf8");
+  const { version } = await cliPackage();
+  const prerequisites = body.slice(body.indexOf("### Prerequisites"), body.indexOf("### Engine commands"));
+
+  for (const [prerequisite, check] of [
+    ["`node >= 20`", "`node --version`"],
+    ["`cargo`", "`cargo --version`"],
+    ["`cargo-build-sbf`", "`cargo-build-sbf --version`"],
+    ["the Engine", `\`npx --yes @riptide/cli@${version} --version\``]
+  ]) {
+    assert.ok(prerequisites.includes(`| ${prerequisite} | ${check} |`), `Prerequisites does not check ${prerequisite}`);
+  }
+  assert.ok(prerequisites.includes(`it prints \`${version}\``));
+  assert.match(prerequisites, /stop and deliver a\s+\*\*Blocker Report\*\* that names the\s+missing piece/);
+  assert.match(prerequisites, /Do not start a\s+partial run/);
+
+  assert.match(report, /`blocker\.error` starts\s+with `prerequisite_missing`/);
+  assert.match(report, /\[`\.\/examples\/blocker-report-prerequisite\.json`\]/);
+});
+
+test("every file the Skill links is installed with it", async () => {
+  for (const [file, raw] of await installedFiles()) {
+    if (!file.endsWith(".md")) continue;
+    const dir = path.dirname(path.join(SKILL_DIR, file));
+    for (const [, target] of raw.matchAll(/\]\((\.{1,2}\/[^)#\s]+)/g)) {
+      const resolved = path.resolve(dir, target!);
+      assert.ok(!path.relative(SKILL_DIR, resolved).startsWith(".."), `${file} links ${target}, outside the Skill`);
+      assert.ok(existsSync(resolved), `${file} links to missing ${target}`);
+    }
+  }
+});
+
+test("the plugin marketplace manifest installs the one Skill at the CLI version", async () => {
+  const manifest = JSON.parse(await readFile(path.join(REPO_ROOT, ".claude-plugin", "marketplace.json"), "utf8")) as {
+    name: string;
+    owner: { name: string };
+    plugins: Array<{ name: string; source: string; version: string; strict: boolean; skills: string[] }>;
+  };
+  const { version } = await cliPackage();
+  const kebab = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+  assert.match(manifest.name, kebab);
+  assert.ok(manifest.owner.name.length > 0);
+  assert.equal(manifest.plugins.length, 1);
+  const [plugin] = manifest.plugins;
+  assert.match(plugin!.name, kebab);
+  assert.equal(plugin!.version, version);
+  assert.equal(plugin!.strict, false);
+  const pluginRoot = path.resolve(REPO_ROOT, plugin!.source);
+  assert.equal(pluginRoot, BUNDLE_ROOT);
+  assert.deepEqual(
+    plugin!.skills.map((dir) => path.resolve(pluginRoot, dir)),
+    [SKILL_DIR],
+    "the plugin must install exactly the canonical Skill"
+  );
+});
+
+test("the release script bumps the CLI version and every Version Pin together, and publishes to npm", async () => {
+  const script = path.join(REPO_ROOT, "scripts", "release.mjs");
+  const release = (...args: string[]) =>
+    spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
+
+  const checked = release("check");
+  assert.equal(checked.status, 0, checked.stderr);
+
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-release-"));
+  try {
+    for (const file of [
+      path.join("cli", "package.json"),
+      path.join("cli", "npm-shrinkwrap.json"),
+      path.join(".claude-plugin", "marketplace.json")
+    ]) {
+      await mkdir(path.dirname(path.join(root, file)), { recursive: true });
+      await cp(path.join(REPO_ROOT, file), path.join(root, file));
+    }
+    await cp(SKILL_DIR, path.join(root, "riptide-assess-skill", "skill"), { recursive: true });
+
+    const bumped = release("bump", "9.8.7", "--root", root);
+    assert.equal(bumped.status, 0, bumped.stderr);
+    const pkg = JSON.parse(await readFile(path.join(root, "cli", "package.json"), "utf8")) as { version: string };
+    assert.equal(pkg.version, "9.8.7");
+    const skill = await readFile(path.join(root, "riptide-assess-skill", "skill", "SKILL.md"), "utf8");
+    assert.ok(skill.includes("**Version Pin:** `9.8.7`"));
+    assert.ok(skill.includes("npx --yes @riptide/cli@9.8.7 <command>"));
+
+    await writeFile(
+      path.join(root, "riptide-assess-skill", "skill", "SKILL.md"),
+      skill.replace("npx --yes @riptide/cli@9.8.7 <command>", "npx --yes @riptide/cli@9.8.6 <command>")
+    );
+    const drifted = release("check", "--root", root);
+    assert.equal(drifted.status, 1);
+    assert.match(drifted.stderr, /Version Pin drift from the CLI version 9\.8\.7/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+
+  const source = await readFile(script, "utf8");
+  assert.match(source, /\["publish", "--access", "public"/);
 });
 
 test("the reuse stage refreshes, repairs and reruns the previous region, and requires the Delta on reruns", async () => {

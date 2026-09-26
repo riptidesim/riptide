@@ -1,0 +1,29 @@
+{
+  "name": "riptide",
+  "description": "The Riptide Skill: deterministic simulation Assessments of Solana Economic Protocols.",
+  "owner": {
+    "name": "Riptide",
+    "url": "https://github.com/riptidesim/riptide"
+  },
+  "plugins": [
+    {
+      "name": "riptide",
+      "source": "./riptide-assess-skill",
+      "description": "Deterministic simulation Assessment of a Solana Economic Protocol, run with /riptide-assess.",
+      "version": "0.12.0",
+      "license": "MIT",
+      "homepage": "https://github.com/riptidesim/riptide",
+      "repository": "https://github.com/riptidesim/riptide",
+      "keywords": [
+        "solana",
+        "simulation",
+        "risk",
+        "assessment"
+      ],
+      "strict": false,
+      "skills": [
+        "./skill"
+      ]
+    }
+  ]
+}

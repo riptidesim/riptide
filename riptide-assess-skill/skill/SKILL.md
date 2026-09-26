@@ -61,9 +61,27 @@ the sim runtime. The Skill is its only driver. Users never run it, and the
 Assessment never directs them to.
 
 **Version Pin:** `0.12.0`, the one Engine version this Skill release names.
-The Assessment Context records it as `engine_version`, and every Breach's
-replay command runs it as `npx --yes @riptide/cli@<Version Pin>`.
+The Skill and the Engine are released together, so this is also the Skill's
+own version.
 
+The Skill resolves the Engine only through npm at the Version Pin. Every
+Engine command runs as:
+
+```bash
+npx --yes @riptide/cli@0.12.0 <command>
+```
+
+This bundle writes that invocation as `riptide <command>` for short. Never run
+a `riptide` found on PATH, never run an installer script, and never resolve
+another version: results must match everyone else on this Skill release.
+
+- The Assessment Context, the Out-of-Scope Note and the Blocker Report record
+  the Version Pin as both `skill_version` and `engine_version`. The gate
+  rejects an output whose `engine_version` is not the Engine running it.
+- Every rerun command an Assessment lists, and every Breach's replay command,
+  is written out in full as `npx --yes @riptide/cli@<Version Pin> <command>`,
+  so a teammate reproduces it with the pinned Engine rather than whatever is
+  installed.
 - Pass `--json` to every Engine command that accepts it and read the result
   from stdout. On an error, follow the `next` field before improvising.
 - No Engine command reads stdin. A command that appears to wait is a defect to
@@ -77,15 +95,22 @@ replay command runs it as `npx --yes @riptide/cli@<Version Pin>`.
 
 ### Prerequisites
 
-Check the host before any stage runs: `cargo`, `cargo-build-sbf` and
-`node >= 20`. If `riptide --version` fails, install the Engine:
+First contact is silent: check the host before any stage runs, in this order,
+and install nothing but the pinned Engine.
 
-```bash
-curl -fsSL https://riptide.run/install | sh
-```
+| Prerequisite | Check | Passes when |
+|---|---|---|
+| `node >= 20` | `node --version` | it prints `v20` or later |
+| `cargo` | `cargo --version` | it exits 0 |
+| `cargo-build-sbf` | `cargo-build-sbf --version` | it exits 0 |
+| the Engine | `npx --yes @riptide/cli@0.12.0 --version` | it prints `0.12.0` |
 
-If a prerequisite is missing, or the Engine install fails, stop and deliver a
-**Blocker Report** that names the missing piece. Do not start a partial run.
+If any check fails, stop and deliver a **Blocker Report** that names the
+missing piece: `blocker.command` is the failed check, the Gap's `subject` is
+the prerequisite, and its `unblock` says what to install. Do not start a
+partial run. The Blocker Report is gated like any other output, except when
+`node >= 20` itself is missing: the Engine cannot run the gate then. →
+[report.md](./report.md)
 
 ### Engine commands
 

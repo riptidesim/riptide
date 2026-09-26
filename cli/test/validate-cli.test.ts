@@ -6,6 +6,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -15,11 +16,22 @@ import { runAssess } from "../src/commands/assess.js";
 import { runSimSurface } from "../src/commands/sim.js";
 import { runValidate } from "../src/commands/validate.js";
 
-const EXAMPLES = path.resolve(process.cwd(), "..", "riptide-assess-skill", "examples");
+const EXAMPLES = path.resolve(process.cwd(), "..", "riptide-assess-skill", "skill", "examples");
+const { version: VERSION_PIN } = JSON.parse(readFileSync(path.resolve(process.cwd(), "package.json"), "utf8")) as {
+  version: string;
+};
+const ENGINE = `npx --yes @riptide/cli@${VERSION_PIN}`;
 const EXAMPLE_CONTEXT = path.join(EXAMPLES, "assessment-context.json");
 const ASSESSMENT_DIR = ".riptide/assessment";
+/** The assessment input the Skill authors: every rerun command runs the pinned Engine. */
+const PINNED_INPUT = {
+  reproductionCommands: [
+    `${ENGINE} sim surface .riptide/sim/artifacts/smoke --sim .riptide/sim --json`,
+    `${ENGINE} assess .riptide --json --input .riptide/assessment-input.json --out ${ASSESSMENT_DIR}`
+  ]
+};
 const EXAMPLE_SEED = "0000000000000000000000000000000000000000000000000000000000000003";
-const EXAMPLE_REPLAY = `npx --yes @riptide/cli@0.12.0 sim debug .riptide/sim --seed ${EXAMPLE_SEED}`;
+const EXAMPLE_REPLAY = `${ENGINE} sim debug .riptide/sim --seed ${EXAMPLE_SEED}`;
 
 interface Envelope {
   schema_version: string;
@@ -77,7 +89,7 @@ function problemOf(envelope: Envelope, code: string): { code: string; message: s
 }
 
 /** A Workspace with surfaced guided-sim evidence and Engine Output rendered into `.riptide/assessment`. */
-async function renderedWorkspace(): Promise<string> {
+async function renderedWorkspace(input: object = PINNED_INPUT): Promise<string> {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-validate-"));
   const simDir = path.join(cwd, ".riptide", "sim");
   const runDir = path.join(simDir, "artifacts", "smoke");
@@ -134,16 +146,17 @@ async function renderedWorkspace(): Promise<string> {
   );
   assert.equal(surfaced.exitCode, 0, surfaced.stdout);
   await mkdir(path.join(cwd, ASSESSMENT_DIR));
+  await writeFile(path.join(cwd, ".riptide", "assessment-input.json"), JSON.stringify(input), "utf8");
   const assessed = await drive(cwd, (io) =>
-    runAssess(".riptide", { json: true, out: ASSESSMENT_DIR }, io)
+    runAssess(".riptide", { json: true, out: ASSESSMENT_DIR, input: ".riptide/assessment-input.json" }, io)
   );
   assert.equal(assessed.exitCode, 0, assessed.stdout);
   return cwd;
 }
 
 /** A complete Assessment: Engine Output, the example Assessment Context, and the composed report. */
-async function validWorkspace(): Promise<string> {
-  const cwd = await renderedWorkspace();
+async function validWorkspace(input?: object): Promise<string> {
+  const cwd = await renderedWorkspace(input);
   await writeFile(assessmentFile(cwd, "assessment-context.json"), await readFile(EXAMPLE_CONTEXT, "utf8"));
   await writeFile(assessmentFile(cwd, "assessment.md"), await composeReport(cwd));
   return cwd;
@@ -217,7 +230,7 @@ test("validate: writing the Assessment Context leaves the Engine Output bytes un
   assert.equal((await validate(cwd)).exitCode, 0);
 
   await mkdir(path.join(cwd, "fresh"));
-  const fresh = await drive(cwd, (io) => runAssess(".riptide", { json: true, out: "fresh" }, io));
+  const fresh = await drive(cwd, (io) => runAssess(".riptide", { json: true, out: "fresh", input: ".riptide/assessment-input.json" }, io));
   assert.equal(fresh.exitCode, 0, fresh.stdout);
   assert.equal(
     await readFile(assessmentFile(cwd, "assessment.json"), "utf8"),
@@ -586,19 +599,24 @@ test("validate --json: an Assessment with zero Coverage is rejected in favour of
 });
 
 /** A directory holding one short-circuit output: the bundle's example sidecar and a composed report. */
-async function shortCircuitDir(kind: "out-of-scope-note" | "blocker-report", markdown?: string): Promise<string> {
+async function shortCircuitDir(
+  kind: "out-of-scope-note" | "blocker-report",
+  markdown?: string,
+  example: string = kind
+): Promise<string> {
   const cwd = await mkdtemp(path.join(os.tmpdir(), `riptide-validate-${kind}-`));
   await mkdir(path.join(cwd, ASSESSMENT_DIR), { recursive: true });
-  await writeFile(assessmentFile(cwd, `${kind}.json`), await readFile(path.join(EXAMPLES, `${kind}.json`), "utf8"));
-  await writeFile(assessmentFile(cwd, `${kind}.md`), markdown ?? (await composeShortCircuit(kind)));
+  await writeFile(assessmentFile(cwd, `${kind}.json`), await readFile(path.join(EXAMPLES, `${example}.json`), "utf8"));
+  await writeFile(assessmentFile(cwd, `${kind}.md`), markdown ?? (await composeShortCircuit(kind, [], example)));
   return cwd;
 }
 
 async function composeShortCircuit(
   kind: "out-of-scope-note" | "blocker-report",
-  extraSections: string[] = []
+  extraSections: string[] = [],
+  exampleName: string = kind
 ): Promise<string> {
-  const example = JSON.parse(await readFile(path.join(EXAMPLES, `${kind}.json`), "utf8"));
+  const example = JSON.parse(await readFile(path.join(EXAMPLES, `${exampleName}.json`), "utf8"));
   const bodies: Array<[string, string]> =
     kind === "out-of-scope-note"
       ? [
@@ -743,4 +761,65 @@ test("validate --json: a directory holding more than one output, or none, is rej
   const empty = await mkdtemp(path.join(os.tmpdir(), "riptide-validate-empty-"));
   await mkdir(path.join(empty, ASSESSMENT_DIR), { recursive: true });
   await assertRejected(empty, "validate_output_missing");
+});
+
+test("validate --json: an Assessment whose Engine Output lists an unpinned rerun command is rejected", async () => {
+  const cwd = await validWorkspace({
+    reproductionCommands: [`riptide assess .riptide --json --out ${ASSESSMENT_DIR}`]
+  });
+  const envelope = await assertRejected(cwd, "validate_rerun_unpinned");
+  assert.match(problemOf(envelope, "validate_rerun_unpinned").message, /"riptide assess \.riptide/);
+  assert.ok(problemOf(envelope, "validate_rerun_unpinned").next.includes(`${ENGINE} <command>`));
+});
+
+test("validate --json: an Assessment rendered without rerun commands against the pinned Engine is rejected", async () => {
+  const cwd = await validWorkspace({});
+  await assertRejected(cwd, "validate_rerun_unpinned");
+});
+
+test("validate --json: every output must record the Engine running the gate as engine_version", async () => {
+  const assessment = await validWorkspace();
+  await editContext(assessment, (context) => {
+    context.engine_version = "0.0.1";
+    for (const breach of context.breaches) {
+      breach.replay_command = `npx --yes @riptide/cli@0.0.1 sim debug .riptide/sim --seed ${breach.seed}`;
+    }
+  });
+  const envelope = await assertRejected(assessment, "validate_engine_version_mismatch");
+  const problem = problemOf(envelope, "validate_engine_version_mismatch");
+  assert.match(problem.message, new RegExp(`engine_version 0\\.0\\.1, but the Engine running this gate is ${VERSION_PIN}`));
+  assert.ok(problem.next.includes(`npx --yes @riptide/cli@0.0.1 validate ${ASSESSMENT_DIR} --json`));
+
+  for (const kind of ["out-of-scope-note", "blocker-report"] as const) {
+    const cwd = await shortCircuitDir(kind);
+    await editShortCircuit(cwd, kind, (output) => {
+      output.engine_version = "0.0.1";
+    });
+    const rejected = await assertRejected(cwd, "validate_engine_version_mismatch");
+    assert.equal(rejected.data?.kind, kind);
+  }
+});
+
+test("validate --json: a missing prerequisite produces a valid Blocker Report naming it", async () => {
+  const cwd = await shortCircuitDir("blocker-report", undefined, "blocker-report-prerequisite");
+  const { exitCode, envelope } = await validate(cwd);
+  assert.equal(exitCode, 0, JSON.stringify(envelope.data));
+  assert.deepEqual(envelope.data, {
+    schema_version: "validate-cli.v1",
+    kind: "blocker-report",
+    assessment_dir: ASSESSMENT_DIR,
+    report_schema_version: "blocker-report.v1",
+    depth: "default",
+    gaps: 1
+  });
+
+  const report = JSON.parse(await readFile(assessmentFile(cwd, "blocker-report.json"), "utf8"));
+  assert.equal(report.engine_version, VERSION_PIN);
+  assert.match(report.blocker.error, /^prerequisite_missing: /);
+  assert.deepEqual(report.not_exercised, { instructions: [], actors: [] });
+  assert.ok(report.gaps.some((gap: { subject: string }) => report.blocker.command.startsWith(gap.subject)));
+
+  const markdown = await readFile(assessmentFile(cwd, "blocker-report.md"), "utf8");
+  await writeFile(assessmentFile(cwd, "blocker-report.md"), markdown.replace(/^- cargo-build-sbf:.*$/m, "- a tool"));
+  await assertRejected(cwd, "validate_report_gap_unnamed");
 });

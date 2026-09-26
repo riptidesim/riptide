@@ -12,6 +12,7 @@ import { assessmentDigestOf, type AssessmentModel } from "./model.js";
 import { FAMILIES, FLOOR_INVARIANTS, isFloorInvariant, type Family } from "../sim/floor-invariants.js";
 import { canonicalJson, type JsonValue } from "../state-pack/json.js";
 import type { CommandError } from "../contract/index.js";
+import { cliPackageVersion } from "../version.js";
 
 export const ASSESSMENT_CONTEXT_SCHEMA_VERSION = "assessment-context.v1" as const;
 
@@ -37,9 +38,14 @@ export const INVARIANT_OUTCOMES = ["held", "breached", "gap"] as const;
 /** The npm package the Version Pin names; a Breach replays against exactly that Engine version. */
 export const ENGINE_PACKAGE = "@riptide/cli";
 
+/** An Engine command run by the pinned Engine, fetched from npm rather than whatever is installed. */
+export function pinnedEngineCommand(engineVersion: string, args: string): string {
+  return `npx --yes ${ENGINE_PACKAGE}@${engineVersion} ${args}`;
+}
+
 /** The exact seed replay command for a Breach: `sim debug` on the Workspace's sim crate, run by the pinned Engine. */
 export function breachReplayCommand(engineVersion: string, seed: string): string {
-  return `npx --yes ${ENGINE_PACKAGE}@${engineVersion} sim debug .riptide/sim --seed ${seed}`;
+  return pinnedEngineCommand(engineVersion, `sim debug .riptide/sim --seed ${seed}`);
 }
 
 /** A Causal Trace cites ticks as `T<n>` (`**T4**`, `T3–T7`). */
@@ -163,8 +169,13 @@ export async function validateAssessment(dir: string, label = dir): Promise<Asse
   const problems: CommandError[] = [];
   const at = { dir, label, rerun: `then rerun \`riptide validate ${label} --json\`` };
 
-  const digest = (await checkEngineOutput(at, problems))?.assessment_digest ?? null;
+  const model = await checkEngineOutput(at, problems);
+  const digest = model?.assessment_digest ?? null;
   const context = await checkContext(at, problems);
+  if (context !== null) {
+    checkEngineVersion(context.engine_version, ASSESSMENT_CONTEXT_FILE, at, problems);
+    if (model !== null) checkRerunCommands(model, context.engine_version, at, problems);
+  }
   await checkReport(at, digest, context, problems);
 
   if (problems.length > 0 || digest === null || context === null) return { ok: false, problems };
@@ -238,6 +249,58 @@ export async function checkEngineOutput(
     return null;
   }
   return parsed as unknown as AssessmentModel;
+}
+
+/**
+ * The Engine version an output records is the Engine running the gate: the
+ * Skill runs every command through its Version Pin, so a mismatch means the
+ * output names an Engine that did not produce it.
+ */
+export function checkEngineVersion(
+  recorded: string,
+  file: string,
+  { label, rerun }: CheckTarget,
+  problems: CommandError[]
+): void {
+  const running = cliPackageVersion();
+  if (recorded === running) return;
+  problems.push({
+    code: "validate_engine_version_mismatch",
+    message: `${file} records engine_version ${recorded}, but the Engine running this gate is ${running}`,
+    next:
+      `record the Version Pin ${running} as engine_version, ${rerun}; an output from Engine ${recorded} ` +
+      `is validated by that Engine: \`${pinnedEngineCommand(recorded, `validate ${label} --json`)}\``
+  });
+}
+
+/** Every rerun command the Engine Output lists runs the pinned Engine, so reproducing it never depends on a local install. */
+function checkRerunCommands(
+  model: AssessmentModel,
+  engineVersion: string,
+  { label, rerun }: CheckTarget,
+  problems: CommandError[]
+): void {
+  const prefix = pinnedEngineCommand(engineVersion, "");
+  const next =
+    `list every rerun command as \`${prefix}<command>\` under reproductionCommands in the assessment input ` +
+    `and render the Engine Output again with \`riptide assess --input <assessment-input.json>\`, ${rerun}`;
+  const { commands } = model.reproduction;
+  if (commands.length === 0) {
+    problems.push({
+      code: "validate_rerun_unpinned",
+      message: `${ENGINE_OUTPUT_FILE} in ${label} lists no rerun command`,
+      next
+    });
+  }
+  for (const command of commands) {
+    if (!command.startsWith(prefix)) {
+      problems.push({
+        code: "validate_rerun_unpinned",
+        message: `${ENGINE_OUTPUT_FILE} rerun command ${JSON.stringify(command)} does not run the pinned Engine ${engineVersion}`,
+        next
+      });
+    }
+  }
 }
 
 export async function checkContext(
