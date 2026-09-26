@@ -14,10 +14,24 @@ For every invariant, Floor and agent-authored alike:
      perturb the oracle price past the liquidation line;
    - a conservation invariant: skip one transfer inside a flow;
    - a price or peg invariant: perturb the oracle price outside the band.
-2. Run it on one fixed seed through a Firing Check mode on `riptide sim run`,
-   if `riptide sim run --help` lists one. The Engine may not offer it yet; in
-   that case do not hand-roll an injection, and record the result as `not-run`.
-3. Record the result per invariant: `fired`, `did-not-fire` or `not-run`.
+2. Declare it in `.riptide/sim/src/violations.rs`, one `FiringCheck` per
+   invariant. `riptide sim generate` scaffolds one that zeroes the first field
+   the invariant reads; replace it with the violation from step 1:
+   `Violation::zero_field(account, offset, width)`,
+   `Violation::perturb_pyth_price(oracle, drop_bps)`,
+   `Violation::skip_transfer(source, destination, amount)`, or
+   `Violation::custom(description, |world| ...)` for anything else.
+3. Run every check on one fixed seed:
+
+   ```bash
+   riptide sim run .riptide/sim --firing-check --flows 20 --seed 1337 --json
+   ```
+
+   `data.invariants` carries each invariant's `result` (`fired` or
+   `did-not-fire`), the violation it injected and, when the Engine can tell,
+   a `detail` saying why it did not fire. A run that cannot reach the
+   injection is `sim_firing_check_failed`: repair the flow first.
+4. Record the result per invariant: `fired`, `did-not-fire` or `not-run`.
 
 Outcomes:
 
@@ -27,9 +41,9 @@ Outcomes:
   metric the flows never record, or its threshold cannot be reached. Repair
   it once (see [repair.md](./repair.md)) and check again. If it still does
   not fire, it is reported as a Gap.
-- `not-run` — the Engine has no Firing Check mode, or could not apply the
-  violation. It is reported as a Gap whose unblock is an Engine Firing Check
-  for that invariant.
+- `not-run` — the Firing Check could not run within the repair budget (the
+  sim never reaches the injection). It is reported as a Gap whose unblock is
+  the repair that lets one seed reach the end of its run.
 
 An invariant that has not passed its Firing Check never counts as held, and no
 sentence of the Assessment may describe it as holding. Record each result in

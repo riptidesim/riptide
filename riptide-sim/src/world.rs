@@ -150,6 +150,10 @@ impl World {
         &self.iteration_invariant_fires
     }
 
+    pub(crate) fn clear_invariant_fires(&mut self) {
+        self.iteration_invariant_fires.clear();
+    }
+
     pub fn svm(&self) -> &LiteSVM {
         &self.svm
     }

@@ -65,6 +65,7 @@ By default, the crate lands at `.riptide/sim/`:
     ├── accounts.rs
     ├── flows.rs
     ├── invariants.rs
+    ├── violations.rs
     └── services/
 ```
 
@@ -82,7 +83,8 @@ your program, and survives CLI upgrades. The vendored copy is refreshed
 on every full `riptide sim generate`.
 
 Write protocol behavior in `flows.rs`, invariant checks in
-`invariants.rs`, and project-local mocks in `services/`.
+`invariants.rs`, the violation each invariant's Firing Check injects in
+`violations.rs`, and project-local mocks in `services/`.
 
 ## Bootstrap external state
 
@@ -255,7 +257,7 @@ riptide sim refresh --adapter .riptide/adapters/<program>.toml --dir .riptide/si
 ```
 
 This replaces `types.rs` and `accounts.rs` and preserves `flows.rs`,
-`invariants.rs`, `types_ext.rs`, and `services/`. Use `types_ext.rs`
+`invariants.rs`, `violations.rs`, `types_ext.rs`, and `services/`. Use `types_ext.rs`
 for hand-written builders or IDL type overrides that should survive
 refresh. Use the `--force-generated` flag only when you intentionally
 want a clean slate for user-owned files too.

@@ -92,12 +92,13 @@ riptide sim generate --adapter .riptide/adapters/<program>.toml --json
 ```
 
 This scaffolds `.riptide/sim` with `Riptide.toml`, `src/flows.rs`,
-`src/invariants.rs`, generated `types.rs` / `accounts.rs`, a `services/`
+`src/invariants.rs`, `src/violations.rs` (one Firing Check violation per
+invariant, see [firing-check.md](./firing-check.md)), generated `types.rs` / `accounts.rs`, a `services/`
 directory and `setup-gaps.json`, which names every tick-0 seam the Engine
 refused to invent. Setup code carries `TODO(setup)` markers where pre-tick-0
 state must exist. Keep `types.rs` / `accounts.rs` regenerated-only; put
 authored actions, dynamic account resolution and service models under
-`flows.rs`, `invariants.rs` and `services/`.
+`flows.rs`, `invariants.rs`, `violations.rs` and `services/`.
 
 ## d. Fill the setup seams
 

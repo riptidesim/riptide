@@ -10,6 +10,7 @@ use serde::Serialize;
 use solana_sdk::pubkey::Pubkey;
 
 use crate::{
+    firing::{FiringCheck, FiringCheckOutcome, FiringCheckReport, FiringResult},
     rng::{seed_from_hex, seed_to_hex},
     TxOutcome, World,
 };
@@ -42,6 +43,13 @@ pub trait RiptideSimulation: Default {
     fn __riptide_dispatch_flow(&mut self, idx: usize) -> Result<()>;
     fn __riptide_end(&mut self) -> Result<()>;
     fn __riptide_flow_table() -> &'static [FlowSpec];
+
+    /// The violation each invariant's Firing Check injects, declared by a
+    /// `#[violations]` method. Read after init and the flows, so declarations
+    /// can name accounts the sim created.
+    fn __riptide_violations(&mut self) -> Vec<FiringCheck> {
+        Vec::new()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -514,15 +522,147 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
     }
 }
 
+impl<T: RiptideSimulation> SimulationRunner<T> {
+    /// Check every invariant declared by the sim's `#[violations]` method: on
+    /// the first iteration's seed, run init and the flows, inject the
+    /// invariant's violation, run the end-of-run check, and report whether
+    /// the invariant recorded a fire. An invariant that already fires without
+    /// the injection did not fire because of it.
+    pub fn firing_check(&self) -> Result<FiringCheckReport> {
+        let seed = iteration_seed(self.config.seed, 0);
+        let declared = self
+            .reach_end(seed)?
+            .__riptide_violations()
+            .into_iter()
+            .map(|check| check.invariant)
+            .collect::<Vec<_>>();
+        let invariants = declared
+            .into_iter()
+            .enumerate()
+            .map(|(index, invariant)| self.fire(seed, index, invariant))
+            .collect::<Result<Vec<_>>>()?;
+        Ok(FiringCheckReport {
+            seed: seed_to_hex(&seed),
+            flows_per_iteration: self.config.flows_per_iteration,
+            invariants,
+        })
+    }
+
+    fn reach_end(&self, seed: [u8; 32]) -> Result<T> {
+        let table = T::__riptide_flow_table();
+        let reached = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<T> {
+            let mut simulation = T::default();
+            simulation.world().set_rng_seed(seed);
+            simulation
+                .__riptide_init()
+                .map_err(|error| anyhow!("init failed before the Firing Check: {error:#}"))?;
+            for step_index in 0..self.config.flows_per_iteration {
+                let idx = select_flow(
+                    table,
+                    simulation.world(),
+                    self.replay_flow_sequence.as_deref(),
+                    step_index,
+                )?;
+                simulation.__riptide_dispatch_flow(idx).map_err(|error| {
+                    anyhow!(
+                        "flow {} failed at step {step_index} before the Firing Check: {error:#}",
+                        table[idx].name
+                    )
+                })?;
+                simulation.world().tick_services();
+            }
+            Ok(simulation)
+        }));
+        reached.unwrap_or_else(|payload| {
+            Err(anyhow!(
+                "simulation panicked before the Firing Check: {}",
+                panic_message(&payload)
+            ))
+        })
+    }
+
+    fn fire(&self, seed: [u8; 32], index: usize, invariant: String) -> Result<FiringCheckOutcome> {
+        let mut simulation = self.reach_end(seed)?;
+        let check = simulation
+            .__riptide_violations()
+            .into_iter()
+            .nth(index)
+            .filter(|check| check.invariant == invariant)
+            .ok_or_else(|| anyhow!("the #[violations] declarations changed between runs"))?;
+        let violation = check.violation.describe();
+        let outcome = |result, detail: Option<String>| FiringCheckOutcome {
+            invariant: invariant.clone(),
+            violation: violation.clone(),
+            result,
+            detail,
+        };
+
+        simulation.world().clear_invariant_fires();
+        // Another invariant may already fail here; only this one's fire counts.
+        let _ = run_end(&mut simulation);
+        if fires(&mut simulation, &invariant) {
+            return Ok(outcome(
+                FiringResult::DidNotFire,
+                Some("the invariant fires without the injection".to_owned()),
+            ));
+        }
+
+        simulation.world().clear_invariant_fires();
+        if let Err(error) = check.violation.apply(simulation.world()) {
+            return Ok(outcome(
+                FiringResult::DidNotFire,
+                Some(format!("the violation could not be applied: {error:#}")),
+            ));
+        }
+        let end = run_end(&mut simulation);
+        if fires(&mut simulation, &invariant) {
+            return Ok(outcome(FiringResult::Fired, None));
+        }
+        // An end that fails without recording any fire checks its invariants
+        // some other way than `run_expression_invariants`.
+        let unrecorded = simulation.world().iteration_invariant_fires().is_empty();
+        Ok(outcome(
+            FiringResult::DidNotFire,
+            end.err().filter(|_| unrecorded).map(|error| {
+                format!("the end-of-run check failed without recording an invariant fire: {error}")
+            }),
+        ))
+    }
+}
+
+/// Run the sim's end-of-run check, turning a panic into an error.
+fn run_end<T: RiptideSimulation>(simulation: &mut T) -> Result<(), String> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| simulation.__riptide_end())) {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(error)) => Err(format!("{error:#}")),
+        Err(payload) => Err(format!("panicked: {}", panic_message(&payload))),
+    }
+}
+
+fn fires<T: RiptideSimulation>(simulation: &mut T, invariant: &str) -> bool {
+    simulation
+        .world()
+        .iteration_invariant_fires()
+        .iter()
+        .any(|name| name == invariant)
+}
+
 pub fn run<T>() -> ExitCode
 where
     T: RiptideSimulation,
 {
     let args = RunnerArgs::parse();
-    match args
-        .try_into_config()
-        .and_then(|config| SimulationRunner::<T>::new(config).run())
-    {
+    let firing_check = args.firing_check;
+    match args.try_into_config().and_then(|config| {
+        let runner = SimulationRunner::<T>::new(config);
+        if firing_check {
+            let report = runner.firing_check()?;
+            println!("riptide firing-check {}", serde_json::to_string(&report)?);
+            Ok(())
+        } else {
+            runner.run()
+        }
+    }) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("riptide sim: {error:#}");
@@ -976,6 +1116,11 @@ struct RunnerArgs {
     /// Seed replicates per swept value (default 1). Only used with `--sweep`.
     #[arg(long = "seeds-per-value", default_value_t = 1)]
     seeds_per_value: u64,
+    /// Run each declared invariant's Firing Check on the first iteration's
+    /// seed instead of the simulation, and print the report as one
+    /// `riptide firing-check <json>` line. Writes no run artifact.
+    #[arg(long = "firing-check", conflicts_with_all = ["sweep", "out_dir"])]
+    firing_check: bool,
 }
 
 impl RunnerArgs {
@@ -1690,6 +1835,142 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(out_dir);
+    }
+
+    const COLLATERAL_OFFSET: usize = 8;
+
+    #[derive(Default)]
+    struct FiringSim {
+        world: World,
+        vault: Pubkey,
+        decoy: Pubkey,
+    }
+
+    impl FiringSim {
+        fn install(&mut self, collateral: u64) -> Result<Pubkey> {
+            let key = Pubkey::new_unique();
+            let mut data = vec![0u8; 16];
+            data[COLLATERAL_OFFSET..].copy_from_slice(&collateral.to_le_bytes());
+            self.world.set_account(
+                key,
+                solana_account::Account {
+                    lamports: 1_000_000,
+                    data,
+                    owner: Pubkey::new_unique(),
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )?;
+            Ok(key)
+        }
+
+        fn collateral(&self, key: &Pubkey) -> u128 {
+            self.world
+                .get_account(key)
+                .map(|account| {
+                    u64::from_le_bytes(account.data[COLLATERAL_OFFSET..].try_into().unwrap())
+                })
+                .unwrap_or(0) as u128
+        }
+    }
+
+    #[riptide_sim]
+    impl FiringSim {
+        #[init]
+        fn init(&mut self) -> Result<()> {
+            self.vault = self.install(100)?;
+            self.decoy = self.install(100)?;
+            Ok(())
+        }
+
+        #[flow]
+        fn noop(&mut self) {}
+
+        #[end]
+        fn end(&mut self) -> Result<()> {
+            let ctx = crate::ContextBuilder::new()
+                .u128("collateral", self.collateral(&self.vault))
+                .u128("decoy_collateral", self.collateral(&self.decoy))
+                .build();
+            let mut descriptor = crate::kernel::semantics::SemanticsDescriptor::new();
+            for (name, expr) in [
+                ("backed", "collateral >= 1"),
+                ("misread", "decoy_collateral >= 1"),
+                ("always_broken", "collateral >= 1000"),
+                ("unreachable", "collateral >= 1"),
+            ] {
+                descriptor.invariant(name, expr, crate::kernel::semantics::Severity::Error)?;
+            }
+            crate::run_expression_invariants(&mut self.world, &descriptor, &ctx, 0)
+        }
+
+        #[violations]
+        fn violations(&mut self) -> Vec<FiringCheck> {
+            let zero_vault = || crate::Violation::zero_field(self.vault, COLLATERAL_OFFSET, 8);
+            vec![
+                FiringCheck::new("backed", zero_vault()),
+                FiringCheck::new("misread", zero_vault()),
+                FiringCheck::new("always_broken", zero_vault()),
+                FiringCheck::new(
+                    "unreachable",
+                    crate::Violation::zero_field(Pubkey::new_unique(), 0, 8),
+                ),
+            ]
+        }
+    }
+
+    #[test]
+    fn firing_check_reports_each_declared_invariant() {
+        let report = SimulationRunner::<FiringSim>::new(RunnerConfig::default())
+            .firing_check()
+            .unwrap();
+        assert_eq!(report.seed, seed_to_hex(&iteration_seed([0x52; 32], 0)));
+        assert_eq!(report.flows_per_iteration, 1);
+        let results = report
+            .invariants
+            .iter()
+            .map(|outcome| (outcome.invariant.as_str(), outcome.result))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            results,
+            [
+                ("backed", FiringResult::Fired),
+                ("misread", FiringResult::DidNotFire),
+                ("always_broken", FiringResult::DidNotFire),
+                ("unreachable", FiringResult::DidNotFire),
+            ]
+        );
+        assert_eq!(report.invariants[0].detail, None);
+        assert!(report.invariants[0]
+            .violation
+            .starts_with("zero 8 byte(s) at offset 8 of "));
+        assert_eq!(report.invariants[1].detail, None);
+        assert_eq!(
+            report.invariants[2].detail.as_deref(),
+            Some("the invariant fires without the injection")
+        );
+        assert!(report.invariants[3]
+            .detail
+            .as_deref()
+            .unwrap()
+            .starts_with("the violation could not be applied: account "));
+    }
+
+    #[test]
+    fn firing_check_without_declarations_reports_no_invariants() {
+        let report = SimulationRunner::<CounterSim>::new(RunnerConfig::default())
+            .firing_check()
+            .unwrap();
+        assert!(report.invariants.is_empty());
+    }
+
+    #[test]
+    fn firing_check_stops_when_a_flow_fails_before_the_injection() {
+        let error = SimulationRunner::<FailingSim>::new(RunnerConfig::default())
+            .firing_check()
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("before the Firing Check"), "{error}");
     }
 
     #[derive(Default)]

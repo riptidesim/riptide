@@ -160,6 +160,13 @@ test("the Firing Check stage reports an unchecked invariant as a Gap", async () 
   assert.match(raw, /reported as a Gap/);
 });
 
+test("the Firing Check stage drives the Engine's firing-check mode", async () => {
+  const raw = await readFile(path.join(SKILL_DIR, "firing-check.md"), "utf8");
+  assert.match(raw, /riptide sim run \.riptide\/sim --firing-check .*--json/);
+  assert.match(raw, /\.riptide\/sim\/src\/violations\.rs/);
+  assert.doesNotMatch(raw, /Engine may not offer it/);
+});
+
 test("the Setup and Repair references keep the repair guidance", async () => {
   const setup = await readFile(path.join(SKILL_DIR, "setup.md"), "utf8");
   const repair = await readFile(path.join(SKILL_DIR, "repair.md"), "utf8");

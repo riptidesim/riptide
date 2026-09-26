@@ -36,6 +36,7 @@ flowchart TB
     subgraph Code["Guided-sim crate — project-owned Rust"]
         F["flows.rs — protocol behavior"]
         I["invariants.rs — checks"]
+        V["violations.rs — Firing Check injections"]
         S["services/ — local oracle/orderbook models"]
         M["Riptide.toml — bootstrap manifest"]
     end
@@ -56,7 +57,8 @@ flowchart TB
 2. **Guided-sim crate** — the Rust crate `riptide sim generate` scaffolds
    at `.riptide/sim/`. Generated `types.rs` (typed IDL builders) and
    `accounts.rs` (address storage) are regenerated code; `flows.rs`,
-   `invariants.rs`, `types_ext.rs`, and `services/` are project-owned.
+   `invariants.rs`, `violations.rs`, `types_ext.rs`, and `services/` are
+   project-owned.
    This is where protocol behavior lives: dynamic `remaining_accounts`,
    multi-instruction transactions, target-vs-agent dispatch, and local
    oracle/orderbook/stake service models.
@@ -91,6 +93,7 @@ the adapter and its IDL and writes the crate:
     ├── accounts.rs     — generated address-storage fields
     ├── flows.rs        — project-owned protocol behavior
     ├── invariants.rs   — project-owned checks
+    ├── violations.rs   — project-owned Firing Check violations
     └── services/       — project-owned local service models
 ```
 
@@ -356,6 +359,16 @@ is unchanged.
   `data.diagnostics`, cargo's exit code), `sim_run_failed` (the seed to
   replay as `data.failing_seed`), `sim_runner_failed` (the runner stopped
   before any iteration failed), `sim_cargo_unavailable`.
+- **`sim run --firing-check`**: instead of the simulation, runs init and
+  the flows on one seed, then, per invariant the sim's `#[violations]`
+  method declares (`src/violations.rs`), injects its violation and runs the
+  end-of-run check. `data.invariants` lists each invariant, the injected
+  violation, `result` (`fired` or `did-not-fire`) and a `detail` when the
+  runtime can say why it did not fire; `data.fired` and `data.did_not_fire`
+  count them. It writes no run artifact and takes no `--out`. Failures:
+  `sim_firing_check_undeclared` (no violations declared, exit 2),
+  `sim_firing_check_failed` (the seed never reached the injection), plus
+  the build and cargo codes of `sim run`.
 - **`sim surface`**: `data` names the output directory, the campaign ID,
   the files written and the execution-honesty gate report. The files are
   byte-identical to the ones the human path writes. Failures:

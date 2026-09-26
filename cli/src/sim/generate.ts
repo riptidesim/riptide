@@ -16,7 +16,7 @@ import {
   type SetupGapsReport
 } from "./setup-gaps.js";
 import { renderBootstrapManifest } from "./render-manifest.js";
-import { renderInvariants } from "./render-invariants.js";
+import { renderInvariants, renderViolations } from "./render-invariants.js";
 import { renderFlows } from "./render-flows.js";
 import {
   renderMain,
@@ -163,6 +163,11 @@ export async function generateSim(
     await writeIfFirst(
       path.join(srcDir, "invariants.rs"),
       renderInvariants(resolved.adapter, idl),
+      forceUserOwned
+    );
+    await writeIfFirst(
+      path.join(srcDir, "violations.rs"),
+      renderViolations(resolved.adapter, idl),
       forceUserOwned
     );
     // Pin the sim crate's toolchain so a case-study root that pins an older

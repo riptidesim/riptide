@@ -83,6 +83,43 @@ test("sim generate writes a guided Rust crate from the AMM IDL", async () => {
   assert.match(bootstrapToml, /Protocol-specific layouts stay in your/);
 });
 
+test("sim generate scaffolds a Firing Check violation for each invariant", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-gen-violations-"));
+  const adapter = path.join(repoRoot, "fixtures", "adapters", "amm.toml");
+  const result = await generateQuiet(root, adapter);
+
+  const mainRs = await readFile(path.join(result.dir, "src", "main.rs"), "utf8");
+  const violationsRs = await readFile(path.join(result.dir, "src", "violations.rs"), "utf8");
+  assert.match(mainRs, /mod violations;/);
+  assert.match(mainRs, /#\[violations\]\s+fn violations\(&mut self\) -> Vec<riptide_sim::FiringCheck> \{\s+violations::declare\(self\)/);
+  const declared = [...violationsRs.matchAll(/FiringCheck::new\(\s+"([^"]+)",\s+Violation::zero_field\(/g)].map(
+    (match) => match[1]
+  );
+  assert.deepEqual(declared, [
+    "reserve_pair_nonzero_together",
+    "lp_supply_backed_by_liquidity",
+    "fee_config_bounded",
+    "stored_k_tracks_current_product"
+  ]);
+  assert.match(violationsRs, /riptide sim run --firing-check/);
+
+  await writeFile(path.join(result.dir, "src", "violations.rs"), "// authored\n", "utf8");
+  await generateQuiet(root, adapter);
+  assert.equal(
+    await readFile(path.join(result.dir, "src", "violations.rs"), "utf8"),
+    "// authored\n",
+    "a later generate preserves the authored violations"
+  );
+});
+
+test("sim generate scaffolds no violations when the adapter declares no invariants", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-gen-no-violations-"));
+  const result = await generateQuiet(root, derivableAdapter);
+
+  const violationsRs = await readFile(path.join(result.dir, "src", "violations.rs"), "utf8");
+  assert.match(violationsRs, /pub fn declare\(_sim: &mut Simulation\) -> Vec<FiringCheck> \{\s+Vec::new\(\)/);
+});
+
 test("sim generate uses fixed-address program load when adapter declares program_id", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-fixed-program-"));
   const repoRoot = path.resolve(process.cwd(), "..");

@@ -12,7 +12,7 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import chalk from "chalk";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 
 import {
   errorEnvelope,
@@ -79,7 +79,7 @@ export function createSimCommand(deps: SimCommandDeps = {}): Command {
     .option("--dir <path>", "Simulation crate directory", ".riptide/sim")
     .option(
       "--force-generated",
-      "Overwrite user-owned flows.rs, invariants.rs, and services/* files too",
+      "Overwrite user-owned flows.rs, invariants.rs, violations.rs, and services/* files too",
       false
     )
     .option("--json", "Emit the result as a command envelope", false)
@@ -105,6 +105,12 @@ export function createSimCommand(deps: SimCommandDeps = {}): Command {
     .option("--flows <n>", "Flow calls per iteration")
     .option("--seed <hex>", "Deterministic seed as hex")
     .option("--out <dir>", "Write guided-sim JSON artifacts to a directory")
+    .addOption(
+      new Option(
+        "--firing-check",
+        "Inject each invariant's declared violation on one seed and report whether it fired"
+      ).conflicts(["out", "iterations"])
+    )
     .option("--json", "Emit the result as a command envelope", false)
     .action(async (simPath: string, options: RunOptions) => {
       process.exitCode = await runSimRun(simPath, options, deps);
@@ -388,6 +394,7 @@ export interface RunOptions extends JsonOption {
   seed?: string;
   debug?: boolean;
   out?: string;
+  firingCheck?: boolean;
 }
 
 export interface SimDebugOptions extends JsonOption {
@@ -570,7 +577,9 @@ async function runCargoSim(
     return 2;
   }
 
+  const firingCheck = options.firingCheck === true;
   const args = ["run", "--release", "--quiet", "--"];
+  if (firingCheck) args.push("--firing-check");
   if (options.iterations) args.push("--iterations", options.iterations);
   if (options.flows) args.push("--flows", options.flows);
   if (options.seed) args.push("--seed", options.seed);
@@ -579,7 +588,8 @@ async function runCargoSim(
 
   // Manifest-primary parameter sweep: if Riptide.toml declares [sim.sweep],
   // forward it to the runner. Skipped in --debug (single-seed) mode.
-  const sweep = options.debug ? null : await readSweepConfig(path.join(cwd, "Riptide.toml"));
+  const sweep =
+    options.debug || firingCheck ? null : await readSweepConfig(path.join(cwd, "Riptide.toml"));
   if (sweep) {
     for (const flag of formatSweepFlags(sweep)) args.push("--sweep", flag);
     args.push("--seeds-per-value", String(sweep.seedsPerValue));
@@ -645,6 +655,8 @@ async function runCargoSim(
     return run.code;
   }
 
+  if (firingCheck) return reportFiringCheck(run, simPath, cwd, io);
+
   const failingSeed = /^riptide sim failure iteration=\d+ seed=([0-9a-fA-F]+)$/m.exec(run.log)?.[1];
   if (command === "sim debug") {
     if (run.code === 0 || failingSeed) {
@@ -699,6 +711,69 @@ async function runCargoSim(
       })
     )
   );
+  return 0;
+}
+
+export interface FiringCheckOutcomeJson {
+  invariant: string;
+  violation: string;
+  result: "fired" | "did-not-fire";
+  detail: string | null;
+}
+
+interface FiringCheckReportJson {
+  seed: string;
+  flows_per_iteration: number;
+  invariants: FiringCheckOutcomeJson[];
+}
+
+/** The `sim run --firing-check --json` envelope, from the runner's report line. */
+function reportFiringCheck(
+  run: CargoOutcome,
+  simPath: string,
+  crate: string,
+  io: ResolvedCommandIO
+): number {
+  const rerun = `riptide sim run ${simPath} --firing-check --json`;
+  const fail = (error: CommandError, code: number, data: unknown): number => {
+    io.stdout(renderEnvelope(errorEnvelope("sim run", error, data)));
+    return code;
+  };
+  const line = /^riptide firing-check (.+)$/m.exec(run.log)?.[1];
+  if (run.code !== 0 || !line) {
+    return fail(
+      {
+        code: "sim_firing_check_failed",
+        message:
+          runnerError(run.log) ??
+          `the sim exited with code ${run.code} without a Firing Check report`,
+        next: `repair the init or flow named in data.log_tail so one seed reaches the end of its run, then rerun \`${rerun}\``
+      },
+      run.code === 0 ? 1 : run.code,
+      { crate, log_tail: tailLines(run.log, LOG_TAIL_LINES) }
+    );
+  }
+  const report = JSON.parse(line) as FiringCheckReportJson;
+  const data = {
+    crate,
+    seed: report.seed,
+    flows: report.flows_per_iteration,
+    invariants: report.invariants,
+    fired: report.invariants.filter((outcome) => outcome.result === "fired").length,
+    did_not_fire: report.invariants.filter((outcome) => outcome.result === "did-not-fire").length
+  };
+  if (report.invariants.length === 0) {
+    return fail(
+      {
+        code: "sim_firing_check_undeclared",
+        message: "the sim declares no Firing Check violations",
+        next: `declare one FiringCheck per invariant in ${path.join(simPath, "src", "violations.rs")} (returned by the sim's #[violations] method), then rerun \`${rerun}\``
+      },
+      2,
+      data
+    );
+  }
+  io.stdout(renderEnvelope(successEnvelope("sim run", data)));
   return 0;
 }
 

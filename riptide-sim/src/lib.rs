@@ -5,6 +5,7 @@ extern crate self as riptide_sim;
 pub mod accounts;
 pub mod bootstrap;
 pub mod dispatch;
+pub mod firing;
 pub mod kernel;
 pub mod oracle;
 pub mod reseat;
@@ -20,6 +21,7 @@ pub use bootstrap::{
     SimBootstrap, SimManifest,
 };
 pub use dispatch::{register_actor, ThirdPartyDispatch};
+pub use firing::{FiringCheck, FiringCheckOutcome, FiringCheckReport, FiringResult, Violation};
 pub use oracle::{
     crash_in_place as crash_pyth_price_in_place, pyth_receiver_program, PythPriceUpdate,
     PRICE_UPDATE_V2_LEN, PYTH_RECEIVER_PROGRAM,
