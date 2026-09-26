@@ -7,6 +7,8 @@
 // signals the outcome through its exit code as well. See
 // docs/architecture.md § "Engine command contract".
 
+import path from "node:path";
+
 export interface CommandIO {
   stdoutWrite?: (chunk: string) => void;
   stderrWrite?: (chunk: string) => void;
@@ -25,7 +27,7 @@ export function resolveCommandIO(io: CommandIO = {}): ResolvedCommandIO {
   return {
     stdout: io.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk)),
     stderr: io.stderrWrite ?? ((chunk: string) => process.stderr.write(chunk)),
-    cwd: io.cwd ?? process.cwd(),
+    cwd: path.resolve(io.cwd ?? process.cwd()),
     injected: io.stdoutWrite !== undefined || io.stderrWrite !== undefined
   };
 }

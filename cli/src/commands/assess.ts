@@ -135,9 +135,7 @@ export async function runAssess(
   options: AssessOptions,
   deps: AssessCommandDeps = {}
 ): Promise<number> {
-  const io = resolveCommandIO(deps);
-  const { stdout, stderr } = io;
-  const cwd = path.resolve(io.cwd);
+  const { stdout, stderr, cwd } = resolveCommandIO(deps);
 
   try {
     const root = path.resolve(cwd, campaignRoot);

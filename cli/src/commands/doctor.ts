@@ -89,7 +89,7 @@ export async function runDoctor(
           errorEnvelope("doctor", {
             code: "doctor_report_failed",
             message,
-            next: "rerun `riptide doctor --json` with RIPTIDE_DEBUG=1 to see the stack trace",
+            next: "check that the working directory and its .riptide/adapters/ are readable, then rerun `riptide doctor --json`",
           })
         )
       );

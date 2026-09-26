@@ -134,6 +134,21 @@ test("doctor --json: a passing report is one success envelope on stdout", async 
   assert.ok(envelope.data?.environment.some((check) => check.id === "cargo-build-sbf"));
 });
 
+test("doctor --json: a warning-only report is a success envelope that keeps exit 1", async () => {
+  const cwd = await workspaceWithCleanAdapter();
+  const { exitCode, stderr, envelope } = await doctorJson(cwd, {
+    buildReport: probing({ ...HEALTHY_VERSIONS, npm: "0.0.1" }),
+  });
+
+  assert.equal(exitCode, 1);
+  assert.equal(stderr, "");
+  assert.equal(envelope.ok, true);
+  assert.equal(envelope.error, undefined);
+  assert.equal(envelope.data?.verdict, "warn");
+  assert.equal(envelope.data?.exit_code, 1);
+  assert.equal(envelope.data?.environment.find((check) => check.id === "npm")?.status, "warn");
+});
+
 test("doctor --json: a missing prerequisite is the error shape with a next action", async () => {
   const cwd = await workspaceWithCleanAdapter();
   const { exitCode, stderr, envelope } = await doctorJson(cwd, {
