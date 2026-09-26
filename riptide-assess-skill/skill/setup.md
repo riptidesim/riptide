@@ -47,7 +47,7 @@ inputs, not disposable scaffolding:
   authored flows:
 
   ```bash
-  riptide sim refresh --adapter .riptide/adapters/<program>.toml --dir .riptide/sim
+  riptide sim refresh --adapter .riptide/adapters/<program>.toml --dir .riptide/sim --json
   ```
 
 ## b. Author the adapter
@@ -88,7 +88,7 @@ the adapter and rerun doctor — that is a `CLI validation gap` (see
 ## c. Generate the sim crate
 
 ```bash
-riptide sim generate --adapter .riptide/adapters/<program>.toml
+riptide sim generate --adapter .riptide/adapters/<program>.toml --json
 ```
 
 This scaffolds `.riptide/sim` with `Riptide.toml`, `src/flows.rs`,

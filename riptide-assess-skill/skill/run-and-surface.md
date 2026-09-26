@@ -9,8 +9,8 @@ when it renders its output.
 Validate, then smoke before the full sweep:
 
 ```bash
-riptide sim lint .riptide/sim
-riptide sim run .riptide/sim --iterations 5 --flows 20 --seed 1337 --out .riptide/sim/artifacts/smoke
+riptide sim lint .riptide/sim --json
+riptide sim run .riptide/sim --iterations 5 --flows 20 --seed 1337 --out .riptide/sim/artifacts/smoke --json
 riptide sim review .riptide/sim/artifacts/smoke --json
 ```
 
@@ -27,7 +27,7 @@ replicate). Verified options: `--iterations <n>`, `--flows <n>`,
 `--seed <hex>`, `--out <dir>`. Once the smoke passes, run the full sweep:
 
 ```bash
-riptide sim run .riptide/sim --flows 20 --out .riptide/sim/artifacts/<run>
+riptide sim run .riptide/sim --flows 20 --out .riptide/sim/artifacts/<run> --json
 ```
 
 Record every instruction and actor that executed at least once; that record is
@@ -41,12 +41,12 @@ Next: [firing-check.md](./firing-check.md).
 Build the cartography root:
 
 ```bash
-riptide sim surface .riptide/sim/artifacts/<run> --sim .riptide/sim
+riptide sim surface .riptide/sim/artifacts/<run> --sim .riptide/sim --json
 ```
 
 This writes `campaign-summary.json`, `risk-surface.json` and
 `retention-manifest.json`, and records the execution-honesty gate report (see
-[honesty.md](./honesty.md)). Note the root path it prints; Report reads it.
+[honesty.md](./honesty.md)). Note the root path in `data.out_dir`; Report reads it.
 
 The root's `coverage_statement` block is the run's Region Coverage: the swept
 axes, bins and hot or no-signal cells. It says nothing about which

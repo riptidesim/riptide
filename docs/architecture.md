@@ -293,8 +293,38 @@ is unchanged.
   the gate report as `data.execution_honesty`), `assess_artifacts_drifted`,
   `assess_failed`.
 
-The `sim` subcommands other than `sim review` keep their existing output
-until they adopt the envelope.
+- **`sim generate`**: `data` names the crate, adapter, IDL and manifests,
+  and carries the `setup-gaps.json` report as `setup_gaps`. A genesis with
+  unresolved tick-0 seams in a freshly generated `src/flows.rs` is
+  `sim_setup_gaps` (exit 2, with the same `data`); seams in a preserved
+  `flows.rs` are not a failure. Failures: `sim_adapter_not_found`,
+  `sim_adapter_invalid`, `sim_adapter_unsupported`, `sim_idl_invalid`,
+  `sim_runtime_missing`, `sim_generate_failed`.
+- **`sim refresh`**: `data` names the crate, adapter and IDL. Failures: the
+  `sim generate` adapter and IDL codes, and `sim_refresh_failed`.
+- **`sim lint`**: `data` is the lint report (verdict, exit code, findings).
+  PASS and WARN are a success envelope; FAIL is `sim_lint_failed`, whose
+  `next` is the first failing finding's hint, or `sim_lint_manifest_missing`
+  when there is no `Riptide.toml`.
+- **`sim run`** and **`sim debug`**: the crate is built, then run, so a
+  compile error is told apart from a failing run. The crate's own output is
+  captured, not streamed. `sim run`'s `data` names the crate, the `--out`
+  directory, the sweep, a summary of `guided-sim-run.json` and any
+  execution-honesty gate that would block at `assess`. `sim debug`'s `data`
+  is the replay: the seed, `status` (`passed` or `failed`), the runner's
+  failure and the verbose `log`; a failing seed is a successful replay.
+  Failures: `sim_crate_not_found`, `sim_build_failed` (compiler output as
+  `data.diagnostics`, cargo's exit code), `sim_run_failed` (the seed to
+  replay as `data.failing_seed`), `sim_runner_failed` (the runner stopped
+  before any iteration failed), `sim_cargo_unavailable`.
+- **`sim surface`**: `data` names the output directory, the campaign ID,
+  the files written and the execution-honesty gate report. The files are
+  byte-identical to the ones the human path writes. Failures:
+  `sim_surface_run_not_found`, `sim_surface_run_malformed`,
+  `sim_surface_sweep_missing`, `sim_surface_failed`.
+- **`sim fork`**: `data` names the address, cluster, snapshot path and
+  whether the cache was reused. Failures: `sim_fork_cache_invalid`,
+  `sim_fork_fetch_failed`, `sim_fork_account_not_found`, `sim_fork_failed`.
 
 ## Further reading
 

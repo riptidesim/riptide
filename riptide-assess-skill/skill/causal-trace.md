@@ -11,11 +11,12 @@ verdict on the program.
 - The replay log for the Breach's seed:
 
   ```bash
-  riptide sim debug .riptide/sim --seed <hex>
+  riptide sim debug .riptide/sim --seed <hex> --json
   ```
 
-  This reruns one seed with verbose labelled transaction logging. The same
-  command is the Breach's replay command in the Assessment.
+  This reruns one seed with verbose labelled transaction logging, returned as
+  `data.log`. The same command without `--json` is the Breach's replay
+  command in the Assessment.
 - The run's `guided-sim-run.json` (flow table, labelled transaction outcomes,
   retained failing seed, failure reason) and the review output for the run.
 - The adapter and `.riptide/sim/src/invariants.rs`, for the invariant's

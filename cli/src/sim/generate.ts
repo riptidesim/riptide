@@ -6,7 +6,7 @@ import { loadAdapter, type AdapterLoadError } from "../adapter/resolve.js";
 import { cliPackageRootFromModule, monorepoRootFromModule } from "../orchestrator/index.js";
 import { resolveAdapterRuntime, resolveRuntimePath, type Adapter } from "../schemas/adapter.js";
 import { planGenesis } from "./genesis.js";
-import { loadGenericIdl } from "./idl.js";
+import { loadGenericIdl, type GenericIdl } from "./idl.js";
 import { renderAccounts } from "./render-accounts.js";
 import {
   buildSetupGapsReport,
@@ -54,6 +54,25 @@ export interface SimGenerateResult {
   setupGapsPath?: string;
 }
 
+export type SimGenerateErrorCode =
+  | "sim_adapter_not_found"
+  | "sim_adapter_invalid"
+  | "sim_adapter_unsupported"
+  | "sim_idl_invalid"
+  | "sim_runtime_missing";
+
+/** A `sim generate` / `sim refresh` failure the Skill can repair: a stable code and the next action. */
+export class SimGenerateError extends Error {
+  readonly code: SimGenerateErrorCode;
+  readonly next: string;
+  constructor(message: string, code: SimGenerateErrorCode, next: string) {
+    super(message);
+    this.name = "SimGenerateError";
+    this.code = code;
+    this.next = next;
+  }
+}
+
 export async function generateSim(
   cwd: string,
   options: SimGenerateOptions
@@ -61,16 +80,31 @@ export async function generateSim(
   const resolved = await resolveAdapterForSim(cwd, options.adapter);
   const runtime = resolveAdapterRuntime(resolved.adapter);
   if (runtime !== "generic") {
-    throw new Error(
-      `guided simulations currently require an IDL-backed generic adapter; ${resolved.path} resolves to ${runtime}`
+    throw new SimGenerateError(
+      `guided simulations currently require an IDL-backed generic adapter; ${resolved.path} resolves to ${runtime}`,
+      "sim_adapter_unsupported",
+      `set runtime = "generic" and idl_path in ${resolved.path}, then rerun`
     );
   }
   if (!resolved.adapter.idl_path) {
-    throw new Error(`${resolved.path} does not declare idl_path`);
+    throw new SimGenerateError(
+      `${resolved.path} does not declare idl_path`,
+      "sim_adapter_unsupported",
+      `set idl_path in ${resolved.path} to the program's Anchor IDL, then rerun`
+    );
   }
 
   const idlPath = resolveRuntimePath(resolved.adapter.idl_path, resolved.path);
-  const idl = await loadGenericIdl(idlPath);
+  let idl: GenericIdl;
+  try {
+    idl = await loadGenericIdl(idlPath);
+  } catch (err) {
+    throw new SimGenerateError(
+      err instanceof Error ? err.message : String(err),
+      "sim_idl_invalid",
+      `rebuild the program's IDL (anchor build) or point idl_path in ${resolved.path} at a readable Anchor IDL, then rerun`
+    );
+  }
   const outDir = path.resolve(cwd, options.dir ?? ".riptide/sim");
   const srcDir = path.join(outDir, "src");
   const servicesDir = path.join(srcDir, "services");
@@ -94,8 +128,10 @@ export async function generateSim(
   if (!options.regenTypesOnly) {
     const runtimeSource = resolveRuntimeSource();
     if (!runtimeSource) {
-      throw new Error(
-        "guided simulation runtime crates were not found in the source checkout or packaged CLI runtime"
+      throw new SimGenerateError(
+        "guided simulation runtime crates were not found in the source checkout or packaged CLI runtime",
+        "sim_runtime_missing",
+        "reinstall the pinned Engine; its package ships the guided-sim runtime crates"
       );
     }
     const runtimePaths = await materializeRuntime(outDir, runtimeSource);
@@ -269,7 +305,13 @@ async function resolveAdapterForSim(
   }
   const loaded = await loadAdapter(adapterArg, { cwd });
   if (!loaded.ok) {
-    throw new Error(renderAdapterLoadError(loaded.error));
+    throw new SimGenerateError(
+      renderAdapterLoadError(loaded.error),
+      loaded.error.kind === "not-found" ? "sim_adapter_not_found" : "sim_adapter_invalid",
+      loaded.error.kind === "not-found"
+        ? "pass an adapter under .riptide/adapters/ (run `riptide init --json` to scaffold one)"
+        : "repair the adapter TOML named in the message, then rerun"
+    );
   }
   return { path: loaded.value.resolved.path, adapter: loaded.value.adapter };
 }

@@ -11,6 +11,12 @@ Invariant failures are evidence, not setup failures: the artifacts are still
 reviewable, the run carries on, and each one becomes a Breach in the report.
 Only setup failures are repaired.
 
+Start from the failing command's `--json` error: `error.code` says what broke
+(`sim_build_failed`, `sim_lint_failed`, `sim_setup_gaps`, ...) and
+`error.next` names the repair. A build failure carries the compiler output in
+`data.diagnostics`; a failing iteration carries its seed in
+`data.failing_seed`.
+
 Do not stop at "lint PASS" if `riptide sim run` cannot execute the generated
 crate against the adapter. Lint passing is a gate, not the goal.
 

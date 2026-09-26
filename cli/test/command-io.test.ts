@@ -129,7 +129,7 @@ test("command io: sim generate, refresh and lint resolve paths against the injec
   assert.equal(refreshed.exitCode, 0, refreshed.stderr);
   assert.match(refreshed.stderr, /refreshed generated Rust files/);
 
-  const linted = await drive(cwd, (io) => runSimLint(".riptide/sim", io));
+  const linted = await drive(cwd, (io) => runSimLint(".riptide/sim", {}, io));
   assert.equal(linted.exitCode, 0, linted.stdout);
   assert.match(linted.stdout, /Verdict: PASS \(exit 0\)/);
 });

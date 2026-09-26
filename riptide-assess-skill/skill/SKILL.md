@@ -85,23 +85,28 @@ If a prerequisite is missing, or the Engine install fails, stop and deliver a
 
 ### Engine commands
 
-Use only these commands; never invent flags or subcommands.
+Use only these commands; never invent flags or subcommands. Pass `--json` to
+every one of them: each writes one envelope to stdout, and on failure its
+`error.code` and `error.next` name the repair to make.
 
 - `riptide init --json` — scaffold the Workspace (non-interactive).
 - `riptide readiness <dir> --json` — read-only repo classification evidence.
 - `riptide doctor --json` — toolchain presence plus adapter load and lint.
-- `riptide sim generate --adapter <adapter.toml>` — scaffold the sim crate.
-- `riptide sim refresh --adapter <adapter.toml> --dir .riptide/sim` —
+- `riptide sim generate --adapter <adapter.toml> --json` — scaffold the sim
+  crate. Unresolved tick-0 seams come back as `sim_setup_gaps`.
+- `riptide sim refresh --adapter <adapter.toml> --dir .riptide/sim --json` —
   regenerate builders after IDL changes without touching authored flows.
-- `riptide sim lint <sim-dir>` — validate the sim manifest.
-- `riptide sim run <sim-dir> [--iterations N] [--flows N] [--seed HEX] --out <dir>`
-  — run the sweep declared in `[sim.sweep]`.
-- `riptide sim debug <sim-dir> --seed <hex>` — replay one seed with verbose
-  labelled transaction logging.
+- `riptide sim lint <sim-dir> --json` — validate the sim manifest.
+- `riptide sim run <sim-dir> [--iterations N] [--flows N] [--seed HEX] --out <dir> --json`
+  — run the sweep declared in `[sim.sweep]`. A compile error is
+  `sim_build_failed`; a failing iteration is `sim_run_failed` with its seed.
+- `riptide sim debug <sim-dir> --seed <hex> --json` — replay one seed with
+  verbose labelled transaction logging, returned as `data.log`.
 - `riptide sim review <artifact-dir> --json` — review a run's retained evidence.
-- `riptide sim surface <artifact-dir> --sim <sim-dir>` — build the cartography
+- `riptide sim surface <artifact-dir> --sim <sim-dir> --json` — build the cartography
   root the Assessment reads.
-- `riptide sim fork` — fetch or reuse an account snapshot cache.
+- `riptide sim fork --address <pubkey> --out <path> --json` — fetch or reuse an
+  account snapshot cache.
 - `riptide review <guided-sim-root> --json` — review a surfaced root.
 - `riptide assess <guided-sim-root> --json [--input <json>] [--brief]` — render
   the Engine Output for the Assessment.
