@@ -165,11 +165,7 @@ pub fn run_expression_invariants(
         world.record_invariant_fire(&fire.name);
     }
     if let Some(fatal) = fires.iter().find(|fire| fire.severity == Severity::Error) {
-        bail!(
-            "invariant `{}` violated at tick {}",
-            fatal.name,
-            fatal.tick
-        );
+        bail!("invariant `{}` violated at tick {}", fatal.name, fatal.tick);
     }
     Ok(())
 }
@@ -287,7 +283,10 @@ mod tests {
         .unwrap();
 
         assert_eq!(decisions.len(), 1);
-        assert_eq!(decisions[0].chosen, RuntimeAction::Custom("open_swap".into()));
+        assert_eq!(
+            decisions[0].chosen,
+            RuntimeAction::Custom("open_swap".into())
+        );
         assert_eq!(executor.executed, vec![("open_swap".to_string(), 10.0)]);
         assert_eq!(agents[0].total_actions, 1);
     }
