@@ -14,8 +14,8 @@
 - [SKILL.md](./SKILL.md) — the command, the Steering Hint, the Scope
   Declaration, Depth, the Engine commands and the stage list.
 - [classify-and-scope.md](./classify-and-scope.md) — Classify (the Economic
-  Protocol verdict and its evidence rules, family) and Scope (the A–F authoring triggers and the
-  region's assumptions).
+  Protocol verdict and its evidence rules, family) and Scope (the A–F
+  authoring triggers and the region's assumptions).
 - [family-library.md](./family-library.md) — per-family personas, Floor
   Invariants and stress scenarios, plus the generic Economic Protocol fallback.
 - [worst-case-playbook.md](./worst-case-playbook.md) — per-archetype worst case

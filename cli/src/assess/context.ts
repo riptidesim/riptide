@@ -176,6 +176,7 @@ async function checkContext(
   );
   if (context === null) return null;
 
+  // An actor is exercised only through an instruction, so no exercised instruction is zero Coverage.
   if (context.coverage.instructions.exercised.length === 0) {
     problems.push({
       code: "validate_coverage_zero",
