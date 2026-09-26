@@ -1,4 +1,4 @@
-# @riptide/cli
+# @riptidesim/cli
 
 The Riptide Engine: deterministic guided simulation of a Solana program's
 compiled binary.

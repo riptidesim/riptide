@@ -140,7 +140,7 @@ async function render(cwd: string, dir: string): Promise<Driven> {
   await writeFile(
     input,
     JSON.stringify({
-      reproductionCommands: [`npx --yes @riptide/cli@${context.engine_version} assess .riptide --json --out ${dir}`]
+      reproductionCommands: [`npx --yes @riptidesim/cli@${context.engine_version} assess .riptide --json --out ${dir}`]
     }),
     "utf8"
   );

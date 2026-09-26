@@ -68,7 +68,7 @@ The Skill resolves the Engine only through npm at the Version Pin. Every
 Engine command runs as:
 
 ```bash
-npx --yes @riptide/cli@0.12.0 <command>
+npx --yes @riptidesim/cli@0.12.0 <command>
 ```
 
 This bundle writes that invocation as `riptide <command>` for short. Never run
@@ -79,7 +79,7 @@ another version: results must match everyone else on this Skill release.
   the Version Pin as both `skill_version` and `engine_version`. The gate
   rejects an output whose `engine_version` is not the Engine running it.
 - Every rerun command an Assessment lists, and every Breach's replay command,
-  is written out in full as `npx --yes @riptide/cli@<Version Pin> <command>`,
+  is written out in full as `npx --yes @riptidesim/cli@<Version Pin> <command>`,
   so a teammate reproduces it with the pinned Engine rather than whatever is
   installed.
 - Pass `--json` to every Engine command that accepts it and read the result
@@ -103,7 +103,7 @@ and install nothing but the pinned Engine.
 | `node >= 20` | `node --version` | it prints `v20` or later |
 | `cargo` | `cargo --version` | it exits 0 |
 | `cargo-build-sbf` | `cargo-build-sbf --version` | it exits 0 |
-| the Engine | `npx --yes @riptide/cli@0.12.0 --version` | it prints `0.12.0` |
+| the Engine | `npx --yes @riptidesim/cli@0.12.0 --version` | it prints `0.12.0` |
 
 If any check fails, stop and deliver a **Blocker Report** that names the
 missing piece: `blocker.command` is the failed check, the Gap's `subject` is

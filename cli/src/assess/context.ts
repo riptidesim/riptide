@@ -36,7 +36,7 @@ export const FIRING_CHECK_RESULTS = ["fired", "did-not-fire", "not-run"] as cons
 export const INVARIANT_OUTCOMES = ["held", "breached", "gap"] as const;
 
 /** The npm package the Version Pin names; a Breach replays against exactly that Engine version. */
-export const ENGINE_PACKAGE = "@riptide/cli";
+export const ENGINE_PACKAGE = "@riptidesim/cli";
 
 /** An Engine command run by the pinned Engine, fetched from npm rather than whatever is installed. */
 export function pinnedEngineCommand(engineVersion: string, args: string): string {

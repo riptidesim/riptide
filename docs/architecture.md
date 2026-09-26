@@ -328,7 +328,7 @@ text output without it is a debugging aid for contributors.
   counts as `held` or `breached` only when its Firing Check `fired`, and one
   reported as a `gap` has a Gap. Every `breached` invariant has a Breach and
   every Breach names one; each carries its seed, the exact replay command
-  against the pinned Engine (`npx --yes @riptide/cli@<engine_version> sim
+  against the pinned Engine (`npx --yes @riptidesim/cli@<engine_version> sim
   debug .riptide/sim --seed <seed>`) and a Causal Trace citing at least one
   tick as `T<n>` and one exercised instruction's transaction. The composed `assessment.md` opens with
   `## Scope Declaration`, `## Coverage`, `## Gaps`, `## Invariants` (naming

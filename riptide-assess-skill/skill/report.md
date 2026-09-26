@@ -150,14 +150,14 @@ depends on a local install:
 
 ```json
 "reproductionCommands": [
-  "npx --yes @riptide/cli@<Version Pin> sim run .riptide/sim --out .riptide/sim/artifacts/crash --json",
-  "npx --yes @riptide/cli@<Version Pin> sim surface .riptide/sim/artifacts/crash --sim .riptide/sim --json",
-  "npx --yes @riptide/cli@<Version Pin> assess .riptide --json --input .riptide/assessment-input.json --out <fresh-dir>"
+  "npx --yes @riptidesim/cli@<Version Pin> sim run .riptide/sim --out .riptide/sim/artifacts/crash --json",
+  "npx --yes @riptidesim/cli@<Version Pin> sim surface .riptide/sim/artifacts/crash --sim .riptide/sim --json",
+  "npx --yes @riptidesim/cli@<Version Pin> assess .riptide --json --input .riptide/assessment-input.json --out <fresh-dir>"
 ]
 ```
 
 The gate rejects an Assessment whose `assessment.json` lists a rerun command
-that does not start with `npx --yes @riptide/cli@<engine_version> `
+that does not start with `npx --yes @riptidesim/cli@<engine_version> `
 (`validate_rerun_unpinned`).
 
 Each Assessment has its own directory under `.riptide/assessments/`: `001`
@@ -211,7 +211,7 @@ shape is versioned by `schema_version`; every string is non-empty:
     {
       "invariant_id": "...",
       "seed": "<hex>",
-      "replay_command": "npx --yes @riptide/cli@<engine_version> sim debug .riptide/sim --seed <hex>",
+      "replay_command": "npx --yes @riptidesim/cli@<engine_version> sim debug .riptide/sim --seed <hex>",
       "causal_trace": "..."
     }
   ]
@@ -245,7 +245,7 @@ shape is versioned by `schema_version`; every string is non-empty:
   `breached` invariant has at least one Breach, and every Breach names a
   `breached` invariant. Empty when nothing breached.
 - `replay_command` is exactly
-  `npx --yes @riptide/cli@<engine_version> sim debug .riptide/sim --seed <hex>`,
+  `npx --yes @riptidesim/cli@<engine_version> sim debug .riptide/sim --seed <hex>`,
   with this file's `engine_version` and the Breach's `seed`, so the replay
   runs the pinned Engine rather than whatever is installed.
 - `causal_trace` is the Causal Trace, written from the replay log and citing

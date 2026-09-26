@@ -48,8 +48,9 @@ function exampleFiles(root) {
     .map((name) => `${EXAMPLES}/${name}`);
 }
 
-function engineReferences(text) {
-  return [...text.matchAll(/@riptide\/cli@([^\s`"<>]+)/g)].map((match) => match[1]);
+function engineReferences(text, name) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+  return [...text.matchAll(new RegExp(`${escaped}@([^\\s\`"<>]+)`, "g"))].map((match) => match[1]);
 }
 
 /** Every place a release names a version, and the value it names there. */
@@ -66,7 +67,7 @@ function versionSites(root) {
   const pins = [...skill.matchAll(/\*\*Version Pin:\*\* `([^`]+)`/g)].map((match) => match[1]);
   if (pins.length !== 1) fail(`${SKILL} must name exactly one Version Pin, found ${pins.length}`);
   sites.push([`${SKILL} Version Pin`, pins[0]]);
-  for (const ref of engineReferences(skill)) sites.push([`${SKILL} @riptide/cli@`, ref]);
+  for (const ref of engineReferences(skill, pkg.name)) sites.push([`${SKILL} ${pkg.name}@`, ref]);
   for (const [, printed] of skill.matchAll(/it prints `(\d[^`]*)`/g)) sites.push([`${SKILL} Engine check`, printed]);
 
   for (const file of exampleFiles(root)) {
@@ -74,7 +75,7 @@ function versionSites(root) {
     for (const field of ["skill_version", "engine_version"]) {
       if (field in example) sites.push([`${file} ${field}`, example[field]]);
     }
-    for (const ref of engineReferences(read(root, file))) sites.push([`${file} @riptide/cli@`, ref]);
+    for (const ref of engineReferences(read(root, file), pkg.name)) sites.push([`${file} ${pkg.name}@`, ref]);
   }
 
   const marketplace = readJson(root, MARKETPLACE);
@@ -110,7 +111,7 @@ function bump(root, next) {
   shrinkwrap.packages[""].version = next;
   writeJson(root, SHRINKWRAP, shrinkwrap);
 
-  const repin = (text) => text.split(`@riptide/cli@${current}`).join(`@riptide/cli@${next}`);
+  const repin = (text) => text.split(`${pkg.name}@${current}`).join(`${pkg.name}@${next}`);
   writeFileSync(
     path.join(root, SKILL),
     repin(read(root, SKILL))

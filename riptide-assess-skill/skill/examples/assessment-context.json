@@ -52,7 +52,7 @@
     {
       "invariant_id": "utilization_bound",
       "seed": "0000000000000000000000000000000000000000000000000000000000000003",
-      "replay_command": "npx --yes @riptide/cli@0.12.0 sim debug .riptide/sim --seed 0000000000000000000000000000000000000000000000000000000000000003",
+      "replay_command": "npx --yes @riptidesim/cli@0.12.0 sim debug .riptide/sim --seed 0000000000000000000000000000000000000000000000000000000000000003",
       "causal_trace": "`utilization_bound` fires at seed 0000…0003, coordinate collateral_price_drop_bps = 300, because borrowing outpaces deposits once the drop lands at tick 3.\n\n**The borrow run.** At T3 the oracle drop cuts collateral value by 3%; at T4 the three borrower agents each land a `borrow` (3 succeed, 0 fail) while no `deposit_collateral` lands until T6, so utilization climbs from 0.71 to 0.93 and crosses the 0.90 bound.\n\n- **T0** 3 `deposit_collateral` succeed; utilization 0.40\n- **T3** oracle drop of 300 bps lands\n- **T4** 3 `borrow` succeed; utilization 0.93, `utilization_bound` fires\n- **T6** first later `deposit_collateral`\n\nFor this seed and coordinate the bound is crossed by the T4 borrow cluster; the next useful experiment is a sweep of deposit timing at the same drop."
     }
   ]

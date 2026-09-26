@@ -366,12 +366,12 @@ test("no doc instructs a human to run Engine commands", async () => {
       for (const line of block!.split("\n")) {
         assert.doesNotMatch(
           line,
-          /^\s*(\$\s*)?(riptide\s|npx\s+(--yes\s+)?@riptide\/cli)/,
+          /^\s*(\$\s*)?(riptide\s|npx\s+(--yes\s+)?@riptidesim\/cli)/,
           `${doc} gives a runnable Engine command: ${line.trim()}`
         );
       }
     }
-    for (const installer of [/riptide\.run\/install/, /\bnpm (i|install) (-g|--global) @riptide\/cli/, /\.\/install\.sh/]) {
+    for (const installer of [/riptide\.run\/install/, /\bnpm (i|install) (-g|--global) @riptidesim\/cli/, /\.\/install\.sh/]) {
       assert.doesNotMatch(raw, installer, `${doc} installs the Engine by hand`);
     }
   }
@@ -494,7 +494,7 @@ test("the Report stage records every Breach with its pinned replay command and a
   const body = await skillBody();
   const report = await readFile(path.join(SKILL_DIR, "report.md"), "utf8");
   const trace = await readFile(path.join(SKILL_DIR, "causal-trace.md"), "utf8");
-  const replay = "npx --yes @riptide/cli@<engine_version> sim debug .riptide/sim --seed <hex>";
+  const replay = "npx --yes @riptidesim/cli@<engine_version> sim debug .riptide/sim --seed <hex>";
 
   assert.match(body, /\[causal-trace\.md\]\(\.\/causal-trace\.md\)/);
   for (const field of ["invariant_id", "seed", "replay_command", "causal_trace"]) {
@@ -561,7 +561,7 @@ test("the Skill resolves the Engine only through the pinned npm package", async 
   assert.match(body, /Never run\s+a `riptide` found on PATH/);
 
   for (const [file, raw] of await installedFiles()) {
-    for (const [, pinned] of raw.matchAll(/@riptide\/cli@([^\s`"<>]+)/g)) {
+    for (const [, pinned] of raw.matchAll(/@riptidesim\/cli@([^\s`"<>]+)/g)) {
       assert.equal(pinned, version, `${file} names Engine ${pinned}, not the Version Pin`);
     }
     for (const installer of [/\bcurl\b/, /\bwget\b/, /install\.sh/, /riptide\.run\/install/, /\bnpm (i|install) (-g|--global)\b/, /`riptide --version`/]) {
@@ -587,7 +587,7 @@ test("the Skill checks every prerequisite first and stops with a Blocker Report 
     ["`node >= 20`", "`node --version`"],
     ["`cargo`", "`cargo --version`"],
     ["`cargo-build-sbf`", "`cargo-build-sbf --version`"],
-    ["the Engine", `\`npx --yes @riptide/cli@${version} --version\``]
+    ["the Engine", `\`npx --yes @riptidesim/cli@${version} --version\``]
   ]) {
     assert.ok(prerequisites.includes(`| ${prerequisite} | ${check} |`), `Prerequisites does not check ${prerequisite}`);
   }
@@ -662,11 +662,11 @@ test("the release script bumps the CLI version and every Version Pin together, a
     assert.equal(pkg.version, "9.8.7");
     const skill = await readFile(path.join(root, "riptide-assess-skill", "skill", "SKILL.md"), "utf8");
     assert.ok(skill.includes("**Version Pin:** `9.8.7`"));
-    assert.ok(skill.includes("npx --yes @riptide/cli@9.8.7 <command>"));
+    assert.ok(skill.includes("npx --yes @riptidesim/cli@9.8.7 <command>"));
 
     await writeFile(
       path.join(root, "riptide-assess-skill", "skill", "SKILL.md"),
-      skill.replace("npx --yes @riptide/cli@9.8.7 <command>", "npx --yes @riptide/cli@9.8.6 <command>")
+      skill.replace("npx --yes @riptidesim/cli@9.8.7 <command>", "npx --yes @riptidesim/cli@9.8.6 <command>")
     );
     const drifted = release("check", "--root", root);
     assert.equal(drifted.status, 1);
@@ -695,7 +695,7 @@ test("the release script publishes the CLI to npm only from a clean release comm
     ].join("\n"),
     { mode: 0o755 }
   );
-  const publish = (user = "riptide") =>
+  const publish = (user = "riptidesim") =>
     spawnSync(process.execPath, [script, "publish", "--root", path.join(root, "repo")], {
       encoding: "utf8",
       env: { ...process.env, RIPTIDE_RELEASE_NPM: npm, NPM_STUB_USER: user }
@@ -724,7 +724,7 @@ test("the release script publishes the CLI to npm only from a clean release comm
 
     const foreign = publish("someone-else");
     assert.equal(foreign.status, 1);
-    assert.match(foreign.stderr, /npm user someone-else cannot publish to the @riptide scope/);
+    assert.match(foreign.stderr, /npm user someone-else cannot publish to the @riptidesim scope/);
     assert.doesNotMatch(await readFile(log, "utf8"), /^publish/m);
     await rm(log);
 

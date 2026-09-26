@@ -58,7 +58,7 @@ Assessment.
 `cargo`, the Solana SBF toolchain (`cargo-build-sbf`) and `node >= 20`. The
 Skill checks for them first and, if one is missing, stops with a Blocker Report
 naming it. There is no separate Engine install: the Skill runs the exact Engine
-version it pins, `npx --yes @riptide/cli@<Version Pin>`, so every Assessment
+version it pins, `npx --yes @riptidesim/cli@<Version Pin>`, so every Assessment
 records the Skill and Engine versions it ran and its rerun commands use them.
 
 ## Structure

@@ -29,7 +29,7 @@ Assessment Context and, verbatim, under `## Breaches` in `assessment.md`
   `engine_version`:
 
   ```bash
-  npx --yes @riptide/cli@<engine_version> sim debug .riptide/sim --seed <hex>
+  npx --yes @riptidesim/cli@<engine_version> sim debug .riptide/sim --seed <hex>
   ```
 - The run's `guided-sim-run.json` (flow table, labelled transaction outcomes,
   retained failing seed, failure reason) and the review output for the run.

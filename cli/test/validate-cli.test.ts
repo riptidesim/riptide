@@ -20,7 +20,7 @@ const EXAMPLES = path.resolve(process.cwd(), "..", "riptide-assess-skill", "skil
 const { version: VERSION_PIN } = JSON.parse(readFileSync(path.resolve(process.cwd(), "package.json"), "utf8")) as {
   version: string;
 };
-const ENGINE = `npx --yes @riptide/cli@${VERSION_PIN}`;
+const ENGINE = `npx --yes @riptidesim/cli@${VERSION_PIN}`;
 const EXAMPLE_CONTEXT = path.join(EXAMPLES, "assessment-context.json");
 const ASSESSMENT_DIR = ".riptide/assessment";
 /** The assessment input the Skill authors: every rerun command runs the pinned Engine. */
@@ -497,7 +497,7 @@ test("validate --json: a Causal Trace that cites no exercised instruction's tran
 test("validate --json: a replay command that is not the seed's replay against the pinned Engine is rejected", async () => {
   for (const replay of [
     `riptide sim debug .riptide/sim --seed ${EXAMPLE_SEED}`,
-    `npx --yes @riptide/cli@0.11.0 sim debug .riptide/sim --seed ${EXAMPLE_SEED}`,
+    `npx --yes @riptidesim/cli@0.11.0 sim debug .riptide/sim --seed ${EXAMPLE_SEED}`,
     EXAMPLE_REPLAY.replace(/3$/, "4"),
     `${EXAMPLE_REPLAY} --json`
   ]) {
@@ -782,13 +782,13 @@ test("validate --json: every output must record the Engine running the gate as e
   await editContext(assessment, (context) => {
     context.engine_version = "0.0.1";
     for (const breach of context.breaches) {
-      breach.replay_command = `npx --yes @riptide/cli@0.0.1 sim debug .riptide/sim --seed ${breach.seed}`;
+      breach.replay_command = `npx --yes @riptidesim/cli@0.0.1 sim debug .riptide/sim --seed ${breach.seed}`;
     }
   });
   const envelope = await assertRejected(assessment, "validate_engine_version_mismatch");
   const problem = problemOf(envelope, "validate_engine_version_mismatch");
   assert.match(problem.message, new RegExp(`engine_version 0\\.0\\.1, but the Engine running this gate is ${VERSION_PIN}`));
-  assert.ok(problem.next.includes(`npx --yes @riptide/cli@0.0.1 validate ${ASSESSMENT_DIR} --json`));
+  assert.ok(problem.next.includes(`npx --yes @riptidesim/cli@0.0.1 validate ${ASSESSMENT_DIR} --json`));
 
   for (const kind of ["out-of-scope-note", "blocker-report"] as const) {
     const cwd = await shortCircuitDir(kind);
