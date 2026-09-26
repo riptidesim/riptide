@@ -129,8 +129,8 @@ PR.
 
 Open an issue at [github.com/riptidesim/riptide](https://github.com/riptidesim/riptide).
 Include the `/riptide-assess` invocation and Steering Hint, the Skill and
-Engine versions from the delivered output, the delivered report, and your OS
-and tool versions.
+Engine versions from the delivered output, the delivered Assessment, Blocker
+Report or Out-of-Scope Note, and your OS and tool versions.
 
 ## License
 

@@ -63,21 +63,18 @@ command and the one to prefer when it is available.
 contribution pool")`) so the program loads at a fixed id and every derived
 address is reproducible without a keypair file.
 
-### Running the smoke
+### The smoke
 
-```bash
-riptide sim generate --adapter fixtures/auto-genesis/derivable/adapter.toml
-(cd .riptide/sim && cargo build --release)
-riptide sim run .riptide/sim --iterations 1 --flows 4 --seed deadbeef --out .riptide/sim/artifacts/smoke
-```
+The CLI test suite generates the sim crate from `derivable/adapter.toml` with
+`sim generate`, builds it from inside `.riptide/sim`, and runs one seed with
+`sim run`. It builds from inside the crate because the generated crate pins its
+own `rust-toolchain.toml`; `cargo --manifest-path` from the repo root resolves
+the outer toolchain instead, which silently builds the whole dependency tree
+twice.
 
-Build from inside `.riptide/sim`: the generated crate pins its own
-`rust-toolchain.toml`, and `cargo --manifest-path` from the repo root resolves the
-outer toolchain instead, which silently builds the whole dependency tree twice.
-
-The CLI test suite runs this automatically when the `.so` is present and skips it
-with the reason above when it is not — so a green `npm test` on an unbuilt
-checkout does **not** include the smoke.
+The suite skips the smoke, naming the build command above, when the `.so` is
+not built, so a green `npm test` on an unbuilt checkout does **not** include
+it.
 
 ## `gaps/`
 

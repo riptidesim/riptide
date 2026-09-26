@@ -286,7 +286,7 @@ async function repoDocs(): Promise<string[]> {
     path.join("cli", "README.md"),
     path.join("riptide-assess-skill", "README.md")
   ];
-  for (const dir of ["docs", path.join(".github", "ISSUE_TEMPLATE")]) {
+  for (const dir of ["docs", "fixtures", path.join(".github", "ISSUE_TEMPLATE")]) {
     for (const file of await findMarkdown(path.join(REPO_ROOT, dir))) docs.push(path.relative(REPO_ROOT, file));
   }
   return docs;
