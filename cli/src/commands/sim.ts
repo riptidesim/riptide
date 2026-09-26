@@ -760,7 +760,15 @@ function runnerFailure(run: CargoOutcome, command: string, simPath: string): Com
   };
 }
 
-async function readRunSummary(outDir: string): Promise<unknown> {
+export interface SimRunSummaryJson {
+  artifact: string;
+  status: unknown;
+  base_seed: unknown;
+  retained_failing_seed: unknown;
+  totals: unknown;
+}
+
+async function readRunSummary(outDir: string): Promise<SimRunSummaryJson | null> {
   const runFile = path.join(outDir, "guided-sim-run.json");
   if (!existsSync(runFile)) return null;
   const doc = JSON.parse(await readFile(runFile, "utf8")) as Record<string, unknown>;
