@@ -527,19 +527,27 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
     /// the first iteration's seed, run init and the flows, inject the
     /// invariant's violation, run the end-of-run check, and report whether
     /// the invariant recorded a fire. An invariant that already fires without
-    /// the injection did not fire because of it.
+    /// the injection did not fire because of it. Every check, and the
+    /// uninjected baseline, runs on a fresh simulation.
     pub fn firing_check(&self) -> Result<FiringCheckReport> {
         let seed = iteration_seed(self.config.seed, 0);
-        let declared = self
-            .reach_end(seed)?
+        let mut baseline = self.reach_end(seed)?;
+        let declared = baseline
             .__riptide_violations()
             .into_iter()
             .map(|check| check.invariant)
             .collect::<Vec<_>>();
+        baseline.world().clear_invariant_fires();
+        // Another invariant may already fail here; only recorded fires count.
+        let _ = run_end(&mut baseline);
+        let fire_without_injection = baseline.world().iteration_invariant_fires().to_vec();
         let invariants = declared
             .into_iter()
             .enumerate()
-            .map(|(index, invariant)| self.fire(seed, index, invariant))
+            .map(|(index, invariant)| {
+                let quiet = !fire_without_injection.contains(&invariant);
+                self.fire(seed, index, invariant, quiet)
+            })
             .collect::<Result<Vec<_>>>()?;
         Ok(FiringCheckReport {
             seed: seed_to_hex(&seed),
@@ -581,7 +589,13 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
         })
     }
 
-    fn fire(&self, seed: [u8; 32], index: usize, invariant: String) -> Result<FiringCheckOutcome> {
+    fn fire(
+        &self,
+        seed: [u8; 32],
+        index: usize,
+        invariant: String,
+        quiet_without_injection: bool,
+    ) -> Result<FiringCheckOutcome> {
         let mut simulation = self.reach_end(seed)?;
         let check = simulation
             .__riptide_violations()
@@ -597,10 +611,7 @@ impl<T: RiptideSimulation> SimulationRunner<T> {
             detail,
         };
 
-        simulation.world().clear_invariant_fires();
-        // Another invariant may already fail here; only this one's fire counts.
-        let _ = run_end(&mut simulation);
-        if fires(&mut simulation, &invariant) {
+        if !quiet_without_injection {
             return Ok(outcome(
                 FiringResult::DidNotFire,
                 Some("the invariant fires without the injection".to_owned()),
