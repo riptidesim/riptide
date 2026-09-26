@@ -97,7 +97,7 @@ test("init: completes without input while stdin stays open", async () => {
   );
 
   // stdin is a pipe that is never written to or closed: any prompt would hang.
-  const child = spawn(process.execPath, [cliEntrypoint, "init", "--no-skills"], {
+  const child = spawn(process.execPath, [cliEntrypoint, "init"], {
     cwd,
     stdio: ["pipe", "pipe", "pipe"],
     env: { ...process.env, FORCE_COLOR: "0" }
@@ -118,6 +118,7 @@ test("init: completes without input while stdin stays open", async () => {
   assert.equal(code, 0);
   assert.equal(stdout, "");
   assert.ok(existsSync(path.join(cwd, ".riptide", "adapters", "widget-factory.toml")));
+  assert.equal(existsSync(path.join(cwd, ".claude")), false, "init wrote outside the Workspace");
   assert.ok(existsSync(path.join(cwd, ".riptide", ".gitignore")));
 });
 

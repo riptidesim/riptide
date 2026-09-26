@@ -33,13 +33,11 @@ riptide assess .riptide/sim/artifacts/run-001
 riptide review .riptide/sim/artifacts/run-001
 ```
 
-Use the optional skills when you want a first draft:
+The `/riptide-assess` Skill owns adapter repair, Rust harness setup,
+starter scenarios, the guided-sim readiness loop, and the Causal Trace for
+each Breach, as stages of one command.
 
-- `/riptide-config` owns adapter repair, Rust harness setup, starter
-  scenarios, and the guided-sim readiness loop in one pass.
-- `riptide-narrative` can help summarize an emitted run.
-
-The skills are authoring accelerators. Riptide only needs the plain files they produce.
+The Skill is an authoring accelerator. Riptide only needs the plain files it produces.
 
 ## Explicit Non-Goals
 

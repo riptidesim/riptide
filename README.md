@@ -16,10 +16,11 @@
 Riptide runs your compiled Solana program in LiteSVM, drives it with declared
 agent behavior, and shows where your protocol starts losing economic headroom.
 For a first assessment, open your Solana program repo in an agent and invoke
-[`riptide-assess`](skills/riptide-assess/SKILL.md). The skill detects the
-protocol family, asks up to three scoping questions, uses the existing Riptide
-commands to run the guided simulation, and returns `assessment.md`, `assessment.json`,
-the evidence-pack path, and the exact rerun commands.
+[`/riptide-assess`](riptide-assess-skill/skill/SKILL.md). The Skill classifies
+the protocol, records every assumption it makes in a Scope Declaration instead
+of pausing for input, drives the Riptide commands to run the guided simulation,
+and returns `assessment.md`, `assessment.json`, the evidence-pack path, and the
+exact rerun commands.
 
 [Assess With The Skill](#assess-with-the-skill) - [Advanced / Power Users](#advanced--power-users) - [Trust & Review](docs/trust.md) - [Docs](#docs)
 
@@ -40,15 +41,15 @@ Install Riptide:
 curl -fsSL https://riptide.run/install | sh
 ```
 
-Then open the Solana program repo you want to assess in your agent and ask it
-to use the front-door skill:
+Then open the Solana program repo you want to assess in your agent and run the
+Skill:
 
 ```text
-Use riptide-assess on this repo.
+/riptide-assess
 ```
 
 The agent should do the practitioner work: inspect source, IDL, tests, and any
-existing `.riptide/` files; ask only the missing scoping questions; run the
+existing `.riptide/` files; record each assumption in the Scope Declaration; run the
 validated Riptide commands; and hand back the report plus the rerun command.
 The generated report is simulation evidence over declared inputs, not audit
 signoff or complete protocol safety.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Riptide Assess"
+  short_description: "Deterministic simulation Assessment of a Solana Economic Protocol."
+  default_prompt: "Run /riptide-assess on this repo."

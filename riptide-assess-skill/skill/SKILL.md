@@ -1,123 +1,189 @@
 ---
 name: riptide-assess
 description: >-
-  Assess a Solana program with Riptide — run deterministic, guided LiteSVM
-  simulations against the real on-chain program to produce a risk assessment
-  with reproducible evidence. Use when the user says "assess my protocol", "is
-  my protocol safe", "run Riptide on this", "give me a risk assessment", or
-  "riptide-assess", or points you at an Anchor/Solana lending, AMM, perps,
-  liquid-staking, or stablecoin repo and wants one agent-led flow from program
-  source to an assessment report. Detects the protocol family, scopes what the
-  guided sim must handle (typed args, Pyth/Switchboard oracle-account bytes,
-  liquidator/keeper actors, multi-instruction sequences), authors and runs the
-  sim, then returns assessment evidence and exact rerun commands.
+  Produce a Riptide Assessment of a Solana Economic Protocol: deterministic,
+  fixed-seed simulations of the program's real compiled binary, with Coverage,
+  Gaps, Firing-Checked invariants, Breaches with replay commands, and the exact
+  commands that reproduce every figure. Use when the user says "assess my
+  protocol", "is my protocol safe", "run Riptide on this", "give me a risk
+  assessment", or "riptide-assess", or points at a lending, AMM, perps,
+  liquid-staking, stablecoin or other value-bearing Solana program. Runs start
+  to finish without pausing for input; an optional Steering Hint narrows scope.
 user-invocable: true
 ---
 
 # riptide-assess
 
-Riptide runs **deterministic guided simulations** of Solana programs to produce
-a **risk assessment** backed by reproducible evidence. This skill is the single
-front door: point it at a Solana program repo, answer at most three scoped
-questions, and it detects the protocol family, authors a project-owned Rust
-simulation crate that drives the program's real `.so` under stress, runs it over
-a declared fixed-seed sweep, and emits an assessment (`assessment.md` +
-`assessment.json`) plus an executive brief — with the exact commands to
-reproduce every figure.
+Riptide produces an **Assessment** of a Solana program: simulation evidence
+over a declared, fixed-seed region, gathered by running the program's real
+compiled binary, together with the exact commands that reproduce it. An
+Assessment is simulation evidence, **not an audit signoff**, not formal
+verification and not a mainnet prediction. Hold that boundary in every claim.
 
-There is one execution path: a **guided simulation**. The agent authors the
-adapter, sim crate, personas, flows, and invariants — the user does not.
+## The command
 
-The outcome is an `assessment.md` / `assessment.json` plus an evidence pack and
-the **exact rerun commands** over a declared, fixed-seed region. This is
-**simulation evidence over a declared region — not an audit signoff**, not
-formal verification, and not a mainnet prediction. Hold that boundary in every
-claim you make.
+There is one user command: `/riptide-assess`, invoked inside the user's repo.
+Everything else in this bundle is a stage of that command, not a separate
+entry point.
 
-## First Contact / Prerequisites (auto-install)
+The **Steering Hint is the only input.** It is optional free text passed with
+the command, such as a program path (`programs/vault`), a focus area
+("liquidation cascades") or a Depth request ("deep"). Read it once at the start
+and let it narrow scope. With no Steering Hint, assess the whole repo at
+Default Depth.
 
-If `riptide --help` fails, the CLI is not installed. Install it with the command
-below — **it works from any directory**. You are running inside the user's
-program repo, not the skill folder, so do not rely on a bare `install.sh` path:
+The Skill never pauses for input. Wherever a fact is missing or two readings
+are plausible, pick the reading the evidence favours, record it as an
+assumption in the **Scope Declaration**, and continue. Each assumption carries
+its reason and the overriding Steering Hint that would change it, so correcting
+the Skill takes one rerun:
+
+```text
+assumption: target is programs/vault (two programs found; vault holds the pool accounts)
+reason:     only programs/vault declares a token vault and a price account
+override:   /riptide-assess programs/staking
+```
+
+The Scope Declaration sits at the top of every Assessment and records which
+Depth ran.
+
+## Depth
+
+| Depth | Chosen by | Region | Budget |
+|---|---|---|---|
+| Default | no Depth in the Steering Hint | critical (P0) instructions on one stress axis | `seeds_per_value = 4`, at most 7 axis values, 3 repair attempts per failure |
+| Deep | a Steering Hint requesting depth ("deep", "thorough") | P0 and P1 instructions over several axes plus a 2-D interaction sweep | `seeds_per_value = 8`, at most 11 values per axis, 5 repair attempts per failure |
+
+## The Engine
+
+The **Engine** is the deterministic simulation machinery: the `riptide` CLI and
+the sim runtime. The Skill is its only driver. Users never run it, and the
+Assessment never directs them to.
+
+- Pass `--json` to every Engine command that accepts it and read the result
+  from stdout. On an error, follow the `next` field before improvising.
+- No Engine command reads stdin. A command that appears to wait is a defect to
+  report, not a prompt to answer.
+- Every file the Skill writes to drive the Engine (`Riptide.toml`, adapters,
+  the sim crate) is an **Internal Artifact** in the `.riptide/` **Workspace**.
+  The agent owns them; the user is never directed to write or edit one.
+- Never commit anything. The last line of every delivery names `.riptide/` as
+  the one thing left for the user to commit, so anyone can rerun the
+  Assessment.
+
+### Prerequisites
+
+Check the host before any stage runs: `cargo`, `cargo-build-sbf` and
+`node >= 20`. If `riptide --version` fails, install the Engine:
 
 ```bash
 curl -fsSL https://riptide.run/install | sh
 ```
 
-The skill also bundles an `install.sh` at the root of its package that wraps this
-same installer; use it only if you have `cd`'d into the skill's own directory.
-Both are idempotent — safe to re-run.
+If a prerequisite is missing, or the Engine install fails, stop and deliver a
+**Blocker Report** that names the missing piece. Do not start a partial run.
 
-**Riptide is NOT on npm** — do not `npm i riptide`. The CLI scaffolds a
-project-owned Rust crate that builds against a vendored runtime (there is no
-separate engine binary), so the host needs:
+### Engine commands
 
-- `rustup` / `cargo` + `rustc`
-- `node >= 20` and `npm`
-- the Solana SBF toolchain (`cargo-build-sbf`, via the Anza/Solana install)
+Use only these commands; never invent flags or subcommands.
 
-Confirm the install before doing anything else:
-
-```bash
-riptide --version     # expect v0.12.0 or newer
-riptide doctor        # static health check of the environment + adapter
-```
-
-## How To Run (the CLI surface)
-
-Use **only** these commands. Never invent flags or subcommands.
-
-- `riptide init` — scaffold a thin `.riptide/` bootstrap in the target repo.
-- `riptide readiness <dir> [--json]` — read-only repo classification check.
-- `riptide doctor` — static adapter/environment health check.
-- `riptide sim generate --adapter <adapter.toml>` — scaffold the project-owned
-  guided-sim crate (`.riptide/sim`).
-- `riptide sim refresh --adapter <adapter.toml> --dir .riptide/sim` — regenerate
-  builders after IDL changes without overwriting hand-authored flows.
-- `riptide sim run <sim-dir> [--iterations N] [--flows N] [--seed HEX] --out <dir>`
-  — execute the sweep; reads `[sim.sweep]` from `Riptide.toml`.
-- `riptide sim surface <artifact-dir> --sim <sim-dir>` — build the cartography
-  root (campaign-summary.json + risk-surface.json + retention-manifest.json).
+- `riptide init` — scaffold the Workspace (non-interactive).
+- `riptide readiness <dir> --json` — read-only repo classification evidence.
+- `riptide doctor --json` — toolchain presence plus adapter load and lint.
+- `riptide sim generate --adapter <adapter.toml>` — scaffold the sim crate.
+- `riptide sim refresh --adapter <adapter.toml> --dir .riptide/sim` —
+  regenerate builders after IDL changes without touching authored flows.
 - `riptide sim lint <sim-dir>` — validate the sim manifest.
-- `riptide sim review <artifact-dir>` — review a run's retained evidence.
-- `riptide sim fork` / `riptide sim debug` — fork-cache and debug helpers.
-- `riptide review <guided-sim-root>` — root reviewer over a surfaced root.
-- `riptide assess <guided-sim-root> [--input <json>] [--brief] [--html|--pdf]`
-  — ingest a surfaced root and emit the assessment.
+- `riptide sim run <sim-dir> [--iterations N] [--flows N] [--seed HEX] --out <dir>`
+  — run the sweep declared in `[sim.sweep]`.
+- `riptide sim debug <sim-dir> --seed <hex>` — replay one seed with verbose
+  labelled transaction logging.
+- `riptide sim review <artifact-dir> --json` — review a run's retained evidence.
+- `riptide sim surface <artifact-dir> --sim <sim-dir>` — build the cartography
+  root the Assessment reads.
+- `riptide sim fork` — fetch or reuse an account snapshot cache.
+- `riptide review <guided-sim-root> --json` — review a surfaced root.
+- `riptide assess <guided-sim-root> --json [--input <json>] [--brief]` — render
+  the Engine Output for the Assessment.
 
-The parameter sweep lives in the `[sim.sweep]` block of
-`.riptide/sim/Riptide.toml` — it is configuration, **not** a CLI flag. Do not
-pass the sweep on the command line; `riptide sim run` reads it from the TOML.
+## The flow
 
-## The flow — routing
+Classify → Scope → Setup → Run → Firing Check → Repair → Surface → Report
 
-Detect → Scope → Setup → Run → Surface → Assess. Work in one continuous session.
-Each step's depth lives in a focused file:
+Work in one continuous session and emit one short progress line as each stage
+starts (`riptide-assess: setup — generating the sim crate`), so a long run does
+not look hung. A stage may be handed to a subagent where the host supports
+one; nothing in the flow requires it.
 
-1. **Detect the protocol family and scope what the guided sim must handle** (the
-   full A–F trigger taxonomy + the three scoped questions) →
-   [detect-and-scope.md](./detect-and-scope.md)
-2. **Author the adapter, generate the sim crate, fill the setup seams, author
-   flows + the sweep** →
-   [setup.md](./setup.md)
-3. **Run, surface, and assess** (smoke → full sweep → cartography root → final
-   render) →
-   [run-and-assess.md](./run-and-assess.md)
+When `.riptide/` already exists, reuse it: keep the authored adapter, flows,
+invariants and sweep, refresh builders from the current IDL, repair what broke,
+and author flows only for new instructions. Rerun the region the previous
+Assessment declared.
 
-Supporting depth:
+### 1. Classify
 
-- **Family library** — the recurring personas, invariants, and stress scenarios
-  per protocol family; consult the detected family's entry during Scope before
-  designing the campaign →
-  [family-library.md](./family-library.md)
-- **Authoring patterns (guided sim)** — the library code to wire when triggers
-  fire (oracle-account construction, third-party dispatch, the sweep scaffold) →
-  [authoring-patterns.md](./authoring-patterns.md)
-- **Honesty Discipline (non-negotiable — read this)** — the 7 honesty rules, the
-  three runtime-enforced gates, and fail-fast/file-an-issue guidance →
-  [honesty.md](./honesty.md)
-- **Worst-case playbook** — per-archetype worst case to hunt, axis to sweep,
-  deciding invariant/metric, signal trap, honest framing →
-  [worst-case-playbook.md](./worst-case-playbook.md)
-- **References + file index** →
-  [resources.md](./resources.md)
+Decide whether the target is an **Economic Protocol** (a value-bearing
+mechanism: pooled assets, prices, solvency) from IDL and source evidence, then
+name its family. A target that is not an Economic Protocol ends the run with an
+**Out-of-Scope Note** that points to code-level auditing tools. A protocol that
+matches no known family is still in scope. →
+[classify-and-scope.md](./classify-and-scope.md)
+
+### 2. Scope
+
+Check every critical instruction against the A–F authoring triggers, pick the
+worst case to hunt and the stress axis, choose the **Floor Invariants** for the
+family, and write the Scope Declaration. →
+[classify-and-scope.md](./classify-and-scope.md),
+[family-library.md](./family-library.md),
+[worst-case-playbook.md](./worst-case-playbook.md)
+
+### 3. Setup
+
+Author the adapter, generate the sim crate, fill every setup seam with
+deterministic facts, and author flows, personas, invariants and the sweep. →
+[setup.md](./setup.md), [authoring-patterns.md](./authoring-patterns.md)
+
+### 4. Run
+
+Lint, run a one-seed smoke, then run the full sweep. →
+[run-and-surface.md](./run-and-surface.md)
+
+### 5. Firing Check
+
+Prove each invariant can fire by injecting a known violation. An invariant
+that has not passed its **Firing Check** never counts as held. →
+[firing-check.md](./firing-check.md)
+
+### 6. Repair
+
+Classify each failure, repair the responsible layer, and rerun from the
+earliest affected stage within the Depth's repair budget. →
+[repair.md](./repair.md)
+
+### 7. Surface
+
+Build the cartography root (`campaign-summary.json`, `risk-surface.json`,
+`retention-manifest.json`) that the Engine reads to render its output. →
+[run-and-surface.md](./run-and-surface.md)
+
+### 8. Report
+
+Render the **Engine Output** with `riptide assess`, write the
+**Assessment Context** next to it (Scope Declaration, Depth, Coverage, Gaps, invariant
+provenance, Firing Check results, Breaches), and deliver. Every **Breach**
+carries its seed replay command and a **Causal Trace**. When **Coverage** is
+zero, deliver a Blocker Report instead of an Assessment. →
+[report.md](./report.md), [causal-trace.md](./causal-trace.md)
+
+## Evidence rules
+
+- **Coverage** is the instructions and actors the simulation exercised; every
+  Assessment is graded by it. **Region Coverage** is the swept axes and cells
+  the run probed. Never let one stand in for the other.
+- Each part of the program the simulation did not exercise is a **Gap**, with
+  the reason and what would unblock it. A Gap is never evidence of safety.
+- Invariants the agent adds on top of the Floor Invariants are labelled as
+  agent-authored.
+- The honesty rules are non-negotiable: [honesty.md](./honesty.md).
+- File index and references: [resources.md](./resources.md).

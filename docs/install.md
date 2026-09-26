@@ -35,7 +35,7 @@ launcher to the configured bin directory.
 The release bundle carries a pinned Node runtime, the compiled
 TypeScript CLI with its production npm dependencies (including the
 vendored guided-sim runtime crates under `dist/sim-runtime/`), the
-bundled agent skills, adapter fixtures, examples, and docs. Installing
+bundled Skill, adapter fixtures, examples, and docs. Installing
 the CLI does not require Rust, Node, or npm on your machine.
 
 Useful options:
@@ -46,9 +46,9 @@ curl -fsSL https://riptide.run/install | sh -s -- --dry-run
 curl -fsSL https://riptide.run/install | sh -s -- --no-agent-skills
 ```
 
-By default, the hosted installer also installs the bundled agent skills
-into `${CODEX_HOME:-$HOME/.codex}/skills` and
-`${CLAUDE_HOME:-$HOME/.claude}/skills`, including `riptide-config`. It
+By default, the hosted installer also installs the bundled `riptide-assess`
+Skill into `${CODEX_HOME:-$HOME/.codex}/skills` and
+`${CLAUDE_HOME:-$HOME/.claude}/skills`. It
 symlinks to the active Riptide bundle on Linux/macOS and leaves any
 existing non-Riptide-managed skill directory untouched. Set
 `RIPTIDE_INSTALL_AGENT_SKILLS=0` or pass `--no-agent-skills` to skip that
@@ -157,22 +157,21 @@ cd ~/path/to/your-anchor-program
 riptide init
 ```
 
-The default next step is the merged setup skill:
+The default next step is the Skill:
 
 ```text
-/riptide-config
+/riptide-assess
 ```
 
-`riptide-config` prepares or repairs the adapter and authors the guided
-simulation: the `.riptide/sim/` crate, its `Riptide.toml` manifest, the
-project-owned `flows.rs` / `invariants.rs` / `services/`, and the
-readiness notes.
+Its Setup and Repair stages prepare or repair the adapter and author the
+guided simulation: the `.riptide/sim/` crate, its `Riptide.toml` manifest,
+and the project-owned `flows.rs` / `invariants.rs` / `services/`.
 
-If you used the hosted installer, `riptide-config` is installed into
+If you used the hosted installer, `riptide-assess` is installed into
 Codex and Claude Code skill folders automatically unless agent skill
 installation was disabled or a user-authored skill with the same name
 already existed. Start a new Codex or Claude Code session after install
-before asking for `/riptide-config`; sessions that were already running
+before invoking `/riptide-assess`; sessions that were already running
 usually will not reload newly installed skills.
 
 The guided-sim assessment flow then runs entirely through `riptide sim`,
@@ -195,7 +194,7 @@ What each command does:
 | --- | --- |
 | `riptide doctor` | Static health check. No build, no network, no simulation. |
 | `riptide init` | Non-interactive scaffold: `.riptide/adapters/<program>.toml` per detected program plus the Workspace ignore file `.riptide/.gitignore`. `--profile` / `--protocol` record adapter hints. |
-| `/riptide-config` | Default setup flow: adapter TOML and the guided-sim crate, flows, invariants, services, and readiness notes. |
+| `/riptide-assess` | The Skill: adapter TOML, the guided-sim crate, flows, invariants, services, and the Assessment. |
 | `riptide readiness` | Inspects local protocol evidence readiness without building or simulating. |
 | `riptide sim generate` | Scaffolds the project-owned guided-sim crate from an IDL-backed adapter. |
 | `riptide sim run` | Runs the generated guided-sim crate and writes the guided-sim artifact. |

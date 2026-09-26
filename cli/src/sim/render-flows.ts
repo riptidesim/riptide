@@ -622,7 +622,7 @@ function renderGuidedInitSkeleton(
   return `/// HAND-AUTHORED SEAM — the tick-0 on-chain state.
 ///
 /// The genesis for this adapter is not derivable from declared facts;
-/// \`setup-gaps.json\` names every unresolved seam and \`/riptide-config\` is the
+/// \`setup-gaps.json\` names every unresolved seam and \`/riptide-assess\` is the
 /// agent-tier entry point. Until the seam is authored \`sim.actors\` stays empty
 /// and \`guided_flow\` is a clean no-op.
 pub fn init(sim: &mut Simulation) -> Result<()> {

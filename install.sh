@@ -266,5 +266,5 @@ printf '\nnext steps:\n'
 printf '  1. %sriptide doctor%s                        # verify your toolchain\n' "$BOLD" "$RESET"
 printf '  2. %scd <your-program>%s                     # the Solana program you want to simulate\n' "$BOLD" "$RESET"
 printf '  3. %sriptide init%s                          # thin .riptide/ bootstrap\n' "$BOLD" "$RESET"
-printf '  4. %s/riptide-config%s                       # finish the adapter and author the guided simulation\n' "$BOLD" "$RESET"
+printf '  4. %s/riptide-assess%s                       # run the Skill: simulate and write the Assessment\n' "$BOLD" "$RESET"
 printf '\n%sNew to Riptide?%s %sriptide --help%s walks through the full surface.\n' "$DIM" "$RESET" "$BOLD" "$RESET"

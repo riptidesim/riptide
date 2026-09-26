@@ -22,7 +22,7 @@ export const PROTOCOL_CHOICES: readonly Protocol[] = [
 // knowing what the program is. Its action weights come from whatever
 // instructions the adapter actually mapped, so it exercises the mapped
 // surface evenly. Anything more opinionated (whales, liquidators, panic
-// exits) needs protocol meaning and belongs to `/riptide-config`.
+// exits) needs protocol meaning and belongs to the `/riptide-assess` Skill.
 export const DEFAULT_ACTOR_PERSONA = {
   slug: "actor",
   label: "Generic actor",

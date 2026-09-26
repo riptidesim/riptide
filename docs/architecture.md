@@ -68,12 +68,12 @@ flowchart TB
 > observations and expression invariants. Semantics add economic meaning
 > on top of the raw field bindings; they do not change the runtime.
 
-> **Skill-first setup, plain-file output.** The `riptide-config` skill is
-> the default way to turn a thin `riptide init` scaffold into adapter TOML
-> and a working guided-sim crate (flows, invariants, services, readiness
-> notes) in one loop. `riptide-narrative` can summarize a completed run.
-> Every artifact the skills generate is plain TOML, Rust, or JSON you can
-> hand-author instead — see `fixtures/adapters/resource-grinder.toml` for
+> **Skill-first setup, plain-file output.** The `/riptide-assess` Skill
+> (`riptide-assess-skill/`) turns a thin `riptide init` scaffold into adapter
+> TOML and a working guided-sim crate (flows, invariants, services) in its
+> Setup and Repair stages, and writes the Causal Trace for each Breach in its
+> Report stage. Every artifact the Skill generates is plain TOML, Rust, or
+> JSON — see `fixtures/adapters/resource-grinder.toml` for
 > a minimal from-scratch example.
 
 ## Codegen pipeline — adapter to crate

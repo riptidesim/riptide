@@ -534,12 +534,12 @@ if [ -n "$PATH_HINT" ]; then
   printf '    %s%s%s\n' "$C_DIM" "(open a new shell or update PATH first)" "$C_RESET"
 fi
 if agent_skills_enabled; then
-  printf '    %s%s%s\n' "$C_DIM" "(start a new Codex/Claude session before using /riptide-config)" "$C_RESET"
+  printf '    %s%s%s\n' "$C_DIM" "(start a new Codex/Claude session before using /riptide-assess)" "$C_RESET"
 fi
 printf '    1. %sriptide --help%s          %s# verify the launcher%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '    2. %scd <your-program>%s       %s# the Solana program you want to simulate%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '    3. %sriptide init%s            %s# thin .riptide/ bootstrap%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
-printf '    4. %s/riptide-config%s         %s# configure adapter, guided-sim setup, sweep, and assessment%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
+printf '    4. %s/riptide-assess%s         %s# run the Skill: simulate and write the Assessment%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '    5. %sriptide doctor%s          %s# check the configured workspace%s\n' "$C_CYAN" "$C_RESET" "$C_DIM" "$C_RESET"
 printf '\n  %sNew to Riptide?%s %sriptide --help%s walks through the full surface.\n' "$C_DIM" "$C_RESET" "$C_BOLD" "$C_RESET"
 printf '\n'

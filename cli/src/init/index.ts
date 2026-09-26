@@ -11,7 +11,6 @@ import path from "node:path";
 import type { Protocol } from "./personas-catalog.js";
 import { planDefaultAdapter, renderDefaultAdapter } from "./defaults.js";
 import { readIdlFacts } from "./idl-facts.js";
-import { installBundledSkills } from "./skills.js";
 
 export interface ScaffoldOptions {
   cwd: string;
@@ -24,11 +23,6 @@ export interface ScaffoldOptions {
   program?: string;
   /** Protocol hint recorded in a thin adapter. Defaults to "custom" (no hint). */
   protocol?: Protocol;
-  /**
-   * Install bundled Claude Code skills (e.g. `riptide-config`) into
-   * `<cwd>/.claude/skills/`. Defaults to true.
-   */
-  installSkills?: boolean;
 }
 
 export interface ScaffoldedAdapter {
@@ -267,7 +261,7 @@ function extractProgramKeys(raw: string, tableHeader: string): string[] {
 export function renderAdapterStub(programName: string, protocol: Protocol = "custom"): string {
   const soName = programName.replace(/-/g, "_");
   // Protocol flags are recorded as hints; the adapter stays on the generic
-  // SBF/IDL runtime for `/riptide-config` to finish.
+  // SBF/IDL runtime for the `/riptide-assess` Skill to finish.
   const intentLine = protocol === "custom" ? "" : `# Adapter profile hint: ${protocol}\n`;
   const genericRuntimeNote = protocol === "amm"
     ? "# AMM currently uses protocol = \"generic\" and Riptide's generic SBF/IDL runtime; amm.v1 semantics is future work.\n"
@@ -275,11 +269,11 @@ export function renderAdapterStub(programName: string, protocol: Protocol = "cus
   return `# Riptide adapter for ${programName}.
 #
 # This is the thin default bootstrap. It records artifact paths and
-# leaves simulation-shaping choices to /riptide-config.
+# leaves simulation-shaping choices to the /riptide-assess Skill.
 # It intentionally does not select personas, scenarios, invariants,
 # agent counts, tick counts, or seed counts.
-# Recommended next step: invoke \`/riptide-config\` to finish this adapter
-# and author the guided simulation.
+# The \`/riptide-assess\` Skill finishes this adapter and authors the
+# guided simulation.
 
 ${intentLine}${genericRuntimeNote}
 protocol = "generic"
@@ -396,17 +390,6 @@ export async function scaffold(options: ScaffoldOptions): Promise<ScaffoldResult
   await writeFile(path.join(riptideDir, ".gitignore"), WORKSPACE_IGNORE, "utf8");
   created.push(path.join(".riptide", ".gitignore"));
 
-  // Install bundled Claude Code skills under .claude/skills/. Existing
-  // skill directories are preserved unless --force is set.
-  if (options.installSkills !== false) {
-    try {
-      const skillResult = await installBundledSkills({ cwd, force });
-      created.push(...skillResult.installed);
-    } catch (err) {
-      warnings.push(`failed to install bundled skills: ${(err as Error).message}`);
-    }
-  }
-
   return { created, programName, programNames, adapters, warnings };
 }
 
@@ -470,7 +453,7 @@ function renderDefaultedAdapterFor(
   }
   if (plan.instructions.length === 0) {
     warnings.push(
-      `${programName}: no IDL instruction resolved without invented values; the adapter records why under [lineage] — run \`/riptide-config\` to finish it.`
+      `${programName}: no IDL instruction resolved without invented values; the adapter records why under [lineage] — the \`/riptide-assess\` Skill finishes it.`
     );
   }
 

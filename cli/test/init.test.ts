@@ -489,6 +489,8 @@ test("renderAdapterStub: contains artifact paths, empty TODO blocks, and no live
   assert.ok(body.includes("[observations]"));
   assert.ok(body.includes("[personas]"));
   assert.ok(!body.includes("\n[personas.example]"), "example persona must stay commented");
+  assert.ok(body.includes("/riptide-assess"), "stub must route to the Skill");
+  assert.ok(!body.includes("/riptide-config"), "stub must not name a removed skill");
 });
 
 test("renderAdapterStub: protocol arg is recorded as a hint on the generic runtime", () => {
@@ -518,7 +520,6 @@ test("scaffold: result records warnings for explicit blank scaffolds", async () 
   assert.deepEqual(
     result.created.sort(),
     [
-      ".claude/skills/riptide-config",
       ".riptide/.gitignore",
       ".riptide/adapters/manual-program.toml"
     ].sort()

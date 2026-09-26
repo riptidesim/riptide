@@ -14,7 +14,9 @@ How the three columns map onto the guided-sim contract:
 - **Known personas** → adapter `[personas]`. Each is an actor archetype with an
   action vocabulary; codegen renders them into `flows.rs`. Seed the ones whose
   actions the program actually exposes; edit `action_weights` to match.
-- **Known invariants** → `[[invariants]]`. Semantic expressions checked over
+- **Known invariants** → `[[invariants]]`. These are the family's Floor
+  Invariants: wire every one the program's surface exposes, with `floor`
+  provenance, and report any that cannot be wired as a Gap. Semantic expressions checked over
   recorded observations. A flat aggregate (e.g. "no bad debt") becomes a metric
   you `world.record_metric` and a `[[invariants]]` expr that fires when it
   crosses the stated line. Wire the underlying observation first — an invariant
@@ -129,12 +131,12 @@ size concentration matters), then re-weight their actions to the real vocab.
   staleness / spread-cross magnitude and measure realized fill value versus a
   fair reference.
 
-## custom / other
+## custom / other — the generic Economic Protocol fallback
 
-- No family bucket. Fall back to the generic persona pool, derive invariants
+- No family bucket. The target is still in scope. Fall back to the generic persona pool, derive invariants
   from the program's own conservation laws (what quantity must be conserved,
   bounded, or monotonic?), and pick the swept axis from the single most
   economically consequential exogenous input the P0 flow reads (a price, a
   rate, an attestation, a demand fraction). The A–F triggers in
-  [detect-and-scope.md](./detect-and-scope.md) tell you which authoring
+  [classify-and-scope.md](./classify-and-scope.md) tell you which authoring
   patterns that input forces.

@@ -2,7 +2,7 @@
 //
 // This is the interface between the deterministic codegen tier and the agent
 // tier: `riptide sim generate` classifies the genesis seam, and whoever consumes
-// the crate (an orchestrator, `/riptide-config`, CI) reads this file to learn
+// the crate (an orchestrator, the `/riptide-assess` Skill, CI) reads this file to learn
 // whether the simulation can run as generated or needs a human/agent to author
 // state codegen refused to invent.
 //
@@ -21,7 +21,7 @@ import type { GenesisGap, GenesisPlan } from "./genesis.js";
 export const SETUP_GAPS_SCHEMA = "setup-gaps.v1" as const;
 
 /** Agent-tier entry point named in the human summary and the report. */
-export const SETUP_GAPS_AGENT_SKILL = "/riptide-config" as const;
+export const SETUP_GAPS_AGENT_SKILL = "/riptide-assess" as const;
 
 export interface SetupGapsReport {
   schema_version: typeof SETUP_GAPS_SCHEMA;

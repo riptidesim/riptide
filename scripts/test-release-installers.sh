@@ -139,8 +139,7 @@ run_posix_agent_skill_install_case() {
   mkdir -p \
     "$release_dir" \
     "$bundle/bin" \
-    "$bundle/skills/riptide-config" \
-    "$bundle/skills/riptide-narrative"
+    "$bundle/skills/riptide-assess"
 
   cat > "$bundle/bin/riptide" <<'EOF'
 #!/usr/bin/env sh
@@ -148,8 +147,7 @@ printf '%s\n' 'riptide 0.0.0-test'
 EOF
   chmod +x "$bundle/bin/riptide"
 
-  printf '%s\n' '# riptide-config' > "$bundle/skills/riptide-config/SKILL.md"
-  printf '%s\n' '# riptide-narrative' > "$bundle/skills/riptide-narrative/SKILL.md"
+  printf '%s\n' '# riptide-assess' > "$bundle/skills/riptide-assess/SKILL.md"
 
   tar -czf "$archive" -C "$bundle_parent" "$(basename "$bundle")"
   write_checksum_file "$archive" "$archive.sha256"
@@ -168,11 +166,11 @@ EOF
   )"
 
   grep -F "installing agent skills" <<<"$output" >/dev/null
-  grep -F "installed Codex skill: riptide-config" <<<"$output" >/dev/null
-  grep -F "installed Claude skill: riptide-narrative" <<<"$output" >/dev/null
-  test -L "$TMP/codex-home/skills/riptide-config"
-  test -L "$TMP/claude-home/skills/riptide-config"
-  test "$(readlink "$TMP/codex-home/skills/riptide-config")" = "$TMP/skill-install/current/skills/riptide-config"
+  grep -F "installed Codex skill: riptide-assess" <<<"$output" >/dev/null
+  grep -F "installed Claude skill: riptide-assess" <<<"$output" >/dev/null
+  test -L "$TMP/codex-home/skills/riptide-assess"
+  test -L "$TMP/claude-home/skills/riptide-assess"
+  test "$(readlink "$TMP/codex-home/skills/riptide-assess")" = "$TMP/skill-install/current/skills/riptide-assess"
 
   disabled_output="$(
     PATH="$FAKE_BIN:$PATH" \
@@ -189,8 +187,8 @@ EOF
   )"
 
   grep -F "agent skill install disabled" <<<"$disabled_output" >/dev/null
-  test ! -e "$TMP/codex-disabled/skills/riptide-config"
-  test ! -e "$TMP/claude-disabled/skills/riptide-config"
+  test ! -e "$TMP/codex-disabled/skills/riptide-assess"
+  test ! -e "$TMP/claude-disabled/skills/riptide-assess"
 }
 
 run_windows_static_checks() {

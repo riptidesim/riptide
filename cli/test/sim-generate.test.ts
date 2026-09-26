@@ -120,7 +120,7 @@ test("sim generate resolves repo-root-relative runtime paths for .riptide adapte
   const repoRoot = path.resolve(process.cwd(), "..");
   const sourceAdapter = await readFile(path.join(repoRoot, "fixtures", "adapters", "amm.toml"), "utf8");
 
-  // Lay the adapter out the way `riptide init` + riptide-config do in a user
+  // Lay the adapter out the way `riptide init` + the Skill do in a user
   // repo: adapter under .riptide/adapters/ with idl_path/program_so written
   // relative to the repo root, not the adapter directory.
   await mkdir(path.join(root, ".riptide", "adapters"), { recursive: true });
@@ -219,7 +219,7 @@ test("sim generate reports one honest gap per refusal class instead of guessing 
   const flowsRs = await readFile(path.join(result.dir, "src", "flows.rs"), "utf8");
 
   assert.equal(report.genesis, "gaps");
-  assert.equal(report.agent_skill, "/riptide-config");
+  assert.equal(report.agent_skill, "/riptide-assess");
   assert.deepEqual(
     report.gaps.map((gap) => [gap.seam, gap.kind]),
     [

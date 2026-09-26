@@ -1,103 +1,212 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 const REPO_ROOT = path.resolve(process.cwd(), "..");
+const BUNDLE_ROOT = path.join(REPO_ROOT, "riptide-assess-skill");
+const SKILL_DIR = path.join(BUNDLE_ROOT, "skill");
 
-function frontmatter(raw: string): string {
+const STAGES = [
+  "Classify",
+  "Scope",
+  "Setup",
+  "Run",
+  "Firing Check",
+  "Repair",
+  "Surface",
+  "Report"
+] as const;
+
+const SKIPPED_DIRS = new Set([".git", "node_modules", "target", "dist", "case-studies"]);
+
+function splitFrontmatter(raw: string): { frontmatter: string; body: string } {
   const match = raw.match(/^---\n([\s\S]*?)\n---\n/);
   assert.ok(match, "SKILL.md must start with YAML frontmatter");
-  return match[1]!;
+  return { frontmatter: match[1]!, body: raw.slice(match[0].length) };
 }
 
-test("riptide-config skill frontmatter is present and names the merged flow", async () => {
-  const raw = await readFile(
-    path.join(REPO_ROOT, "skills", "riptide-config", "SKILL.md"),
-    "utf8"
-  );
-  const fm = frontmatter(raw);
-
-  assert.match(fm, /^name:\s+riptide-config$/m);
-  assert.match(fm, /^description:\s+>-/m);
-  assert.match(fm, /adapter, guided-sim setup, sweep, repair, and assessment/);
-  assert.match(raw, /campaign_ready = yes/);
-  assert.match(raw, /bounded_ready = yes/);
-  assert.match(raw, /Do not stop at "lint PASS"/);
-  assert.match(raw, /next steps, as a short explicit block/);
-  assert.match(raw, /the exact `riptide sim run \.\.\.` command/);
-  assert.match(raw, /the exact `riptide review <guided-sim-root>` command/);
-  assert.match(raw, /The skill prepares the guided-sim\s+evidence/);
-  assert.match(raw, /retained-case paths to inspect/);
-  assert.match(raw, /accept the current evidence boundary or expand/);
-  assert.match(raw, /default configuration path after `riptide init`/);
-  assert.match(raw, /Plain\s+init intentionally creates only a thin `\.riptide\/` bootstrap/);
-  assert.match(raw, /Own adapter, persona, flow, sweep, and invariant authoring by default/);
-  assert.match(raw, /When `\.riptide\/` already carries user-authored choices/);
-  assert.match(raw, /Preserve selected personas in the adapter/);
-  assert.match(raw, /Preserve selected flow emphasis and existing `\.riptide\/sim\/Riptide\.toml`/);
-  assert.match(raw, /Do not rewrite the stored `\[sim\.sweep\] seeds_per_value`/);
-  assert.match(raw, /before\/after values/);
-  assert.match(raw, /preserve the user's\s+content unless validation proves it is invalid/);
-  assert.match(raw, /TODO-only setup is not acceptable/);
-  assert.match(raw, /missing deterministic <fact> for guided-sim setup/);
-  assert.match(raw, /setup-solvable gaps/);
-  assert.match(raw, /`riptide sim generate`/);
-  assert.match(raw, /Guided Sim Stage/);
-  assert.match(raw, /guided-sim loop/);
-  assert.match(raw, /\.riptide\/sim\/Riptide\.toml/);
-  assert.match(raw, /\[\[sim\.fork\]\]/);
-  assert.match(raw, /dynamic\s+`remaining_accounts`/);
-});
-
-test("repo skill frontmatter blocks expose name and description", async () => {
-  const skillsDir = path.join(REPO_ROOT, "skills");
-  const entries = await readdir(skillsDir, { withFileTypes: true });
-
-  for (const entry of entries.filter((item) => item.isDirectory())) {
-    const raw = await readFile(path.join(skillsDir, entry.name, "SKILL.md"), "utf8");
-    const fm = frontmatter(raw);
-    assert.match(fm, /^name:\s+\S+/m, `${entry.name} missing name`);
-    assert.match(fm, /^description:\s+/m, `${entry.name} missing description`);
-  }
-});
-
-test("user-facing docs present only the current config skill", async () => {
-  const removedNames = ["adapt", "harness", "scenarios"].map((name) => `riptide-${name}`);
-  const docs = [
-    "README.md",
-    "CONTRIBUTING.md",
-    path.join("docs", "architecture.md"),
-    path.join("docs", "vision.md"),
-    path.join("docs", "install.md"),
-    path.join("skills", "riptide-config", "SKILL.md")
-  ];
-
-  for (const doc of docs) {
-    const raw = await readFile(path.join(REPO_ROOT, doc), "utf8");
-    for (const name of removedNames) {
-      assert.equal(raw.includes(name), false, `${doc} mentions ${name}`);
+async function findFiles(dir: string, name: string): Promise<string[]> {
+  const found: string[] = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (!SKIPPED_DIRS.has(entry.name)) found.push(...(await findFiles(path.join(dir, entry.name), name)));
+    } else if (entry.name === name) {
+      found.push(path.join(dir, entry.name));
     }
-    const aliasPhrase = ["compatibility", "alias"].join(" ");
-    assert.equal(raw.includes(aliasPhrase), false, `${doc} mentions ${aliasPhrase}`);
+  }
+  return found;
+}
+
+async function bundleMarkdown(): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  const readme = path.join(BUNDLE_ROOT, "README.md");
+  files.set("README.md", await readFile(readme, "utf8"));
+  for (const entry of await readdir(SKILL_DIR, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.endsWith(".md")) {
+      files.set(`skill/${entry.name}`, await readFile(path.join(SKILL_DIR, entry.name), "utf8"));
+    }
+  }
+  return files;
+}
+
+async function skillBody(): Promise<string> {
+  return splitFrontmatter(await readFile(path.join(SKILL_DIR, "SKILL.md"), "utf8")).body;
+}
+
+test("the repo carries exactly one Skill bundle", async () => {
+  const skillFiles = (await findFiles(REPO_ROOT, "SKILL.md")).map((file) =>
+    path.relative(REPO_ROOT, file)
+  );
+  assert.deepEqual(skillFiles, [path.join("riptide-assess-skill", "skill", "SKILL.md")]);
+  assert.equal(existsSync(path.join(REPO_ROOT, "skills")), false);
+  assert.equal(existsSync(path.join(REPO_ROOT, "cli", "skills")), false);
+});
+
+test("the Skill defines one user command", async () => {
+  const { frontmatter } = splitFrontmatter(await readFile(path.join(SKILL_DIR, "SKILL.md"), "utf8"));
+  assert.match(frontmatter, /^name:\s+riptide-assess$/m);
+  assert.match(frontmatter, /^description:\s+\S/m);
+  assert.match(await skillBody(), /`\/riptide-assess`/);
+
+  for (const [file, raw] of await bundleMarkdown()) {
+    assert.doesNotMatch(raw, /\/riptide-(?!assess\b)[a-z]/, `${file} names another command`);
+    assert.doesNotMatch(raw, /riptide-(config|narrative)\b/, `${file} names a removed skill`);
   }
 });
 
-test("riptide-config keeps user-repo personas inline, not fixture policies", async () => {
-  const prompt = await readFile(
-    path.join(REPO_ROOT, "skills", "riptide-config", "SKILL.md"),
-    "utf8"
-  );
+test("SKILL.md lists the stages in order, each routed to a reference that exists", async () => {
+  const body = await skillBody();
+  assert.ok(body.includes(STAGES.join(" → ")), "stage list missing");
 
-  assert.match(prompt, /Do not write fixture `manifest\.json`, `policies\.json`/);
-  assert.match(prompt, /Generic personas stay inline in the\s+adapter/);
+  let cursor = 0;
+  for (const stage of STAGES) {
+    const heading = new RegExp(`^### \\d+\\. ${stage}$`, "m");
+    const match = heading.exec(body.slice(cursor));
+    assert.ok(match, `stage heading for ${stage} missing or out of order`);
+    cursor += match.index + match[0].length;
+  }
+
+  for (const [file, raw] of await bundleMarkdown()) {
+    const dir = path.dirname(path.join(BUNDLE_ROOT, file));
+    for (const [, target] of raw.matchAll(/\]\((\.{1,2}\/[^)#\s]+)/g)) {
+      assert.ok(existsSync(path.resolve(dir, target!)), `${file} links to missing ${target}`);
+    }
+  }
+});
+
+test("the Steering Hint is the only input and every assumption lands in the Scope Declaration", async () => {
+  const body = await skillBody();
+  assert.match(body, /Steering Hint is the only input/);
+  assert.match(body, /Scope Declaration/);
+  assert.match(body, /overriding Steering Hint/);
+  assert.match(body, /Depth/);
+});
+
+test("no bundle file instructs the agent to ask the user anything", async () => {
+  const forbidden = [
+    /\bask(s|ed|ing)?\b/i,
+    /\bquestions?\b/i,
+    /\bconfirm with\b/i,
+    /\bwait for (the )?user\b/i,
+    /\bprompt the user\b/i
+  ];
+  for (const [file, raw] of await bundleMarkdown()) {
+    for (const pattern of forbidden) {
+      assert.doesNotMatch(raw, pattern, `${file} matches ${pattern}`);
+    }
+  }
+});
+
+test("the core flow names no host-specific tools", async () => {
+  const hostTerms =
+    /\b(AskUserQuestion|TodoWrite|WebFetch|WebSearch|NotebookEdit|Claude Code|Codex|(Task|Agent|Bash|Read|Write|Edit|Grep|Glob) tool)\b/;
+  for (const [file, raw] of await bundleMarkdown()) {
+    if (file === "README.md") continue;
+    const text = file === "skill/SKILL.md" ? splitFrontmatter(raw).body : raw;
+    assert.doesNotMatch(text, hostTerms, `${file} names a host tool`);
+  }
+});
+
+test("SKILL.md speaks the domain vocabulary", async () => {
+  const body = await skillBody();
+  for (const term of [
+    "Assessment",
+    "Assessment Context",
+    "Engine",
+    "Engine Output",
+    "Workspace",
+    "Internal Artifact",
+    "Coverage",
+    "Region Coverage",
+    "Gap",
+    "Blocker Report",
+    "Out-of-Scope Note",
+    "Economic Protocol",
+    "Firing Check",
+    "Floor Invariant",
+    "Breach",
+    "Causal Trace"
+  ]) {
+    assert.ok(body.includes(term), `SKILL.md does not use ${term}`);
+  }
+  assert.match(body, /not an audit signoff/);
+});
+
+test("the Firing Check stage reports an unchecked invariant as a Gap", async () => {
+  const raw = await readFile(path.join(SKILL_DIR, "firing-check.md"), "utf8");
+  assert.match(raw, /never counts as held/);
+  assert.match(raw, /reported as a Gap/);
+});
+
+test("the Setup and Repair references keep the repair guidance", async () => {
+  const setup = await readFile(path.join(SKILL_DIR, "setup.md"), "utf8");
+  const repair = await readFile(path.join(SKILL_DIR, "repair.md"), "utf8");
+  const run = await readFile(path.join(SKILL_DIR, "run-and-surface.md"), "utf8");
+
+  assert.match(setup, /TODO-only setup is not acceptable/);
+  assert.match(setup, /missing deterministic <fact> for guided-sim setup/);
+  assert.match(setup, /Do not write fixture `manifest\.json`, `policies\.json`/);
+  assert.match(setup, /Generic personas stay inline in the\s+adapter/);
+  assert.match(setup, /no campaign TOML — the sweep lives in `Riptide\.toml`/);
+  assert.match(setup, /\[\[sim\.fork\]\]/);
+  assert.match(setup, /PythPriceUpdate/);
+  assert.match(setup, /Preserve selected personas in the adapter/);
+  assert.match(setup, /Do not rewrite the stored `\[sim\.sweep\] seeds_per_value`/);
+
+  for (const failureClass of [
+    "skill prompt gap",
+    "CLI validation gap",
+    "setup source fact gap",
+    "setup API/tooling gap",
+    "guided-sim required",
+    "unsupported protocol surface",
+    "case-study source/build issue"
+  ]) {
+    assert.ok(repair.includes(`\`${failureClass}\``), `repair.md lost ${failureClass}`);
+  }
+  assert.match(repair, /Keep coverage marked unavailable/);
+  assert.match(repair, /Do not stop at "lint PASS"/);
+  assert.match(repair, /Invariant failures are evidence, not setup failures/);
+
   assert.match(
-    prompt,
-    /riptide sim run \.riptide\/sim --flows 20 --out \.riptide\/sim\/artifacts\/<run>/
+    run,
+    /riptide sim run \.riptide\/sim --iterations 5 --flows 20 --seed 1337 --out \.riptide\/sim\/artifacts\/smoke/
   );
-  assert.doesNotMatch(prompt, /`personas` is a list whose length equals `agents`/);
-  assert.doesNotMatch(prompt, /must match policies\.json entries/);
-  assert.match(prompt, /Do not run the full sweep until this one-seed smoke passes/);
+  assert.match(run, /Do not run the full sweep until the one-seed smoke passes/);
+});
+
+test("the report reference carries the Causal Trace evidence rules", async () => {
+  const report = await readFile(path.join(SKILL_DIR, "report.md"), "utf8");
+  const trace = await readFile(path.join(SKILL_DIR, "causal-trace.md"), "utf8");
+
+  assert.match(report, /Blocker Report/);
+  assert.match(report, /Out-of-Scope Note/);
+  assert.match(report, /replay command/);
+  assert.match(trace, /riptide sim debug/);
+  assert.match(trace, /Every number must be traceable/);
+  assert.match(trace, /Cold-read gate/);
 });
 
 test("guided-sim docs guard coverage instead of claiming emitted coverage", async () => {
@@ -110,17 +219,19 @@ test("guided-sim docs guard coverage instead of claiming emitted coverage", asyn
   assert.doesNotMatch(architecture, /guided-sim coverage output is supported/i);
 });
 
-test("riptide-config skill sim guidance includes artifact review boundary", async () => {
-  const prompt = await readFile(
-    path.join(REPO_ROOT, "skills", "riptide-config", "SKILL.md"),
-    "utf8"
-  );
-  const guided = await readFile(path.join(REPO_ROOT, "docs", "guided-sim.md"), "utf8");
-
-  assert.match(prompt, /riptide sim run \.riptide\/sim --iterations 5 --flows 20 --seed 1337 --out \.riptide\/sim\/artifacts\/smoke/);
-  assert.match(prompt, /riptide sim review \.riptide\/sim\/artifacts\/smoke/);
-  assert.match(prompt, /retained failing\s+seed, flow table, labelled transaction outcomes/);
-  assert.match(prompt, /no campaign TOML — the sweep lives in `Riptide\.toml`/);
-  assert.match(prompt, /Keep coverage marked unavailable/);
-  assert.match(guided, /Review integration \| Supported for guided artifacts/);
+test("repo docs name no removed skill", async () => {
+  const docs = [
+    "README.md",
+    "CONTRIBUTING.md",
+    path.join("cli", "README.md"),
+    path.join("docs", "architecture.md"),
+    path.join("docs", "vision.md"),
+    path.join("docs", "install.md"),
+    path.join("docs", "submission-package.md")
+  ];
+  for (const doc of docs) {
+    const raw = await readFile(path.join(REPO_ROOT, doc), "utf8");
+    assert.doesNotMatch(raw, /riptide-(config|narrative|adapt|harness|scenarios)\b/, `${doc} names a removed skill`);
+    assert.doesNotMatch(raw, /skills\/riptide-/, `${doc} links a removed skill path`);
+  }
 });

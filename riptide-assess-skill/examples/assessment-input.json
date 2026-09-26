@@ -1,5 +1,5 @@
 {
-  "_comment": "Example AssessmentInputs for `riptide assess <guided-sim-root> --input examples/assessment-input.json`. The skill authors a file like this from what the detect/scope/run steps established. All fields are optional — omitted fields are derived deterministically from the guided-sim cartography root. Adapt the values to your protocol; do not ship these placeholders verbatim.",
+  "_comment": "Example AssessmentInputs for `riptide assess <guided-sim-root> --input examples/assessment-input.json`. The Skill authors a file like this from what the Classify, Scope and Run stages established. All fields are optional — omitted fields are derived deterministically from the guided-sim cartography root. Adapt the values to your protocol; do not ship these placeholders verbatim.",
   "protocol": {
     "name": "example-lending"
   },

@@ -31,7 +31,6 @@
     "dist/src",
     "dist/src/**/*.d.ts",
     "dist/sim-runtime",
-    "dist/skills",
     "assets",
     "README.md",
     "LICENSE-MIT",

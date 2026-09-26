@@ -22,7 +22,7 @@ guided-sim manifest, Rust flows, and a reviewable artifact.
 
 ```bash
 riptide init
-# run /riptide-config to finish the adapter and guided sim
+# the /riptide-assess Skill finishes the adapter and guided sim
 riptide sim generate --adapter .riptide/adapters/anchor-uniswap-v2.toml
 riptide sim run .riptide/sim --flows 20 --out /tmp/auv2-run
 riptide sim surface /tmp/auv2-run --sim .riptide/sim
@@ -38,8 +38,8 @@ Show:
   from the parameter sweep.
 - `riptide assess` generating the byte-deterministic assessment report.
 - `riptide review` accepting the guided-sim root.
-- `/riptide-config` as a prompt handoff surface, not automatic file mutation
-  or hidden agent execution.
+- `/riptide-assess` as the one user command that authors the adapter and
+  guided sim and drives these commands.
 
 ### 3. Determinism Check
 
@@ -70,7 +70,7 @@ mainnet monitoring, Cloud, or a promise that every failure mode was found.
 | Cartography build | Terminal | `riptide sim surface`, `risk-surface.json` + `campaign-summary.json`. |
 | Assessment | Terminal | `riptide assess`, generated `assessment.md`. |
 | Review boundary | Terminal | `riptide review`, accepted root, invariant section, exit-code note. |
-| Config handoff | Terminal | `/riptide-config` prompt/handoff surface; no automatic file edits. |
+| Skill | Terminal | `/riptide-assess` authoring the Workspace and driving the Engine. |
 | Determinism | Terminal | Second `riptide assess`, byte-identical artifacts. |
 | Closing | Trust docs | Link trust page, case-study readiness, and known limits. |
 
@@ -90,7 +90,7 @@ guided-sim artifacts, risk-surface and assessment reports, and exact rerun
 commands. The current trust path is the guided-sim assessment flow: generate
 a guided sim, run a parameter sweep, build the cartography artifacts with
 `riptide sim surface`, and generate a byte-deterministic report with
-`riptide assess`. `/riptide-config` is the agent handoff that finishes a
+`riptide assess`. The `/riptide-assess` Skill finishes a
 repo's adapter and guided sim.
 
 ### Longer Summary

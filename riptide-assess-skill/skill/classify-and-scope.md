@@ -1,18 +1,31 @@
-# Detect & Scope
+# Classify & Scope
 
-The first two steps of the flow: establish the protocol family from real
-evidence, then classify what authoring complexity the guided sim must handle so
-the sim crate lands the flows right the first time.
+The first two stages. Classify decides whether the target is an Economic
+Protocol and which family it belongs to. Scope decides what the guided sim must
+handle, which worst case to hunt, and which assumptions go into the Scope
+Declaration.
 
-## 1. Detect
+## 1. Classify
 
 1. Establish the repo root from `.riptide/`, `Anchor.toml`, `Cargo.toml`,
-   `target/idl`, or the current directory.
-2. Read existing artifacts before asking the user: `.riptide/adapters/*.toml`
-   (especially `[semantics].class`), `target/idl/*.json`, `app/src/idl/*.json`,
-   source, tests, any existing `.riptide/sim/`, and `target/deploy/*.so`.
-3. Optionally classify with the read-only check: `riptide readiness . --json`.
-4. Classify the protocol family from semantics first, else source/IDL evidence:
+   `target/idl`, or the current directory. If the Steering Hint names a
+   program or path, that is the target.
+2. Read the existing evidence first: `.riptide/adapters/*.toml` (especially
+   `[semantics].class`), `target/idl/*.json`, `app/src/idl/*.json`, source,
+   tests, any existing `.riptide/sim/`, and `target/deploy/*.so`.
+3. Collect the Engine's read-only classification evidence:
+   `riptide readiness . --json`.
+4. Decide whether the target is an **Economic Protocol**: it holds or moves
+   value through pooled assets, prices, collateral, debt, reserves or
+   solvency. IDL and source signals decide this, not family matching.
+   - Not an Economic Protocol (an NFT mint, a DAO vote, a registry, a
+     game with no value-bearing mechanism): stop and deliver an Out-of-Scope
+     Note within the first minute. See [report.md](./report.md).
+   - An Economic Protocol that matches no family below: continue with the
+     generic Economic Protocol fallback in
+     [family-library.md](./family-library.md). Novelty is never a reason to
+     stop.
+5. Name the family from semantics first, then source and IDL evidence:
    - **lending** — `borrow`, `repay`, `deposit`, `withdraw`, `liquidate`,
      collateral, debt, reserve, oracle.
    - **amm** — `swap`, `add_liquidity`, `remove_liquidity`, pool, reserve, LP
@@ -23,25 +36,20 @@ the sim crate lands the flows right the first time.
      queue, slash.
    - **stablecoin** — mint, redeem, collateral, liability, peg, PSM, reserve,
      hedge.
-5. Record a one-screen detection note: family, semantic class, confidence
-   (`high`/`medium`/`low`), evidence paths, competing interpretations. If
-   confidence is low between two families, ask one classification question
-   (counts toward the three-question limit).
-6. Once the family is fixed, read that family's entry in
-   [family-library.md](./family-library.md) — the recurring personas,
-   invariants, and stress scenarios for the archetype. Treat it as the starting
-   menu: apply/adapt the entries that fit the target program's real
-   instructions and accounts, then add protocol-specific ones the program's own
-   flows demand. Do this **before** designing the campaign, not instead of it.
+6. Record a one-screen classification note: Economic Protocol verdict with its
+   evidence, family, semantic class, confidence (`high`/`medium`/`low`),
+   evidence paths and competing interpretations. When two families are close,
+   take the one with more instruction-level evidence and add the other as an
+   assumption in the Scope Declaration, with the Steering Hint that selects it.
 
-Read the P0/P1 state-changing instructions: for each, read the IDL `args` and
-`accounts` entries plus the handler source. This feeds the next step.
+Read the P0 and P1 state-changing instructions: for each, the IDL `args` and
+`accounts` entries plus the handler source. Scope builds on this.
 
-## 2. Scope — classify what the guided sim must handle (A–F)
+## 2. Scope — what the guided sim must handle (A–F)
 
-There is ONE execution path (the guided sim). This step is not "which path" —
-it is "**what authoring complexity** does this protocol need", so the sim crate
-lands the flows right the first time. For every P0/P1 instruction, check the six
+There is one execution path, the guided sim. Scope is not "which path"; it is
+"**what authoring complexity** this protocol needs", so the sim crate lands the
+flows right the first time. For every P0/P1 instruction, check the six
 triggers below. Each trigger that fires names a concrete authoring pattern.
 
 **Trigger A — non-primitive or enum instruction arguments.** The instruction
@@ -107,10 +115,10 @@ register its signature oracle before any flow can run.
   the sim hand-authors the patterns the triggers named. Trigger-free flows stay
   low-touch within the same crate.
 - **FHE/MPC/ZK, external-venue execution, or off-chain matching the sim cannot
-  model → `unsupported`** for those surfaces. Name them as scope boundaries
-  instead of silently skipping them.
+  model → `unsupported`** for those surfaces. Each one is a Gap in the
+  Assessment, never a silent skip.
 
-Record the classification note and carry it into the final report:
+Record the classification note and carry it into the Assessment Context:
 
 ```text
 program: <name>
@@ -122,24 +130,26 @@ authoring patterns: <per trigger — A typed-argument builders; B oracle-account
 verdict: <baseline-sim | guided-sim-authored | unsupported>
 ```
 
-Before asking any scoping question, pair two references for the archetype:
-[family-library.md](./family-library.md) for the recurring personas,
-invariants, and stress scenarios to start from, and
+## 3. Choose the region
+
+Pair two references for the archetype:
+[family-library.md](./family-library.md) for the personas, Floor Invariants and
+stress scenarios to start from, and
 [worst-case-playbook.md](./worst-case-playbook.md) for the worst case to hunt,
-the axis to sweep, and the deciding invariant/metric. The library seeds the
-campaign; the playbook sharpens it to the worst case.
+the axis to sweep, and the deciding invariant or metric. The library seeds the
+simulation; the playbook sharpens it to the worst case.
 
-Then ask **no more than three questions total**, one at a time, never for facts
-already visible in source/IDL/tests/`.riptide`:
+Then settle the three choices that shape the region. Each becomes a Scope
+Declaration entry with its reason and overriding Steering Hint:
 
-1. **Primary risk objective** — two to four options derived from the family and
-   actual surfaces; recommend the archetype default unless evidence points
-   elsewhere.
-2. **Flow emphasis** — stress-flow families or program-specific flows matching
-   real instructions/accounts; include one "balanced default".
-3. **Missing assumption** — only when a material fact is not derivable (oracle
-   account layout, authority policy, dependency fixture source, intended fee
-   cap, accepted scope exclusion).
+1. **Risk objective** — the archetype default unless the Steering Hint or the
+   evidence points elsewhere (a focus area in the Steering Hint wins).
+2. **Flow emphasis** — the stress flows matching real instructions and
+   accounts; the balanced default when nothing points elsewhere.
+3. **Assumptions for facts the repo does not carry** — oracle account layout,
+   authority policy, dependency fixture source, intended fee cap, scope
+   exclusions. Take the conservative reading and name it. If no reading can
+   be defended from local evidence, the dependent surface is a Gap.
 
-If the user says "use defaults", proceed with archetype defaults narrowed to the
-program, and still show the choices before running.
+Never assume a fact already visible in source, IDL, tests or `.riptide/`; read
+it.

@@ -4,7 +4,7 @@
 // and record everything else as a residual under `[lineage]` so the gap
 // is machine-readable instead of a comment a human has to notice. A
 // conservative "not derivable" always beats a plausible guess — the
-// agent tier (`/riptide-config`) is the escape hatch for the rest.
+// agent tier (the `/riptide-assess` Skill) is the escape hatch for the rest.
 //
 // Deliberately program-agnostic: no protocol-family detection, no
 // invented invariants, no semantics class. Those belong to the agent
@@ -157,7 +157,7 @@ export function planDefaultAdapter(facts: IdlFacts): DefaultAdapterPlan | undefi
     );
   }
   inferredAssumptions.push(
-    "No invariants or `[semantics]` are declared: those need protocol meaning the IDL does not carry. Author them with `/riptide-config`."
+    "No invariants or `[semantics]` are declared: those need protocol meaning the IDL does not carry. The `/riptide-assess` Skill authors them."
   );
 
   const personas =
@@ -378,7 +378,7 @@ triggers = []`
 # inputs declared here — a bounded result, not a safety conclusion.
 #
 # It is runnable as generated. To sharpen it (personas, invariants,
-# protocol semantics), invoke \`/riptide-config\`.
+# protocol semantics), the \`/riptide-assess\` Skill authors them.
 
 protocol = "generic"
 program_so = "target/deploy/${soName}.so"
@@ -393,7 +393,7 @@ ${instructionLines}
 ${actionBlocks}${actionBlocks.length > 0 ? "\n\n" : ""}${observationsSection}
 
 # One program-agnostic actor spread evenly across the mapped actions.
-# Behavioral archetypes need protocol meaning; \`/riptide-config\` owns them.
+# Behavioral archetypes need protocol meaning; the \`/riptide-assess\` Skill owns them.
 ${personaBlocks}${personaBlocks.length > 0 ? "\n\n" : ""}[lineage]
 idl_source = ${tomlString(idlRelPath)}
 generator = "riptide init (IDL defaults)"

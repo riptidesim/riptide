@@ -222,7 +222,8 @@ cp -R "$ROOT/cli/assets" "$bundle/cli/assets"
 (cd "$bundle/cli" && npm ci --omit=dev --no-audit --no-fund --ignore-scripts)
 
 cp -R "$ROOT/fixtures" "$bundle/fixtures"
-cp -R "$ROOT/skills" "$bundle/skills"
+mkdir -p "$bundle/skills"
+cp -R "$ROOT/riptide-assess-skill/skill" "$bundle/skills/riptide-assess"
 cp "$ROOT/README.md" "$bundle/README.md"
 cp "$ROOT/TOOLCHAIN.md" "$bundle/TOOLCHAIN.md"
 cp "$ROOT/LICENSE" "$bundle/LICENSE"

@@ -455,7 +455,7 @@ try {
     Write-Styled "    (open a new shell or update PATH first)" -Color DarkGray
   }
   if (Test-AgentSkillsEnabled) {
-    Write-Styled "    (start a new Codex/Claude session before using /riptide-config)" -Color DarkGray
+    Write-Styled "    (start a new Codex/Claude session before using /riptide-assess)" -Color DarkGray
   }
   Write-Styled "    1. " -Color White -NoNewline
   Write-Styled "riptide --help" -Color Cyan -NoNewline
@@ -467,8 +467,8 @@ try {
   Write-Styled "riptide init" -Color Cyan -NoNewline
   Write-Styled "            # thin .riptide/ bootstrap" -Color DarkGray
   Write-Styled "    4. " -Color White -NoNewline
-  Write-Styled "/riptide-config" -Color Cyan -NoNewline
-  Write-Styled "         # configure adapter, guided-sim setup, sweep, and assessment" -Color DarkGray
+  Write-Styled "/riptide-assess" -Color Cyan -NoNewline
+  Write-Styled "         # run the Skill: simulate and write the Assessment" -Color DarkGray
   Write-Styled "    5. " -Color White -NoNewline
   Write-Styled "riptide doctor" -Color Cyan -NoNewline
   Write-Styled "          # check the configured workspace" -Color DarkGray

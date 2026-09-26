@@ -64,7 +64,7 @@ expressed in TOML, guided simulations, or skills.
 | Studio or CLI | `cli/src/`, `cli/studio-app/` | `npm --prefix cli test` |
 | Engine | `riptide-sim/src/`, `riptide-sim/tests/` | `cargo test -p riptide-sim` |
 | Adapter | `fixtures/adapters/` | relevant CLI tests |
-| Skills | `skills/riptide-*/` | cold-read before/after output on the same repo |
+| Skill | `riptide-assess-skill/` | `npm --prefix cli test` plus a cold-read before/after output on the same repo |
 
 If you change Studio source under `cli/studio-app/`, rebuild the bundled assets
 before claiming the served app changed.

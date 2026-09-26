@@ -89,7 +89,7 @@ async function tempRepo(prefix: string): Promise<string> {
 test("command io: init reports through the injected stderr", async () => {
   const cwd = await tempRepo("init");
   const result = await drive(cwd, (io) =>
-    runInit({ force: false, dir: cwd, blank: true, name: "manual-program", skills: false }, io)
+    runInit({ force: false, dir: cwd, blank: true, name: "manual-program" }, io)
   );
 
   assert.equal(result.exitCode, 0);

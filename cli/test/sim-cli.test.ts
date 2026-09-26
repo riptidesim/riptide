@@ -64,7 +64,7 @@ test("sim generate CLI routes an unresolvable genesis to the agent skill on stde
   assert.equal(generated.stdout, "");
   assert.match(generated.stderr, /riptide sim: tick-0 genesis has 5 unresolved seams/);
   assert.match(generated.stderr, /accounts\.vault \(program_constrained_address\)/);
-  assert.match(generated.stderr, /next: \/riptide-config/);
+  assert.match(generated.stderr, /next: \/riptide-assess/);
   assert.match(generated.stderr, /report .*setup-gaps\.json/);
 
   const report = JSON.parse(await readFile(path.join(outDir, "setup-gaps.json"), "utf8")) as {

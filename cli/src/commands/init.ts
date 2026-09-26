@@ -30,8 +30,6 @@ export interface InitOptions {
   program?: string;
   protocol?: Protocol;
   profile?: Protocol;
-  /** Set by --no-skills; commander stores --no-X as `skills: false`. */
-  skills?: boolean;
 }
 
 export type InitDeps = Omit<CommandIO, "cwd">;
@@ -52,11 +50,7 @@ export function createInitCommand(deps: InitDeps = {}): Command {
       "--protocol <protocol>",
       "Adapter protocol hint (amm, lending, perpetuals, liquid-staking, stablecoin, custom)"
     )
-    .option("--profile <profile>", "Alias for --protocol")
-    .option(
-      "--no-skills",
-      "Skip installing bundled Claude Code skills under .claude/skills/"
-    );
+    .option("--profile <profile>", "Alias for --protocol");
 
   return command.action(async (options: InitOptions) => {
     const exitCode = await runInit(options, deps);
@@ -82,8 +76,7 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
       blank: Boolean(options.blank),
       programName: options.name,
       program: options.program,
-      protocol,
-      installSkills: options.skills !== false
+      protocol
     });
 
     const programs = result.programNames.map((name) => chalk.cyan(name)).join(", ");
