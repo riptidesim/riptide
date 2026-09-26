@@ -84,6 +84,16 @@ export function renderEnvelope(envelope: SuccessEnvelope<unknown> | ErrorEnvelop
  * `message`. Lines starting with `next:` are dropped: the error shape carries
  * the next action in its own `next` field.
  */
+/** The action on a human error message's own `next:` line, if it has one. */
+export function nextLineOf(text: string): string | undefined {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.startsWith("next:"))
+    ?.slice("next:".length)
+    .trim();
+}
+
 export function oneLineMessage(text: string): string {
   return text
     .split("\n")

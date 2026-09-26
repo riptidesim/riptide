@@ -2730,7 +2730,7 @@ function validateRiskSurface(surface: RiskSurfaceDocument): void {
   if (schema !== "risk-surface.v1") {
     throw new AssessmentIngestError(
       `${RISK_SURFACE_FILE} is schema ${JSON.stringify(schema)}, not "risk-surface.v1".`,
-      "assessment.v1 requires a Sprint 39 risk-surface.v1 artifact; rerun the campaign with the current CLI.",
+      "assessment.v1 requires a risk-surface.v1 artifact; rerun the campaign with the current CLI.",
       "assess_artifact_schema_mismatch"
     );
   }

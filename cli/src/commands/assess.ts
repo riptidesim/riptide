@@ -93,10 +93,12 @@ export interface AssessCommandDeps extends CommandIO {
 }
 
 /** Thrown for CLI-input problems (bad flag, malformed input file). Message-first. */
+export type AssessmentInputErrorCode = "assess_input_not_found" | "assess_input_unreadable" | "assess_input_invalid";
+
 export class AssessmentInputError extends Error {
   readonly hint: string | undefined;
-  readonly code: "assess_input_not_found" | "assess_input_invalid";
-  constructor(message: string, hint?: string, code: AssessmentInputError["code"] = "assess_input_invalid") {
+  readonly code: AssessmentInputErrorCode;
+  constructor(message: string, hint?: string, code: AssessmentInputErrorCode = "assess_input_invalid") {
     super(hint ? `${message}\n  next: ${hint}` : message);
     this.name = "AssessmentInputError";
     this.hint = hint;
@@ -400,7 +402,11 @@ async function readInputFile(cwd: string, file: string): Promise<AssessmentInput
         "assess_input_not_found"
       );
     }
-    throw new AssessmentInputError(`could not read assessment input file at ${inputPath}: ${errMessage(err)}.`);
+    throw new AssessmentInputError(
+      `could not read assessment input file at ${inputPath}: ${errMessage(err)}.`,
+      undefined,
+      "assess_input_unreadable"
+    );
   }
   let parsed: unknown;
   try {

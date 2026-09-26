@@ -365,6 +365,12 @@ test("assess --json: every known failure path carries a stable code and a next a
     "assess_input_not_found",
     1
   );
+  assertFailure(
+    await drive(cwd, (io) => runAssess(".riptide", { json: true, input: ".riptide" }, io)),
+    "assess",
+    "assess_input_unreadable",
+    1
+  );
   await writeFile(path.join(cwd, "bad.json"), "{", "utf8");
   assertFailure(
     await drive(cwd, (io) => runAssess(".riptide", { json: true, input: "bad.json" }, io)),

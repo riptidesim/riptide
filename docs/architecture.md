@@ -286,8 +286,8 @@ is unchanged.
   `review_rerun_script_missing`, `review_rerun_script_invalid`,
   `review_failed`.
 - **`assess`**: `data` is the `assess-cli.v1` result. Failures:
-  `assess_no_evidence`, `assess_input_not_found`, `assess_input_invalid`,
-  `assess_artifact_unreadable`, `assess_artifact_malformed`,
+  `assess_no_evidence`, `assess_input_not_found`, `assess_input_unreadable`,
+  `assess_input_invalid`, `assess_artifact_unreadable`, `assess_artifact_malformed`,
   `assess_artifact_schema_mismatch`, `assess_artifacts_inconsistent`,
   `assess_surface_digest_mismatch`, `assess_honesty_gates_blocked` (with
   the gate report as `data.execution_honesty`), `assess_artifacts_drifted`,

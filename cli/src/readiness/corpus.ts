@@ -222,10 +222,12 @@ export const LAUNCH_CLAIM_DEFINITIONS: readonly LaunchClaimDefinition[] = [
 ];
 
 /** A readiness input the caller can fix, with a stable code and the recommended next action. */
+export type ReadinessInputErrorCode = "readiness_missing_target" | "readiness_case_studies_not_found";
+
 export class ReadinessInputError extends Error {
-  readonly code: string;
+  readonly code: ReadinessInputErrorCode;
   readonly next: string;
-  constructor(message: string, code: string, next: string) {
+  constructor(message: string, code: ReadinessInputErrorCode, next: string) {
     super(message);
     this.name = "ReadinessInputError";
     this.code = code;

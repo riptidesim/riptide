@@ -161,7 +161,7 @@ function readinessFailure(error: unknown): CommandError {
   return {
     code: "readiness_failed",
     message: oneLineMessage(error instanceof Error ? error.message : String(error)),
-    next: "fix the file named in the message (an unreadable path or an adapter that fails its schema), then rerun `riptide readiness <path> --json`",
+    next: "fix the path, adapter or output directory named in the message, then rerun `riptide readiness <path> --json`",
   };
 }
 
