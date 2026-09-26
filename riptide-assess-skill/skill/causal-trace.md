@@ -54,7 +54,8 @@ Keep each trace to a few short parts:
    `**T<start>–T<end>**`, for the ticks that matter: the first occurrence of
    an action, a price or reserve crossing a round threshold, a
    failed-transaction cluster, the first invariant firing, and the first and
-   last ticks. The gate rejects a trace that cites no tick. State
+   last ticks. The gate rejects a trace that cites no tick, or that names no
+   exercised instruction's transaction. State
    action → outcome shapes ("5 `liquidate` succeed, 10 fail"), not raw events.
 4. **Close** — one sentence restating the claim for this seed and coordinate,
    and one naming the next useful experiment (a narrower axis, another persona

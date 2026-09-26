@@ -400,3 +400,14 @@ test("no Skill file words a Breach as a vulnerability", async () => {
     }
   }
 });
+
+test("SKILL.md names one Version Pin, the CLI package version, and the Assessment Context records it", async () => {
+  const body = await skillBody();
+  const report = await readFile(path.join(SKILL_DIR, "report.md"), "utf8");
+  const { version } = JSON.parse(await readFile(path.join(REPO_ROOT, "cli", "package.json"), "utf8")) as {
+    version: string;
+  };
+  const pins = [...body.matchAll(/\*\*Version Pin:\*\* `([^`]+)`/g)].map((match) => match[1]);
+  assert.deepEqual(pins, [version]);
+  assert.match(report, /"engine_version": "<the Version Pin>"/);
+});

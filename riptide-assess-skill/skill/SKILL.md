@@ -60,6 +60,10 @@ The **Engine** is the deterministic simulation machinery: the `riptide` CLI and
 the sim runtime. The Skill is its only driver. Users never run it, and the
 Assessment never directs them to.
 
+**Version Pin:** `0.12.0`, the one Engine version this Skill release names.
+The Assessment Context records it as `engine_version`, and every Breach's
+replay command runs it as `npx --yes @riptide/cli@<Version Pin>`.
+
 - Pass `--json` to every Engine command that accepts it and read the result
   from stdout. On an error, follow the `next` field before improvising.
 - No Engine command reads stdin. A command that appears to wait is a defect to

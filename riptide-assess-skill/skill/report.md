@@ -152,7 +152,7 @@ shape is versioned by `schema_version`; every string is non-empty:
 {
   "schema_version": "assessment-context.v1",
   "skill_version": "<this Skill's version>",
-  "engine_version": "<riptide --version>",
+  "engine_version": "<the Version Pin>",
   "depth": "default",
   "family": "lending",
   "scope_declaration": [
@@ -177,6 +177,7 @@ shape is versioned by `schema_version`; every string is non-empty:
 }
 ```
 
+- `engine_version` is the Version Pin named in [SKILL.md](./SKILL.md).
 - `depth` is `default` or `deep`, whichever ran (see the Depth table in
   [SKILL.md](./SKILL.md)).
 - `scope_declaration` holds every assumption made in place of user input,
@@ -207,7 +208,8 @@ shape is versioned by `schema_version`; every string is non-empty:
   with this file's `engine_version` and the Breach's `seed`, so the replay
   runs the pinned Engine rather than whatever is installed.
 - `causal_trace` is the Causal Trace, written from the replay log and citing
-  ticks as `**T<n>**` (see [causal-trace.md](./causal-trace.md)).
+  ticks as `**T<n>**` and the transactions of exercised instructions (see
+  [causal-trace.md](./causal-trace.md)).
 
 A complete example: [`../examples/assessment-context.json`](../examples/assessment-context.json).
 

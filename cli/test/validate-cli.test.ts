@@ -466,7 +466,18 @@ test("validate --json: a Causal Trace that cites no tick is rejected", async () 
     context.breaches[0].causal_trace = "Utilization crossed the bound after heavy borrowing.";
   });
   const envelope = await assertRejected(cwd, "validate_breach_causal_trace_uncited");
+  assert.match(envelope.error!.message, /cites no tick/);
   assert.match(envelope.error!.next, /\*\*T<n>\*\*/);
+});
+
+test("validate --json: a Causal Trace that cites no exercised instruction's transaction is rejected", async () => {
+  const cwd = await validWorkspace();
+  await editContext(cwd, (context) => {
+    context.breaches[0].causal_trace = "**T4** utilization crosses the bound after heavy activity.";
+  });
+  const envelope = await assertRejected(cwd, "validate_breach_causal_trace_uncited");
+  assert.match(envelope.error!.message, /cites no transaction/);
+  assert.match(envelope.error!.next, /deposit_collateral, borrow, liquidate/);
 });
 
 test("validate --json: a replay command that is not the seed's replay against the pinned Engine is rejected", async () => {

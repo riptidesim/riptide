@@ -312,7 +312,8 @@ function checkInvariants(context: AssessmentContext, rerun: string, problems: Co
 /**
  * Every breached invariant has a Breach and every Breach names a breached
  * invariant; each Breach carries the exact replay command against the pinned
- * Engine and a Causal Trace that cites ticks.
+ * Engine and a Causal Trace that cites ticks and the transactions of
+ * exercised instructions.
  */
 function checkBreaches(context: AssessmentContext, rerun: string, problems: CommandError[]): void {
   const { invariants, breaches, engine_version } = context;
@@ -367,14 +368,26 @@ function checkBreaches(context: AssessmentContext, rerun: string, problems: Comm
         message: `${what} has no Causal Trace`,
         next: `replay the seed with \`${debug}\` and write its Causal Trace from data.log (see causal-trace.md), ${rerun}`
       });
-    } else if (!TICK_CITATION.test(breach.causal_trace)) {
-      problems.push({
-        code: "validate_breach_causal_trace_uncited",
-        message: `${what} has a Causal Trace that cites no tick`,
-        next:
-          `cite the ticks from \`${debug}\` data.log as **T<n>** in its mechanism and timeline ` +
-          `(see causal-trace.md), ${rerun}`
-      });
+    } else {
+      if (!TICK_CITATION.test(breach.causal_trace)) {
+        problems.push({
+          code: "validate_breach_causal_trace_uncited",
+          message: `${what} has a Causal Trace that cites no tick`,
+          next:
+            `cite the ticks from \`${debug}\` data.log as **T<n>** in its mechanism and timeline ` +
+            `(see causal-trace.md), ${rerun}`
+        });
+      }
+      const exercised = context.coverage.instructions.exercised;
+      if (!exercised.some((instruction) => breach.causal_trace!.includes(instruction))) {
+        problems.push({
+          code: "validate_breach_causal_trace_uncited",
+          message: `${what} has a Causal Trace that cites no transaction of an exercised instruction`,
+          next:
+            `cite the labelled transactions from \`${debug}\` data.log by instruction ` +
+            `(${exercised.join(", ")}) and their outcomes (see causal-trace.md), ${rerun}`
+        });
+      }
     }
   }
 }
@@ -426,7 +439,7 @@ function checkBreachesSection(
   rerun: string,
   problems: CommandError[]
 ): void {
-  const headings = [...markdown.matchAll(/^## (.+?)\s*$/gm)].map((match) => match[1]!);
+  const headings = reportHeadings(markdown);
   const at = headings.indexOf("Breaches");
   if (at === -1) {
     problems.push({
@@ -538,7 +551,7 @@ export function checkSections(
   rerun: string,
   problems: CommandError[]
 ): boolean {
-  const headings = [...markdown.matchAll(/^## (.+?)\s*$/gm)].map((match) => match[1]!);
+  const headings = reportHeadings(markdown);
   const positions = required.map((section) => headings.indexOf(section));
   const missing = required.filter((_, index) => positions[index] === -1);
   for (const section of missing) {
@@ -559,6 +572,10 @@ export function checkSections(
     });
   }
   return true;
+}
+
+function reportHeadings(markdown: string): string[] {
+  return [...markdown.matchAll(/^## (.+?)\s*$/gm)].map((match) => match[1]!);
 }
 
 /** The text from a `## ` heading up to the next heading of the same level, or the end. */
