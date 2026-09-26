@@ -59,20 +59,17 @@ test("retired generic commands are not registered", async () => {
   }
 });
 
-test("commands: root help is compact and lists the guided-sim core surface", async () => {
+test("commands: root help is an agent API reference that addresses no human", async () => {
   const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "--help"], {
     cwd: process.cwd()
   });
 
-  assert.match(stdout, /Deterministic Solana guided simulations and reviewer-ready evidence\./);
-  assert.match(stdout, /First assessment:/);
-  assert.match(stdout, /riptide-assess/);
-  assert.match(stdout, /Reports are simulation evidence over declared inputs, not audit signoff\./);
-  assert.doesNotMatch(stdout, /Start here:/);
-  assert.match(stdout, /Examples:/);
-  assert.match(stdout, /# First assessment: use the riptide-assess agent skill from your protocol repo/);
-  assert.match(stdout, /riptide sim run \.riptide\/sim --flows 8/);
-  assert.match(stdout, /riptide <command> --help/);
+  assert.match(stdout, /The Riptide Engine:[\s\S]*An agent API driven by the \/riptide-assess\s+Skill\./);
+  assert.match(stdout, /Pass --json to every command/);
+  assert.match(stdout, /error\.next the repair/);
+  for (const human of [/First assessment/, /Examples:/, /Start here/, /\byou(r)?\b/i, /^\s+riptide \w/m]) {
+    assert.doesNotMatch(stdout, human);
+  }
   assert.doesNotMatch(stdout, /complete protocol safety/i);
   // Generic-path commands are gone from the surface.
   assert.doesNotMatch(stdout, /^\s+campaign\b/m);
@@ -86,6 +83,20 @@ test("commands: root help is compact and lists the guided-sim core surface", asy
   assert.deepEqual([...ordered].sort((a, b) => a - b), ordered);
 
   assert.ok(stdout.split("\n").length < 80, stdout);
+});
+
+test("commands: no command's help addresses a human", async () => {
+  const commands = [
+    ["init"], ["readiness"], ["review"], ["assess"], ["delta"], ["validate"], ["sim"],
+    ["sim", "generate"], ["sim", "refresh"], ["sim", "run"], ["sim", "surface"],
+    ["sim", "fork"], ["sim", "lint"], ["sim", "debug"]
+  ];
+  for (const command of commands) {
+    const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, ...command, "--help"]);
+    for (const human of [/\byou(r)?\b/i, /Examples:/, /Start here/, /getting started/i, /wizard/i]) {
+      assert.doesNotMatch(stdout, human, `riptide ${command.join(" ")} --help addresses a human`);
+    }
+  }
 });
 
 async function rejected(args: string[]): Promise<{ code: number | string | undefined; stderr: string }> {

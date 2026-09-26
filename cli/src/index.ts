@@ -17,21 +17,11 @@ const program = new Command();
 program
   .name("riptide")
   .description(
-    "Deterministic Solana guided simulations and reviewer-ready evidence."
+    "The Riptide Engine: deterministic guided simulation of a Solana program's compiled binary. " +
+      "An agent API driven by the /riptide-assess Skill."
   )
   .version(cliPackageVersion())
   .addHelpCommand(false);
-
-program.addHelpText(
-  "before",
-  [
-    "First assessment:",
-    "  Open your Solana program repo in an agent and invoke `riptide-assess`.",
-    "  The skill runs this CLI underneath and returns assessment.md, assessment.json, evidence, and rerun commands.",
-    "  Reports are simulation evidence over declared inputs, not audit signoff.",
-    ""
-  ].join("\n")
-);
 
 addRootCommand(createInitCommand(), "Scaffold .riptide/ in the current repo");
 addRootCommand(createReadinessCommand(), "Inspect protocol evidence readiness and toolchain health");
@@ -45,19 +35,8 @@ program.addHelpText(
   "after",
   [
     "",
-    "Examples:",
-    "  # First assessment: use the riptide-assess agent skill from your protocol repo",
-    "  riptide init",
-    "  riptide readiness .",
-    "  riptide sim generate --adapter .riptide/adapters/<program-name>.toml",
-    "  riptide sim run .riptide/sim --flows 8",
-    "  riptide sim surface .riptide/sim/artifacts/<dir> --sim .riptide/sim",
-    "  riptide review <guided-sim-root>",
-    "  riptide assess <guided-sim-root>",
-    "  riptide delta <previous-assessment-dir> <assessment-dir>",
-    "  riptide validate <assessment-dir>",
-    "",
-    "Run `riptide <command> --help` for command-specific options.",
+    "Pass --json to every command: it writes one riptide-command.v1 envelope to stdout.",
+    "On failure, error.code names the problem and error.next the repair. No command reads stdin.",
     ""
   ].join("\n")
 );

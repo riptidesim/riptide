@@ -61,19 +61,6 @@ naming it. There is no separate Engine install: the Skill runs the exact Engine
 version it pins, `npx --yes @riptide/cli@<Version Pin>`, so every Assessment
 records the Skill and Engine versions it ran and its rerun commands use them.
 
-## Releasing
-
-The Skill and the Engine are released together from one commit. The release
-script moves the CLI version and every Version Pin at once, then publishes the
-CLI to npm:
-
-```bash
-node scripts/release.mjs bump <version>   # CLI, shrinkwrap, Version Pin, examples, marketplace
-node scripts/release.mjs publish          # clean tree, scope check, npm test, npm publish
-```
-
-`node scripts/release.mjs check` fails on any drift; the test suite runs it.
-
 ## Structure
 
 ```

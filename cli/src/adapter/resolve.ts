@@ -56,8 +56,7 @@ export function resolveAdapterArg(
   //   3. `<fixturesRoot>/adapters/<name>.toml`  (explicit override / module-derived fallback)
   //
   // The downstream user-repo layer wins first so a fresh `riptide init`
-  // scaffold is lintable by bare name, matching the install-first path
-  // documented in `README.md` and `docs/install.md`.
+  // scaffold is lintable by bare name.
   const cwd = opts.cwd ?? process.cwd();
   const bareCandidates: string[] = [
     path.resolve(cwd, ".riptide", "adapters", `${adapterArg}.toml`),

@@ -276,20 +276,141 @@ test("guided-sim docs guard coverage instead of claiming emitted coverage", asyn
   assert.doesNotMatch(architecture, /guided-sim coverage output is supported/i);
 });
 
-test("repo docs name no removed skill", async () => {
+/** Every human- and contributor-facing Markdown doc in the repo, outside the Skill bundle's own files. */
+async function repoDocs(): Promise<string[]> {
   const docs = [
     "README.md",
+    "VISION.md",
     "CONTRIBUTING.md",
+    "TOOLCHAIN.md",
     path.join("cli", "README.md"),
-    path.join("docs", "architecture.md"),
-    path.join("docs", "vision.md"),
-    path.join("docs", "install.md"),
-    path.join("docs", "submission-package.md")
+    path.join("riptide-assess-skill", "README.md")
   ];
-  for (const doc of docs) {
+  for (const dir of ["docs", path.join(".github", "ISSUE_TEMPLATE")]) {
+    for (const file of await findMarkdown(path.join(REPO_ROOT, dir))) docs.push(path.relative(REPO_ROOT, file));
+  }
+  return docs;
+}
+
+async function findMarkdown(dir: string): Promise<string[]> {
+  const found: string[] = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...(await findMarkdown(full)));
+    else if (entry.name.endsWith(".md")) found.push(full);
+  }
+  return found;
+}
+
+/** Docs a user reads; contributor docs may name Engine commands as API reference, these never do. */
+const USER_DOCS = [
+  "README.md",
+  "VISION.md",
+  path.join("cli", "README.md"),
+  path.join("riptide-assess-skill", "README.md"),
+  path.join(".github", "ISSUE_TEMPLATE", "bug.md"),
+  path.join(".github", "ISSUE_TEMPLATE", "feature.md")
+];
+
+const ENGINE_COMMAND = /\briptide (init|readiness|review|assess|validate|delta|sim)\b/;
+
+test("repo docs name no removed skill", async () => {
+  // ADRs record the decision that removed them.
+  for (const doc of (await repoDocs()).filter((file) => !file.startsWith(path.join("docs", "adr")))) {
     const raw = await readFile(path.join(REPO_ROOT, doc), "utf8");
     assert.doesNotMatch(raw, /riptide-(config|narrative|adapt|harness|scenarios)\b/, `${doc} names a removed skill`);
     assert.doesNotMatch(raw, /skills\/riptide-/, `${doc} links a removed skill path`);
+  }
+});
+
+test("the README describes only installing and invoking the Skill and reading the Assessment", async () => {
+  const readme = await readFile(path.join(REPO_ROOT, "README.md"), "utf8");
+  const headings = [...readme.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
+  assert.deepEqual(headings, [
+    "Install the Skill",
+    "Run it",
+    "Read your Assessment",
+    "What it does not claim",
+    "Contributing"
+  ]);
+  for (const step of [
+    "/plugin marketplace add riptidesim/riptide",
+    "/plugin install riptide@riptide",
+    "npx skills add riptidesim/riptide",
+    "/riptide-assess"
+  ]) {
+    assert.ok(readme.includes(step), `README does not give ${step}`);
+  }
+  for (const term of [
+    "Scope Declaration",
+    "Coverage",
+    "Gaps",
+    "Floor Invariant",
+    "Firing Check",
+    "Breaches",
+    "Causal Trace",
+    "Delta",
+    "Engine Output",
+    "Blocker Report",
+    "Out-of-Scope Note"
+  ]) {
+    assert.ok(readme.includes(term), `README does not explain ${term}`);
+  }
+  assert.match(readme, /not an[\s>]+audit signoff/);
+});
+
+test("no doc instructs a human to run Engine commands", async () => {
+  for (const doc of await repoDocs()) {
+    const raw = await readFile(path.join(REPO_ROOT, doc), "utf8");
+    for (const [, block] of raw.matchAll(/```[^\n]*\n([\s\S]*?)```/g)) {
+      for (const line of block!.split("\n")) {
+        assert.doesNotMatch(
+          line,
+          /^\s*(\$\s*)?(riptide\s|npx\s+(--yes\s+)?@riptide\/cli)/,
+          `${doc} gives a runnable Engine command: ${line.trim()}`
+        );
+      }
+    }
+    for (const installer of [/riptide\.run\/install/, /\bnpm (i|install) (-g|--global) @riptide\/cli/, /\.\/install\.sh/]) {
+      assert.doesNotMatch(raw, installer, `${doc} installs the Engine by hand`);
+    }
+  }
+  for (const doc of USER_DOCS) {
+    const raw = await readFile(path.join(REPO_ROOT, doc), "utf8");
+    assert.doesNotMatch(raw, ENGINE_COMMAND, `${doc} names an Engine command to a user`);
+  }
+});
+
+test("the contributor docs point to CONTEXT.md and the ADRs", async () => {
+  const targets = [
+    "CONTEXT.md",
+    path.join("docs", "adr", "0001-skill-is-the-only-user-surface.md"),
+    path.join("docs", "adr", "0002-deterministic-engine-output-vs-agent-context.md")
+  ];
+  for (const doc of ["CONTRIBUTING.md", path.join("docs", "architecture.md"), path.join("docs", "guided-sim.md")]) {
+    const raw = await readFile(path.join(REPO_ROOT, doc), "utf8");
+    const linked = [...raw.matchAll(/\]\(([^)#\s]+)/g)].map((match) =>
+      path.relative(REPO_ROOT, path.resolve(REPO_ROOT, path.dirname(doc), match[1]!))
+    );
+    const required = doc.endsWith("guided-sim.md") ? targets.slice(0, 2) : targets;
+    for (const target of required) {
+      assert.ok(linked.includes(target), `${doc} does not link ${target}`);
+    }
+  }
+});
+
+test("every relative link in the repo docs resolves", async () => {
+  for (const doc of await repoDocs()) {
+    const raw = await readFile(path.join(REPO_ROOT, doc), "utf8");
+    for (const [, target] of raw.matchAll(/\]\((?!https?:|mailto:|#)([^)#\s]+)/g)) {
+      assert.ok(
+        existsSync(path.resolve(REPO_ROOT, path.dirname(doc), target!)),
+        `${doc} links to missing ${target}`
+      );
+    }
+    for (const [, target] of raw.matchAll(/(?:src|href)="(?!https?:)([^"]+)"/g)) {
+      assert.ok(existsSync(path.resolve(REPO_ROOT, path.dirname(doc), target!)), `${doc} links to missing ${target}`);
+    }
   }
 });
 

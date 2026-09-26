@@ -1,139 +1,136 @@
 # Contributing to Riptide
 
-Riptide is a deterministic multi-agent simulator for Solana programs. Keep
-contributions small, reproducible, and easy to review.
+Riptide is an agentic harness: users reach it only through the
+`/riptide-assess` Skill, which drives the deterministic Engine. This page is
+for people working on the Skill or the Engine. For using Riptide, see the
+[README](README.md).
 
-For product usage, start with the [README](README.md). For deeper design
-context, use the [docs index](docs/README.md).
+## Read First
 
-## Start Here
+These are binding for every change:
 
-1. Open an issue or discussion for large changes, new protocol classes, or
+- [CONTEXT.md](CONTEXT.md) — the domain glossary. Use its terms exactly in
+  code, tests, docs and commit messages, and avoid the terms it lists under
+  _Avoid_.
+- [ADR 0001 — the Skill is the only user surface](docs/adr/0001-skill-is-the-only-user-surface.md).
+  The Engine CLI is an agent API: `--json` everywhere, structured `next`
+  hints on errors, no prompts, no banners and no human docs. Do not add
+  human-facing CLI docs back.
+- [ADR 0002 — deterministic Engine Output, agent-authored Assessment Context](docs/adr/0002-deterministic-engine-output-vs-agent-context.md).
+  Engine Output stays byte-pinned; everything the agent writes lives beside it
+  and is checked for structure only.
+- [Architecture](docs/architecture.md) — the Engine's pieces, the command
+  contract and the determinism model. [Guided simulations](docs/guided-sim.md)
+  covers the sim crate the Skill authors.
+
+## Ground Rules
+
+1. Open an issue or discussion for large changes, new protocol families, or
    anything that may change deterministic output.
-2. Keep one logical change per PR. Do not mix adapter work, engine changes,
-   Studio work, and docs rewrites unless they are part of the same feature.
-3. Preserve user-facing claim boundaries. Riptide produces simulation evidence,
-   not audit signoff.
-4. Do not include private planning labels, sprint IDs, or task IDs in public
-   docs.
+2. Keep one logical change per PR.
+3. Preserve the claim boundary: an Assessment is simulation evidence, not an
+   audit signoff.
+4. Do not include private planning labels, sprint IDs, or task IDs in the
+   repo.
 
 ## Setup
 
-Required for repository development:
+Required for development:
 
 - Git
 - Rust and Cargo
 - Node.js 20+
 - Solana SBF tooling for changes that build on-chain programs
 
-Install from a checkout:
+The pinned toolchain versions live in [TOOLCHAIN.md](TOOLCHAIN.md).
 
 ```bash
 git clone https://github.com/riptidesim/riptide
 cd riptide
-./install.sh
+npm --prefix cli ci
+npm test
 ```
-
-The pinned toolchain versions live in [TOOLCHAIN.md](TOOLCHAIN.md). The full
-install, Docker, release, and upgrade paths live in [docs/install.md](docs/install.md).
 
 ## Project Shape
 
-Riptide has two main runtime pieces:
+- `riptide-assess-skill/` — the one Skill bundle. `skill/` is exactly what an
+  install copies.
+- `cli/` — the TypeScript Engine CLI: Workspace scaffolding, validation, sim
+  codegen, run orchestration, Engine Output and the validation gate.
+- `riptide-sim/` and `riptide-sim-macros/` — the Rust guided-sim runtime the
+  generated sim crate builds against.
+- `fixtures/` — adapters and fixture programs the tests run against.
+- `.claude-plugin/marketplace.json` — the plugin marketplace manifest.
 
-- `riptide-sim/` - Rust simulation engine and LiteSVM runtime.
-- `cli/` - TypeScript CLI, Studio server, job orchestration, validation, and
-  dashboard assets.
+## Tests
 
-The simulator is configured through files:
+Tests assert external behaviour only, at two seams:
 
-- adapters map programs, accounts, actions, observations, and invariants;
-- personas describe agent behavior;
-- guided simulations describe experiments;
-- evidence packs and reports capture what ran.
+1. The `riptide` command runners, with injected stdout and stderr, against
+   fixture Workspaces: exit codes, the JSON envelope and files written.
+2. The Skill bundle as files: frontmatter, stages, required phrases and the
+   Version Pin.
 
-Most new protocol work should add or improve those declared layers. Engine
-changes are rare and should be justified by a capability that cannot be
-expressed in TOML, guided simulations, or skills.
-
-## Common Changes
+Never assert internal functions or intermediate structures, and never assert
+agent-written prose byte-for-byte.
 
 | Change | Start with | Verify with |
 | --- | --- | --- |
-| Docs | `README.md`, `docs/`, or `CONTRIBUTING.md` | `git diff --check` and link review |
-| Studio or CLI | `cli/src/`, `cli/studio-app/` | `npm --prefix cli test` |
-| Engine | `riptide-sim/src/`, `riptide-sim/tests/` | `cargo test -p riptide-sim` |
-| Adapter | `fixtures/adapters/` | relevant CLI tests |
-| Skill | `riptide-assess-skill/` | `npm --prefix cli test` plus a cold-read before/after output on the same repo |
-
-If you change Studio source under `cli/studio-app/`, rebuild the bundled assets
-before claiming the served app changed.
+| Skill | `riptide-assess-skill/skill/` | `npm test` |
+| Engine CLI | `cli/src/` | `npm test` |
+| Sim runtime | `riptide-sim/src/`, `riptide-sim/tests/` | `cargo fmt`, `cargo clippy -- -W clippy::all`, `cargo test -p riptide-sim` |
+| Adapter fixture | `fixtures/adapters/` | `npm test` |
+| Docs | `README.md`, `CONTRIBUTING.md`, `docs/` | `npm test` (the doc checks run in it) |
 
 ## Determinism
 
 Determinism is the main project discipline. If a change alters byte-stable
-simulation output, treat that as a blocker until you can explain why the new
-bytes are correct.
+Engine Output, the flagship pin tests fail; treat that as a blocker until you
+can explain why the new bytes are correct, and say so in the PR description.
 
-For Rust simulation changes, run focused tests first, then the broader
-simulation suite:
+## Releasing
 
-```bash
-cargo test -p riptide-sim
-```
-
-For CLI or Studio changes:
+The Skill and the Engine are released together from one commit, so the Version
+Pin can't drift. `scripts/release.mjs` moves the CLI version and every
+Version Pin at once, then publishes the CLI to npm:
 
 ```bash
-npm --prefix cli test
+node scripts/release.mjs bump <version>   # CLI, shrinkwrap, Version Pin, examples, marketplace
+node scripts/release.mjs publish          # clean tree, scope check, npm test, npm publish
 ```
 
-When a hash or committed fixture output intentionally changes, include the
-reason in the PR description and point reviewers to the affected fixture.
+`node scripts/release.mjs check` fails on any drift; `npm test` runs it.
 
 ## Pull Requests
 
 Before opening a PR:
 
 1. Check `git status` and keep unrelated dirty files out of the change.
-2. Run the smallest useful verification command, then any broader gate required
-   by the touched area.
+2. Run `npm test`, plus the Rust checks when the sim runtime changed.
 3. Include the command output summary in the PR description.
 4. Mention any skipped tests and why they were skipped.
-5. Keep public docs free of overclaiming and internal planning labels.
 
 Use Conventional Commits:
 
 ```text
-docs(readme): simplify studio-first landing page
+docs(readme): describe reading an Assessment
 fix(cli): preserve workspace-relative job paths
-feat(adapter): add stablecoin guided simulation
+feat(skill): add the Delta to reruns
 test(sim): cover determinism hash stability
 ```
 
-Useful scopes include `sim`, `cli`, `studio`, `adapter`, `skill`, `docs`,
-`install`, and `ci`.
+Useful scopes include `sim`, `cli`, `skill`, `adapter`, `docs`, `release`,
+and `ci`.
 
-## Where To Read More
-
-| Topic | Link |
-| --- | --- |
-| Studio workflow and trust boundary | [docs/studio.md](docs/studio.md) |
-| Architecture and runtime model | [docs/architecture.md](docs/architecture.md) |
-| Campaign Runner | [docs/campaigns.md](docs/campaigns.md) |
-| Evidence packs | [docs/pack.md](docs/pack.md) |
-| CI handoff | [docs/ci-handoff.md](docs/ci-handoff.md) |
-| Adapter lineage | [docs/adapter-lineage.md](docs/adapter-lineage.md) |
-| Case-study corpus | [docs/case-study-corpus.md](docs/case-study-corpus.md) |
+Pushing to `main` deploys the web apps, so land work through a branch and a
+PR.
 
 ## Reporting Issues
 
 Open an issue at [github.com/riptidesim/riptide](https://github.com/riptidesim/riptide).
-Include the OS, relevant tool versions, exact command, full error output, and a
-minimal reproduction when possible.
-
-For determinism regressions, include the expected hash, the actual hash, and the
-fixture or simulation that produced it.
+Include the `/riptide-assess` invocation and Steering Hint, the Skill and
+Engine versions from the delivered output, the delivered report, and your OS
+and tool versions.
 
 ## License
 

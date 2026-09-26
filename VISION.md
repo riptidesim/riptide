@@ -8,7 +8,7 @@ Every Solana protocol lives in a region defined by market conditions, user behav
 
 Riptide is a lab, not an oracle.
 
-The developer chooses the experiment: adapter, personas, scenario, seed, ticks, and invariants. Riptide runs that experiment deterministically and records what happened. A red cell in a grid is not a bug report by itself; it is a reproducible point in parameter space where the declared invariant failed or the observed metric moved into a dangerous range.
+The `/riptide-assess` Skill declares the experiment (the region, the stress axis, the invariants and the seeds) and lists every choice it made in the Scope Declaration, where a Steering Hint can override it. The Engine runs that experiment deterministically and records what happened. A Breach is not a bug report by itself; it is a reproducible point in the declared region where a Firing-Checked invariant failed.
 
 The value is not "Riptide says this protocol is unsafe." The value is "any reviewer can rerun this exact experiment and get the same bytes."
 
@@ -21,26 +21,24 @@ The value is not "Riptide says this protocol is unsafe." The value is "any revie
 
 ## The Operating Model
 
-Riptide keeps the experiment in plain files:
+The Skill keeps the experiment in plain files in the `.riptide/` Workspace, which the user commits:
 
 1. **Adapter**: how to call and observe the program.
-2. **Personas**: how agents behave.
-3. **Scenario**: what market or system pressure is applied.
-4. **Parameters**: which dimensions are swept.
-5. **Invariants**: what must stay true.
-6. **Evidence pack**: what a reviewer can rerun.
+2. **Guided simulation**: the flows, actors and pressure applied.
+3. **Sweep**: which dimensions are swept, over which seeds.
+4. **Invariants**: what must stay true, each proven able to fire.
+5. **Assessment**: the Engine Output and the Assessment Context a reviewer can rerun.
 
-The engine runs those files against the real BPF program in LiteSVM and emits deterministic artifacts: JSON results, dashboard data, markdown traces, and canonical hashes.
+The Engine runs those files against the real BPF program in LiteSVM and emits byte-deterministic Engine Output.
 
 ## What Riptide Is Not
 
 - Not a validator replacement: LiteSVM does not model gossip, voting, PoH, or consensus behavior.
 - Not an audit replacement: it produces evidence for declared simulations, not a security certification.
-- Not a fuzzer: it runs bounded experiments you declare instead of generating arbitrary inputs.
+- Not a fuzzer: it runs bounded, declared experiments instead of generating arbitrary inputs.
 - Not a prediction engine: it maps modeled regions; it does not forecast mainnet.
 
 ## Where To Read Next
 
-- [README](README.md) for the project tour and quick start.
-- [Architecture](docs/architecture.md) for the guided-simulation model and determinism contract.
-- [Guided simulation](docs/guided-sim.md) for the authoring-to-assessment flow.
+- [README](README.md) to install the Skill and read an Assessment.
+- [CONTRIBUTING](CONTRIBUTING.md) and [Architecture](docs/architecture.md) to work on the Engine or the Skill.
