@@ -11,6 +11,7 @@ import { Command } from "commander";
 import { validateAssessment } from "../assess/context.js";
 import {
   errorEnvelope,
+  oneLineMessage,
   renderEnvelope,
   resolveCommandIO,
   successEnvelope,
@@ -72,7 +73,7 @@ export async function runValidate(
   } catch (error) {
     const failure: CommandError = {
       code: "validate_failed",
-      message: error instanceof Error ? error.message : String(error),
+      message: oneLineMessage(error instanceof Error ? error.message : String(error)),
       next: `check that ${label} and its files are readable, then rerun \`riptide validate ${label} --json\``
     };
     if (options.json) stdout(renderEnvelope(errorEnvelope("validate", failure)));

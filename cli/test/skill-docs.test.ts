@@ -260,6 +260,7 @@ test("the Report stage writes the Assessment Context and passes the validation g
   assert.ok(report.includes(`"schema_version": "${example.schema_version}"`), "report.md and the example disagree on the schema version");
   assert.match(report, /riptide validate \.riptide\/assessment --json/);
   assert.match(report, /Never declare completion on a failing gate/);
+  assert.match(report, /Compose only\s+after the last `riptide assess` render/);
   let cursor = 0;
   for (const section of ["Scope Declaration", "Coverage", "Gaps", "Engine Output"]) {
     const index = report.indexOf(`\`## ${section}\``, cursor);

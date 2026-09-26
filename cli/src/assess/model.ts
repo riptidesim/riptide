@@ -1270,10 +1270,13 @@ export function buildAssessmentModel(input: BuildAssessmentInput): CartographyAs
     coverage_statement: buildCoverageStatementFromFacts(documentFacts)
   };
 
-  const digest = sha256Hex(
-    `${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
-  );
+  const digest = assessmentDigestOf(document);
   return { ...document, assessment_digest: digest };
+}
+
+/** The self-digest of an assessment document: its canonical JSON without `assessment_digest`, domain-prefixed. */
+export function assessmentDigestOf(document: object): string {
+  return sha256Hex(`${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`);
 }
 
 /**
@@ -1290,9 +1293,7 @@ export function withExecutionHonesty<T extends AssessmentModel>(
   const document = executionHonesty
     ? { ...facts, execution_honesty: executionHonesty }
     : facts;
-  const digest = sha256Hex(
-    `${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
-  );
+  const digest = assessmentDigestOf(document);
   return { ...(document as Omit<T, "assessment_digest">), assessment_digest: digest } as T;
 }
 
@@ -1456,9 +1457,7 @@ export function buildCorrectnessAssessmentModel(
     coverage_statement: buildCoverageStatementFromFacts(documentFacts)
   };
 
-  const digest = sha256Hex(
-    `${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
-  );
+  const digest = assessmentDigestOf(document);
   return { ...document, assessment_digest: digest };
 }
 

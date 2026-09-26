@@ -114,7 +114,11 @@ Replace the Engine's `assessment.md` with the composed report, in this order:
 
 Breaches and the Delta, when present, go between `## Gaps` and
 `## Engine Output`. Read the Engine's `assessment.md` before replacing it; its
-bytes survive unchanged inside the `## Engine Output` section. A teammate
+bytes survive unchanged inside the `## Engine Output` section. Compose only
+after the last `riptide assess` render: once `assessment.md` is composed,
+`riptide assess` into the same directory fails with `assess_artifacts_drifted`.
+If a repair needs a new render, delete `assessment.json` and `assessment.md`
+from the Assessment directory, render again, and compose again. A teammate
 reproduces the Engine Output by rendering into a fresh `--out` directory and
 comparing `assessment.json`.
 

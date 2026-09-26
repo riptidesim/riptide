@@ -8,8 +8,8 @@ import path from "node:path";
 
 import { z } from "zod";
 
-import { ASSESSMENT_HASH_PREFIX } from "./model.js";
-import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
+import { assessmentDigestOf } from "./model.js";
+import { canonicalJson, type JsonValue } from "../state-pack/json.js";
 import type { CommandError } from "../contract/index.js";
 
 export const ASSESSMENT_CONTEXT_SCHEMA_VERSION = "assessment-context.v1" as const;
@@ -140,7 +140,7 @@ async function checkEngineOutput(
     return null;
   }
   const { assessment_digest: _digest, ...facts } = parsed;
-  const expected = sha256Hex(`${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(facts as JsonValue)}`);
+  const expected = assessmentDigestOf(facts);
   if (expected !== digest || canonicalJson(parsed as JsonValue) !== raw) {
     problems.push({
       code: "validate_engine_output_modified",
