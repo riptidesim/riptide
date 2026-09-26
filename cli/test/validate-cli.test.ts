@@ -1,7 +1,8 @@
-// `riptide validate`: the structural gate on an Assessment directory, driven
-// through the runner against a fixture Workspace whose Engine Output is
-// rendered by `riptide assess` and whose Assessment Context is the Skill
-// bundle's example sidecar.
+// `riptide validate`: the structural gate on the directory the Skill delivers,
+// driven through the runner. Assessments use a fixture Workspace whose Engine
+// Output is rendered by `riptide assess` and whose Assessment Context is the
+// Skill bundle's example sidecar; Out-of-Scope Notes and Blocker Reports use
+// the bundle's example files.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -14,13 +15,8 @@ import { runAssess } from "../src/commands/assess.js";
 import { runSimSurface } from "../src/commands/sim.js";
 import { runValidate } from "../src/commands/validate.js";
 
-const EXAMPLE_CONTEXT = path.resolve(
-  process.cwd(),
-  "..",
-  "riptide-assess-skill",
-  "examples",
-  "assessment-context.json"
-);
+const EXAMPLES = path.resolve(process.cwd(), "..", "riptide-assess-skill", "examples");
+const EXAMPLE_CONTEXT = path.join(EXAMPLES, "assessment-context.json");
 const ASSESSMENT_DIR = ".riptide/assessment";
 
 interface Envelope {
@@ -183,6 +179,7 @@ test("validate --json: a complete Assessment passes the gate", async () => {
   assert.equal(envelope.command, "validate");
   assert.deepEqual(envelope.data, {
     schema_version: "validate-cli.v1",
+    kind: "assessment",
     assessment_dir: ASSESSMENT_DIR,
     context_schema_version: "assessment-context.v1",
     assessment_digest: (
@@ -222,7 +219,7 @@ test("validate: without --json a pass goes to stdout and a failure to stderr", a
   const cwd = await validWorkspace();
   const passed = await drive(cwd, (io) => runValidate(ASSESSMENT_DIR, {}, io));
   assert.equal(passed.exitCode, 0);
-  assert.equal(passed.stdout, `riptide validate: PASS ${ASSESSMENT_DIR}\n`);
+  assert.equal(passed.stdout, `riptide validate: PASS ${ASSESSMENT_DIR} (assessment)\n`);
   assert.equal(passed.stderr, "");
 
   await rm(assessmentFile(cwd, "assessment-context.json"));
@@ -247,8 +244,12 @@ test("validate --json: a missing directory or file is a coded error", async () =
   await rm(assessmentFile(cwd, "assessment.md"));
   await assertRejected(cwd, "validate_report_missing");
 
+  const noEngineOutput = await validWorkspace();
+  await rm(assessmentFile(noEngineOutput, "assessment.json"));
+  await assertRejected(noEngineOutput, "validate_engine_output_missing");
+
   await rm(assessmentFile(cwd, "assessment.json"));
-  await assertRejected(cwd, "validate_engine_output_missing");
+  await assertRejected(cwd, "validate_output_missing");
 });
 
 test("validate --json: every problem is reported, not only the first", async () => {
@@ -353,4 +354,177 @@ test("validate --json: edited Engine Output is rejected", async () => {
 
   await writeFile(assessmentFile(cwd, "assessment.json"), "{}");
   await assertRejected(cwd, "validate_engine_output_modified");
+});
+
+test("validate --json: an Assessment with zero Coverage is rejected in favour of a Blocker Report", async () => {
+  const cwd = await validWorkspace();
+  await editContext(cwd, (context) => {
+    const { exercised } = context.coverage.instructions;
+    context.coverage.instructions.not_exercised.push(...exercised);
+    context.coverage.instructions.exercised = [];
+    for (const name of exercised) context.gaps.push({ subject: name, reason: "did not execute", unblock: "a build" });
+  });
+  const envelope = await assertRejected(cwd, "validate_coverage_zero");
+  assert.equal(envelope.data?.kind, "assessment");
+  assert.match(envelope.error!.next, /Blocker Report/);
+});
+
+/** A directory holding one short-circuit output: the bundle's example sidecar and a composed report. */
+async function shortCircuitDir(kind: "out-of-scope-note" | "blocker-report", markdown?: string): Promise<string> {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), `riptide-validate-${kind}-`));
+  await mkdir(path.join(cwd, ASSESSMENT_DIR), { recursive: true });
+  await writeFile(assessmentFile(cwd, `${kind}.json`), await readFile(path.join(EXAMPLES, `${kind}.json`), "utf8"));
+  await writeFile(assessmentFile(cwd, `${kind}.md`), markdown ?? (await composeShortCircuit(kind)));
+  return cwd;
+}
+
+async function composeShortCircuit(
+  kind: "out-of-scope-note" | "blocker-report",
+  extraSections: string[] = []
+): Promise<string> {
+  const example = JSON.parse(await readFile(path.join(EXAMPLES, `${kind}.json`), "utf8"));
+  const bodies: Array<[string, string]> =
+    kind === "out-of-scope-note"
+      ? [
+          ["Classification", example.classification.evidence.map((line: string) => `- ${line}`).join("\n")],
+          ["Code-Level Auditing", example.referrals.map((line: string) => `- ${line}`).join("\n")]
+        ]
+      : [
+          ["Scope Declaration", "Depth: default\n\n- target is programs/lending"],
+          ["Blocker", `\`${example.blocker.command}\`\n\n${example.blocker.error}`],
+          [
+            "Gaps",
+            example.gaps
+              .map((gap: { subject: string; reason: string; unblock: string }) => `- ${gap.subject}: ${gap.reason}; unblock: ${gap.unblock}`)
+              .join("\n")
+          ]
+        ];
+  return [...bodies, ...extraSections.map((section): [string, string] => [section, "claims"])]
+    .map(([section, body]) => `## ${section}\n\n${body}\n`)
+    .join("\n");
+}
+
+async function editShortCircuit(
+  cwd: string,
+  kind: "out-of-scope-note" | "blocker-report",
+  edit: (output: Record<string, any>) => void
+): Promise<void> {
+  const output = JSON.parse(await readFile(assessmentFile(cwd, `${kind}.json`), "utf8"));
+  edit(output);
+  await writeFile(assessmentFile(cwd, `${kind}.json`), JSON.stringify(output, null, 2));
+}
+
+test("validate --json: the example Out-of-Scope Note passes the gate", async () => {
+  const cwd = await shortCircuitDir("out-of-scope-note");
+  const { exitCode, envelope } = await validate(cwd);
+  assert.equal(exitCode, 0, JSON.stringify(envelope.data));
+  assert.deepEqual(envelope.data, {
+    schema_version: "validate-cli.v1",
+    kind: "out-of-scope-note",
+    assessment_dir: ASSESSMENT_DIR,
+    note_schema_version: "out-of-scope-note.v1",
+    evidence: 3,
+    referrals: 2
+  });
+
+  const text = await drive(cwd, (io) => runValidate(ASSESSMENT_DIR, {}, io));
+  assert.equal(text.stdout, `riptide validate: PASS ${ASSESSMENT_DIR} (out-of-scope-note)\n`);
+});
+
+test("validate --json: the example Blocker Report passes the gate", async () => {
+  const cwd = await shortCircuitDir("blocker-report");
+  const { exitCode, envelope } = await validate(cwd);
+  assert.equal(exitCode, 0, JSON.stringify(envelope.data));
+  assert.deepEqual(envelope.data, {
+    schema_version: "validate-cli.v1",
+    kind: "blocker-report",
+    assessment_dir: ASSESSMENT_DIR,
+    report_schema_version: "blocker-report.v1",
+    depth: "default",
+    gaps: 5
+  });
+});
+
+test("validate --json: an Out-of-Scope Note must carry a non-economic verdict, evidence and a referral", async () => {
+  const cases: Array<[string, (note: Record<string, any>) => void]> = [
+    ["classification.verdict", (note) => (note.classification.verdict = "economic-protocol")],
+    ["classification.evidence", (note) => (note.classification.evidence = [])],
+    ["classification.override", (note) => delete note.classification.override],
+    ["referrals", (note) => (note.referrals = [])],
+    ["target", (note) => delete note.target]
+  ];
+  for (const [field, edit] of cases) {
+    const cwd = await shortCircuitDir("out-of-scope-note");
+    await editShortCircuit(cwd, "out-of-scope-note", edit);
+    const envelope = await assertRejected(cwd, "validate_output_schema_invalid");
+    assert.equal(envelope.data?.kind, "out-of-scope-note");
+    assert.ok(
+      (envelope.data?.problems as Array<{ message: string }>).some((problem) => problem.message.includes(` ${field}: `)),
+      `${field}: ${JSON.stringify(envelope.data?.problems)}`
+    );
+  }
+});
+
+test("validate --json: a Blocker Report names a Gap for every unexercised instruction and actor, in its report too", async () => {
+  const unGapped = await shortCircuitDir("blocker-report");
+  await editShortCircuit(unGapped, "blocker-report", (report) => {
+    report.gaps = report.gaps.filter((gap: { subject: string }) => gap.subject !== "keeper");
+  });
+  const missing = await assertRejected(unGapped, "validate_gap_missing");
+  assert.match(missing.error!.message, /actor "keeper"/);
+
+  const unnamed = await shortCircuitDir(
+    "blocker-report",
+    (await composeShortCircuit("blocker-report")).replace(/^- liquidate: .*$/m, "")
+  );
+  const envelope = await assertRejected(unnamed, "validate_report_gap_unnamed");
+  assert.match(envelope.error!.message, /"liquidate"/);
+
+  const noGaps = await shortCircuitDir("blocker-report");
+  await editShortCircuit(noGaps, "blocker-report", (report) => {
+    report.gaps = [];
+    report.not_exercised = { instructions: [], actors: [] };
+  });
+  await assertRejected(noGaps, "validate_output_schema_invalid");
+});
+
+test("validate --json: neither short-circuit output may carry a risk surface", async () => {
+  for (const kind of ["out-of-scope-note", "blocker-report"] as const) {
+    const withEngineOutput = await shortCircuitDir(kind);
+    await writeFile(assessmentFile(withEngineOutput, "risk-surface.json"), "{}");
+    await assertRejected(withEngineOutput, "validate_engine_output_present");
+
+    for (const section of ["Coverage", "Engine Output", "Risk Surface", "Invariants", "Breaches", "Delta"]) {
+      const cwd = await shortCircuitDir(kind, await composeShortCircuit(kind, [section]));
+      const envelope = await assertRejected(cwd, "validate_report_risk_surface");
+      assert.match(envelope.error!.message, new RegExp(`\`${section}\``));
+    }
+
+    for (const field of ["invariants", "breaches", "coverage", "risk_surface"]) {
+      const cwd = await shortCircuitDir(kind);
+      await editShortCircuit(cwd, kind, (output) => (output[field] = []));
+      await assertRejected(cwd, "validate_output_schema_invalid");
+    }
+  }
+});
+
+test("validate --json: a short-circuit report missing a required section is rejected", async () => {
+  const note = await shortCircuitDir("out-of-scope-note", "## Classification\n\n- an NFT mint\n");
+  const envelope = await assertRejected(note, "validate_report_section_missing");
+  assert.match(envelope.error!.message, /## Code-Level Auditing`/);
+
+  const blocker = await shortCircuitDir("blocker-report");
+  await rm(assessmentFile(blocker, "blocker-report.md"));
+  await assertRejected(blocker, "validate_report_missing");
+});
+
+test("validate --json: a directory holding more than one output, or none, is rejected", async () => {
+  const cwd = await shortCircuitDir("out-of-scope-note");
+  await writeFile(assessmentFile(cwd, "blocker-report.json"), await readFile(path.join(EXAMPLES, "blocker-report.json"), "utf8"));
+  const ambiguous = await assertRejected(cwd, "validate_output_ambiguous");
+  assert.equal(ambiguous.data?.kind, null);
+
+  const empty = await mkdtemp(path.join(os.tmpdir(), "riptide-validate-empty-"));
+  await mkdir(path.join(empty, ASSESSMENT_DIR), { recursive: true });
+  await assertRejected(empty, "validate_output_missing");
 });

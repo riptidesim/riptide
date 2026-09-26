@@ -1,14 +1,15 @@
 // `riptide validate <assessment-dir>` — the structural gate the Skill runs
-// before it declares an Assessment complete: the Engine Output is intact, the
-// Assessment Context sidecar is schema-valid, and the composed assessment.md
-// carries every required section.
+// before it delivers anything. It recognises the output the directory holds:
+// an Assessment (intact Engine Output, a schema-valid Assessment Context and
+// every required assessment.md section), an Out-of-Scope Note or a Blocker
+// Report (schema-valid, required sections, no risk surface).
 
 import { stat } from "node:fs/promises";
 import path from "node:path";
 
 import { Command } from "commander";
 
-import { validateAssessment } from "../assess/context.js";
+import { validateOutput } from "../assess/outputs.js";
 import {
   errorEnvelope,
   oneLineMessage,
@@ -26,9 +27,12 @@ export interface ValidateOptions {
 export function createValidateCommand(deps: CommandIO = {}): Command {
   return new Command("validate")
     .description(
-      "Check an Assessment directory: intact Engine Output, a schema-valid Assessment Context and the required assessment.md sections"
+      "Check the Assessment, Out-of-Scope Note or Blocker Report in a directory before the Skill delivers it"
     )
-    .argument("<assessment-dir>", "Directory holding assessment.json, assessment-context.json and assessment.md")
+    .argument(
+      "<assessment-dir>",
+      "Directory holding an Assessment, an Out-of-Scope Note or a Blocker Report"
+    )
     .option("--json", "Emit the result as a command envelope", false)
     .action(async (dir: string, options: ValidateOptions) => {
       const exitCode = await runValidate(dir, options, deps);
@@ -45,6 +49,7 @@ export async function runValidate(
   const label = path.relative(cwd, path.resolve(cwd, dir)) || ".";
 
   let problems: CommandError[];
+  let kind: string | null = null;
   try {
     if (!(await isDirectory(path.resolve(cwd, dir)))) {
       problems = [
@@ -55,7 +60,7 @@ export async function runValidate(
         }
       ];
     } else {
-      const validation = await validateAssessment(path.resolve(cwd, dir), label);
+      const validation = await validateOutput(path.resolve(cwd, dir), label);
       if (validation.ok) {
         if (options.json) {
           stdout(
@@ -64,11 +69,12 @@ export async function runValidate(
             )
           );
         } else {
-          stdout(`riptide validate: PASS ${label}\n`);
+          stdout(`riptide validate: PASS ${label} (${validation.result.kind})\n`);
         }
         return 0;
       }
       problems = validation.problems;
+      kind = validation.kind;
     }
   } catch (error) {
     const failure: CommandError = {
@@ -82,7 +88,7 @@ export async function runValidate(
   }
 
   if (options.json) {
-    stdout(renderEnvelope(errorEnvelope("validate", problems[0]!, { assessment_dir: label, problems })));
+    stdout(renderEnvelope(errorEnvelope("validate", problems[0]!, { assessment_dir: label, kind, problems })));
   } else {
     stderr(
       `riptide validate: FAIL ${label}\n` +

@@ -165,52 +165,28 @@ async function checkContext(
     });
     return null;
   }
-  const parsed = parseJson(raw);
-  if (parsed === undefined) {
-    problems.push({
-      code: "validate_context_malformed",
-      message: `${ASSESSMENT_CONTEXT_FILE} is not valid JSON`,
-      next: `rewrite ${ASSESSMENT_CONTEXT_FILE} as one JSON object, ${rerun}`
-    });
-    return null;
-  }
-  const version = isRecord(parsed) ? parsed.schema_version : undefined;
-  if (version !== ASSESSMENT_CONTEXT_SCHEMA_VERSION) {
-    problems.push({
-      code: "validate_context_schema_unsupported",
-      message: `${ASSESSMENT_CONTEXT_FILE} schema_version is ${JSON.stringify(version ?? null)}, expected ${JSON.stringify(ASSESSMENT_CONTEXT_SCHEMA_VERSION)}`,
-      next: `set schema_version to ${JSON.stringify(ASSESSMENT_CONTEXT_SCHEMA_VERSION)} and match its shape, ${rerun}`
-    });
-    return null;
-  }
-  const result = AssessmentContextSchema.safeParse(parsed);
-  if (!result.success) {
-    for (const issue of result.error.issues) {
-      const field = issue.path.length > 0 ? issue.path.join(".") : "(root)";
-      problems.push({
-        code: "validate_context_schema_invalid",
-        message: `${ASSESSMENT_CONTEXT_FILE} ${field}: ${issue.message}`,
-        next: `fix ${field} in ${ASSESSMENT_CONTEXT_FILE}, ${rerun}`
-      });
-    }
-    return null;
-  }
+  const context = parseVersioned(
+    raw,
+    ASSESSMENT_CONTEXT_FILE,
+    ASSESSMENT_CONTEXT_SCHEMA_VERSION,
+    AssessmentContextSchema,
+    "validate_context",
+    rerun,
+    problems
+  );
+  if (context === null) return null;
 
-  const context = result.data;
-  const gapSubjects = new Set(context.gaps.map((gap) => gap.subject));
-  const uncovered = [
-    ...context.coverage.instructions.not_exercised.map((name) => ({ kind: "instruction", name })),
-    ...context.coverage.actors.not_exercised.map((name) => ({ kind: "actor", name }))
-  ];
-  for (const { kind, name } of uncovered) {
-    if (!gapSubjects.has(name)) {
-      problems.push({
-        code: "validate_gap_missing",
-        message: `${kind} ${JSON.stringify(name)} was not exercised but has no Gap`,
-        next: `add a Gap with subject ${JSON.stringify(name)}, its reason and what would unblock it, ${rerun}`
-      });
-    }
+  if (context.coverage.instructions.exercised.length === 0) {
+    problems.push({
+      code: "validate_coverage_zero",
+      message: `${ASSESSMENT_CONTEXT_FILE} exercises no instruction; an Assessment needs Coverage`,
+      next:
+        "deliver a Blocker Report instead: write blocker-report.json and blocker-report.md " +
+        "into their own directory and run `riptide validate` on it"
+    });
   }
+  const { instructions, actors } = context.coverage;
+  checkGapsCover(instructions.not_exercised, actors.not_exercised, context.gaps, rerun, problems);
   return context;
 }
 
@@ -229,26 +205,7 @@ async function checkReport(
     return;
   }
 
-  const headings = [...raw.matchAll(/^## (.+?)\s*$/gm)].map((match) => match[1]!);
-  const positions = REQUIRED_REPORT_SECTIONS.map((section) => headings.indexOf(section));
-  const missing = REQUIRED_REPORT_SECTIONS.filter((_, index) => positions[index] === -1);
-  for (const section of missing) {
-    problems.push({
-      code: "validate_report_section_missing",
-      message: `${COMPOSED_REPORT_FILE} has no \`## ${section}\` section`,
-      next: `add the \`## ${section}\` section to ${COMPOSED_REPORT_FILE}, ${rerun}`
-    });
-  }
-  if (missing.length > 0) return;
-
-  const inOrder = positions[0] === 0 && positions.every((pos, i) => i === 0 || pos > positions[i - 1]!);
-  if (!inOrder) {
-    problems.push({
-      code: "validate_report_section_order",
-      message: `${COMPOSED_REPORT_FILE} sections must open with ${REQUIRED_REPORT_SECTIONS.map((s) => `\`## ${s}\``).join(", then ")}`,
-      next: `reorder ${COMPOSED_REPORT_FILE} so the Scope Declaration comes first, ${rerun}`
-    });
-  }
+  if (!checkSections(raw, COMPOSED_REPORT_FILE, REQUIRED_REPORT_SECTIONS, rerun, problems)) return;
 
   if (digest !== null && !sectionBody(raw, "Engine Output").includes(digest)) {
     problems.push({
@@ -259,8 +216,113 @@ async function checkReport(
   }
 }
 
+/**
+ * Parse an agent-written JSON file against its versioned schema. Problems are
+ * coded `<prefix>_malformed`, `<prefix>_schema_unsupported` and
+ * `<prefix>_schema_invalid`, the last once per failing field.
+ */
+export function parseVersioned<T>(
+  raw: string,
+  file: string,
+  version: string,
+  schema: z.ZodType<T>,
+  prefix: string,
+  rerun: string,
+  problems: CommandError[]
+): T | null {
+  const parsed = parseJson(raw);
+  if (parsed === undefined) {
+    problems.push({
+      code: `${prefix}_malformed`,
+      message: `${file} is not valid JSON`,
+      next: `rewrite ${file} as one JSON object, ${rerun}`
+    });
+    return null;
+  }
+  const found = isRecord(parsed) ? parsed.schema_version : undefined;
+  if (found !== version) {
+    problems.push({
+      code: `${prefix}_schema_unsupported`,
+      message: `${file} schema_version is ${JSON.stringify(found ?? null)}, expected ${JSON.stringify(version)}`,
+      next: `set schema_version to ${JSON.stringify(version)} and match its shape, ${rerun}`
+    });
+    return null;
+  }
+  const result = schema.safeParse(parsed);
+  if (!result.success) {
+    for (const issue of result.error.issues) {
+      const field = issue.path.length > 0 ? issue.path.join(".") : "(root)";
+      problems.push({
+        code: `${prefix}_schema_invalid`,
+        message: `${file} ${field}: ${issue.message}`,
+        next: `fix ${field} in ${file}, ${rerun}`
+      });
+    }
+    return null;
+  }
+  return result.data;
+}
+
+/** Every unexercised instruction and actor must be the subject of a Gap. */
+export function checkGapsCover(
+  instructions: string[],
+  actors: string[],
+  gaps: Array<{ subject: string }>,
+  rerun: string,
+  problems: CommandError[]
+): void {
+  const gapSubjects = new Set(gaps.map((gap) => gap.subject));
+  const uncovered = [
+    ...instructions.map((name) => ({ kind: "instruction", name })),
+    ...actors.map((name) => ({ kind: "actor", name }))
+  ];
+  for (const { kind, name } of uncovered) {
+    if (!gapSubjects.has(name)) {
+      problems.push({
+        code: "validate_gap_missing",
+        message: `${kind} ${JSON.stringify(name)} was not exercised but has no Gap`,
+        next: `add a Gap with subject ${JSON.stringify(name)}, its reason and what would unblock it, ${rerun}`
+      });
+    }
+  }
+}
+
+/**
+ * Check that a composed report carries every `required` `## ` section, opening
+ * with the first and in the given order. Returns false when a section is missing.
+ */
+export function checkSections(
+  markdown: string,
+  file: string,
+  required: readonly string[],
+  rerun: string,
+  problems: CommandError[]
+): boolean {
+  const headings = [...markdown.matchAll(/^## (.+?)\s*$/gm)].map((match) => match[1]!);
+  const positions = required.map((section) => headings.indexOf(section));
+  const missing = required.filter((_, index) => positions[index] === -1);
+  for (const section of missing) {
+    problems.push({
+      code: "validate_report_section_missing",
+      message: `${file} has no \`## ${section}\` section`,
+      next: `add the \`## ${section}\` section to ${file}, ${rerun}`
+    });
+  }
+  if (missing.length > 0) return false;
+
+  const inOrder = positions[0] === 0 && positions.every((pos, i) => i === 0 || pos > positions[i - 1]!);
+  if (!inOrder) {
+    problems.push({
+      code: "validate_report_section_order",
+      message: `${file} sections must open with ${required.map((s) => `\`## ${s}\``).join(", then ")}`,
+      next: `reorder ${file} so the ${required[0]} comes first, ${rerun}`
+    });
+  }
+  return true;
+}
+
 /** The text from a `## ` heading up to the next heading of the same level, or the end. */
-function sectionBody(markdown: string, section: string): string {
+export function sectionBody(markdown: string, section: string): string {
   const start = markdown.search(new RegExp(`^## ${section}\\s*$`, "m"));
   if (start === -1) return "";
   const rest = markdown.slice(start).replace(/^.*\n?/, "");
@@ -275,7 +337,7 @@ function counts(value: { exercised: string[]; not_exercised: string[] }): {
   return { exercised: value.exercised.length, not_exercised: value.not_exercised.length };
 }
 
-async function readOptional(file: string): Promise<string | null> {
+export async function readOptional(file: string): Promise<string | null> {
   try {
     return await readFile(file, "utf8");
   } catch (err) {
@@ -284,7 +346,7 @@ async function readOptional(file: string): Promise<string | null> {
   }
 }
 
-function parseJson(raw: string): unknown {
+export function parseJson(raw: string): unknown {
   try {
     return JSON.parse(raw) as unknown;
   } catch {
@@ -292,6 +354,6 @@ function parseJson(raw: string): unknown {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

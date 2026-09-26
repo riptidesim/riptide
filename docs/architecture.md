@@ -295,23 +295,42 @@ is unchanged.
   `assess_surface_digest_mismatch`, `assess_honesty_gates_blocked` (with
   the gate report as `data.execution_honesty`), `assess_artifacts_drifted`,
   `assess_failed`.
-- **`validate`**: the gate the Skill runs on an Assessment directory before
-  it declares completion. It checks that `assessment.json` still matches its
-  own `assessment_digest` (Engine Output is never edited), that
+- **`validate`**: the gate the Skill runs on whatever it delivers. It
+  recognises the output from the one agent-written file in the directory
+  and reads only. An **Assessment** (`assessment-context.json`, or Engine
+  Output with no sidecar): `assessment.json` still matches its own
+  `assessment_digest` (Engine Output is never edited),
   `assessment-context.json` is a valid `assessment-context.v1` Assessment
-  Context (versions, Depth, Scope Declaration, Coverage, Gaps) with a Gap for
-  every unexercised instruction and actor, and that the composed
-  `assessment.md` opens with `## Scope Declaration`, `## Coverage`, `## Gaps`
-  and `## Engine Output`, the last citing the digest. It reads only. `data`
-  is the `validate-cli.v1` result (Depth, Coverage counts, Gap count). A
-  failure's `error` is the first problem and `data.problems` lists them all.
-  Failures: `validate_dir_not_found`, `validate_engine_output_missing`,
-  `validate_engine_output_modified`, `validate_context_missing`,
-  `validate_context_malformed`, `validate_context_schema_unsupported`,
-  `validate_context_schema_invalid`, `validate_gap_missing`,
-  `validate_report_missing`, `validate_report_section_missing`,
-  `validate_report_section_order`, `validate_report_engine_output_unlinked`,
-  `validate_failed`.
+  Context (versions, Depth, Scope Declaration, Coverage, Gaps) with at least
+  one exercised instruction and a Gap for every unexercised instruction and
+  actor, and the composed `assessment.md` opens with `## Scope Declaration`,
+  `## Coverage`, `## Gaps` and `## Engine Output`, the last citing the
+  digest. An **Out-of-Scope Note** (`out-of-scope-note.json`,
+  `out-of-scope-note.v1`: a `not-economic-protocol` verdict with evidence,
+  its override and code-level auditing referrals) with an
+  `out-of-scope-note.md` opening `## Classification`, `## Code-Level
+  Auditing`. A **Blocker Report** (`blocker-report.json`, `blocker-report.v1`:
+  Depth, Scope Declaration, the failed command, the unexercised instructions
+  and actors, and a Gap for each) with a `blocker-report.md` opening
+  `## Scope Declaration`, `## Blocker`, `## Gaps` that names every Gap.
+  Neither short-circuit output may sit beside Engine Output or carry a
+  risk-surface section (`Coverage`, `Engine Output`, `Region Coverage`,
+  `Risk Surface`, `Invariants`, `Breaches`, `Delta`). `data` is the
+  `validate-cli.v1` result, with the output as `data.kind`
+  (`assessment`, `out-of-scope-note` or `blocker-report`). A failure's
+  `error` is the first problem, `data.problems` lists them all and
+  `data.kind` names the output when one was recognised. Failures:
+  `validate_dir_not_found`, `validate_output_missing`,
+  `validate_output_ambiguous`, `validate_engine_output_missing`,
+  `validate_engine_output_modified`, `validate_engine_output_present`,
+  `validate_context_missing`, `validate_context_malformed`,
+  `validate_context_schema_unsupported`, `validate_context_schema_invalid`,
+  `validate_coverage_zero`, `validate_gap_missing`,
+  `validate_output_malformed`, `validate_output_schema_unsupported`,
+  `validate_output_schema_invalid`, `validate_report_missing`,
+  `validate_report_section_missing`, `validate_report_section_order`,
+  `validate_report_engine_output_unlinked`, `validate_report_gap_unnamed`,
+  `validate_report_risk_surface`, `validate_failed`.
 
 - **`sim generate`**: `data` names the crate, adapter, IDL and manifests,
   and carries the `setup-gaps.json` report as `setup_gaps`. A genesis with

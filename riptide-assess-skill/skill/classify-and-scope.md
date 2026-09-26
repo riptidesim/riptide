@@ -17,10 +17,10 @@ Declaration.
    `riptide readiness . --json`.
 4. Decide whether the target is an **Economic Protocol**: it holds or moves
    value through pooled assets, prices, collateral, debt, reserves or
-   solvency. IDL and source signals decide this, not family matching.
-   - Not an Economic Protocol (an NFT mint, a DAO vote, a registry, a
-     game with no value-bearing mechanism): stop and deliver an Out-of-Scope
-     Note within the first minute. See [report.md](./report.md).
+   solvency. Apply the evidence rules in
+   [The Economic Protocol verdict](#the-economic-protocol-verdict) below.
+   - Not an Economic Protocol: stop and deliver an **Out-of-Scope Note**
+     (see [report.md](./report.md)). No Scope, Setup or Run stage starts.
    - An Economic Protocol that matches no family below: continue with the
      generic Economic Protocol fallback in
      [family-library.md](./family-library.md). Novelty is never a reason to
@@ -44,6 +44,61 @@ Declaration.
 
 Read the P0 and P1 state-changing instructions: for each, the IDL `args` and
 `accounts` entries plus the handler source. Scope builds on this.
+
+### The Economic Protocol verdict
+
+The verdict is a judgment the Skill makes from the program's own IDL and
+source; the Engine only checks the shape of what the Skill delivers. Family
+matching never decides it: a program that fits no family is judged on its
+signals like any other.
+
+**Economic signals.** One signal, cited from the IDL or a handler, makes the
+target an Economic Protocol:
+
+- **Pooled value** — a program-owned vault, pool, reserve, treasury or
+  insurance fund that user deposits enter and withdrawals leave (token
+  `transfer`, `mint_to` or `burn` CPIs against a program PDA, or lamports
+  held for users).
+- **Claims on pooled value** — shares, LP tokens, receipts, deposits,
+  collateral, debt, positions or margin that entitle a user to part of a pool.
+- **Prices and rates** — an oracle account (Pyth, Switchboard, a custom
+  attestor), a swap curve, an exchange rate, an interest or funding rate, or a
+  fee charged on a value flow.
+- **Solvency conditions** — a health factor, collateral ratio, liquidation,
+  peg, redemption or withdrawal-queue rule.
+
+**Out-of-scope shapes.** An NFT or collection mint with supply 1 per mint, a
+metadata or name registry, a governance vote that holds no assets itself, an
+identity or attestation registry, a game with no pooled value. These are out
+of scope only when the IDL and handlers show no economic signal at all.
+
+**Rules.**
+
+1. Read every instruction in the IDL and the handlers of any instruction that
+   touches a token or lamport balance before deciding. Instruction and
+   account names alone are not evidence.
+2. An Out-of-Scope Note needs positive evidence: at least one line per claim,
+   each naming the file or IDL entry it comes from, that together show no
+   economic signal. A missing IDL or unreadable source is not that evidence;
+   it is a Gap, and the run continues or ends with a Blocker Report.
+3. When a signal is present but weak (a mint price paid into a treasury, a fee
+   on a registry), the target is an Economic Protocol. Record the reading as a
+   Scope Declaration assumption with its reason and the Steering Hint that
+   narrows it, and continue.
+4. In a repo with several programs, classify each one. The run ends with an
+   Out-of-Scope Note only when no program carries an economic signal;
+   otherwise the economic programs are the target and the others are Scope
+   Declaration assumptions.
+5. An Economic Protocol whose shape matches no family is in scope. Record
+   "no known family; generic Economic Protocol fallback" as an assumption,
+   with the Steering Hint that selects a family as its override.
+6. A Steering Hint that states the target holds pooled value overrides an
+   out-of-scope verdict. Every Out-of-Scope Note names that override.
+
+**Budget.** Classify reads only the IDL, source, tests and
+`riptide readiness . --json`. It builds nothing, runs no `riptide init` and
+generates no sim crate, so an Out-of-Scope Note is delivered about a minute
+after the command starts.
 
 ## 2. Scope — what the guided sim must handle (A–F)
 

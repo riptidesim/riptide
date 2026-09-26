@@ -112,9 +112,11 @@ every one of them: each writes one envelope to stdout, and on failure its
   surfaced root or a retained case.
 - `riptide assess <guided-sim-root> --json [--input <json>] [--brief] --out <dir>`
   — render the Engine Output for the Assessment.
-- `riptide validate <assessment-dir> --json` — the gate: intact Engine Output,
-  a schema-valid Assessment Context and the required `assessment.md`
-  sections. Failures list every problem under `data.problems`.
+- `riptide validate <assessment-dir> --json` — the gate on whatever the run
+  delivers. It recognises an Assessment (intact Engine Output, a schema-valid
+  Assessment Context, the required `assessment.md` sections), an Out-of-Scope
+  Note or a Blocker Report, and names it as `data.kind`. Failures list every
+  problem under `data.problems`.
 
 ## The flow
 
@@ -134,9 +136,12 @@ Assessment declared.
 
 Decide whether the target is an **Economic Protocol** (a value-bearing
 mechanism: pooled assets, prices, solvency) from IDL and source evidence, then
-name its family. A target that is not an Economic Protocol ends the run with an
-**Out-of-Scope Note** that points to code-level auditing tools. A protocol that
-matches no known family is still in scope. →
+name its family. The verdict follows the evidence rules: one cited economic
+signal puts the target in scope, and only positive evidence of no signal at
+all takes it out. A target that is not an Economic Protocol ends the run,
+about a minute in, with an **Out-of-Scope Note** that points to code-level
+auditing tools and passes `riptide validate`. A protocol that matches no known
+family is still in scope and continues through the generic fallback. →
 [classify-and-scope.md](./classify-and-scope.md)
 
 ### 2. Scope
@@ -185,7 +190,9 @@ provenance, Firing Check results, Breaches), compose `assessment.md` from
 both, and run `riptide validate` on the result. Deliver only once that gate
 passes. Every **Breach**
 carries its seed replay command and a **Causal Trace**. When **Coverage** is
-zero, deliver a Blocker Report instead of an Assessment. →
+zero, deliver a Blocker Report instead of an Assessment, naming every Gap; the
+gate rejects a zero-Coverage Assessment. Neither an Out-of-Scope Note nor a
+Blocker Report describes a risk surface. →
 [report.md](./report.md), [causal-trace.md](./causal-trace.md)
 
 ## Evidence rules

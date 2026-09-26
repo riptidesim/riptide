@@ -6,13 +6,15 @@
   `https://github.com/riptidesim/riptide/issues`
 - Engine Output input shape: [`../examples/assessment-input.json`](../examples/assessment-input.json)
 - Assessment Context shape: [`../examples/assessment-context.json`](../examples/assessment-context.json)
+- Out-of-Scope Note shape: [`../examples/out-of-scope-note.json`](../examples/out-of-scope-note.json)
+- Blocker Report shape: [`../examples/blocker-report.json`](../examples/blocker-report.json)
 
 ## Skill file index
 
 - [SKILL.md](./SKILL.md) — the command, the Steering Hint, the Scope
   Declaration, Depth, the Engine commands and the stage list.
-- [classify-and-scope.md](./classify-and-scope.md) — Classify (Economic
-  Protocol verdict, family) and Scope (the A–F authoring triggers and the
+- [classify-and-scope.md](./classify-and-scope.md) — Classify (the Economic
+  Protocol verdict and its evidence rules, family) and Scope (the A–F authoring triggers and the
   region's assumptions).
 - [family-library.md](./family-library.md) — per-family personas, Floor
   Invariants and stress scenarios, plus the generic Economic Protocol fallback.

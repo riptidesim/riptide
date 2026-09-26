@@ -7,19 +7,106 @@ mix: the **Engine Output** that `riptide assess` renders byte-for-byte, and the
 
 ## Out-of-Scope Note
 
-Delivered early, from Classify, when the target is not an Economic Protocol.
-It states in a few lines what the target is, the evidence that it carries no
-value-bearing mechanism, and that Riptide simulates Economic Protocols only.
-It points to code-level auditing tools for the target instead, and it runs no
-Engine command beyond classification.
+Delivered early, from Classify, when the target is not an Economic Protocol
+(see [classify-and-scope.md](./classify-and-scope.md)). It runs no Engine
+command beyond classification and the gate. Write two files into
+`.riptide/out-of-scope-note/`:
+
+`out-of-scope-note.json`, every string non-empty:
+
+```json
+{
+  "schema_version": "out-of-scope-note.v1",
+  "skill_version": "<this Skill's version>",
+  "engine_version": "<riptide --version>",
+  "target": "<program path>",
+  "classification": {
+    "verdict": "not-economic-protocol",
+    "evidence": ["<one line per claim, naming its file or IDL entry>"],
+    "override": "/riptide-assess <Steering Hint naming the pooled value>"
+  },
+  "referrals": ["<a code-level auditing tool and what it checks>"]
+}
+```
+
+`out-of-scope-note.md`, a few lines under two sections, in this order:
+
+1. `## Classification` — what the target is, the evidence that it carries no
+   value-bearing mechanism, that Riptide simulates Economic Protocols only,
+   and the override.
+2. `## Code-Level Auditing` — the referrals: code-level auditing tools for
+   the target, such as auditor-skill, solana-security-standard or
+   solana-cpi-safety-skill, each with what it checks.
+
+Example: [`../examples/out-of-scope-note.json`](../examples/out-of-scope-note.json).
 
 ## Blocker Report
 
 Delivered instead of an Assessment when Coverage is zero: a prerequisite is
 missing, the program does not build, or no instruction executed successfully.
-It lists each Gap with its reason and what would unblock it, plus the exact
-failed command and error summary. It describes no risk surface and makes no
-claim about the program's behaviour.
+Write two files into `.riptide/blocker-report/`:
+
+`blocker-report.json`, every string non-empty:
+
+```json
+{
+  "schema_version": "blocker-report.v1",
+  "skill_version": "<this Skill's version>",
+  "engine_version": "<riptide --version>",
+  "depth": "default",
+  "scope_declaration": [
+    { "assumption": "...", "reason": "...", "override": "/riptide-assess <Steering Hint>" }
+  ],
+  "blocker": { "command": "<the exact failed command>", "error": "<error code and summary>" },
+  "not_exercised": { "instructions": ["..."], "actors": ["..."] },
+  "gaps": [{ "subject": "...", "reason": "...", "unblock": "..." }]
+}
+```
+
+- `not_exercised` lists every instruction and actor in scope; each one is the
+  `subject` of a Gap. Blocked before Classify named any, both lists are empty
+  and the Gap names the missing prerequisite.
+- There is at least one Gap.
+
+`blocker-report.md`, in this order:
+
+1. `## Scope Declaration` — the Depth that would have run and each assumption.
+2. `## Blocker` — the exact failed command and its error summary.
+3. `## Gaps` — every Gap by its subject, with its reason and unblock.
+
+Example: [`../examples/blocker-report.json`](../examples/blocker-report.json).
+
+## No risk surface in either
+
+Neither the Out-of-Scope Note nor the Blocker Report describes a risk
+surface or makes any claim about the program's behaviour: no Coverage grade,
+no invariant that held, no Breach, no metric, no "safe". Their directories
+hold no Engine Output (`assessment.json`, `campaign-summary.json`,
+`risk-surface.json`, a brief), and their reports carry no `Coverage`,
+`Engine Output`, `Region Coverage`, `Risk Surface`, `Invariants`, `Breaches`
+or `Delta` section. Both schemas are strict, so a field for any of these is
+rejected.
+
+## Gate for all three outputs
+
+`riptide validate <dir> --json` recognises which output a directory holds
+from its one agent-written file (`assessment-context.json`,
+`out-of-scope-note.json` or `blocker-report.json`) and reports it as
+`data.kind`. Run it on whichever one the run produced and deliver only once it
+passes:
+
+```bash
+riptide validate .riptide/out-of-scope-note --json
+riptide validate .riptide/blocker-report --json
+```
+
+The gate rejects an Assessment whose Coverage is zero
+(`validate_coverage_zero`): write a Blocker Report instead. The one delivery
+the gate cannot check is a Blocker Report for a missing or failed Engine
+install; deliver it with the failed command and the missing piece named.
+
+Deliver an Out-of-Scope Note or a Blocker Report as its composed report,
+verbatim.
 
 ## 8. Report
 

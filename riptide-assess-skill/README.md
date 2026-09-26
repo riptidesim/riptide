@@ -66,7 +66,9 @@ riptide-assess-skill/
 │   └── agents/openai.yaml       # Host display metadata
 ├── examples/
 │   ├── assessment-input.json    # Example Engine Output input
-│   └── assessment-context.json  # Example Assessment Context
+│   ├── assessment-context.json  # Example Assessment Context
+│   ├── out-of-scope-note.json   # Example Out-of-Scope Note
+│   └── blocker-report.json      # Example Blocker Report
 ├── install.sh                   # Engine bootstrap (idempotent)
 ├── README.md
 └── LICENSE                      # MIT

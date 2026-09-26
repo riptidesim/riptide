@@ -274,3 +274,50 @@ test("SKILL.md documents the Default and Deep budgets", async () => {
   assert.match(body, /^\| Default \|.*`seeds_per_value = \d+`.*\d+ repair attempts/m);
   assert.match(body, /^\| Deep \|.*`seeds_per_value = \d+`.*\d+ repair attempts/m);
 });
+
+test("the Classify stage documents the Economic Protocol evidence rules and lets unknown shapes continue", async () => {
+  const body = await skillBody();
+  const classify = await readFile(path.join(SKILL_DIR, "classify-and-scope.md"), "utf8");
+
+  assert.match(body, /only positive evidence of no signal at\s+all takes it out/);
+  assert.match(body, /matches no known\s+family is still in scope/);
+
+  assert.match(classify, /^### The Economic Protocol verdict$/m);
+  for (const signal of ["Pooled value", "Claims on pooled value", "Prices and rates", "Solvency conditions"]) {
+    assert.ok(classify.includes(`**${signal}**`), `classify-and-scope.md lost the ${signal} signal`);
+  }
+  assert.match(classify, /Family\s+matching never decides it/);
+  assert.match(classify, /An Out-of-Scope Note needs positive evidence/);
+  assert.match(classify, /generic Economic Protocol fallback/);
+  assert.match(classify, /Novelty is never a reason to\s+stop/);
+  assert.match(classify, /Out-of-Scope Note is delivered about a minute/);
+  assert.match(classify, /It builds nothing, runs no `riptide init`/);
+});
+
+test("the Report stage defines the Out-of-Scope Note and Blocker Report, gated and free of risk-surface claims", async () => {
+  const report = await readFile(path.join(SKILL_DIR, "report.md"), "utf8");
+  const examples = path.join(BUNDLE_ROOT, "examples");
+
+  for (const [kind, sections] of [
+    ["out-of-scope-note", ["Classification", "Code-Level Auditing"]],
+    ["blocker-report", ["Scope Declaration", "Blocker", "Gaps"]]
+  ] as const) {
+    const example = JSON.parse(await readFile(path.join(examples, `${kind}.json`), "utf8")) as {
+      schema_version: string;
+    };
+    assert.ok(report.includes(`"schema_version": "${example.schema_version}"`), `report.md and ${kind}.json disagree`);
+    assert.ok(report.includes(`\`${kind}.md\``), `report.md does not name ${kind}.md`);
+    assert.ok(report.includes(`riptide validate .riptide/${kind} --json`), `report.md does not gate ${kind}`);
+    let cursor = report.indexOf(`\`${kind}.md\``);
+    for (const section of sections) {
+      const index = report.indexOf(`\`## ${section}\``, cursor);
+      assert.notEqual(index, -1, `report.md does not order ${kind}'s \`## ${section}\` section`);
+      cursor = index;
+    }
+  }
+
+  assert.match(report, /^## No risk surface in either$/m);
+  assert.match(report, /describes a risk\s+surface or makes any claim about the program's behaviour/);
+  assert.match(report, /rejects an Assessment whose Coverage is zero/);
+  assert.match(report, /auditor-skill/);
+});
