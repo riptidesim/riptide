@@ -18,6 +18,8 @@ import { runValidate } from "../src/commands/validate.js";
 const EXAMPLES = path.resolve(process.cwd(), "..", "riptide-assess-skill", "examples");
 const EXAMPLE_CONTEXT = path.join(EXAMPLES, "assessment-context.json");
 const ASSESSMENT_DIR = ".riptide/assessment";
+const EXAMPLE_SEED = "0000000000000000000000000000000000000000000000000000000000000003";
+const EXAMPLE_REPLAY = `npx --yes @riptide/cli@0.12.0 sim debug .riptide/sim --seed ${EXAMPLE_SEED}`;
 
 interface Envelope {
   schema_version: string;
@@ -67,6 +69,11 @@ async function assertRejected(cwd: string, code: string): Promise<Envelope> {
   assert.ok(problem.next.length > 0);
   assert.deepEqual(envelope.error, problems[0]);
   return envelope;
+}
+
+function problemOf(envelope: Envelope, code: string): { code: string; message: string; next: string } {
+  const problems = envelope.data?.problems as Array<{ code: string; message: string; next: string }>;
+  return problems.find((problem) => problem.code === code)!;
 }
 
 /** A Workspace with surfaced guided-sim evidence and Engine Output rendered into `.riptide/assessment`. */
@@ -149,7 +156,7 @@ function assessmentFile(cwd: string, name: string): string {
 /** Compose assessment.md the way the Skill's Report stage does: Context sections, then the Engine's render. */
 async function composeReport(
   cwd: string,
-  sections = ["Scope Declaration", "Coverage", "Gaps", "Invariants", "Engine Output"]
+  sections = ["Scope Declaration", "Coverage", "Gaps", "Invariants", "Breaches", "Engine Output"]
 ): Promise<string> {
   const engineMarkdown = await readFile(assessmentFile(cwd, "assessment.md"), "utf8");
   const { assessment_digest } = JSON.parse(
@@ -162,7 +169,8 @@ async function composeReport(
     Invariants:
       "- debt_below_collateral (floor): fired, held\n" +
       "- debt_below_max_borrow (floor): did-not-fire, Gap\n" +
-      "- utilization_bound (agent-authored): fired, held",
+      "- utilization_bound (agent-authored): fired, breached",
+    Breaches: `### utilization_bound\n\nReplay: \`${EXAMPLE_REPLAY}\`\n\n**T4** the first \`borrow\` pushes utilization past the bound.`,
     "Engine Output": `Assessment digest: \`${assessment_digest}\`\n\n${engineMarkdown}`
   };
   return sections.map((section) => `## ${section}\n\n${bodies[section]}\n`).join("\n");
@@ -198,7 +206,8 @@ test("validate --json: a complete Assessment passes the gate", async () => {
     },
     gaps: 3,
     family: "lending",
-    invariants: { floor: 2, agent: 1, held: 2, breached: 0, gap: 1 }
+    invariants: { floor: 2, agent: 1, held: 1, breached: 1, gap: 1 },
+    breaches: 1
   });
 });
 
@@ -298,7 +307,11 @@ test("validate --json: an invalid Assessment Context names the failing field", a
     ["invariants.0.provenance", (context) => (context.invariants[0].provenance = "library")],
     ["invariants.1.firing_check", (context) => (context.invariants[1].firing_check = "passed")],
     ["invariants.2.outcome", (context) => (context.invariants[2].outcome = "safe")],
-    ["invariants.2.id", (context) => (context.invariants[2].id = "debt_below_collateral")]
+    ["invariants.2.id", (context) => (context.invariants[2].id = "debt_below_collateral")],
+    ["breaches", (context) => delete context.breaches],
+    ["breaches.0.invariant_id", (context) => delete context.breaches[0].invariant_id],
+    ["breaches.0.seed", (context) => (context.breaches[0].seed = "not-hex")],
+    ["breaches.0.replay_command", (context) => (context.breaches[0].replay_command = 3)]
   ];
   for (const [field, edit] of cases) {
     const cwd = await validWorkspace();
@@ -383,7 +396,7 @@ test("validate --json: a Floor Invariant labelled agent-authored, or an agent in
 test("validate --json: the composed report names every invariant under Invariants", async () => {
   const cwd = await validWorkspace();
   const report = await readFile(assessmentFile(cwd, "assessment.md"), "utf8");
-  await writeFile(assessmentFile(cwd, "assessment.md"), report.replace("- utilization_bound (agent-authored): fired, held", ""));
+  await writeFile(assessmentFile(cwd, "assessment.md"), report.replace("- utilization_bound (agent-authored): fired, breached", ""));
   const envelope = await assertRejected(cwd, "validate_report_invariant_unlisted");
   assert.match(envelope.error!.message, /"utilization_bound"/);
 });
@@ -392,7 +405,9 @@ test("validate --json: a composed report missing a required section is rejected"
   for (const section of ["Scope Declaration", "Coverage", "Gaps", "Invariants", "Engine Output"]) {
     const cwd = await renderedWorkspace();
     await writeFile(assessmentFile(cwd, "assessment-context.json"), await readFile(EXAMPLE_CONTEXT, "utf8"));
-    const sections = ["Scope Declaration", "Coverage", "Gaps", "Invariants", "Engine Output"].filter((s) => s !== section);
+    const sections = ["Scope Declaration", "Coverage", "Gaps", "Invariants", "Breaches", "Engine Output"].filter(
+      (s) => s !== section
+    );
     await writeFile(assessmentFile(cwd, "assessment.md"), await composeReport(cwd, sections));
     const envelope = await assertRejected(cwd, "validate_report_section_missing");
     assert.match(envelope.error!.message, new RegExp(`## ${section}\``));
@@ -404,7 +419,7 @@ test("validate --json: the Scope Declaration must open the composed report", asy
   await writeFile(assessmentFile(cwd, "assessment-context.json"), await readFile(EXAMPLE_CONTEXT, "utf8"));
   await writeFile(
     assessmentFile(cwd, "assessment.md"),
-    await composeReport(cwd, ["Coverage", "Scope Declaration", "Gaps", "Invariants", "Engine Output"])
+    await composeReport(cwd, ["Coverage", "Scope Declaration", "Gaps", "Invariants", "Breaches", "Engine Output"])
   );
   await assertRejected(cwd, "validate_report_section_order");
 });
@@ -417,6 +432,117 @@ test("validate --json: a composed report that does not cite the Engine Output di
   const report = await readFile(assessmentFile(cwd, "assessment.md"), "utf8");
   await writeFile(assessmentFile(cwd, "assessment.md"), report.replaceAll(assessment_digest, "not-the-digest"));
   await assertRejected(cwd, "validate_report_engine_output_unlinked");
+});
+
+test("validate --json: a Breach with no replay command is rejected", async () => {
+  for (const edit of [
+    (breach: Record<string, unknown>) => delete breach.replay_command,
+    (breach: Record<string, unknown>) => (breach.replay_command = "  ")
+  ]) {
+    const cwd = await validWorkspace();
+    await editContext(cwd, (context) => edit(context.breaches[0]));
+    const envelope = await assertRejected(cwd, "validate_breach_replay_missing");
+    assert.match(envelope.error!.message, /Breach of invariant "utilization_bound" at seed 0+3 has no replay command/);
+    assert.ok(envelope.error!.next.includes(EXAMPLE_REPLAY), envelope.error!.next);
+  }
+});
+
+test("validate --json: a Breach with no Causal Trace is rejected", async () => {
+  for (const edit of [
+    (breach: Record<string, unknown>) => delete breach.causal_trace,
+    (breach: Record<string, unknown>) => (breach.causal_trace = "")
+  ]) {
+    const cwd = await validWorkspace();
+    await editContext(cwd, (context) => edit(context.breaches[0]));
+    const envelope = await assertRejected(cwd, "validate_breach_causal_trace_missing");
+    assert.match(envelope.error!.message, /Breach of invariant "utilization_bound" at seed 0+3 has no Causal Trace/);
+    assert.match(envelope.error!.next, /riptide sim debug \.riptide\/sim --seed 0+3 --json/);
+  }
+});
+
+test("validate --json: a Causal Trace that cites no tick is rejected", async () => {
+  const cwd = await validWorkspace();
+  await editContext(cwd, (context) => {
+    context.breaches[0].causal_trace = "Utilization crossed the bound after heavy borrowing.";
+  });
+  const envelope = await assertRejected(cwd, "validate_breach_causal_trace_uncited");
+  assert.match(envelope.error!.next, /\*\*T<n>\*\*/);
+});
+
+test("validate --json: a replay command that is not the seed's replay against the pinned Engine is rejected", async () => {
+  for (const replay of [
+    `riptide sim debug .riptide/sim --seed ${EXAMPLE_SEED}`,
+    `npx --yes @riptide/cli@0.11.0 sim debug .riptide/sim --seed ${EXAMPLE_SEED}`,
+    EXAMPLE_REPLAY.replace(/3$/, "4"),
+    `${EXAMPLE_REPLAY} --json`
+  ]) {
+    const cwd = await validWorkspace();
+    await editContext(cwd, (context) => (context.breaches[0].replay_command = replay));
+    const envelope = await assertRejected(cwd, "validate_breach_replay_unpinned");
+    assert.ok(envelope.error!.next.includes(EXAMPLE_REPLAY), envelope.error!.next);
+  }
+});
+
+test("validate --json: a breached invariant needs a Breach, and a Breach needs a breached invariant", async () => {
+  const cwd = await validWorkspace();
+  await editContext(cwd, (context) => (context.breaches = []));
+  let envelope = await assertRejected(cwd, "validate_breach_missing");
+  assert.match(envelope.error!.message, /invariant "utilization_bound" is reported as breached but has no Breach/);
+
+  const held = await validWorkspace();
+  await editContext(held, (context) => (context.breaches[0].invariant_id = "debt_below_collateral"));
+  assert.match(
+    problemOf(await assertRejected(held, "validate_breach_invariant_mismatch"), "validate_breach_invariant_mismatch").message,
+    /"debt_below_collateral", which is reported as held/
+  );
+
+  const unknown = await validWorkspace();
+  await editContext(unknown, (context) => (context.breaches[0].invariant_id = "no_such_invariant"));
+  assert.match(
+    problemOf(await assertRejected(unknown, "validate_breach_invariant_mismatch"), "validate_breach_invariant_mismatch").message,
+    /"no_such_invariant", which is not a reported invariant/
+  );
+});
+
+test("validate --json: a composed report lists every Breach with its replay command under Breaches", async () => {
+  const missing = await renderedWorkspace();
+  await writeFile(assessmentFile(missing, "assessment-context.json"), await readFile(EXAMPLE_CONTEXT, "utf8"));
+  await writeFile(
+    assessmentFile(missing, "assessment.md"),
+    await composeReport(missing, ["Scope Declaration", "Coverage", "Gaps", "Invariants", "Engine Output"])
+  );
+  let envelope = await assertRejected(missing, "validate_report_section_missing");
+  assert.match(envelope.error!.message, /## Breaches`/);
+
+  const misplaced = await renderedWorkspace();
+  await writeFile(assessmentFile(misplaced, "assessment-context.json"), await readFile(EXAMPLE_CONTEXT, "utf8"));
+  await writeFile(
+    assessmentFile(misplaced, "assessment.md"),
+    await composeReport(misplaced, ["Scope Declaration", "Coverage", "Breaches", "Gaps", "Invariants", "Engine Output"])
+  );
+  await assertRejected(misplaced, "validate_report_section_order");
+
+  const unlisted = await validWorkspace();
+  const report = await readFile(assessmentFile(unlisted, "assessment.md"), "utf8");
+  await writeFile(assessmentFile(unlisted, "assessment.md"), report.replace(`Replay: \`${EXAMPLE_REPLAY}\``, "Replay: see above"));
+  envelope = await assertRejected(unlisted, "validate_report_breach_unlisted");
+  assert.ok(envelope.error!.next.includes(EXAMPLE_REPLAY));
+});
+
+test("validate --json: an Assessment with no Breach needs no Breaches section", async () => {
+  const cwd = await renderedWorkspace();
+  await writeFile(assessmentFile(cwd, "assessment-context.json"), await readFile(EXAMPLE_CONTEXT, "utf8"));
+  await editContext(cwd, (context) => {
+    context.invariants[2].outcome = "held";
+    context.breaches = [];
+  });
+  await writeFile(
+    assessmentFile(cwd, "assessment.md"),
+    await composeReport(cwd, ["Scope Declaration", "Coverage", "Gaps", "Invariants", "Engine Output"])
+  );
+  const { exitCode, envelope } = await validate(cwd);
+  assert.equal(exitCode, 0, JSON.stringify(envelope.data?.problems));
+  assert.equal(envelope.data?.breaches, 0);
 });
 
 test("validate --json: edited Engine Output is rejected", async () => {

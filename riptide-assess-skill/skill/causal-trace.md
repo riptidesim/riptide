@@ -6,6 +6,15 @@ transactions. Its job is to explain *why* the invariant fired, so a reader does
 not have to read hundreds of ticks of logs. It retells one seed; it is never a
 verdict on the program.
 
+A Breach is simulation evidence: "invariant `<name>` fired at seed `<hex>`,
+coordinate X". Word it that way in the trace, the `## Breaches` section and
+the delivery, never as a vulnerability or a bug.
+
+Write one trace per Breach, after the Firing Check and the last run, as part
+of the Report stage. It goes in the Breach's `causal_trace` field of the
+Assessment Context and, verbatim, under `## Breaches` in `assessment.md`
+(see [report.md](./report.md)).
+
 ## Inputs
 
 - The replay log for the Breach's seed:
@@ -15,8 +24,13 @@ verdict on the program.
   ```
 
   This reruns one seed with verbose labelled transaction logging, returned as
-  `data.log`. The same command without `--json` is the Breach's replay
-  command in the Assessment.
+  `data.log`. The Breach's replay command in the Assessment is the same
+  replay run by the pinned Engine, with the Assessment Context's
+  `engine_version`:
+
+  ```bash
+  npx --yes @riptide/cli@<engine_version> sim debug .riptide/sim --seed <hex>
+  ```
 - The run's `guided-sim-run.json` (flow table, labelled transaction outcomes,
   retained failing seed, failure reason) and the review output for the run.
 - The adapter and `.riptide/sim/src/invariants.rs`, for the invariant's
@@ -37,9 +51,10 @@ Keep each trace to a few short parts:
    least one tick, one transaction label or count, and one recorded metric,
    and wires them to the claim. When a metric is zero, say why.
 3. **Timeline** — at most eight to twelve bullets, each starting `**T<n>**` or
-   `**T<start>–T<end>**`, for the ticks that matter: the first occurrence of an
-   action, a price or reserve crossing a round threshold, a failed-transaction
-   cluster, the first invariant firing, and the first and last ticks. State
+   `**T<start>–T<end>**`, for the ticks that matter: the first occurrence of
+   an action, a price or reserve crossing a round threshold, a
+   failed-transaction cluster, the first invariant firing, and the first and
+   last ticks. The gate rejects a trace that cites no tick. State
    action → outcome shapes ("5 `liquidate` succeed, 10 fail"), not raw events.
 4. **Close** — one sentence restating the claim for this seed and coordinate,
    and one naming the next useful experiment (a narrower axis, another persona
@@ -75,7 +90,7 @@ prior context for the run:
 5. Is there any claim a reader could challenge with "how do you know"? Cite
    the tick or drop the claim.
 
-Revise once if any answer is wrong. If the second draft still fails, record
-the Breach with its replay command and mark its Causal Trace as not
-synthesized, with the reason, rather than shipping a restatement of the
-numbers.
+Revise once if any answer is wrong. If the second draft still fails, cut the
+trace down to the Frame and the Timeline, keeping only claims with a cited
+tick, rather than shipping a restatement of the numbers. A Breach never ships
+without a Causal Trace: the gate rejects it.

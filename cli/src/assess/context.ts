@@ -34,6 +34,17 @@ export const PROVENANCES = ["floor", "agent"] as const;
 export const FIRING_CHECK_RESULTS = ["fired", "did-not-fire", "not-run"] as const;
 export const INVARIANT_OUTCOMES = ["held", "breached", "gap"] as const;
 
+/** The npm package the Version Pin names; a Breach replays against exactly that Engine version. */
+export const ENGINE_PACKAGE = "@riptide/cli";
+
+/** The exact seed replay command for a Breach: `sim debug` on the Workspace's sim crate, run by the pinned Engine. */
+export function breachReplayCommand(engineVersion: string, seed: string): string {
+  return `npx --yes ${ENGINE_PACKAGE}@${engineVersion} sim debug .riptide/sim --seed ${seed}`;
+}
+
+/** A Causal Trace cites ticks as `T<n>` (`**T4**`, `T3–T7`). */
+const TICK_CITATION = /\bT\d+\b/;
+
 const text = z.string().trim().min(1);
 
 const exercise = z
@@ -86,7 +97,18 @@ export const AssessmentContextSchema = z.object({
         }
         seen.add(invariant.id);
       });
-    })
+    }),
+  // The replay command and Causal Trace are checked by the gate, so their absence gets its own code.
+  breaches: z.array(
+    z
+      .object({
+        invariant_id: text,
+        seed: z.string().regex(/^[0-9a-fA-F]+$/, "must be the hex seed the run reported"),
+        replay_command: z.string().optional(),
+        causal_trace: z.string().optional()
+      })
+      .strict()
+  )
 });
 
 export type AssessmentContext = z.infer<typeof AssessmentContextSchema>;
@@ -103,6 +125,7 @@ export interface ValidatedAssessment {
   gaps: number;
   family: Family;
   invariants: Record<(typeof PROVENANCES)[number] | (typeof INVARIANT_OUTCOMES)[number], number>;
+  breaches: number;
 }
 
 export type AssessmentValidation =
@@ -143,7 +166,8 @@ export async function validateAssessment(dir: string, label = dir): Promise<Asse
         held: context.invariants.filter((inv) => inv.outcome === "held").length,
         breached: context.invariants.filter((inv) => inv.outcome === "breached").length,
         gap: context.invariants.filter((inv) => inv.outcome === "gap").length
-      }
+      },
+      breaches: context.breaches.length
     }
   };
 }
@@ -230,6 +254,7 @@ async function checkContext(
   const { instructions, actors } = context.coverage;
   checkGapsCover(instructions.not_exercised, actors.not_exercised, context.gaps, rerun, problems);
   checkInvariants(context, rerun, problems);
+  checkBreaches(context, rerun, problems);
   return context;
 }
 
@@ -284,6 +309,76 @@ function checkInvariants(context: AssessmentContext, rerun: string, problems: Co
   }
 }
 
+/**
+ * Every breached invariant has a Breach and every Breach names a breached
+ * invariant; each Breach carries the exact replay command against the pinned
+ * Engine and a Causal Trace that cites ticks.
+ */
+function checkBreaches(context: AssessmentContext, rerun: string, problems: CommandError[]): void {
+  const { invariants, breaches, engine_version } = context;
+  const breached = new Set(breaches.map((breach) => breach.invariant_id));
+  for (const inv of invariants) {
+    if (inv.outcome === "breached" && !breached.has(inv.id)) {
+      problems.push({
+        code: "validate_breach_missing",
+        message: `invariant ${JSON.stringify(inv.id)} is reported as breached but has no Breach`,
+        next:
+          `add a Breach with invariant_id ${JSON.stringify(inv.id)}, the seed it fired at, its replay command ` +
+          `and its Causal Trace, ${rerun}`
+      });
+    }
+  }
+
+  const outcomes = new Map(invariants.map((inv) => [inv.id, inv.outcome]));
+  for (const breach of breaches) {
+    const id = JSON.stringify(breach.invariant_id);
+    const what = `Breach of invariant ${id} at seed ${breach.seed}`;
+    const outcome = outcomes.get(breach.invariant_id);
+    if (outcome !== "breached") {
+      problems.push({
+        code: "validate_breach_invariant_mismatch",
+        message:
+          outcome === undefined
+            ? `${what} names ${id}, which is not a reported invariant`
+            : `${what} names ${id}, which is reported as ${outcome}`,
+        next: `set the invariant_id of the Breach to a reported invariant whose outcome is "breached", ${rerun}`
+      });
+    }
+
+    const replay = breachReplayCommand(engine_version, breach.seed);
+    if (!breach.replay_command?.trim()) {
+      problems.push({
+        code: "validate_breach_replay_missing",
+        message: `${what} has no replay command`,
+        next: `set its replay_command to \`${replay}\`, ${rerun}`
+      });
+    } else if (breach.replay_command !== replay) {
+      problems.push({
+        code: "validate_breach_replay_unpinned",
+        message: `${what} has a replay command that is not the seed's replay against the pinned Engine ${engine_version}`,
+        next: `set its replay_command to exactly \`${replay}\`, ${rerun}`
+      });
+    }
+
+    const debug = `riptide sim debug .riptide/sim --seed ${breach.seed} --json`;
+    if (!breach.causal_trace?.trim()) {
+      problems.push({
+        code: "validate_breach_causal_trace_missing",
+        message: `${what} has no Causal Trace`,
+        next: `replay the seed with \`${debug}\` and write its Causal Trace from data.log (see causal-trace.md), ${rerun}`
+      });
+    } else if (!TICK_CITATION.test(breach.causal_trace)) {
+      problems.push({
+        code: "validate_breach_causal_trace_uncited",
+        message: `${what} has a Causal Trace that cites no tick`,
+        next:
+          `cite the ticks from \`${debug}\` data.log as **T<n>** in its mechanism and timeline ` +
+          `(see causal-trace.md), ${rerun}`
+      });
+    }
+  }
+}
+
 async function checkReport(
   { dir, label, rerun }: CheckTarget,
   digest: string | null,
@@ -310,6 +405,8 @@ async function checkReport(
     });
   }
 
+  if (context !== null && context.breaches.length > 0) checkBreachesSection(raw, context, rerun, problems);
+
   const listed = sectionBody(raw, "Invariants");
   for (const inv of context?.invariants ?? []) {
     if (!listed.includes(inv.id)) {
@@ -317,6 +414,43 @@ async function checkReport(
         code: "validate_report_invariant_unlisted",
         message: `${COMPOSED_REPORT_FILE} \`## Invariants\` does not name invariant ${JSON.stringify(inv.id)}`,
         next: `list ${JSON.stringify(inv.id)} under \`## Invariants\` with its provenance, Firing Check result and outcome, ${rerun}`
+      });
+    }
+  }
+}
+
+/** With a Breach, `## Breaches` sits between `## Invariants` and `## Engine Output` and lists every replay command. */
+function checkBreachesSection(
+  markdown: string,
+  context: AssessmentContext,
+  rerun: string,
+  problems: CommandError[]
+): void {
+  const headings = [...markdown.matchAll(/^## (.+?)\s*$/gm)].map((match) => match[1]!);
+  const at = headings.indexOf("Breaches");
+  if (at === -1) {
+    problems.push({
+      code: "validate_report_section_missing",
+      message: `${COMPOSED_REPORT_FILE} has no \`## Breaches\` section, but the Assessment Context reports a Breach`,
+      next: `add \`## Breaches\` between \`## Invariants\` and \`## Engine Output\`, ${rerun}`
+    });
+    return;
+  }
+  if (!(at > headings.indexOf("Invariants") && at < headings.indexOf("Engine Output"))) {
+    problems.push({
+      code: "validate_report_section_order",
+      message: `${COMPOSED_REPORT_FILE} \`## Breaches\` must sit between \`## Invariants\` and \`## Engine Output\``,
+      next: `move \`## Breaches\` after \`## Invariants\` and before \`## Engine Output\`, ${rerun}`
+    });
+  }
+  const listed = sectionBody(markdown, "Breaches");
+  for (const breach of context.breaches) {
+    const replay = breachReplayCommand(context.engine_version, breach.seed);
+    if (!listed.includes(replay)) {
+      problems.push({
+        code: "validate_report_breach_unlisted",
+        message: `${COMPOSED_REPORT_FILE} \`## Breaches\` does not give the replay command for the Breach of ${JSON.stringify(breach.invariant_id)} at seed ${breach.seed}`,
+        next: `list the Breach under \`## Breaches\` with its replay command \`${replay}\` and its Causal Trace, ${rerun}`
       });
     }
   }

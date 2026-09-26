@@ -304,14 +304,20 @@ is unchanged.
   Output with no sidecar): `assessment.json` still matches its own
   `assessment_digest` (Engine Output is never edited),
   `assessment-context.json` is a valid `assessment-context.v1` Assessment
-  Context (versions, Depth, Scope Declaration, Coverage, Gaps, family and
-  invariants) with at least one exercised instruction and a Gap for every
+  Context (versions, Depth, Scope Declaration, Coverage, Gaps, family,
+  invariants and Breaches) with at least one exercised instruction and a Gap for every
   unexercised instruction and actor. Every Floor Invariant of the family is
   reported with `floor` provenance and no other invariant is; an invariant
   counts as `held` or `breached` only when its Firing Check `fired`, and one
-  reported as a `gap` has a Gap. The composed `assessment.md` opens with
+  reported as a `gap` has a Gap. Every `breached` invariant has a Breach and
+  every Breach names one; each carries its seed, the exact replay command
+  against the pinned Engine (`npx --yes @riptide/cli@<engine_version> sim
+  debug .riptide/sim --seed <seed>`) and a Causal Trace citing at least one
+  tick as `T<n>`. The composed `assessment.md` opens with
   `## Scope Declaration`, `## Coverage`, `## Gaps`, `## Invariants` (naming
-  every invariant) and `## Engine Output`, the last citing the digest. An **Out-of-Scope Note** (`out-of-scope-note.json`,
+  every invariant) and `## Engine Output`, the last citing the digest; with a
+  Breach, `## Breaches` sits between `## Invariants` and `## Engine Output`
+  and gives every replay command. An **Out-of-Scope Note** (`out-of-scope-note.json`,
   `out-of-scope-note.v1`: a `not-economic-protocol` verdict with evidence,
   its override and code-level auditing referrals) with an
   `out-of-scope-note.md` opening `## Classification`, `## Code-Level
@@ -333,7 +339,11 @@ is unchanged.
   `validate_context_schema_unsupported`, `validate_context_schema_invalid`,
   `validate_coverage_zero`, `validate_gap_missing`,
   `validate_floor_invariant_missing`, `validate_invariant_provenance_mismatch`,
-  `validate_invariant_not_fired`, `validate_report_invariant_unlisted`,
+  `validate_invariant_not_fired`, `validate_breach_missing`,
+  `validate_breach_invariant_mismatch`, `validate_breach_replay_missing`,
+  `validate_breach_replay_unpinned`, `validate_breach_causal_trace_missing`,
+  `validate_breach_causal_trace_uncited`, `validate_report_invariant_unlisted`,
+  `validate_report_breach_unlisted`,
   `validate_output_malformed`, `validate_output_schema_unsupported`,
   `validate_output_schema_invalid`, `validate_report_missing`,
   `validate_report_section_missing`, `validate_report_section_order`,

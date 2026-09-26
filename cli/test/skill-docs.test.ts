@@ -366,3 +366,37 @@ test("the Report stage defines the Out-of-Scope Note and Blocker Report, gated a
   assert.match(report, /rejects an Assessment whose Coverage is zero/);
   assert.match(report, /auditor-skill/);
 });
+
+test("the Report stage records every Breach with its pinned replay command and a Causal Trace", async () => {
+  const body = await skillBody();
+  const report = await readFile(path.join(SKILL_DIR, "report.md"), "utf8");
+  const trace = await readFile(path.join(SKILL_DIR, "causal-trace.md"), "utf8");
+  const replay = "npx --yes @riptide/cli@<engine_version> sim debug .riptide/sim --seed <hex>";
+
+  assert.match(body, /\[causal-trace\.md\]\(\.\/causal-trace\.md\)/);
+  for (const field of ["invariant_id", "seed", "replay_command", "causal_trace"]) {
+    assert.ok(report.includes(`"${field}"`), `report.md does not document the Breach field ${field}`);
+  }
+  assert.ok(report.includes(replay), "report.md does not give the pinned replay command");
+  assert.ok(trace.includes(replay), "causal-trace.md does not give the pinned replay command");
+  let cursor = 0;
+  for (const section of ["Invariants", "Breaches", "Engine Output"]) {
+    const index = report.indexOf(`\`## ${section}\``, cursor);
+    assert.notEqual(index, -1, `report.md does not order the \`## ${section}\` section`);
+    cursor = index;
+  }
+
+  assert.match(trace, /riptide sim debug \.riptide\/sim --seed <hex> --json/);
+  assert.match(trace, /`\*\*T<n>\*\*`/);
+  assert.doesNotMatch(trace, /not synthesized/, "the gate rejects a Breach without a Causal Trace");
+  assert.match(trace, /simulation evidence/);
+});
+
+test("no Skill file words a Breach as a vulnerability", async () => {
+  for (const [name, raw] of await bundleMarkdown()) {
+    for (const match of raw.matchAll(/vulnerabilit(y|ies)/gi)) {
+      const before = raw.slice(Math.max(0, match.index - 60), match.index);
+      assert.match(before, /\b(never|not)\b/, `${name} uses "${match[0]}" outside a prohibition`);
+    }
+  }
+});

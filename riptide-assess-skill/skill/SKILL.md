@@ -116,8 +116,9 @@ every one of them: each writes one envelope to stdout, and on failure its
   — render the Engine Output for the Assessment.
 - `riptide validate <assessment-dir> --json` — the gate on whatever the run
   delivers. It recognises an Assessment (intact Engine Output, a schema-valid
-  Assessment Context reporting every Floor Invariant and no unfired invariant
-  as held, the required `assessment.md` sections), an Out-of-Scope
+  Assessment Context reporting every Floor Invariant, no unfired invariant
+  as held and every Breach with its pinned replay command and Causal Trace,
+  the required `assessment.md` sections), an Out-of-Scope
   Note or a Blocker Report, and names it as `data.kind`. Failures list every
   problem under `data.problems`.
 
@@ -193,7 +194,9 @@ Render the **Engine Output** with `riptide assess`, write the
 provenance, Firing Check results, Breaches), compose `assessment.md` from
 both, and run `riptide validate` on the result. Deliver only once that gate
 passes. Every **Breach**
-carries its seed replay command and a **Causal Trace**. When **Coverage** is
+carries its exact seed replay command against the pinned Engine and a
+**Causal Trace** written from the replay log, and is worded as simulation
+evidence, never as a vulnerability. When **Coverage** is
 zero, deliver a Blocker Report instead of an Assessment, naming every Gap; the
 gate rejects a zero-Coverage Assessment. Neither an Out-of-Scope Note nor a
 Blocker Report describes a risk surface. →
