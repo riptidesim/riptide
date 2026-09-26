@@ -13,10 +13,19 @@ import {
   RiptideDirExistsError,
   preflightScaffoldPrograms,
   scaffold,
+  type ScaffoldResult,
   type ScaffoldedAdapter
 } from "../init/index.js";
 import { PROTOCOL_CHOICES, type Protocol } from "../init/personas-catalog.js";
-import { resolveCommandIO, type CommandIO } from "../contract/index.js";
+import {
+  errorEnvelope,
+  oneLineMessage,
+  renderEnvelope,
+  resolveCommandIO,
+  successEnvelope,
+  type CommandError,
+  type CommandIO
+} from "../contract/index.js";
 
 const SECONDARY_TEXT = "#A8A8A8";
 const dim = (value: string) => chalk.hex(SECONDARY_TEXT)(value);
@@ -30,6 +39,7 @@ export interface InitOptions {
   program?: string;
   protocol?: Protocol;
   profile?: Protocol;
+  json?: boolean;
 }
 
 export type InitDeps = Omit<CommandIO, "cwd">;
@@ -50,7 +60,8 @@ export function createInitCommand(deps: InitDeps = {}): Command {
       "--protocol <protocol>",
       "Adapter protocol hint (amm, lending, perpetuals, liquid-staking, stablecoin, custom)"
     )
-    .option("--profile <profile>", "Alias for --protocol");
+    .option("--profile <profile>", "Alias for --protocol")
+    .option("--json", "Emit the result as a command envelope", false);
 
   return command.action(async (options: InitOptions) => {
     const exitCode = await runInit(options, deps);
@@ -60,7 +71,7 @@ export function createInitCommand(deps: InitDeps = {}): Command {
 
 export async function runInit(options: InitOptions, deps: InitDeps = {}): Promise<number> {
   const cwd = path.resolve(options.dir);
-  const { stderr } = resolveCommandIO(deps);
+  const { stdout, stderr } = resolveCommandIO(deps);
 
   try {
     const protocol = normalizeProfileOptions(options.protocol, options.profile) ?? "custom";
@@ -78,6 +89,11 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
       program: options.program,
       protocol
     });
+
+    if (options.json) {
+      stdout(renderEnvelope(successEnvelope("init", initResultJson(result))));
+      return 0;
+    }
 
     const programs = result.programNames.map((name) => chalk.cyan(name)).join(", ");
     stderr(
@@ -100,6 +116,10 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
     }
     return 0;
   } catch (err) {
+    if (options.json) {
+      stdout(renderEnvelope(errorEnvelope("init", initFailure(err))));
+      return err instanceof RiptideDirExistsError || err instanceof ProgramDetectionError ? 2 : 1;
+    }
     if (err instanceof RiptideDirExistsError) {
       stderr(chalk.red(`riptide init: ${err.message}\n`));
       return 2;
@@ -120,7 +140,9 @@ function normalizeProtocolOption(value: Protocol | undefined): Protocol | undefi
   const known = new Set<string>(PROTOCOL_CHOICES);
   if (known.has(value)) return value;
   throw new ProgramDetectionError(
-    `invalid protocol ${JSON.stringify(value)}. Expected one of: ${[...known].join(", ")}.`
+    `invalid protocol ${JSON.stringify(value)}. Expected one of: ${[...known].join(", ")}.`,
+    "init_invalid_option",
+    `rerun with --protocol set to one of: ${[...known].join(", ")}`
   );
 }
 
@@ -136,10 +158,53 @@ function normalizeProfileOptions(
     normalizedProtocol !== normalizedProfile
   ) {
     throw new ProgramDetectionError(
-      `conflicting init profile options: --protocol ${JSON.stringify(normalizedProtocol)} and --profile ${JSON.stringify(normalizedProfile)}. Pick one.`
+      `conflicting init profile options: --protocol ${JSON.stringify(normalizedProtocol)} and --profile ${JSON.stringify(normalizedProfile)}. Pick one.`,
+      "init_invalid_option",
+      "rerun with only --protocol"
     );
   }
   return normalizedProfile ?? normalizedProtocol;
+}
+
+export interface InitResultJson {
+  programs: string[];
+  created: string[];
+  adapters: {
+    program: string;
+    path: string;
+    kind: ScaffoldedAdapter["kind"];
+    mapped_instructions: string[];
+    declared_accounts: string[];
+    gaps: number;
+  }[];
+  warnings: string[];
+}
+
+function initResultJson(result: ScaffoldResult): InitResultJson {
+  return {
+    programs: result.programNames,
+    created: result.created,
+    adapters: result.adapters.map((adapter) => ({
+      program: adapter.programName,
+      path: adapter.path,
+      kind: adapter.kind,
+      mapped_instructions: adapter.mappedInstructions,
+      declared_accounts: adapter.declaredAccounts,
+      gaps: adapter.gaps
+    })),
+    warnings: result.warnings
+  };
+}
+
+function initFailure(err: unknown): CommandError {
+  if (err instanceof RiptideDirExistsError || err instanceof ProgramDetectionError) {
+    return { code: err.code, message: oneLineMessage(err.message), next: err.next };
+  }
+  return {
+    code: "init_scaffold_failed",
+    message: `scaffold failed: ${oneLineMessage(errMessage(err))}`,
+    next: "check that the repo directory is writable and its IDL files parse, then rerun `riptide init --json`"
+  };
 }
 
 function describeDefaults(adapter: ScaffoldedAdapter): string {

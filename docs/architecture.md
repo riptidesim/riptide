@@ -262,11 +262,39 @@ runner follows one IO contract, defined in `cli/src/contract/`:
   }
   ```
 
-`doctor --json` is the first command on the envelope: PASS and WARN
-reports are a success envelope carrying the report, a FAIL report is
-`doctor_checks_failed` with the report as `data`, and a report that
-cannot be assembled is `doctor_report_failed`. Other commands keep their
-existing output until they adopt the envelope.
+These commands are on the envelope. Without `--json` their human output
+is unchanged.
+
+- **`doctor`**: PASS and WARN reports are a success envelope carrying
+  the report, a FAIL report is `doctor_checks_failed` with the report as
+  `data`, and a report that cannot be assembled is `doctor_report_failed`.
+- **`init`**: `data` lists the programs, the files created, each
+  adapter and the scaffold warnings. Failures: `init_workspace_exists`,
+  `init_no_program_detected`, `init_anchor_toml_unreadable`,
+  `init_artifacts_unpaired`, `init_program_not_found`,
+  `init_invalid_program_name`, `init_invalid_option`,
+  `init_scaffold_failed`.
+- **`readiness`**: `data` is the readiness report (or the case-study
+  corpus). Failures: `readiness_missing_target`,
+  `readiness_case_studies_not_found`, `readiness_failed`.
+- **`review`** (and `sim review`, which shares its runner): `data` is the
+  guided-sim, campaign or retained-case review. Failures:
+  `review_unrecognized_root`, `review_artifact_not_found`,
+  `review_artifact_malformed`, `review_artifact_schema_invalid`,
+  `review_trace_malformed`, `review_no_retained_cases`,
+  `review_retained_path_missing`, `review_case_digest_invalid`,
+  `review_rerun_script_missing`, `review_rerun_script_invalid`,
+  `review_failed`.
+- **`assess`**: `data` is the `assess-cli.v1` result. Failures:
+  `assess_no_evidence`, `assess_input_not_found`, `assess_input_invalid`,
+  `assess_artifact_unreadable`, `assess_artifact_malformed`,
+  `assess_artifact_schema_mismatch`, `assess_artifacts_inconsistent`,
+  `assess_surface_digest_mismatch`, `assess_honesty_gates_blocked` (with
+  the gate report as `data.execution_honesty`), `assess_artifacts_drifted`,
+  `assess_failed`.
+
+The `sim` subcommands other than `sim review` keep their existing output
+until they adopt the envelope.
 
 ## Further reading
 

@@ -29,7 +29,9 @@ For machine consumption:
 riptide review .riptide/sim/artifacts/run-001 --json
 ```
 
-The guided-sim JSON uses `schema_version = "guided-sim-review.v1"` and includes
+The output is one command envelope (see
+[`architecture.md`](architecture.md) § "Engine command contract"). Its `data`
+uses `schema_version = "guided-sim-review.v1"` and includes
 artifact status, retained seed, flow counts, transaction outcomes, failure
 reason, rerun command, validation results, and the original artifact. Exit
 codes are `0` for fully validated artifacts, `1` for warnings-only artifacts,

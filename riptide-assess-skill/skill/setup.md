@@ -9,7 +9,7 @@ all of it.
 ## a. The Workspace
 
 ```bash
-riptide init      # only when .riptide/ is absent
+riptide init --json      # only when .riptide/ is absent
 ```
 
 `riptide init` never reads stdin. It writes one adapter per detected program

@@ -173,7 +173,7 @@ test("command io: sim surface, sim review, assess and readiness drive a fixture 
   const assessed = await drive(cwd, (io) => runAssess(".riptide", { json: true }, io));
   assert.equal(assessed.exitCode, 0, assessed.stderr);
   assert.equal(
-    (JSON.parse(assessed.stdout) as { schema_version: string }).schema_version,
+    (JSON.parse(assessed.stdout) as { data: { schema_version: string } }).data.schema_version,
     "assess-cli.v1"
   );
 

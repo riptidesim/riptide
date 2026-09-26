@@ -87,7 +87,7 @@ If a prerequisite is missing, or the Engine install fails, stop and deliver a
 
 Use only these commands; never invent flags or subcommands.
 
-- `riptide init` — scaffold the Workspace (non-interactive).
+- `riptide init --json` — scaffold the Workspace (non-interactive).
 - `riptide readiness <dir> --json` — read-only repo classification evidence.
 - `riptide doctor --json` — toolchain presence plus adapter load and lint.
 - `riptide sim generate --adapter <adapter.toml>` — scaffold the sim crate.

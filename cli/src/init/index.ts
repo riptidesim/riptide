@@ -106,7 +106,9 @@ export function detectPrograms(cwd: string): ProgramDetection[] {
       throw new ProgramDetectionError(
         "Anchor.toml found, but Riptide could not read any program name from it.\n" +
           "Expected [programs.localnet] entries, [programs.mainnet] entries, or a top-level name = \"...\".\n" +
-          "Use `riptide init --blank --name <program-name>` if you want to scaffold manually."
+          "Use `riptide init --blank --name <program-name>` if you want to scaffold manually.",
+        "init_anchor_toml_unreadable",
+        "add a [programs.localnet] entry naming the program to Anchor.toml, or rerun `riptide init --blank --name <program-name> --json`"
       );
     }
     return programNames.map((programName) => ({
@@ -122,7 +124,9 @@ export function detectPrograms(cwd: string): ProgramDetection[] {
   throw new ProgramDetectionError(
     "no Solana program detected in this directory.\n" +
       "Expected an Anchor.toml file or a matching target/deploy/<program>.so + target/idl/<program>.json pair.\n" +
-      "Run this from your program repo, or use `riptide init --blank --name <program-name>` to create a manual stub."
+      "Run this from your program repo, or use `riptide init --blank --name <program-name>` to create a manual stub.",
+    "init_no_program_detected",
+    "rerun from the program repo root (where Anchor.toml lives), build the program so target/deploy/<program>.so and target/idl/<program>.json exist, or rerun `riptide init --blank --name <program-name> --json`"
   );
 }
 
@@ -136,7 +140,9 @@ export function selectProgram(
   if (match) return match;
   throw new ProgramDetectionError(
     `program ${JSON.stringify(requested)} was not detected in this directory.\n` +
-      `Detected programs: ${detected.map((entry) => entry.programName).join(", ")}.`
+      `Detected programs: ${detected.map((entry) => entry.programName).join(", ")}.`,
+    "init_program_not_found",
+    `rerun with --program set to one of: ${detected.map((entry) => entry.programName).join(", ")}`
   );
 }
 
@@ -161,7 +167,9 @@ function detectProgramsFromArtifacts(cwd: string): ProgramDetection[] {
     if (soStems.size > 0 || idlStems.size > 0) {
       throw new ProgramDetectionError(
         "found target/deploy or target/idl artifacts, but no matching <program>.so + <program>.json pair.\n" +
-          "Build/regenerate the missing artifact, or use `riptide init --blank --name <program-name>` to scaffold manually."
+          "Build/regenerate the missing artifact, or use `riptide init --blank --name <program-name>` to scaffold manually.",
+        "init_artifacts_unpaired",
+        "run `anchor build` (or `cargo build-sbf` plus the IDL) so each target/deploy/<program>.so has a matching target/idl/<program>.json, then rerun `riptide init --json`"
       );
     }
     return [];
@@ -206,7 +214,9 @@ function normalizeProgramName(value: string): string {
   const normalized = value.trim().replace(/_/g, "-");
   if (!/^[a-z][a-z0-9-]*$/.test(normalized)) {
     throw new ProgramDetectionError(
-      `invalid program name ${JSON.stringify(value)}. Use lowercase letters, numbers, and dashes, starting with a letter.`
+      `invalid program name ${JSON.stringify(value)}. Use lowercase letters, numbers, and dashes, starting with a letter.`,
+      "init_invalid_program_name",
+      "rerun with a program name of lowercase letters, numbers and dashes that starts with a letter"
     );
   }
   return normalized;
@@ -480,6 +490,9 @@ last-run.json
 
 export class RiptideDirExistsError extends Error {
   readonly dir: string;
+  readonly code = "init_workspace_exists";
+  readonly next =
+    "reuse the existing Workspace instead of scaffolding again, or rerun `riptide init --force --json` to replace it";
   constructor(dir: string) {
     super(
       `${dir} already exists. Use --force to overwrite, or delete it manually.`
@@ -489,9 +502,22 @@ export class RiptideDirExistsError extends Error {
   }
 }
 
+export type ProgramDetectionErrorCode =
+  | "init_no_program_detected"
+  | "init_anchor_toml_unreadable"
+  | "init_artifacts_unpaired"
+  | "init_program_not_found"
+  | "init_invalid_program_name"
+  | "init_invalid_option";
+
 export class ProgramDetectionError extends Error {
-  constructor(message: string) {
+  readonly code: ProgramDetectionErrorCode;
+  /** The recommended next action, for the command error shape. */
+  readonly next: string;
+  constructor(message: string, code: ProgramDetectionErrorCode, next: string) {
     super(message);
     this.name = "ProgramDetectionError";
+    this.code = code;
+    this.next = next;
   }
 }

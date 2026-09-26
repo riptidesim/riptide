@@ -12,6 +12,7 @@ import { Command } from "commander";
 import {
   inspectAndAnalyzeReadiness,
   createReadinessCorpusReport,
+  ReadinessInputError,
   discoverCaseStudyTargets,
   readinessReportToJson,
   renderReadinessCorpusMarkdown,
@@ -21,7 +22,15 @@ import {
   type ReadinessCorpusReport,
   type ReadinessReport,
 } from "../readiness/index.js";
-import { resolveCommandIO, type CommandIO } from "../contract/index.js";
+import {
+  errorEnvelope,
+  oneLineMessage,
+  renderEnvelope,
+  resolveCommandIO,
+  successEnvelope,
+  type CommandError,
+  type CommandIO,
+} from "../contract/index.js";
 import { renderCliError } from "../errors/render.js";
 
 export const DEFAULT_CASE_STUDIES_ROOT = "case-studies";
@@ -48,7 +57,7 @@ export function createReadinessCommand(deps: ReadinessCommandDeps = {}): Command
       "Inspect local protocol readiness evidence and report observed support level, missing inputs, and next action"
     )
     .argument("[path]", "Protocol repo or .riptide workspace path")
-    .option("--json", "Emit stable machine-readable JSON", false)
+    .option("--json", "Emit the report as a command envelope", false)
     .option("--markdown <file>", "Write reviewer Markdown to a file")
     .option("--out <dir>", "Write readiness.json and readiness.md into a directory")
     .option(
@@ -72,9 +81,17 @@ export async function runReadiness(
   try {
     const output = await buildReadinessOutput(inputPath, options, deps);
     await persistReadinessOutput(output, options, cwd);
-    stdout(options.json ? `${output.json}\n` : output.markdown);
+    stdout(
+      options.json
+        ? renderEnvelope(successEnvelope("readiness", JSON.parse(output.json) as unknown))
+        : output.markdown
+    );
     return 0;
   } catch (error) {
+    if (options.json) {
+      stdout(renderEnvelope(errorEnvelope("readiness", readinessFailure(error))));
+      return 2;
+    }
     stderr(
       renderCliError(error, {
         env: process.env,
@@ -120,7 +137,11 @@ async function buildReadinessOutput(
   }
 
   if (!inputPath) {
-    throw new Error("riptide readiness: provide <path> or --case-studies");
+    throw new ReadinessInputError(
+      "riptide readiness: provide <path> or --case-studies",
+      "readiness_missing_target",
+      "rerun with the repo path, e.g. `riptide readiness . --json`"
+    );
   }
 
   const target = path.resolve(cwd, inputPath);
@@ -130,6 +151,17 @@ async function buildReadinessOutput(
     report,
     markdown: renderReadinessMarkdown(report),
     json: readinessReportToJson(report),
+  };
+}
+
+function readinessFailure(error: unknown): CommandError {
+  if (error instanceof ReadinessInputError) {
+    return { code: error.code, message: oneLineMessage(error.message), next: error.next };
+  }
+  return {
+    code: "readiness_failed",
+    message: oneLineMessage(error instanceof Error ? error.message : String(error)),
+    next: "fix the file named in the message (an unreadable path or an adapter that fails its schema), then rerun `riptide readiness <path> --json`",
   };
 }
 

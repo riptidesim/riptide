@@ -17,7 +17,14 @@ import {
 } from "../display/index.js";
 import { renderCliError } from "../errors/render.js";
 import { ReviewValidationError, type ValidationResult } from "../review/manifest.js";
-import type { CommandIO } from "../contract/index.js";
+import {
+  errorEnvelope,
+  oneLineMessage,
+  renderEnvelope,
+  successEnvelope,
+  type CommandError,
+  type CommandIO
+} from "../contract/index.js";
 import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
 
 const execFileAsync = promisify(execFile);
@@ -87,6 +94,9 @@ interface GuidedTraceSummary {
   first_failure: GuidedFirstFailureSummary | null;
 }
 
+const REGENERATE_ARTIFACT_NEXT =
+  "regenerate the artifact with the current Engine (`riptide sim run`, then `riptide sim surface` for a campaign root), then rerun review";
+
 const GUIDED_TRACE_PREVIEW_LIMIT = 8;
 const GUIDED_TRACE_STEP_STATUSES = new Set(["passed", "returned_error", "panic"]);
 const GUIDED_FAILURE_STATUSES = new Set(["returned_error", "panic"]);
@@ -96,41 +106,49 @@ export function createReviewCommand(deps: ReviewCommandDeps = {}): Command {
     .description("Validate a Riptide campaign root, retained case, or guided-sim artifact and emit reviewer markdown")
     .argument("<path>", "Path to a Riptide campaign root, retained campaign case, or guided-sim artifact directory")
     .option("--out <md-path>", "Write reviewer markdown to a file instead of stdout")
-    .option("--json", "Emit a structured JSON review payload", false)
+    .option("--json", "Emit the review as a command envelope", false)
     .action(async (pack: string, options: ReviewOptions) => {
       const exitCode = await runReview(pack, options, deps);
       process.exit(exitCode);
     });
 }
 
+/** `command` names the envelope's command: `sim review` shares this runner. */
 export async function runReview(
   pack: string,
   options: ReviewOptions,
-  deps: ReviewCommandDeps = {}
+  deps: ReviewCommandDeps = {},
+  command = "review"
 ): Promise<number> {
+  const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
   const stderr = deps.stderrWrite ?? ((chunk: string) => process.stderr.write(chunk));
 
   try {
     const reviewCwd = path.resolve(deps.cwd ?? process.cwd());
     const reviewRoot = path.resolve(reviewCwd, pack);
     if (isCampaignRoot(reviewRoot)) {
-      return await runCampaignReview(reviewRoot, options, deps);
+      return await runCampaignReview(reviewRoot, options, deps, command);
     }
     if (isRetainedCaseRoot(reviewRoot)) {
-      return await runRetainedCaseReview(reviewRoot, options, deps);
+      return await runRetainedCaseReview(reviewRoot, options, deps, command);
     }
     if (guidedSimArtifactPath(reviewRoot) !== null) {
-      return await runGuidedSimReview(reviewRoot, options, deps);
+      return await runGuidedSimReview(reviewRoot, options, deps, command);
     }
 
     throw new ReviewValidationError(
       `not a recognized Riptide review root\n  path: ${reviewRoot}\n` +
         "  expected: a campaign root (campaign-summary.json + retention-manifest.json), " +
         "a retained case (case.json + rerun.sh), or a guided-sim artifact directory (guided-sim-run.json)\n" +
-        "  next: pass a campaign root, retained case directory, or guided-sim artifact directory / guided-sim-run.json"
+        "  next: pass a campaign root, retained case directory, or guided-sim artifact directory / guided-sim-run.json",
+      "review_unrecognized_root"
     );
   } catch (error) {
     const exitCode = error instanceof ReviewValidationError ? error.exitCode : 2;
+    if (options.json) {
+      stdout(renderEnvelope(errorEnvelope(command, reviewFailure(error))));
+      return exitCode;
+    }
     stderr(
       renderCliError(error, {
         env: process.env,
@@ -142,16 +160,29 @@ export async function runReview(
   }
 }
 
+function reviewFailure(error: unknown): CommandError {
+  if (error instanceof ReviewValidationError) {
+    return { code: error.code, message: oneLineMessage(error.message), next: error.next };
+  }
+  return {
+    code: "review_failed",
+    message: oneLineMessage(errorMessage(error)),
+    next: "check that the review path and the evidence files it names are readable, then rerun review with --json"
+  };
+}
+
 async function runGuidedSimReview(
   inputPath: string,
   options: ReviewOptions,
-  deps: ReviewCommandDeps
+  deps: ReviewCommandDeps,
+  command: string
 ): Promise<number> {
   const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
   const artifactPath = guidedSimArtifactPath(inputPath);
   if (!artifactPath) {
     throw new ReviewValidationError(
-      `guided-sim artifact not found\n  path: ${inputPath}\n  next: pass a directory containing guided-sim-run.json or the JSON file itself`
+      `guided-sim artifact not found\n  path: ${inputPath}\n  next: pass a directory containing guided-sim-run.json or the JSON file itself`,
+      "review_artifact_not_found"
     );
   }
   const artifactRoot = path.dirname(artifactPath);
@@ -192,8 +223,8 @@ async function runGuidedSimReview(
 
   if (options.json) {
     stdout(
-      JSON.stringify(
-        {
+      renderEnvelope(
+        successEnvelope(command, {
           schema_version: "guided-sim-review.v1",
           artifact_root: artifactRoot,
           artifact_path: artifactPath,
@@ -208,10 +239,8 @@ async function runGuidedSimReview(
           rerun_command: rerunCommand,
           validation: validationResults,
           artifact
-        },
-        null,
-        2
-      ) + "\n"
+        })
+      )
     );
   } else if (typeof options.out === "string" && options.out.length > 0) {
     const outPath = path.resolve(deps.cwd ?? process.cwd(), options.out);
@@ -239,17 +268,23 @@ function validateGuidedSimArtifact(
 ): void {
   if (numberValue(artifact.schema_version) !== 1) {
     throw new ReviewValidationError(
-      `unsupported guided-sim artifact schema\n  path: ${artifactPath}\n  expected: schema_version 1`
+      `unsupported guided-sim artifact schema\n  path: ${artifactPath}\n  expected: schema_version 1`,
+      "review_artifact_schema_invalid",
+      REGENERATE_ARTIFACT_NEXT
     );
   }
   if (!stringValue(artifact.status)) {
     throw new ReviewValidationError(
-      `guided-sim artifact is missing status\n  path: ${artifactPath}`
+      `guided-sim artifact is missing status\n  path: ${artifactPath}`,
+      "review_artifact_schema_invalid",
+      REGENERATE_ARTIFACT_NEXT
     );
   }
   if (!Array.isArray(artifact.iterations)) {
     throw new ReviewValidationError(
-      `guided-sim artifact is missing iterations array\n  path: ${artifactPath}`
+      `guided-sim artifact is missing iterations array\n  path: ${artifactPath}`,
+      "review_artifact_schema_invalid",
+      REGENERATE_ARTIFACT_NEXT
     );
   }
   validationResults.push({
@@ -802,7 +837,8 @@ function inferGuidedSimRerunCommand(artifactRoot: string, artifact: JsonRecord):
 async function runCampaignReview(
   campaignRoot: string,
   options: ReviewOptions,
-  deps: ReviewCommandDeps
+  deps: ReviewCommandDeps,
+  command: string
 ): Promise<number> {
   const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
   const summary = await readRequiredJsonObject(
@@ -817,7 +853,8 @@ async function runCampaignReview(
   const selected = entries.filter((entry) => entry.status === "selected");
   if (selected.length === 0) {
     throw new ReviewValidationError(
-      `campaign has no retained cases\n  path: ${campaignRoot}\n  next: rerun the campaign with at least one retention label that selects evidence`
+      `campaign has no retained cases\n  path: ${campaignRoot}\n  next: rerun the campaign with at least one retention label that selects evidence`,
+      "review_no_retained_cases"
     );
   }
 
@@ -852,8 +889,8 @@ async function runCampaignReview(
 
   if (options.json) {
     stdout(
-      JSON.stringify(
-        {
+      renderEnvelope(
+        successEnvelope(command, {
           schema_version: "campaign-review.v1",
           campaign_root: campaignRoot,
           campaign: objectValue(summary.campaign) ?? {},
@@ -861,10 +898,8 @@ async function runCampaignReview(
           retained_cases: selected,
           validation: validationResults,
           warnings: Array.isArray(manifest.warnings) ? manifest.warnings : []
-        },
-        null,
-        2
-      ) + "\n"
+        })
+      )
     );
   } else if (typeof options.out === "string" && options.out.length > 0) {
     const outPath = path.resolve(deps.cwd ?? process.cwd(), options.out);
@@ -880,7 +915,8 @@ async function runCampaignReview(
 async function runRetainedCaseReview(
   caseRoot: string,
   options: ReviewOptions,
-  deps: ReviewCommandDeps
+  deps: ReviewCommandDeps,
+  command: string
 ): Promise<number> {
   const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
   const casePath = path.join(caseRoot, "case.json");
@@ -899,16 +935,14 @@ async function runRetainedCaseReview(
   const markdown = renderRetainedCaseReviewMarkdown(caseRoot, caseRecord, validationResults);
   if (options.json) {
     stdout(
-      JSON.stringify(
-        {
+      renderEnvelope(
+        successEnvelope(command, {
           schema_version: "campaign-retained-case-review.v1",
           case_root: caseRoot,
           case: caseRecord,
           validation: validationResults
-        },
-        null,
-        2
-      ) + "\n"
+        })
+      )
     );
   } else if (typeof options.out === "string" && options.out.length > 0) {
     const outPath = path.resolve(deps.cwd ?? process.cwd(), options.out);
@@ -943,7 +977,8 @@ async function validateRetainedCase(
   const caseManifestPath = resolveEvidencePath(campaignRoot, stringValue(paths?.case_manifest), cwd);
   if (!caseManifestPath) {
     throw new ReviewValidationError(
-      `retained case manifest path missing\n  label: ${label}\n  run: ${runId}\n  next: regenerate campaign retained evidence`
+      `retained case manifest path missing\n  label: ${label}\n  run: ${runId}\n  next: regenerate campaign retained evidence`,
+      "review_retained_path_missing"
     );
   }
   const caseRecord = await readRequiredJsonObject(caseManifestPath, "retained case manifest");
@@ -958,7 +993,8 @@ async function validateRetainedCase(
   const rerunPath = resolveEvidencePath(campaignRoot, stringValue(paths?.rerun_sh), cwd);
   if (!rerunPath) {
     throw new ReviewValidationError(
-      `retained rerun script path missing\n  label: ${label}\n  run: ${runId}\n  next: regenerate campaign retained evidence`
+      `retained rerun script path missing\n  label: ${label}\n  run: ${runId}\n  next: regenerate campaign retained evidence`,
+      "review_retained_path_missing"
     );
   }
   await validateRerunScript(rerunPath, validationResults);
@@ -972,7 +1008,8 @@ function validateCaseDigest(
   const digest = stringValue(caseRecord.case_digest);
   if (!digest) {
     throw new ReviewValidationError(
-      `retained case digest missing\n  path: ${casePath}\n  next: regenerate the retained case manifest`
+      `retained case digest missing\n  path: ${casePath}\n  next: regenerate the retained case manifest`,
+      "review_case_digest_invalid"
     );
   }
   const observed = sha256Hex(
@@ -982,7 +1019,8 @@ function validateCaseDigest(
   );
   if (observed !== digest) {
     throw new ReviewValidationError(
-      `retained case digest mismatch\n  path: ${casePath}\n  expected: ${digest}\n  observed: ${observed}\n  next: regenerate the retained case manifest from campaign artifacts`
+      `retained case digest mismatch\n  path: ${casePath}\n  expected: ${digest}\n  observed: ${observed}\n  next: regenerate the retained case manifest from campaign artifacts`,
+      "review_case_digest_invalid"
     );
   }
   validationResults.push({
@@ -1413,7 +1451,8 @@ function relativizeIfInside(baseDir: string, value: string): string {
 async function readRequiredJsonObject(filePath: string, label: string): Promise<JsonRecord> {
   if (!existsSync(filePath)) {
     throw new ReviewValidationError(
-      `${label} not found\n  expected: ${filePath}\n  next: pass a campaign root, retained case directory, or guided-sim artifact directory`
+      `${label} not found\n  expected: ${filePath}\n  next: pass a campaign root, retained case directory, or guided-sim artifact directory`,
+      "review_artifact_not_found"
     );
   }
   try {
@@ -1424,7 +1463,9 @@ async function readRequiredJsonObject(filePath: string, label: string): Promise<
     return parsed as JsonRecord;
   } catch (error) {
     throw new ReviewValidationError(
-      `malformed ${label}\n  path: ${filePath}\n  parse error: ${errorMessage(error)}`
+      `malformed ${label}\n  path: ${filePath}\n  parse error: ${errorMessage(error)}`,
+      "review_artifact_malformed",
+      REGENERATE_ARTIFACT_NEXT
     );
   }
 }
@@ -1574,7 +1615,8 @@ function guidedTraceValidationError(
   expected: string
 ): ReviewValidationError {
   return new ReviewValidationError(
-    `malformed guided-sim trace metadata\n  path: ${artifactPath}\n  field: ${fieldPath}\n  expected: ${expected}\n  next: regenerate guided-sim-run.json with the current riptide sim run, or remove partial trace fields from a legacy artifact`
+    `malformed guided-sim trace metadata\n  path: ${artifactPath}\n  field: ${fieldPath}\n  expected: ${expected}\n  next: regenerate guided-sim-run.json with the current riptide sim run, or remove partial trace fields from a legacy artifact`,
+    "review_trace_malformed"
   );
 }
 
@@ -1672,14 +1714,16 @@ async function validateRerunScript(
 ): Promise<void> {
   if (!existsSync(rerunPath)) {
     throw new ReviewValidationError(
-      `rerun.sh not found\n  expected: ${rerunPath}\n  next: restore the rerun recipe before review`
+      `rerun.sh not found\n  expected: ${rerunPath}\n  next: restore the rerun recipe before review`,
+      "review_rerun_script_missing"
     );
   }
   try {
     await execFileAsync("sh", ["-n", rerunPath]);
   } catch (error) {
     throw new ReviewValidationError(
-      `rerun.sh failed POSIX syntax check\n  path: ${rerunPath}\n  reason: ${errorMessage(error)}\n  next: fix shell syntax; review never executes rerun.sh`
+      `rerun.sh failed POSIX syntax check\n  path: ${rerunPath}\n  reason: ${errorMessage(error)}\n  next: fix shell syntax; review never executes rerun.sh`,
+      "review_rerun_script_invalid"
     );
   }
   validationResults.push({

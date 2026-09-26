@@ -113,7 +113,7 @@ export function createSimCommand(deps: SimCommandDeps = {}): Command {
     .option("--out <md-path>", "Write reviewer markdown to a file instead of stdout")
     .option("--json", "Emit a structured JSON review payload", false)
     .action(async (artifactPath: string, options: ReviewOptions) => {
-      process.exitCode = await runReview(artifactPath, options, deps);
+      process.exitCode = await runReview(artifactPath, options, deps, "sim review");
     });
 
   command

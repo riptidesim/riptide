@@ -221,15 +221,28 @@ export const LAUNCH_CLAIM_DEFINITIONS: readonly LaunchClaimDefinition[] = [
   },
 ];
 
+/** A readiness input the caller can fix, with a stable code and the recommended next action. */
+export class ReadinessInputError extends Error {
+  readonly code: string;
+  readonly next: string;
+  constructor(message: string, code: string, next: string) {
+    super(message);
+    this.name = "ReadinessInputError";
+    this.code = code;
+    this.next = next;
+  }
+}
+
 export async function discoverCaseStudyTargets(
   root: string
 ): Promise<ReadinessCaseStudyTarget[]> {
   const rootStats = await safeStat(root);
-  if (!rootStats) {
-    throw new Error(`riptide readiness: case-study root not found: ${root}`);
-  }
-  if (!rootStats.isDirectory()) {
-    throw new Error(`riptide readiness: case-study root is not a directory: ${root}`);
+  if (!rootStats || !rootStats.isDirectory()) {
+    throw new ReadinessInputError(
+      `riptide readiness: case-study root ${rootStats ? "is not a directory" : "not found"}: ${root}`,
+      "readiness_case_studies_not_found",
+      "pass --case-studies a directory whose immediate children are protocol repos, or inspect one repo with `riptide readiness <path> --json`"
+    );
   }
 
   const entries = await readdir(root, { withFileTypes: true });

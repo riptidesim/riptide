@@ -161,7 +161,7 @@ test("review accepts guided sim artifacts with flow labels and rerun evidence", 
     [cliEntrypoint, "sim", "review", artifactDir, "--json"],
     { cwd: root }
   );
-  const payload = JSON.parse(jsonStdout) as Record<string, unknown>;
+  const payload = (JSON.parse(jsonStdout) as { data: Record<string, unknown> }).data;
   assert.equal(payload.schema_version, "guided-sim-review.v1");
   assert.equal(payload.retained_failing_seed, retainedSeed);
   assert.equal((payload.flow_counts as Record<string, unknown>).mutate_external_dependency, 1);
@@ -300,7 +300,7 @@ test("review summarizes trace-bearing passed guided sim artifacts", async () => 
     [cliEntrypoint, "sim", "review", artifactDir, "--json"],
     { cwd: root }
   );
-  const payload = JSON.parse(jsonStdout) as Record<string, unknown>;
+  const payload = (JSON.parse(jsonStdout) as { data: Record<string, unknown> }).data;
   const traceSummary = payload.trace_summary as Record<string, unknown>;
   assert.equal(traceSummary.available, true);
   assert.equal(traceSummary.schema_version, 1);
@@ -451,7 +451,7 @@ test("review reports the first failing guided trace flow step", async () => {
     [cliEntrypoint, "sim", "review", artifactDir, "--json"],
     { cwd: root }
   );
-  const payload = JSON.parse(jsonStdout) as Record<string, unknown>;
+  const payload = (JSON.parse(jsonStdout) as { data: Record<string, unknown> }).data;
   assert.equal((payload.first_failing_flow_step as Record<string, unknown>).flow_name, "borrow_against_dependency");
   assert.equal((payload.first_failure as Record<string, unknown>).stage, "flow");
 });

@@ -44,7 +44,15 @@ import {
   shouldUseColor,
   type Colorizer
 } from "../display/index.js";
-import { resolveCommandIO, type CommandIO } from "../contract/index.js";
+import {
+  errorEnvelope,
+  oneLineMessage,
+  renderEnvelope,
+  resolveCommandIO,
+  successEnvelope,
+  type CommandError,
+  type CommandIO
+} from "../contract/index.js";
 import { renderCliError } from "../errors/render.js";
 
 const execFileAsync = promisify(execFile);
@@ -87,10 +95,12 @@ export interface AssessCommandDeps extends CommandIO {
 /** Thrown for CLI-input problems (bad flag, malformed input file). Message-first. */
 export class AssessmentInputError extends Error {
   readonly hint: string | undefined;
-  constructor(message: string, hint?: string) {
+  readonly code: "assess_input_not_found" | "assess_input_invalid";
+  constructor(message: string, hint?: string, code: AssessmentInputError["code"] = "assess_input_invalid") {
     super(hint ? `${message}\n  next: ${hint}` : message);
     this.name = "AssessmentInputError";
     this.hint = hint;
+    this.code = code;
   }
 }
 
@@ -119,7 +129,7 @@ export function createAssessCommand(deps: AssessCommandDeps = {}): Command {
       "Also write a one-page brief.html + brief.pdf executive brief rendered from the assessment model (out of the byte-hash gate)",
       false
     )
-    .option("--json", "Emit a machine-readable result instead of the cold-read summary", false)
+    .option("--json", "Emit the result as a command envelope instead of the cold-read summary", false)
     .action(async (campaignRoot: string, options: AssessOptions) => {
       const exitCode = await runAssess(campaignRoot, options, deps);
       process.exit(exitCode);
@@ -132,6 +142,7 @@ export async function runAssess(
   deps: AssessCommandDeps = {}
 ): Promise<number> {
   const { stdout, stderr, cwd } = resolveCommandIO(deps);
+  let executionHonesty: ExecutionHonestyReport | null = null;
 
   try {
     const root = path.resolve(cwd, campaignRoot);
@@ -150,14 +161,15 @@ export async function runAssess(
     // gate. Gated on the guided-sim adapter so real-campaign assessments — and
     // the frozen cartography bytes — are never affected. Runs before any
     // artifact is written so a blocked report is never emitted.
-    const executionHonesty = await resolveExecutionHonesty(root, model);
+    executionHonesty = await resolveExecutionHonesty(root, model);
     if (executionHonesty && executionHonesty.status === "blocked") {
       throw new AssessmentIngestError(
         "execution-honesty gates blocked this guided-sim assessment:\n" +
           failedGates(executionHonesty)
             .map((gate) => `    ✗ ${gate.id}: ${gate.detail}`)
             .join("\n"),
-        "Fix the guided sim (declare/pass a positive control, run the full lifecycle, keep the surface deterministic), re-run `riptide sim run` + `riptide sim surface`, then assess again."
+        "Fix the guided sim (declare/pass a positive control, run the full lifecycle, keep the surface deterministic), re-run `riptide sim run` + `riptide sim surface`, then assess again.",
+        "assess_honesty_gates_blocked"
       );
     }
 
@@ -186,8 +198,8 @@ export async function runAssess(
 
     if (options.json) {
       stdout(
-        JSON.stringify(
-          {
+        renderEnvelope(
+          successEnvelope("assess", {
             schema_version: "assess-cli.v1",
             assessment_digest: emittedModel.assessment_digest,
             verdict: { value: emittedModel.verdict.value, source: emittedModel.verdict.source },
@@ -212,10 +224,8 @@ export async function runAssess(
                 }
               : {}),
             ...(executionHonesty ? { execution_honesty: executionHonesty } : {})
-          },
-          null,
-          2
-        ) + "\n"
+          })
+        )
       );
     } else {
       const summaryArtifacts: SummaryArtifacts = { jsonPath, mdPath, campaignRootPath: root, ...exports };
@@ -234,6 +244,18 @@ export async function runAssess(
     return 0;
   } catch (error) {
     const exitCode = error instanceof AssessmentIngestError || error instanceof AssessmentInputError ? 1 : 2;
+    if (options.json) {
+      stdout(
+        renderEnvelope(
+          errorEnvelope(
+            "assess",
+            assessFailure(error),
+            executionHonesty ? { execution_honesty: executionHonesty } : undefined
+          )
+        )
+      );
+      return exitCode;
+    }
     stderr(
       renderCliError(withHint(error), {
         env: process.env,
@@ -307,7 +329,8 @@ async function assertAssessmentArtifactsStableAtEmit(input: {
   throw new AssessmentIngestError(
     "execution-honesty gates blocked this guided-sim assessment:\n" +
       drifts.map((detail) => `    ✗ determinism: ${detail}`).join("\n"),
-    "The existing assessment artifact(s) do not match the freshly rendered bytes. Re-run `riptide assess` into a clean output directory, or perform a documented additive re-pin."
+    "The existing assessment artifact(s) do not match the freshly rendered bytes. Re-run `riptide assess` into a clean output directory, or perform a documented additive re-pin.",
+    "assess_artifacts_drifted"
   );
 }
 
@@ -373,7 +396,8 @@ async function readInputFile(cwd: string, file: string): Promise<AssessmentInput
     if (isNotFound(err)) {
       throw new AssessmentInputError(
         `assessment input file not found at ${inputPath}.`,
-        "Point --input at a JSON file of Risk Plan / coverage / verdict inputs, or omit it to use campaign-derived defaults."
+        "Point --input at a JSON file of Risk Plan / coverage / verdict inputs, or omit it to use campaign-derived defaults.",
+        "assess_input_not_found"
       );
     }
     throw new AssessmentInputError(`could not read assessment input file at ${inputPath}: ${errMessage(err)}.`);
@@ -690,6 +714,21 @@ function renderCorrectnessSummary(
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
+
+function assessFailure(error: unknown): CommandError {
+  if (error instanceof AssessmentIngestError || error instanceof AssessmentInputError) {
+    return {
+      code: error.code,
+      message: oneLineMessage(error.message),
+      next: error.hint ?? "fix the file named in the message, then rerun `riptide assess --json`"
+    };
+  }
+  return {
+    code: "assess_failed",
+    message: oneLineMessage(errMessage(error)),
+    next: "check that the campaign root and --out directory are readable and writable, then rerun `riptide assess --json`"
+  };
+}
 
 /**
  * Fold an {@link AssessmentIngestError}'s separate `hint` into its message as a

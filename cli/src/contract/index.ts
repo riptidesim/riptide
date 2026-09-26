@@ -78,3 +78,16 @@ export function errorEnvelope<T = never>(
 export function renderEnvelope(envelope: SuccessEnvelope<unknown> | ErrorEnvelope<unknown>): string {
   return `${JSON.stringify(envelope, null, 2)}\n`;
 }
+
+/**
+ * Collapse a multi-line human error message into the error shape's one-line
+ * `message`. Lines starting with `next:` are dropped: the error shape carries
+ * the next action in its own `next` field.
+ */
+export function oneLineMessage(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("next:"))
+    .join("; ");
+}
