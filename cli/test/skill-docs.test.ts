@@ -450,7 +450,7 @@ test("the Classify stage documents the Economic Protocol evidence rules and lets
   assert.match(body, /only positive evidence of no signal at\s+all takes it out/);
   assert.match(body, /matches no known\s+family is still in scope/);
 
-  assert.match(classify, /^### The Economic Protocol verdict$/m);
+  assert.match(classify, /^### The Economic Protocol classification$/m);
   for (const signal of ["Pooled value", "Claims on pooled value", "Prices and rates", "Solvency conditions"]) {
     assert.ok(classify.includes(`**${signal}**`), `classify-and-scope.md lost the ${signal} signal`);
   }

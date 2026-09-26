@@ -18,7 +18,9 @@ they are the region to rerun.
 
 The new Assessment renders into the next name. An Assessment already written
 is never overwritten: `riptide assess --out` into a directory that holds an
-`assessment-context.json` fails with `assess_out_holds_assessment`.
+`assessment-context.json` fails with `assess_out_holds_assessment`, and one
+whose name sorts before an existing Assessment fails with
+`assess_out_not_latest`.
 
 ## The rerun, stage by stage
 

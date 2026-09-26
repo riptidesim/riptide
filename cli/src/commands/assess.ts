@@ -6,7 +6,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -99,7 +99,8 @@ export type AssessmentInputErrorCode =
   | "assess_input_not_found"
   | "assess_input_unreadable"
   | "assess_input_invalid"
-  | "assess_out_holds_assessment";
+  | "assess_out_holds_assessment"
+  | "assess_out_not_latest";
 
 export class AssessmentInputError extends Error {
   readonly hint: string | undefined;
@@ -156,6 +157,7 @@ export async function runAssess(
     const root = path.resolve(cwd, campaignRoot);
     const outDir = options.out ? path.resolve(cwd, options.out) : root;
     await assertNoAssessmentAt(outDir, cwd);
+    if (options.out) await assertOutSortsLast(outDir, cwd);
     const inputs = await resolveInputs(cwd, options);
 
     // The reviewer-facing root label is repo/workspace-relative (R1): it is the
@@ -329,6 +331,30 @@ async function assertNoAssessmentAt(outDir: string, cwd: string): Promise<void> 
     `${label} already holds an Assessment (${ASSESSMENT_CONTEXT_FILE}); an Assessment is never overwritten`,
     `render into a new Assessment directory beside ${label} with \`riptide assess --out\`, then compare the two with \`riptide delta ${label} <new-dir> --json\``,
     "assess_out_holds_assessment"
+  );
+}
+
+/**
+ * Assessments beside each other are ordered by name, and the Delta pairs a
+ * rerun with the latest earlier one; a new Assessment must sort after every
+ * Assessment already written beside it.
+ */
+async function assertOutSortsLast(outDir: string, cwd: string): Promise<void> {
+  const parent = path.dirname(outDir);
+  const name = path.basename(outDir);
+  if (!existsSync(parent)) return;
+  const later = (await readdir(parent, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory() && entry.name > name)
+    .filter((entry) => existsSync(path.join(parent, entry.name, ASSESSMENT_CONTEXT_FILE)))
+    .map((entry) => entry.name)
+    .sort();
+  if (later.length === 0) return;
+  const label = path.relative(cwd, outDir) || ".";
+  const latest = later[later.length - 1]!;
+  throw new AssessmentInputError(
+    `${label} sorts before Assessment ${latest} beside it; a Delta pairs each Assessment with the latest one named before it`,
+    `render into a directory beside ${label} whose name sorts after ${latest}, such as the next zero-padded number`,
+    "assess_out_not_latest"
   );
 }
 

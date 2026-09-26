@@ -175,7 +175,7 @@ required on reruns. → [reuse.md](./reuse.md)
 
 Decide whether the target is an **Economic Protocol** (a value-bearing
 mechanism: pooled assets, prices, solvency) from IDL and source evidence, then
-name its family. The verdict follows the evidence rules: one cited economic
+name its family. The classification follows the evidence rules: one cited economic
 signal puts the target in scope, and only positive evidence of no signal at
 all takes it out. A target that is not an Economic Protocol ends the run,
 about a minute in, with an **Out-of-Scope Note** that points to code-level

@@ -464,3 +464,12 @@ test("assess --json: an Assessment already written is never overwritten", async 
   assert.match(envelope.error!.next, /new Assessment directory beside \.riptide\/assessments\/001/);
   assert.equal(await readFile(path.join(cwd, PREVIOUS, "assessment.json"), "utf8"), before);
 });
+
+test("assess --json: a new Assessment must sort after every Assessment beside it", async () => {
+  const cwd = await rerunWorkspace();
+  const earlier = await render(cwd, ".riptide/assessments/000");
+  assert.equal(earlier.exitCode, 1);
+  const envelope = JSON.parse(earlier.stdout) as Envelope;
+  assert.equal(envelope.error!.code, "assess_out_not_latest");
+  assert.match(envelope.error!.next, /sorts after 00[12]/);
+});

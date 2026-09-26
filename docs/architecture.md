@@ -214,7 +214,7 @@ simulation runs:
   `cargo-build-sbf`) via `execFile` without spawning a shell, and walks
   adapters under `<path>/.riptide/adapters/*.toml` and
   `<path>/fixtures/adapters/*.toml`. No build, no network, no simulation.
-  A produced report exits `0` for a PASS or WARN health verdict and `2`
+  A produced report exits `0` for a PASS or WARN health status and `2`
   when at least one check fails. A `--case-studies` corpus run has no
   health check.
 - **`riptide sim lint <path>`** validates the guided-sim `Riptide.toml`
@@ -228,7 +228,7 @@ simulation runs:
   verbose labelled transaction logging.
 
 These surfaces are **simulation evidence**, not audit signoff. A run
-verdict describes the declared simulation run, not a security
+result describes the declared simulation run, not a security
 attestation on the program.
 
 ## Engine command contract
@@ -301,7 +301,9 @@ text output without it is a debugging aid for contributors.
   the gate report as `data.execution_honesty`), `assess_artifacts_drifted`,
   `assess_out_holds_assessment` (the `--out` directory already holds an
   `assessment-context.json`: an Assessment is never overwritten, so the
-  rerun renders into a new directory beside it), `assess_failed`.
+  rerun renders into a new directory beside it), `assess_out_not_latest`
+  (the `--out` directory sorts before an Assessment already beside it, which
+  would break the Delta's pairing by name), `assess_failed`.
 - **`delta <previous-dir> <current-dir>`**: the deterministic comparison of
   two Assessments of the same declared region, read from both Engine Outputs
   and Assessment Contexts. The region is the Depth plus the swept axes,
@@ -340,7 +342,7 @@ text output without it is a debugging aid for contributors.
   carries the Delta `riptide delta` computes against the latest such
   Assessment, unedited, and `## Delta` sits after `## Invariants` and any
   `## Breaches`, before `## Engine Output`, naming it. An **Out-of-Scope Note** (`out-of-scope-note.json`,
-  `out-of-scope-note.v1`: a `not-economic-protocol` verdict with evidence,
+  `out-of-scope-note.v1`: a `not-economic-protocol` `verdict` with evidence,
   its override and code-level auditing referrals) with an
   `out-of-scope-note.md` opening `## Classification`, `## Code-Level
   Auditing`. A **Blocker Report** (`blocker-report.json`, `blocker-report.v1`:
@@ -395,7 +397,7 @@ text output without it is a debugging aid for contributors.
   `sim_runtime_missing`, `sim_generate_failed`.
 - **`sim refresh`**: `data` names the crate, adapter and IDL. Failures: the
   `sim generate` adapter and IDL codes, and `sim_refresh_failed`.
-- **`sim lint`**: `data` is the lint report (verdict, exit code, findings).
+- **`sim lint`**: `data` is the lint report (`verdict`, exit code, findings).
   PASS and WARN are a success envelope; FAIL is `sim_lint_failed`, whose
   `next` is the first failing finding's hint, or `sim_lint_manifest_missing`
   when there is no `Riptide.toml`.

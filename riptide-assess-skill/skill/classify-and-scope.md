@@ -18,7 +18,7 @@ Declaration.
 4. Decide whether the target is an **Economic Protocol**: it holds or moves
    value through pooled assets, prices, collateral, debt, reserves or
    solvency. Apply the evidence rules in
-   [The Economic Protocol verdict](#the-economic-protocol-verdict) below.
+   [The Economic Protocol classification](#the-economic-protocol-classification) below.
    - Not an Economic Protocol: stop and deliver an **Out-of-Scope Note**
      (see [report.md](./report.md)). No Scope, Setup or Run stage starts.
    - An Economic Protocol that matches no family below: continue with the
@@ -36,18 +36,19 @@ Declaration.
      queue, slash.
    - **stablecoin** — mint, redeem, collateral, liability, peg, PSM, reserve,
      hedge.
-6. Record a one-screen classification note: Economic Protocol verdict with its
-   evidence, family, semantic class, confidence (`high`/`medium`/`low`),
-   evidence paths and competing interpretations. When two families are close,
-   take the one with more instruction-level evidence and add the other as an
-   assumption in the Scope Declaration, with the Steering Hint that selects it.
+6. Record a one-screen classification note: Economic Protocol
+   classification with its evidence, family, semantic class, confidence
+   (`high`/`medium`/`low`), evidence paths and competing interpretations.
+   When two families are close, take the one with more instruction-level
+   evidence and add the other as an assumption in the Scope Declaration, with
+   the Steering Hint that selects it.
 
 Read the P0 and P1 state-changing instructions: for each, the IDL `args` and
 `accounts` entries plus the handler source. Scope builds on this.
 
-### The Economic Protocol verdict
+### The Economic Protocol classification
 
-The verdict is a judgment the Skill makes from the program's own IDL and
+The classification is a judgment the Skill makes from the program's own IDL and
 source; the Engine only checks the shape of what the Skill delivers. Family
 matching never decides it: a program that fits no family is judged on its
 signals like any other.
@@ -93,7 +94,7 @@ of scope only when the IDL and handlers show no economic signal at all.
    "no known family; generic Economic Protocol fallback" as an assumption,
    with the Steering Hint that selects a family as its override.
 6. A Steering Hint that states the target holds pooled value overrides an
-   out-of-scope verdict. Every Out-of-Scope Note names that override.
+   out-of-scope classification. Every Out-of-Scope Note names that override.
 
 **Budget.** Classify reads only the IDL, source, tests and
 `riptide readiness . --json`. It builds nothing, runs no `riptide init` and
@@ -158,7 +159,7 @@ genesis in `Anchor.toml` test config, or registration steps in the test suite.
 Worked example: a program that must bootstrap its dependency programs and
 register its signature oracle before any flow can run.
 
-**Verdict:**
+**Setup mode:**
 
 - **No trigger on any P0/P1 flow → `baseline-sim`.** Low-touch: primitive
   arguments, self-signed instructions, no externally owned account bytes to
@@ -182,7 +183,7 @@ triggers: <none | subset of A-F, with one line of evidence each>
 authoring patterns: <per trigger — A typed-argument builders; B oracle-account
   construction; C third-party-actor dispatch; D multi-instruction flow;
   E dynamic account resolution; F bootstrap services>
-verdict: <baseline-sim | guided-sim-authored | unsupported>
+setup mode: <baseline-sim | guided-sim-authored | unsupported>
 ```
 
 ## 3. Choose the region

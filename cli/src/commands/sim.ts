@@ -187,6 +187,23 @@ function commandFailure(err: unknown, fallback: Omit<CommandError, "message">): 
   return { ...fallback, message: oneLineMessage(errMessage(err)) };
 }
 
+/** Report a caught failure as a `--json` error envelope or a red human line; always exit 2. */
+function reportCaughtFailure(
+  command: string,
+  err: unknown,
+  fallback: Omit<CommandError, "message">,
+  json: boolean | undefined,
+  { stdout, stderr }: Pick<ResolvedCommandIO, "stdout" | "stderr">,
+  humanPrefix = "riptide sim"
+): number {
+  if (json) {
+    stdout(renderEnvelope(errorEnvelope(command, commandFailure(err, fallback))));
+  } else {
+    stderr(chalk.red(`${humanPrefix}: ${errMessage(err)}\n`));
+  }
+  return 2;
+}
+
 export async function runSimGenerate(
   options: SimGenerateOptions & JsonOption,
   deps: SimCommandDeps = {}
@@ -215,12 +232,13 @@ export async function runSimGenerate(
     stderr(dim(`  bootstrap ${result.bootstrapManifestPath}\n`));
     return 0;
   } catch (err) {
-    if (json) {
-      stdout(renderEnvelope(errorEnvelope("sim generate", generateFailure(err, "sim_generate_failed"))));
-      return 2;
-    }
-    stderr(chalk.red(`riptide sim: ${errMessage(err)}\n`));
-    return 2;
+    return reportCaughtFailure(
+      "sim generate",
+      err,
+      generateFallback("sim_generate_failed"),
+      json,
+      { stdout, stderr }
+    );
   }
 }
 
@@ -251,12 +269,13 @@ export async function runSimRefresh(
     stderr(chalk.bold(`riptide sim: refreshed generated Rust files in ${chalk.cyan(result.dir)}\n`));
     return 0;
   } catch (err) {
-    if (json) {
-      stdout(renderEnvelope(errorEnvelope("sim refresh", generateFailure(err, "sim_refresh_failed"))));
-      return 2;
-    }
-    stderr(chalk.red(`riptide sim: ${errMessage(err)}\n`));
-    return 2;
+    return reportCaughtFailure(
+      "sim refresh",
+      err,
+      generateFallback("sim_refresh_failed"),
+      json,
+      { stdout, stderr }
+    );
   }
 }
 
@@ -309,11 +328,11 @@ function setupGapsFailure(
   };
 }
 
-function generateFailure(err: unknown, fallbackCode: string): CommandError {
-  return commandFailure(err, {
-    code: fallbackCode,
+function generateFallback(code: string): Omit<CommandError, "message"> {
+  return {
+    code,
     next: "check that the adapter, its IDL and the sim directory are readable and writable, then rerun"
-  });
+  };
 }
 
 export async function runSimRun(
@@ -524,22 +543,17 @@ export async function runSimSurface(
     stderr(dim(`  next: riptide assess ${path.relative(baseCwd, outDir) || "."}\n`));
     return 0;
   } catch (err) {
-    if (options.json) {
-      stdout(
-        renderEnvelope(
-          errorEnvelope(
-            "sim surface",
-            commandFailure(err, {
-              code: "sim_surface_failed",
-              next: "check that the sim crate's Riptide.toml parses and the output directory is writable, then rerun"
-            })
-          )
-        )
-      );
-      return 2;
-    }
-    stderr(chalk.red(`riptide sim surface: ${errMessage(err)}\n`));
-    return 2;
+    return reportCaughtFailure(
+      "sim surface",
+      err,
+      {
+        code: "sim_surface_failed",
+        next: "check that the sim crate's Riptide.toml parses and the output directory is writable, then rerun"
+      },
+      options.json,
+      { stdout, stderr },
+      "riptide sim surface"
+    );
   }
 }
 
@@ -966,22 +980,14 @@ export async function runSimFork(options: ForkOptions, deps: SimCommandDeps = {}
       `riptide sim fork: wrote ${options.address} from ${options.cluster} to ${outPath}\n`
     );
   } catch (err) {
-    if (options.json) {
-      stdout(
-        renderEnvelope(
-          errorEnvelope(
-            "sim fork",
-            commandFailure(err, {
-              code: "sim_fork_failed",
-              next: `check that ${path.dirname(outPath)} is writable, then rerun`
-            })
-          )
-        )
-      );
-      return 2;
-    }
-    stderr(chalk.red(`riptide sim fork: ${errMessage(err)}\n`));
-    return 2;
+    return reportCaughtFailure(
+      "sim fork",
+      err,
+      { code: "sim_fork_failed", next: `check that ${path.dirname(outPath)} is writable, then rerun` },
+      options.json,
+      { stdout, stderr },
+      "riptide sim fork"
+    );
   }
 }
 

@@ -15,7 +15,7 @@ Every entry uses the same fields:
   `[sim.sweep]` in `.riptide/sim/Riptide.toml`) and the range that brackets
   the interesting region.
 - **Deciding invariant / metric** — the invariant or metric whose movement
-  decides the verdict, with the severity that makes the failure gradient
+  decides the outcome, with the severity that makes the failure gradient
   visible on the risk surface.
 - **Signal trap** — where a naive measurement reads flat while the real
   signal moves; name the field to measure instead.

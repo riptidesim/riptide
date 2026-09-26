@@ -3,8 +3,8 @@
 Every Breach carries a Causal Trace: a short account, written by the agent from
 the replay log, of how the failure unfolded, citing specific ticks and
 transactions. Its job is to explain *why* the invariant fired, so a reader does
-not have to read hundreds of ticks of logs. It retells one seed; it is never a
-verdict on the program.
+not have to read hundreds of ticks of logs. It retells one seed; it never
+judges the program.
 
 A Breach is simulation evidence: "invariant `<name>` fired at seed `<hex>`,
 coordinate X". Word it that way in the trace, the `## Breaches` section and
@@ -72,7 +72,7 @@ Keep each trace to a few short parts:
    `no_bad_debt`, never as a paraphrase.
 4. **No claims outside the run.** No mainnet or historical context the run
    does not stand on, and no "this proves the program is broken or safe". The
-   trace describes one seed at one coordinate; the reader draws the verdict.
+   trace describes one seed at one coordinate; the reader draws the conclusion.
 5. **Mechanism, not metrics.** Pair every number with a why. Do not restate
    the Engine Output's tables in prose.
 6. **Flat register.** No "impressive", "comprehensive", "demonstrates",

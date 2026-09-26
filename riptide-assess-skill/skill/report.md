@@ -137,7 +137,7 @@ protocol's actual flows, figures and boundaries. Cover at minimum `verdict`,
 row per P0 flow (`priority`, `flow`, `status`, `evidence_tier`, `commands`,
 `artifacts`, `notes`) with an accepted `status`: `covered`,
 `covered by guided sim`, `blocked`, `out of scope` or `not assessed`. The
-verdict is one of `ready_to_send`, `needs_guided_sim`,
+`verdict` value is one of `ready_to_send`, `needs_guided_sim`,
 `needs_campaign_tuning`, `blocked` or `unsupported`. Every line must be backed
 by what ran; the input adds protocol nouns and figures, never new Breaches.
 See [`./examples/assessment-input.json`](./examples/assessment-input.json).
@@ -164,7 +164,9 @@ Each Assessment has its own directory under `.riptide/assessments/`: `001`
 for the first, and the next number for each rerun (see
 [reuse.md](./reuse.md)). Keep every Assessment under its own name; never
 overwrite an earlier one. `riptide assess` refuses an `--out` directory that
-already holds an `assessment-context.json` (`assess_out_holds_assessment`).
+already holds an `assessment-context.json` (`assess_out_holds_assessment`),
+or one whose name sorts before an Assessment already beside it
+(`assess_out_not_latest`).
 Review the surfaced root, then render into the new Assessment directory:
 
 ```bash
