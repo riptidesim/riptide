@@ -154,6 +154,7 @@ shape is versioned by `schema_version`; every string is non-empty:
   "skill_version": "<this Skill's version>",
   "engine_version": "<riptide --version>",
   "depth": "default",
+  "family": "lending",
   "scope_declaration": [
     { "assumption": "...", "reason": "...", "override": "/riptide-assess <Steering Hint>" }
   ],
@@ -161,7 +162,10 @@ shape is versioned by `schema_version`; every string is non-empty:
     "instructions": { "exercised": ["..."], "not_exercised": ["..."] },
     "actors": { "exercised": ["..."], "not_exercised": ["..."] }
   },
-  "gaps": [{ "subject": "...", "reason": "...", "unblock": "..." }]
+  "gaps": [{ "subject": "...", "reason": "...", "unblock": "..." }],
+  "invariants": [
+    { "id": "...", "provenance": "floor", "firing_check": "fired", "outcome": "held" }
+  ]
 }
 ```
 
@@ -174,13 +178,21 @@ shape is versioned by `schema_version`; every string is non-empty:
 - Every instruction or actor under `not_exercised` has a Gap whose `subject`
   is that exact name. Other Gaps (an invariant with no Firing Check, a sweep
   axis left out) sit beside them.
+- `family` is the family whose Floor Invariants apply: `lending`, `amm`,
+  `perps`, `lst`, `stablecoin`, or `generic` for the generic Economic
+  Protocol fallback (orderbooks and custom protocols). It is the family
+  `riptide sim generate` reported under `data.floor_invariants.family`.
+- `invariants` lists every invariant the sim checks, once each: every Floor
+  Invariant of the family with `provenance: "floor"`, and every invariant
+  the agent added with `provenance: "agent"`. `firing_check` is `fired`,
+  `did-not-fire` or `not-run` (see [firing-check.md](./firing-check.md));
+  `outcome` is `held`, `breached` or `gap`. Only a `fired` invariant can be
+  `held` or `breached`; any other is `gap`, with a Gap whose `subject` is
+  its ID.
 
 A complete example: [`../examples/assessment-context.json`](../examples/assessment-context.json).
 
-Beyond those fields, record per invariant its ID, provenance (`floor` or
-`agent`), Firing Check result (`fired`, `did-not-fire` or `not-run`) and
-outcome (`held`, `breached` or `gap`) — only a `fired` invariant can be
-`held`; each Breach with its invariant ID, seed, replay command
+Beyond those fields, record each Breach with its invariant ID, seed, replay command
 (`riptide sim debug .riptide/sim --seed <hex>`) and Causal Trace (see
 [causal-trace.md](./causal-trace.md)); and the Delta against the previous
 Assessment in this Workspace, when there is one.
@@ -196,10 +208,12 @@ Replace the Engine's `assessment.md` with the composed report, in this order:
 2. `## Coverage` — the Coverage grade and the exercised and unexercised
    instructions and actors.
 3. `## Gaps` — each Gap with its reason and unblock.
-4. `## Engine Output` — a line `Assessment digest: <assessment_digest from
+4. `## Invariants` — every invariant by its ID, labelled Floor Invariant or
+   agent-authored, with its Firing Check result and outcome.
+5. `## Engine Output` — a line `Assessment digest: <assessment_digest from
    assessment.json>`, then the Engine's rendered `assessment.md` verbatim.
 
-Breaches and the Delta, when present, go between `## Gaps` and
+Breaches and the Delta, when present, go between `## Invariants` and
 `## Engine Output`. Read the Engine's `assessment.md` before replacing it; its
 bytes survive unchanged inside the `## Engine Output` section. Compose only
 after the last `riptide assess` render: once `assessment.md` is composed,
@@ -219,8 +233,11 @@ riptide validate .riptide/assessment --json
 
 It checks that `assessment.json` still matches its digest, that
 `assessment-context.json` is schema-valid with a Gap for every unexercised
-instruction and actor, and that `assessment.md` opens with the four required
-sections and cites the digest. A failure lists every problem under
+instruction and actor, that it reports every Floor Invariant of its family
+with `floor` provenance and no other invariant as `floor`, that no invariant
+is `held` or `breached` without a `fired` Firing Check, and that
+`assessment.md` opens with the five required sections, names every invariant
+under `## Invariants` and cites the digest. A failure lists every problem under
 `data.problems`, each with a `code` and a `next` repair; fix them all and
 rerun the gate. Never declare completion on a failing gate.
 

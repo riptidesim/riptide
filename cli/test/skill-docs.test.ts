@@ -4,6 +4,8 @@ import { readFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
+import { FAMILY_CLASS, FLOOR_INVARIANTS, type Family } from "../src/sim/floor-invariants.js";
+
 const REPO_ROOT = path.resolve(process.cwd(), "..");
 const BUNDLE_ROOT = path.join(REPO_ROOT, "riptide-assess-skill");
 const SKILL_DIR = path.join(BUNDLE_ROOT, "skill");
@@ -160,6 +162,42 @@ test("the Firing Check stage reports an unchecked invariant as a Gap", async () 
   assert.match(raw, /reported as a Gap/);
 });
 
+test("the family library declares the Engine's Floor Invariants for every family and the generic fallback", async () => {
+  const library = await readFile(path.join(SKILL_DIR, "family-library.md"), "utf8");
+  const headings: Record<Family, string> = {
+    lending: "## lending",
+    amm: "## amm",
+    perps: "## perps",
+    lst: "## lst (liquid staking)",
+    stablecoin: "## stablecoin",
+    generic: "## custom / other — the generic Economic Protocol fallback"
+  };
+  for (const [family, heading] of Object.entries(headings) as Array<[Family, string]>) {
+    const start = library.indexOf(`${heading}\n`);
+    assert.notEqual(start, -1, `family-library.md has no ${heading} entry`);
+    const end = library.indexOf("\n## ", start + 1);
+    const entry = library.slice(start, end === -1 ? undefined : end);
+    assert.ok(
+      entry.includes(`- **Floor Invariants** (\`${FAMILY_CLASS[family]}\``),
+      `${heading} does not name its Floor Invariants' class`
+    );
+    for (const floor of FLOOR_INVARIANTS[family]) {
+      assert.ok(entry.includes(`\`${floor.id}\``), `${heading} does not declare Floor Invariant ${floor.id}`);
+      assert.ok(entry.includes(`\`${floor.expr}\``), `${heading} states a different expression for ${floor.id}`);
+    }
+  }
+});
+
+test("the Firing Check stage checks every Floor Invariant and downgrades one that does not fire to a Gap", async () => {
+  const raw = await readFile(path.join(SKILL_DIR, "firing-check.md"), "utf8");
+  assert.match(raw, /`data\.floor_invariants`/);
+  assert.match(raw, /downgrade it: outcome `gap`, and a Gap whose `subject` is the\s+invariant's ID/);
+  assert.match(raw, /Never drop a Floor Invariant/);
+  for (const field of ["`id`", "`provenance`", "`firing_check`", "`outcome`"]) {
+    assert.ok(raw.includes(field), `firing-check.md does not record ${field}`);
+  }
+});
+
 test("the Firing Check stage drives the Engine's firing-check mode", async () => {
   const raw = await readFile(path.join(SKILL_DIR, "firing-check.md"), "utf8");
   assert.match(raw, /riptide sim run \.riptide\/sim --firing-check .*--json/);
@@ -269,7 +307,7 @@ test("the Report stage writes the Assessment Context and passes the validation g
   assert.match(report, /Never declare completion on a failing gate/);
   assert.match(report, /Compose only\s+after the last `riptide assess` render/);
   let cursor = 0;
-  for (const section of ["Scope Declaration", "Coverage", "Gaps", "Engine Output"]) {
+  for (const section of ["Scope Declaration", "Coverage", "Gaps", "Invariants", "Engine Output"]) {
     const index = report.indexOf(`\`## ${section}\``, cursor);
     assert.notEqual(index, -1, `report.md does not order the \`## ${section}\` section`);
     cursor = index;

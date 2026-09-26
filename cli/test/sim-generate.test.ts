@@ -99,7 +99,8 @@ test("sim generate scaffolds a Firing Check violation for each invariant", async
     "reserve_pair_nonzero_together",
     "lp_supply_backed_by_liquidity",
     "fee_config_bounded",
-    "stored_k_tracks_current_product"
+    "stored_k_tracks_current_product",
+    "constant_product_positive"
   ]);
   assert.match(violationsRs, /riptide sim run --firing-check/);
 
@@ -112,12 +113,13 @@ test("sim generate scaffolds a Firing Check violation for each invariant", async
   );
 });
 
-test("sim generate scaffolds no violations when the adapter declares no invariants", async () => {
+test("sim generate declares only the generic Floor Invariant when the adapter declares no invariants", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "riptide-sim-gen-no-violations-"));
   const result = await generateQuiet(root, derivableAdapter);
 
   const violationsRs = await readFile(path.join(result.dir, "src", "violations.rs"), "utf8");
-  assert.match(violationsRs, /pub fn declare\(_sim: &mut Simulation\) -> Vec<FiringCheck> \{\s+Vec::new\(\)/);
+  const declared = [...violationsRs.matchAll(/FiringCheck::new\(\s+"([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(declared, ["supply_covers_balances"]);
 });
 
 test("sim generate uses fixed-address program load when adapter declares program_id", async () => {

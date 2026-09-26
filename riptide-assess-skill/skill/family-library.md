@@ -9,14 +9,23 @@ own flows demand. This is a menu of well-worn starting points, not a mandate —
 skip anything the program doesn't actually expose, and never seed an actor or an
 invariant the code cannot support.
 
-How the three columns map onto the guided-sim contract:
+How each entry maps onto the guided-sim contract:
 
 - **Known personas** → adapter `[personas]`. Each is an actor archetype with an
   action vocabulary; codegen renders them into `flows.rs`. Seed the ones whose
   actions the program actually exposes; edit `action_weights` to match.
-- **Known invariants** → `[[invariants]]`. These are the family's Floor
-  Invariants: wire every one the program's surface exposes, with `floor`
-  provenance, and report any that cannot be wired as a Gap. Semantic expressions checked over
+- **Floor Invariants** → required in every Assessment of the family, with
+  `floor` provenance. `riptide sim generate` wires them into the sim from the
+  adapter's `[semantics].class` and lists them under
+  `data.floor_invariants`; each reads only the derived observations that
+  class requires. Keep every one. To fit a Floor Invariant to the program's
+  units, declare a `[[semantics.invariants]]` entry with the same `name` and
+  your expression: it replaces the default and stays `floor`. A Floor
+  Invariant that cannot be wired, or never passes its Firing Check, is
+  reported as a Gap, never dropped.
+- **Known invariants** → `[[semantics.invariants]]` or `[[invariants]]`, with
+  `agent` provenance. Candidates to add on top of the Floor Invariants where
+  the program's surface exposes them. Semantic expressions checked over
   recorded observations. A flat aggregate (e.g. "no bad debt") becomes a metric
   you `world.record_metric` and a `[[invariants]]` expr that fires when it
   crosses the stated line. Wire the underlying observation first — an invariant
@@ -43,11 +52,12 @@ size concentration matters), then re-weight their actions to the real vocab.
   `degen-borrower`, `aggressive-arb-bot`, `panic-whale` (mass withdraw),
   `whale` (outsized borrow). Plus `liquidator` from the generic pool — anything
   with a `liquidate` path wants a third-party liquidator actor (Trigger C).
+- **Floor Invariants** (`lending.v1`):
+  - `debt_below_collateral` — `debt_value <= collateral_value`.
+  - `debt_below_max_borrow` — `debt_value <= max_borrow_value`.
 - **Known invariants:**
   - `no_bad_debt` — cumulative bad debt stays at zero; fires on any liquidation
     insolvency (the deciding invariant for the crash-outruns-liquidation case).
-  - `debt_below_collateral` — `debt_value <= collateral_value` per position.
-  - `debt_below_max_borrow` — `debt_value <= max_borrow_value` per position.
   - `health_factor_positive` — `health_factor > 1.0` per position.
   - `utilization_bound` — pool utilization stays `<= 100%`.
 - **Known stress scenarios:**
@@ -63,6 +73,9 @@ size concentration matters), then re-weight their actions to the real vocab.
 - **Known personas:** `swapper` (vanilla A→B), `arbitrageur` (one-sided
   swapper), `lp-provider`, `sandwich-attacker` (approximate), `rug-puller`
   (opportunistic LP exit).
+- **Floor Invariants** (`amm.v1`):
+  - `constant_product_positive` — `liquidity_value == 0 || constant_product > 0`:
+    a pool holding liquidity never drains either reserve to zero.
 - **Known invariants:**
   - `k_invariant` — the constant product `k` does not decrease after fees
     (template; wire a reserve-product observation first). Value leaking below
@@ -79,6 +92,8 @@ size concentration matters), then re-weight their actions to the real vocab.
 
 - **Known personas:** `leveraged-long`, `leveraged-short`,
   `delta-neutral-farmer`, `funding-arbitrageur` (proxy), `liquidator`.
+- **Floor Invariants** (`perps-margin.v1`):
+  - `equity_above_maintenance` — `account_equity >= maintenance_margin_requirement`.
 - **Known invariants:**
   - `no_socialized_loss` — a socialized-loss observation stays at zero once the
     funding and liquidation paths are wired (template).
@@ -95,10 +110,11 @@ size concentration matters), then re-weight their actions to the real vocab.
 
 - **Known personas:** `steady-staker`, `yield-maxi`, `panic-exiter`,
   `arb-redeemer`.
-- **Known invariants:**
-  - Stake-pool solvency — the pool's redeemable backing covers outstanding
-    LST supply at the posted exchange rate (wire a backing/supply observation,
-    then check `backing_value >= lst_supply * exchange_rate`).
+- **Floor Invariants** (`lst.v1`):
+  - `lst_supply_backed` — `lst_supply * exchange_rate <= total_assets * 10000`,
+    with `exchange_rate` in bps (10000 = 1:1).
+- **Known invariants:** none beyond the Floor Invariant, which is the
+  stake-pool solvency check.
 - **Known stress scenarios:**
   - **Baseline smoke** — normal price noise, no perturbation.
   - **Backing markdown / validator slash** — mark down staked backing (a slash)
@@ -111,9 +127,10 @@ size concentration matters), then re-weight their actions to the real vocab.
 
 - **Known personas:** `cautious-minter`, `leverage-looper`, `panic-redeemer`,
   `arb-redeemer`.
-- **Known invariants:**
-  - `backing_ratio` — collateral backing stays `>= 1` (100%) once supply and
-    backing observations are wired (template).
+- **Floor Invariants** (`stablecoin.v1`):
+  - `collateral_covers_liabilities` — `collateral_value >= liability_value`.
+- **Known invariants:** none beyond the Floor Invariant, which is the
+  100% backing check.
 - **Known stress scenarios:**
   - **Baseline smoke** — normal price noise, no perturbation.
   - **Collateral crash under redemption race** — drop the collateral oracle
@@ -123,6 +140,7 @@ size concentration matters), then re-weight their actions to the real vocab.
 
 ## orderbook
 
+- **Floor Invariants:** the generic fallback's (below).
 - No prebuilt persona/invariant/scenario bucket ships for orderbooks — derive
   from the target program's match/settle flows. Settlement is a keeper-driven
   third-party flow (**Trigger C**): model the keeper/matcher/settler as a
@@ -133,6 +151,14 @@ size concentration matters), then re-weight their actions to the real vocab.
 
 ## custom / other — the generic Economic Protocol fallback
 
+- **Floor Invariants** (`token.v1`; also every adapter with no `[semantics]`
+  class):
+  - `supply_covers_balances` —
+    `source_balance + destination_balance <= mint_supply`: the token balances
+    the protocol moves never exceed the mint's supply. Wire it by declaring
+    `[semantics]` with `class = "token.v1"` over the protocol's value-holding
+    token accounts and their mint. Without that block it stays unwired and its
+    Firing Check reports `did-not-fire`.
 - No family bucket. The target is still in scope. Fall back to the generic persona pool, derive invariants
   from the program's own conservation laws (what quantity must be conserved,
   bounded, or monotonic?), and pick the swept axis from the single most

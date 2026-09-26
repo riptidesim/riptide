@@ -149,7 +149,7 @@ function assessmentFile(cwd: string, name: string): string {
 /** Compose assessment.md the way the Skill's Report stage does: Context sections, then the Engine's render. */
 async function composeReport(
   cwd: string,
-  sections = ["Scope Declaration", "Coverage", "Gaps", "Engine Output"]
+  sections = ["Scope Declaration", "Coverage", "Gaps", "Invariants", "Engine Output"]
 ): Promise<string> {
   const engineMarkdown = await readFile(assessmentFile(cwd, "assessment.md"), "utf8");
   const { assessment_digest } = JSON.parse(
@@ -158,7 +158,11 @@ async function composeReport(
   const bodies: Record<string, string> = {
     "Scope Declaration": "Depth: default\n\n- target is programs/lending",
     Coverage: "Instructions: 3 of 4 exercised. Actors: 2 of 3 exercised.",
-    Gaps: "- withdraw_collateral\n- admin",
+    Gaps: "- withdraw_collateral\n- admin\n- debt_below_max_borrow",
+    Invariants:
+      "- debt_below_collateral (floor): fired, held\n" +
+      "- debt_below_max_borrow (floor): did-not-fire, Gap\n" +
+      "- utilization_bound (agent-authored): fired, held",
     "Engine Output": `Assessment digest: \`${assessment_digest}\`\n\n${engineMarkdown}`
   };
   return sections.map((section) => `## ${section}\n\n${bodies[section]}\n`).join("\n");
@@ -192,7 +196,9 @@ test("validate --json: a complete Assessment passes the gate", async () => {
       instructions: { exercised: 3, not_exercised: 1 },
       actors: { exercised: 2, not_exercised: 1 }
     },
-    gaps: 2
+    gaps: 3,
+    family: "lending",
+    invariants: { floor: 2, agent: 1, held: 2, breached: 0, gap: 1 }
   });
 });
 
@@ -286,7 +292,13 @@ test("validate --json: an invalid Assessment Context names the failing field", a
     ["coverage.actors", (context) => delete context.coverage.actors],
     ["coverage.instructions.not_exercised", (context) => context.coverage.instructions.not_exercised.push("borrow")],
     ["gaps.1.unblock", (context) => delete context.gaps[1].unblock],
-    ["gaps", (context) => delete context.gaps]
+    ["gaps", (context) => delete context.gaps],
+    ["family", (context) => (context.family = "orderbook")],
+    ["invariants", (context) => delete context.invariants],
+    ["invariants.0.provenance", (context) => (context.invariants[0].provenance = "library")],
+    ["invariants.1.firing_check", (context) => (context.invariants[1].firing_check = "passed")],
+    ["invariants.2.outcome", (context) => (context.invariants[2].outcome = "safe")],
+    ["invariants.2.id", (context) => (context.invariants[2].id = "debt_below_collateral")]
   ];
   for (const [field, edit] of cases) {
     const cwd = await validWorkspace();
@@ -310,11 +322,77 @@ test("validate --json: an unexercised instruction or actor without a Gap is reje
   assert.match(envelope.error!.message, /actor "admin"/);
 });
 
+test("validate --json: an invariant reported as held or breached without a fired Firing Check is rejected", async () => {
+  for (const [firing_check, outcome] of [
+    ["did-not-fire", "held"],
+    ["not-run", "held"],
+    ["did-not-fire", "breached"]
+  ]) {
+    const cwd = await validWorkspace();
+    await editContext(cwd, (context) => {
+      context.invariants[2].firing_check = firing_check;
+      context.invariants[2].outcome = outcome;
+    });
+    const envelope = await assertRejected(cwd, "validate_invariant_not_fired");
+    assert.match(envelope.error!.message, new RegExp(`"utilization_bound" is reported as ${outcome} but its Firing Check is ${firing_check}`));
+    assert.match(envelope.error!.next, /outcome to "gap"/);
+  }
+});
+
+test("validate --json: an invariant reported as a Gap needs a Gap", async () => {
+  const cwd = await validWorkspace();
+  await editContext(cwd, (context) => {
+    context.gaps = context.gaps.filter((gap: { subject: string }) => gap.subject !== "debt_below_max_borrow");
+  });
+  const envelope = await assertRejected(cwd, "validate_gap_missing");
+  assert.match(envelope.error!.message, /invariant "debt_below_max_borrow"/);
+});
+
+test("validate --json: every Floor Invariant of the family must be reported", async () => {
+  const cwd = await validWorkspace();
+  await editContext(cwd, (context) => {
+    context.invariants = context.invariants.filter((inv: { id: string }) => inv.id !== "debt_below_collateral");
+  });
+  const envelope = await assertRejected(cwd, "validate_floor_invariant_missing");
+  assert.match(envelope.error!.message, /"debt_below_collateral" of the lending family/);
+  assert.match(envelope.error!.next, /riptide sim generate/);
+
+  const generic = await validWorkspace();
+  await editContext(generic, (context) => (context.family = "generic"));
+  const problems = (await assertRejected(generic, "validate_floor_invariant_missing")).data!.problems as Array<{
+    code: string;
+    message: string;
+  }>;
+  assert.ok(problems.some((problem) => problem.message.includes('"supply_covers_balances" of the generic family')));
+});
+
+test("validate --json: a Floor Invariant labelled agent-authored, or an agent invariant labelled floor, is rejected", async () => {
+  const cwd = await validWorkspace();
+  await editContext(cwd, (context) => (context.invariants[0].provenance = "agent"));
+  let envelope = await assertRejected(cwd, "validate_invariant_provenance_mismatch");
+  assert.match(envelope.error!.message, /"debt_below_collateral" is a Floor Invariant of the lending family but is labelled agent-authored/);
+
+  await editContext(cwd, (context) => {
+    context.invariants[0].provenance = "floor";
+    context.invariants[2].provenance = "floor";
+  });
+  envelope = await assertRejected(cwd, "validate_invariant_provenance_mismatch");
+  assert.match(envelope.error!.message, /"utilization_bound" is not a Floor Invariant/);
+});
+
+test("validate --json: the composed report names every invariant under Invariants", async () => {
+  const cwd = await validWorkspace();
+  const report = await readFile(assessmentFile(cwd, "assessment.md"), "utf8");
+  await writeFile(assessmentFile(cwd, "assessment.md"), report.replace("- utilization_bound (agent-authored): fired, held", ""));
+  const envelope = await assertRejected(cwd, "validate_report_invariant_unlisted");
+  assert.match(envelope.error!.message, /"utilization_bound"/);
+});
+
 test("validate --json: a composed report missing a required section is rejected", async () => {
-  for (const section of ["Scope Declaration", "Coverage", "Gaps", "Engine Output"]) {
+  for (const section of ["Scope Declaration", "Coverage", "Gaps", "Invariants", "Engine Output"]) {
     const cwd = await renderedWorkspace();
     await writeFile(assessmentFile(cwd, "assessment-context.json"), await readFile(EXAMPLE_CONTEXT, "utf8"));
-    const sections = ["Scope Declaration", "Coverage", "Gaps", "Engine Output"].filter((s) => s !== section);
+    const sections = ["Scope Declaration", "Coverage", "Gaps", "Invariants", "Engine Output"].filter((s) => s !== section);
     await writeFile(assessmentFile(cwd, "assessment.md"), await composeReport(cwd, sections));
     const envelope = await assertRejected(cwd, "validate_report_section_missing");
     assert.match(envelope.error!.message, new RegExp(`## ${section}\``));
@@ -326,7 +404,7 @@ test("validate --json: the Scope Declaration must open the composed report", asy
   await writeFile(assessmentFile(cwd, "assessment-context.json"), await readFile(EXAMPLE_CONTEXT, "utf8"));
   await writeFile(
     assessmentFile(cwd, "assessment.md"),
-    await composeReport(cwd, ["Coverage", "Scope Declaration", "Gaps", "Engine Output"])
+    await composeReport(cwd, ["Coverage", "Scope Declaration", "Gaps", "Invariants", "Engine Output"])
   );
   await assertRejected(cwd, "validate_report_section_order");
 });

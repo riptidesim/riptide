@@ -304,11 +304,14 @@ is unchanged.
   Output with no sidecar): `assessment.json` still matches its own
   `assessment_digest` (Engine Output is never edited),
   `assessment-context.json` is a valid `assessment-context.v1` Assessment
-  Context (versions, Depth, Scope Declaration, Coverage, Gaps) with at least
-  one exercised instruction and a Gap for every unexercised instruction and
-  actor, and the composed `assessment.md` opens with `## Scope Declaration`,
-  `## Coverage`, `## Gaps` and `## Engine Output`, the last citing the
-  digest. An **Out-of-Scope Note** (`out-of-scope-note.json`,
+  Context (versions, Depth, Scope Declaration, Coverage, Gaps, family and
+  invariants) with at least one exercised instruction and a Gap for every
+  unexercised instruction and actor. Every Floor Invariant of the family is
+  reported with `floor` provenance and no other invariant is; an invariant
+  counts as `held` or `breached` only when its Firing Check `fired`, and one
+  reported as a `gap` has a Gap. The composed `assessment.md` opens with
+  `## Scope Declaration`, `## Coverage`, `## Gaps`, `## Invariants` (naming
+  every invariant) and `## Engine Output`, the last citing the digest. An **Out-of-Scope Note** (`out-of-scope-note.json`,
   `out-of-scope-note.v1`: a `not-economic-protocol` verdict with evidence,
   its override and code-level auditing referrals) with an
   `out-of-scope-note.md` opening `## Classification`, `## Code-Level
@@ -329,6 +332,8 @@ is unchanged.
   `validate_context_missing`, `validate_context_malformed`,
   `validate_context_schema_unsupported`, `validate_context_schema_invalid`,
   `validate_coverage_zero`, `validate_gap_missing`,
+  `validate_floor_invariant_missing`, `validate_invariant_provenance_mismatch`,
+  `validate_invariant_not_fired`, `validate_report_invariant_unlisted`,
   `validate_output_malformed`, `validate_output_schema_unsupported`,
   `validate_output_schema_invalid`, `validate_report_missing`,
   `validate_report_section_missing`, `validate_report_section_order`,
@@ -336,7 +341,17 @@ is unchanged.
   `validate_report_risk_surface`, `validate_failed`.
 
 - **`sim generate`**: `data` names the crate, adapter, IDL and manifests,
-  and carries the `setup-gaps.json` report as `setup_gaps`. A genesis with
+  and carries the `setup-gaps.json` report as `setup_gaps`.
+  `data.floor_invariants` names the adapter's family (from
+  `[semantics].class`; no class, or `token.v1`, is the generic fallback) and
+  each of its Floor Invariants with the expression the sim checks and whether
+  it is `wired`. The Floor Invariants live in `cli/src/sim/floor-invariants.ts`,
+  one set per family, each reading only the derived observations the
+  family's semantic class requires. `invariants.rs` checks every wired one
+  the adapter does not already declare (an adapter invariant with a Floor
+  Invariant's ID adapts it), and `violations.rs` declares a Firing Check for
+  every one; an unwired Floor Invariant's check cannot be applied, so it
+  reports `did-not-fire` until the adapter declares its class. A genesis with
   unresolved tick-0 seams in a freshly generated `src/flows.rs` is
   `sim_setup_gaps` (exit 2, with the same `data`); seams in a preserved
   `flows.rs` are not a failure. Failures: `sim_adapter_not_found`,

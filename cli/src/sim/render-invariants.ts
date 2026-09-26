@@ -1,4 +1,10 @@
-import type { Adapter, AccountDefinition, Semantics } from "../schemas/adapter.js";
+import type {
+  Adapter,
+  AccountDefinition,
+  Semantics,
+  SemanticInvariantSeverity
+} from "../schemas/adapter.js";
+import { FAMILY_CLASS, wireFloorInvariants } from "./floor-invariants.js";
 import type { GenericArg, GenericIdl, GenericTypeRef } from "./idl.js";
 
 // Well-known field offsets for SPL decoder presets, so a `[semantics.roles]`
@@ -29,8 +35,9 @@ interface ResolvedField {
  * Render `invariants.rs`. When the adapter declares `[semantics]` invariants the
  * check builds an evaluator context from the declared roles (decoded from
  * on-chain account bytes), computes `[semantics.derived]` values, and fires the
- * declared invariants through `run_expression_invariants`. Otherwise it falls
- * back to the no-op stub.
+ * declared invariants, plus every Floor Invariant of the adapter's family it
+ * does not already declare, through `run_expression_invariants`. Otherwise it
+ * falls back to the no-op stub.
  *
  * Field offsets resolve from (1) the adapter account's explicit decoder (layout
  * block or spl preset), else (2) the IDL account's field layout (8-byte Anchor
@@ -41,7 +48,8 @@ interface ResolvedField {
  */
 export function renderInvariants(adapter: Adapter, idl: GenericIdl): string {
   const semantics = adapter.semantics;
-  if (!semantics || semantics.invariants.length === 0) {
+  const invariants = checkedInvariants(adapter).filter((inv) => inv.wired);
+  if (!semantics || invariants.length === 0) {
     return renderInvariantsStub();
   }
 
@@ -58,7 +66,7 @@ export function renderInvariants(adapter: Adapter, idl: GenericIdl): string {
   const classCall = semantics.class
     ? `SemanticsDescriptor::new().with_class(${rustStr(semantics.class)})`
     : "SemanticsDescriptor::new()";
-  const invariantDecls = semantics.invariants
+  const invariantDecls = invariants
     .map(
       (inv) =>
         `    descriptor.invariant(${rustStr(inv.name)}, ${rustStr(inv.expr)}, ${severity(
@@ -138,34 +146,41 @@ pub fn check(_sim: &mut Simulation) -> riptide_sim::anyhow::Result<()> {
 }
 
 /**
- * Render `violations.rs`: one Firing Check declaration per declared invariant,
- * the violation `riptide sim run --firing-check` injects to prove the invariant
- * can fire. The scaffold zeroes the first role field the invariant reads
- * (through `[semantics.derived]` values too); an invariant that reads no
- * resolvable field gets a declaration that cannot be applied, so it reports
- * `did-not-fire` until the violation is authored.
+ * Render `violations.rs`: one Firing Check declaration per checked invariant,
+ * Floor Invariants included, the violation `riptide sim run --firing-check`
+ * injects to prove the invariant can fire. The scaffold zeroes the first role
+ * field the invariant reads (through `[semantics.derived]` values too); an
+ * invariant that reads no resolvable field, or a Floor Invariant the adapter
+ * gives nothing to evaluate against, gets a declaration that cannot be
+ * applied, so it reports `did-not-fire` until it is wired.
  */
 export function renderViolations(adapter: Adapter, idl: GenericIdl): string {
-  const semantics = adapter.semantics;
-  if (!semantics || semantics.invariants.length === 0) {
+  const invariants = checkedInvariants(adapter);
+  if (invariants.length === 0) {
     return renderViolationsStub();
   }
 
+  const semantics = adapter.semantics;
   const fields = new Map(
-    resolveRoleFields(semantics, adapter, idl).map((field) => [field.contextKey, field])
+    (semantics ? resolveRoleFields(semantics, adapter, idl) : []).map((field) => [field.contextKey, field])
   );
-  const checks = semantics.invariants
+  const checks = invariants
     .map((inv) => {
-      const field = readFields(inv.expr, semantics.derived)
-        .map((key) => fields.get(key))
-        .find((candidate) => candidate?.ok);
+      const field = inv.wired
+        ? readFields(inv.expr, semantics?.derived ?? {})
+            .map((key) => fields.get(key))
+            .find((candidate) => candidate?.ok)
+        : undefined;
       const violation = field
         ? `Violation::zero_field(${fieldAddress(field)}, ${field.offset}, ${READER_WIDTHS[field.reader]})`
-        : `Violation::custom(
-                "no violation declared",
-                |_world: &mut riptide_sim::World| Err(riptide_sim::anyhow::anyhow!("author the violation this invariant exists to catch")),
-            )`;
-      return `        // ${inv.expr}
+        : inv.wired
+          ? unappliedViolation("no violation declared", "author the violation this invariant exists to catch")
+          : unappliedViolation(
+              "Floor Invariant not wired",
+              `wire this Floor Invariant: declare [semantics] with class = \\"${inv.semanticClass}\\" in the adapter, remove src/invariants.rs and src/violations.rs, then rerun riptide sim generate`
+            );
+      const label = inv.floor ? `Floor Invariant: ${inv.expr}` : inv.expr;
+      return `        // ${label}
         FiringCheck::new(
             ${rustStr(inv.name)},
             ${violation},
@@ -184,7 +199,7 @@ use riptide_sim::{FiringCheck, Violation};
 
 use crate::Simulation;
 
-pub fn declare(sim: &mut Simulation) -> Vec<FiringCheck> {
+pub fn declare(${checks.includes("sim.") ? "sim" : "_sim"}: &mut Simulation) -> Vec<FiringCheck> {
     vec![
 ${checks}
     ]
@@ -201,6 +216,55 @@ pub fn declare(_sim: &mut Simulation) -> Vec<FiringCheck> {
     Vec::new()
 }
 `;
+}
+
+function unappliedViolation(description: string, reason: string): string {
+  return `Violation::custom(
+                ${rustStr(description)},
+                |_world: &mut riptide_sim::World| Err(riptide_sim::anyhow::anyhow!("${reason}")),
+            )`;
+}
+
+interface CheckedInvariant {
+  name: string;
+  expr: string;
+  severity: SemanticInvariantSeverity;
+  floor: boolean;
+  /** False for a Floor Invariant the adapter gives no `[semantics]` block of its family's class to evaluate against. */
+  wired: boolean;
+  semanticClass: string;
+}
+
+/**
+ * The invariants a sim checks: the adapter's declared `[[semantics.invariants]]`,
+ * then each Floor Invariant of its family it does not declare. A declared
+ * invariant named for a Floor Invariant is that Floor Invariant, adapted to
+ * the program.
+ */
+function checkedInvariants(adapter: Adapter): CheckedInvariant[] {
+  const { family, floors } = wireFloorInvariants(adapter);
+  const semanticClass = FAMILY_CLASS[family];
+  const floorIds = new Set(floors.map((floor) => floor.id));
+  const declared = (adapter.semantics?.invariants ?? []).map((inv) => ({
+    name: inv.name,
+    expr: inv.expr,
+    severity: inv.severity,
+    floor: floorIds.has(inv.name),
+    wired: true,
+    semanticClass
+  }));
+  const declaredNames = new Set(declared.map((inv) => inv.name));
+  const added = floors
+    .filter((floor) => !declaredNames.has(floor.id))
+    .map((floor) => ({
+      name: floor.id,
+      expr: floor.expr,
+      severity: "warn" as const,
+      floor: true,
+      wired: floor.wired,
+      semanticClass
+    }));
+  return [...declared, ...added];
 }
 
 const READER_WIDTHS: Record<ResolvedField["reader"], number> = { u8: 1, u64: 8, u128: 16, i64: 8 };

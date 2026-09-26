@@ -30,6 +30,7 @@ import {
   type SimGenerateOptions,
   type SimGenerateResult
 } from "../sim/generate.js";
+import type { Family } from "../sim/floor-invariants.js";
 import {
   lintSimManifest,
   renderSimManifestLintReport,
@@ -267,6 +268,10 @@ export interface SimGenerateResultJson {
   sim_manifest: string;
   setup_gaps_report: string | null;
   setup_gaps: SetupGapsReport | null;
+  floor_invariants: {
+    family: Family;
+    invariants: Array<{ id: string; wired: boolean; expr: string }>;
+  };
 }
 
 function generateResultJson(result: SimGenerateResult): SimGenerateResultJson {
@@ -277,7 +282,11 @@ function generateResultJson(result: SimGenerateResult): SimGenerateResultJson {
     cargo_manifest: result.manifestPath,
     sim_manifest: result.bootstrapManifestPath,
     setup_gaps_report: result.setupGapsPath ?? null,
-    setup_gaps: result.setupGaps ?? null
+    setup_gaps: result.setupGaps ?? null,
+    floor_invariants: {
+      family: result.floorInvariants.family,
+      invariants: result.floorInvariants.floors
+    }
   };
 }
 

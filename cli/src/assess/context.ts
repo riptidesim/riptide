@@ -9,6 +9,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { assessmentDigestOf } from "./model.js";
+import { FAMILIES, FLOOR_INVARIANTS, isFloorInvariant, type Family } from "../sim/floor-invariants.js";
 import { canonicalJson, type JsonValue } from "../state-pack/json.js";
 import type { CommandError } from "../contract/index.js";
 
@@ -25,8 +26,13 @@ export const REQUIRED_REPORT_SECTIONS = [
   "Scope Declaration",
   "Coverage",
   "Gaps",
+  "Invariants",
   "Engine Output"
 ] as const;
+
+export const PROVENANCES = ["floor", "agent"] as const;
+export const FIRING_CHECK_RESULTS = ["fired", "did-not-fire", "not-run"] as const;
+export const INVARIANT_OUTCOMES = ["held", "breached", "gap"] as const;
 
 const text = z.string().trim().min(1);
 
@@ -55,7 +61,32 @@ export const AssessmentContextSchema = z.object({
     z.object({ assumption: text, reason: text, override: text }).strict()
   ),
   coverage: z.object({ instructions: exercise, actors: exercise }).strict(),
-  gaps: z.array(z.object({ subject: text, reason: text, unblock: text }).strict())
+  gaps: z.array(z.object({ subject: text, reason: text, unblock: text }).strict()),
+  family: z.enum(FAMILIES),
+  invariants: z
+    .array(
+      z
+        .object({
+          id: text,
+          provenance: z.enum(PROVENANCES),
+          firing_check: z.enum(FIRING_CHECK_RESULTS),
+          outcome: z.enum(INVARIANT_OUTCOMES)
+        })
+        .strict()
+    )
+    .superRefine((invariants, ctx) => {
+      const seen = new Set<string>();
+      invariants.forEach((invariant, index) => {
+        if (seen.has(invariant.id)) {
+          ctx.addIssue({
+            code: "custom",
+            path: [index, "id"],
+            message: `invariant ${JSON.stringify(invariant.id)} is listed more than once`
+          });
+        }
+        seen.add(invariant.id);
+      });
+    })
 });
 
 export type AssessmentContext = z.infer<typeof AssessmentContextSchema>;
@@ -70,6 +101,8 @@ export interface ValidatedAssessment {
     actors: { exercised: number; not_exercised: number };
   };
   gaps: number;
+  family: Family;
+  invariants: Record<(typeof PROVENANCES)[number] | (typeof INVARIANT_OUTCOMES)[number], number>;
 }
 
 export type AssessmentValidation =
@@ -88,7 +121,7 @@ export async function validateAssessment(dir: string, label = dir): Promise<Asse
 
   const digest = await checkEngineOutput(at, problems);
   const context = await checkContext(at, problems);
-  await checkReport(at, digest, problems);
+  await checkReport(at, digest, context, problems);
 
   if (problems.length > 0 || digest === null || context === null) return { ok: false, problems };
   return {
@@ -102,7 +135,15 @@ export async function validateAssessment(dir: string, label = dir): Promise<Asse
         instructions: counts(context.coverage.instructions),
         actors: counts(context.coverage.actors)
       },
-      gaps: context.gaps.length
+      gaps: context.gaps.length,
+      family: context.family,
+      invariants: {
+        floor: context.invariants.filter((inv) => inv.provenance === "floor").length,
+        agent: context.invariants.filter((inv) => inv.provenance === "agent").length,
+        held: context.invariants.filter((inv) => inv.outcome === "held").length,
+        breached: context.invariants.filter((inv) => inv.outcome === "breached").length,
+        gap: context.invariants.filter((inv) => inv.outcome === "gap").length
+      }
     }
   };
 }
@@ -188,12 +229,65 @@ async function checkContext(
   }
   const { instructions, actors } = context.coverage;
   checkGapsCover(instructions.not_exercised, actors.not_exercised, context.gaps, rerun, problems);
+  checkInvariants(context, rerun, problems);
   return context;
+}
+
+/**
+ * Every Floor Invariant of the family is reported with `floor` provenance and
+ * nothing else is; an invariant counts as held or breached only once its
+ * Firing Check fired; an invariant reported as a Gap has one.
+ */
+function checkInvariants(context: AssessmentContext, rerun: string, problems: CommandError[]): void {
+  const { family, invariants, gaps } = context;
+  const reported = new Set(invariants.map((inv) => inv.id));
+  for (const floor of FLOOR_INVARIANTS[family]) {
+    if (!reported.has(floor.id)) {
+      problems.push({
+        code: "validate_floor_invariant_missing",
+        message: `Floor Invariant ${JSON.stringify(floor.id)} of the ${family} family is not reported`,
+        next:
+          `report ${JSON.stringify(floor.id)} with provenance "floor": wire it through \`riptide sim generate\` ` +
+          `(data.floor_invariants), run its Firing Check, and record its outcome, or its Gap, ${rerun}`
+      });
+    }
+  }
+
+  const gapSubjects = new Set(gaps.map((gap) => gap.subject));
+  for (const inv of invariants) {
+    const floor = isFloorInvariant(family, inv.id);
+    if (floor !== (inv.provenance === "floor")) {
+      problems.push({
+        code: "validate_invariant_provenance_mismatch",
+        message: floor
+          ? `invariant ${JSON.stringify(inv.id)} is a Floor Invariant of the ${family} family but is labelled agent-authored`
+          : `invariant ${JSON.stringify(inv.id)} is not a Floor Invariant of the ${family} family but is labelled floor`,
+        next: `set its provenance to ${JSON.stringify(floor ? "floor" : "agent")}, ${rerun}`
+      });
+    }
+    if (inv.outcome !== "gap" && inv.firing_check !== "fired") {
+      problems.push({
+        code: "validate_invariant_not_fired",
+        message: `invariant ${JSON.stringify(inv.id)} is reported as ${inv.outcome} but its Firing Check is ${inv.firing_check}`,
+        next:
+          `an invariant counts only after its Firing Check fires: set its outcome to "gap" and add a Gap ` +
+          `with subject ${JSON.stringify(inv.id)}, or repair it until \`riptide sim run .riptide/sim --firing-check --json\` reports it fired, ${rerun}`
+      });
+    }
+    if (inv.outcome === "gap" && !gapSubjects.has(inv.id)) {
+      problems.push({
+        code: "validate_gap_missing",
+        message: `invariant ${JSON.stringify(inv.id)} is reported as a Gap but has no Gap`,
+        next: `add a Gap with subject ${JSON.stringify(inv.id)}, its reason and what would unblock it, ${rerun}`
+      });
+    }
+  }
 }
 
 async function checkReport(
   { dir, label, rerun }: CheckTarget,
   digest: string | null,
+  context: AssessmentContext | null,
   problems: CommandError[]
 ): Promise<void> {
   const raw = await readOptional(path.join(dir, COMPOSED_REPORT_FILE));
@@ -214,6 +308,17 @@ async function checkReport(
       message: `${COMPOSED_REPORT_FILE} \`## Engine Output\` does not cite the assessment digest ${digest}`,
       next: `put the Engine-rendered assessment.md under \`## Engine Output\` with its assessment digest, ${rerun}`
     });
+  }
+
+  const listed = sectionBody(raw, "Invariants");
+  for (const inv of context?.invariants ?? []) {
+    if (!listed.includes(inv.id)) {
+      problems.push({
+        code: "validate_report_invariant_unlisted",
+        message: `${COMPOSED_REPORT_FILE} \`## Invariants\` does not name invariant ${JSON.stringify(inv.id)}`,
+        next: `list ${JSON.stringify(inv.id)} under \`## Invariants\` with its provenance, Firing Check result and outcome, ${rerun}`
+      });
+    }
   }
 }
 

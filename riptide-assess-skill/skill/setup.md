@@ -165,10 +165,13 @@ Generic personas stay inline in the
 adapter; the sweep and flows in the crate drive them. Do not write fixture `manifest.json`, `policies.json`,
 or `.riptide/personas/` in user repos.
 
-Wire every Floor Invariant the family requires (see
-[family-library.md](./family-library.md)) and mark each invariant's
-provenance: `floor` for the family's Floor Invariants, `agent` for anything
-added on top.
+`riptide sim generate` wires the family's Floor Invariants into
+`invariants.rs` and `violations.rs` from the adapter's `[semantics].class`,
+and lists them under `data.floor_invariants` with whether each is `wired`
+(see [family-library.md](./family-library.md)). Keep every one. To fit one to
+the program's units, declare a `[[semantics.invariants]]` entry with its ID as
+`name`; never delete or rename it. Mark each invariant's provenance: `floor`
+for the family's Floor Invariants, `agent` for anything added on top.
 
 Declare the sweep and the evidence-honesty blocks in `.riptide/sim/Riptide.toml`.
 `riptide sim run` reads `[sim.sweep]` and runs one iteration per (value, seed

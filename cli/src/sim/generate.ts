@@ -5,6 +5,7 @@ import path from "node:path";
 import { loadAdapter, type AdapterLoadError } from "../adapter/resolve.js";
 import { cliPackageRootFromModule, monorepoRootFromModule } from "../orchestrator/index.js";
 import { resolveAdapterRuntime, resolveRuntimePath, type Adapter } from "../schemas/adapter.js";
+import { wireFloorInvariants, type Family, type WiredFloorInvariant } from "./floor-invariants.js";
 import { planGenesis } from "./genesis.js";
 import { loadGenericIdl, type GenericIdl } from "./idl.js";
 import { renderAccounts } from "./render-accounts.js";
@@ -52,6 +53,8 @@ export interface SimGenerateResult {
    */
   setupGaps?: SetupGapsReport;
   setupGapsPath?: string;
+  /** The adapter's family and how each of its Floor Invariants is wired into the sim. */
+  floorInvariants: { family: Family; floors: WiredFloorInvariant[] };
 }
 
 export type SimGenerateErrorCode =
@@ -188,7 +191,8 @@ export async function generateSim(
     adapterPath: resolved.path,
     idlPath,
     setupGaps,
-    setupGapsPath
+    setupGapsPath,
+    floorInvariants: wireFloorInvariants(resolved.adapter)
   };
 }
 

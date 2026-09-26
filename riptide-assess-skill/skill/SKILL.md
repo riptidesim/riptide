@@ -95,7 +95,9 @@ every one of them: each writes one envelope to stdout, and on failure its
   warning-only health check is still `ok: true`; a failing one is
   `health_checks_failed`, with the full report still in `data`.
 - `riptide sim generate --adapter <adapter.toml> --json` — scaffold the sim
-  crate. Unresolved tick-0 seams come back as `sim_setup_gaps`.
+  crate with the family's Floor Invariants wired in, listed under
+  `data.floor_invariants`. Unresolved tick-0 seams come back as
+  `sim_setup_gaps`.
 - `riptide sim refresh --adapter <adapter.toml> --dir .riptide/sim --json` —
   regenerate builders after IDL changes without touching authored flows.
 - `riptide sim lint <sim-dir> --json` — validate the sim manifest.
@@ -114,7 +116,8 @@ every one of them: each writes one envelope to stdout, and on failure its
   — render the Engine Output for the Assessment.
 - `riptide validate <assessment-dir> --json` — the gate on whatever the run
   delivers. It recognises an Assessment (intact Engine Output, a schema-valid
-  Assessment Context, the required `assessment.md` sections), an Out-of-Scope
+  Assessment Context reporting every Floor Invariant and no unfired invariant
+  as held, the required `assessment.md` sections), an Out-of-Scope
   Note or a Blocker Report, and names it as `data.kind`. Failures list every
   problem under `data.problems`.
 
@@ -166,8 +169,9 @@ Lint, run a one-seed smoke, then run the full sweep. →
 
 ### 5. Firing Check
 
-Prove each invariant can fire by injecting a known violation. An invariant
-that has not passed its **Firing Check** never counts as held. →
+Prove each invariant, every Floor Invariant included, can fire by injecting a
+known violation. An invariant that has not passed its **Firing Check** never
+counts as held; it is downgraded to a Gap. →
 [firing-check.md](./firing-check.md)
 
 ### 6. Repair
