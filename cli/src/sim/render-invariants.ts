@@ -164,6 +164,7 @@ export function renderViolations(adapter: Adapter, idl: GenericIdl): string {
   const fields = new Map(
     (semantics ? resolveRoleFields(semantics, adapter, idl) : []).map((field) => [field.contextKey, field])
   );
+  let readsSim = false;
   const checks = invariants
     .map((inv) => {
       const field = inv.wired
@@ -179,6 +180,7 @@ export function renderViolations(adapter: Adapter, idl: GenericIdl): string {
               "Floor Invariant not wired",
               `wire this Floor Invariant: declare [semantics] with class = \\"${inv.semanticClass}\\" in the adapter, remove src/invariants.rs and src/violations.rs, then rerun riptide sim generate`
             );
+      if (field) readsSim = true;
       const label = inv.floor ? `Floor Invariant: ${inv.expr}` : inv.expr;
       return `        // ${label}
         FiringCheck::new(
@@ -199,7 +201,7 @@ use riptide_sim::{FiringCheck, Violation};
 
 use crate::Simulation;
 
-pub fn declare(${checks.includes("sim.") ? "sim" : "_sim"}: &mut Simulation) -> Vec<FiringCheck> {
+pub fn declare(${readsSim ? "sim" : "_sim"}: &mut Simulation) -> Vec<FiringCheck> {
     vec![
 ${checks}
     ]

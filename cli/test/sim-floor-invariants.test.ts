@@ -154,6 +154,20 @@ test("sim generate --json: each family's Floor Invariants are wired into the gen
   }
 });
 
+test("sim generate --json: a Floor Invariant's scaffolded violation zeroes a field on the side that must stay larger", async () => {
+  // Zeroing the bound (collateral, supply), not the bounded quantity, is what can make the invariant fire.
+  for (const [semantics, id] of [
+    [LENDING_SEMANTICS, "debt_below_collateral"],
+    [LENDING_SEMANTICS, "debt_below_max_borrow"],
+    [TOKEN_SEMANTICS, "supply_covers_balances"]
+  ]) {
+    const { violationsRs } = await generate(await derivableWith(semantics!));
+    const check = violationsRs.match(new RegExp(`"${id}",\\s+Violation::zero_field\\(([^,]+),`));
+    assert.ok(check, `${id}: no zero_field violation scaffolded`);
+    assert.match(check[1]!, /sim\.accounts\.treasury\.get\("treasury"\)/, `${id} zeroes ${check[1]}`);
+  }
+});
+
 test("sim generate --json: an adapter's own invariant named for a Floor Invariant adapts it rather than duplicating it", async () => {
   const adapter = await derivableWith(
     `${LENDING_SEMANTICS}
@@ -185,7 +199,7 @@ test("sim generate --json: an adapter with no [semantics] gets the generic Floor
       {
         id: "supply_covers_balances",
         wired: false,
-        expr: "source_balance + destination_balance <= mint_supply"
+        expr: "mint_supply >= source_balance + destination_balance"
       }
     ]
   });

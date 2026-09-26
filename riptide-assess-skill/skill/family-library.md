@@ -53,8 +53,8 @@ size concentration matters), then re-weight their actions to the real vocab.
   `whale` (outsized borrow). Plus `liquidator` from the generic pool — anything
   with a `liquidate` path wants a third-party liquidator actor (Trigger C).
 - **Floor Invariants** (`lending.v1`):
-  - `debt_below_collateral` — `debt_value <= collateral_value`.
-  - `debt_below_max_borrow` — `debt_value <= max_borrow_value`.
+  - `debt_below_collateral` — `collateral_value >= debt_value`.
+  - `debt_below_max_borrow` — `max_borrow_value >= debt_value`.
 - **Known invariants:**
   - `no_bad_debt` — cumulative bad debt stays at zero; fires on any liquidation
     insolvency (the deciding invariant for the crash-outruns-liquidation case).
@@ -111,7 +111,7 @@ size concentration matters), then re-weight their actions to the real vocab.
 - **Known personas:** `steady-staker`, `yield-maxi`, `panic-exiter`,
   `arb-redeemer`.
 - **Floor Invariants** (`lst.v1`):
-  - `lst_supply_backed` — `lst_supply * exchange_rate <= total_assets * 10000`,
+  - `lst_supply_backed` — `total_assets * 10000 >= lst_supply * exchange_rate`,
     with `exchange_rate` in bps (10000 = 1:1).
 - **Known invariants:** none beyond the Floor Invariant, which is the
   stake-pool solvency check.
@@ -154,7 +154,7 @@ size concentration matters), then re-weight their actions to the real vocab.
 - **Floor Invariants** (`token.v1`; also every adapter with no `[semantics]`
   class):
   - `supply_covers_balances` —
-    `source_balance + destination_balance <= mint_supply`: the token balances
+    `mint_supply >= source_balance + destination_balance`: the token balances
     the protocol moves never exceed the mint's supply. Wire it by declaring
     `[semantics]` with `class = "token.v1"` over the protocol's value-holding
     token accounts and their mint. Without that block it stays unwired and its

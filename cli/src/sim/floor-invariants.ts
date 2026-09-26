@@ -20,12 +20,12 @@ export const FLOOR_INVARIANTS: Record<Family, readonly FloorInvariant[]> = {
   lending: [
     {
       id: "debt_below_collateral",
-      expr: "debt_value <= collateral_value",
+      expr: "collateral_value >= debt_value",
       description: "Position debt never exceeds its collateral value"
     },
     {
       id: "debt_below_max_borrow",
-      expr: "debt_value <= max_borrow_value",
+      expr: "max_borrow_value >= debt_value",
       description: "Position debt never exceeds its max-borrow value"
     }
   ],
@@ -46,7 +46,7 @@ export const FLOOR_INVARIANTS: Record<Family, readonly FloorInvariant[]> = {
   lst: [
     {
       id: "lst_supply_backed",
-      expr: "lst_supply * exchange_rate <= total_assets * 10000",
+      expr: "total_assets * 10000 >= lst_supply * exchange_rate",
       description: "LST supply at the posted exchange rate (in bps) is covered by pooled assets"
     }
   ],
@@ -60,7 +60,7 @@ export const FLOOR_INVARIANTS: Record<Family, readonly FloorInvariant[]> = {
   generic: [
     {
       id: "supply_covers_balances",
-      expr: "source_balance + destination_balance <= mint_supply",
+      expr: "mint_supply >= source_balance + destination_balance",
       description: "Token balances the protocol moves never exceed the mint supply"
     }
   ]
