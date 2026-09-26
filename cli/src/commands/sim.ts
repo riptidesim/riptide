@@ -112,7 +112,6 @@ export function createSimCommand(deps: SimCommandDeps = {}): Command {
     .argument("[path]", "Guided-sim artifact directory or guided-sim-run.json", ".riptide/sim/artifacts")
     .option("--out <md-path>", "Write reviewer markdown to a file instead of stdout")
     .option("--json", "Emit a structured JSON review payload", false)
-    .option("--quiet", "Suppress interactive banner", false)
     .action(async (artifactPath: string, options: ReviewOptions) => {
       process.exitCode = await runReview(artifactPath, options, deps);
     });

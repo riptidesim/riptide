@@ -70,7 +70,7 @@ async function assessRoot(root: string): Promise<{ code: number; stdout: string;
     },
     color: false
   };
-  const code = await runAssess(root, { quiet: true }, deps);
+  const code = await runAssess(root, {}, deps);
   return { code, stdout, stderr };
 }
 

@@ -194,7 +194,7 @@ What each command does:
 | Command | Role |
 | --- | --- |
 | `riptide doctor` | Static health check. No build, no network, no simulation. |
-| `riptide init` | Creates the thin bootstrap: `.riptide/adapters/<program>.toml` plus `.riptide/GETTING-STARTED.md`. `--profile` / `--protocol` record adapter hints; `--wizard` opens the advanced questionnaire. |
+| `riptide init` | Non-interactive scaffold: `.riptide/adapters/<program>.toml` per detected program plus the Workspace ignore file `.riptide/.gitignore`. `--profile` / `--protocol` record adapter hints. |
 | `/riptide-config` | Default setup flow: adapter TOML and the guided-sim crate, flows, invariants, services, and readiness notes. |
 | `riptide readiness` | Inspects local protocol evidence readiness without building or simulating. |
 | `riptide sim generate` | Scaffolds the project-owned guided-sim crate from an IDL-backed adapter. |

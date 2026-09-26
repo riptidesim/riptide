@@ -8,7 +8,7 @@ import { createInitCommand } from "./commands/init.js";
 import { createReadinessCommand } from "./commands/readiness.js";
 import { createReviewCommand } from "./commands/review.js";
 import { createSimCommand } from "./commands/sim.js";
-import { cliPackageVersion } from "./banner.js";
+import { cliPackageVersion } from "./version.js";
 import { renderCliError } from "./errors/render.js";
 
 const program = new Command();
@@ -32,12 +32,12 @@ program.addHelpText(
   ].join("\n")
 );
 
-addRootCommand(createInitCommand(), "Scaffold .riptide/ in the current repo", "Start here:");
-addRootCommand(createReadinessCommand(), "Inspect local protocol evidence readiness", "Start here:");
-addRootCommand(createSimCommand(), "Generate, refresh, and run guided Rust simulations", "Start here:");
-addRootCommand(createReviewCommand(), "Review a guided-sim evidence root", "Start here:");
-addRootCommand(createAssessCommand(), "Generate a protocol assessment from a guided-sim root", "Start here:");
-addRootCommand(createDoctorCommand(), "Check the local toolchain", "Start here:");
+addRootCommand(createInitCommand(), "Scaffold .riptide/ in the current repo");
+addRootCommand(createReadinessCommand(), "Inspect local protocol evidence readiness");
+addRootCommand(createSimCommand(), "Generate, refresh, and run guided Rust simulations");
+addRootCommand(createReviewCommand(), "Review a guided-sim evidence root");
+addRootCommand(createAssessCommand(), "Generate a protocol assessment from a guided-sim root");
+addRootCommand(createDoctorCommand(), "Check the local toolchain");
 
 program.addHelpText(
   "after",
@@ -59,8 +59,8 @@ program.addHelpText(
   ].join("\n")
 );
 
-function addRootCommand(command: Command, summary: string, group: string): void {
-  program.addCommand(command.summary(summary).helpGroup(group));
+function addRootCommand(command: Command, summary: string): void {
+  program.addCommand(command.summary(summary));
 }
 
 program.parseAsync(process.argv).catch((error: unknown) => {

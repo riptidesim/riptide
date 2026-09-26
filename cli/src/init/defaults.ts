@@ -377,9 +377,8 @@ triggers = []`
 # What a run over this adapter produces is simulation evidence over the
 # inputs declared here — a bounded result, not a safety conclusion.
 #
-# It is runnable as generated: see .riptide/GETTING-STARTED.md for the
-# commands. To sharpen it (personas, invariants, protocol semantics),
-# invoke \`/riptide-config\`.
+# It is runnable as generated. To sharpen it (personas, invariants,
+# protocol semantics), invoke \`/riptide-config\`.
 
 protocol = "generic"
 program_so = "target/deploy/${soName}.so"

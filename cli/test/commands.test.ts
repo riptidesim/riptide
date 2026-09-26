@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { execFile, spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -66,7 +68,7 @@ test("commands: root help is compact and lists the guided-sim core surface", asy
   assert.match(stdout, /First assessment:/);
   assert.match(stdout, /riptide-assess/);
   assert.match(stdout, /Reports are simulation evidence over declared inputs, not audit signoff\./);
-  assert.match(stdout, /Start here:/);
+  assert.doesNotMatch(stdout, /Start here:/);
   assert.match(stdout, /Examples:/);
   assert.match(stdout, /# First assessment: use the riptide-assess agent skill from your protocol repo/);
   assert.match(stdout, /riptide sim run \.riptide\/sim --flows 8/);
@@ -84,4 +86,53 @@ test("commands: root help is compact and lists the guided-sim core surface", asy
   assert.deepEqual([...ordered].sort((a, b) => a - b), ordered);
 
   assert.ok(stdout.split("\n").length < 80, stdout);
+});
+
+test("init: completes without input while stdin stays open", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-init-cli-"));
+  await writeFile(
+    path.join(cwd, "Anchor.toml"),
+    '[programs.localnet]\nwidget_factory = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"\n',
+    "utf8"
+  );
+
+  // stdin is a pipe that is never written to or closed: any prompt would hang.
+  const child = spawn(process.execPath, [cliEntrypoint, "init", "--no-skills"], {
+    cwd,
+    stdio: ["pipe", "pipe", "pipe"],
+    env: { ...process.env, FORCE_COLOR: "0" }
+  });
+  let stdout = "";
+  child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")));
+  const code = await new Promise<number | null>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error("riptide init waited for input"));
+    }, 15_000);
+    child.on("exit", (exitCode) => {
+      clearTimeout(timer);
+      resolve(exitCode);
+    });
+  });
+
+  assert.equal(code, 0);
+  assert.equal(stdout, "");
+  assert.ok(existsSync(path.join(cwd, ".riptide", "adapters", "widget-factory.toml")));
+  assert.ok(existsSync(path.join(cwd, ".riptide", ".gitignore")));
+});
+
+test("init: the interactive wizard is not available", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-init-cli-"));
+  let stderr = "";
+  let code: number | string | undefined;
+  try {
+    await execFileAsync(process.execPath, [cliEntrypoint, "init", "--wizard"], { cwd });
+  } catch (err) {
+    const execErr = err as { stderr?: string; code?: number | string };
+    stderr = execErr.stderr ?? "";
+    code = execErr.code;
+  }
+  assert.equal(code, 1);
+  assert.match(stderr, /unknown option '--wizard'/);
+  assert.equal(existsSync(path.join(cwd, ".riptide")), false);
 });

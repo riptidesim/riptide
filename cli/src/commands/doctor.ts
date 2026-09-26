@@ -30,7 +30,6 @@ import {
   type DoctorReport,
   type DoctorStatus,
 } from "../doctor/index.js";
-import { printBanner } from "../banner.js";
 import {
   errorEnvelope,
   renderEnvelope,
@@ -51,7 +50,6 @@ export interface DoctorCommandDeps extends CommandIO {
 
 export interface DoctorOptions {
   json?: boolean;
-  quiet?: boolean;
 }
 
 export function createDoctorCommand(deps: DoctorCommandDeps = {}): Command {
@@ -59,11 +57,9 @@ export function createDoctorCommand(deps: DoctorCommandDeps = {}): Command {
     .description(
       "Static health check — toolchain presence and adapter load + lint status. No build, no network, no simulation."
     )
-    .option("--json", "Emit the report as a command envelope", false)
-    .option("--quiet", "Suppress interactive banner", false);
+    .option("--json", "Emit the report as a command envelope", false);
 
   return command.action(async (options: DoctorOptions) => {
-    printBanner({ flags: { json: Boolean(options.json), quiet: Boolean(options.quiet) } });
     const code = await runDoctor(options, deps);
     process.exit(code);
   });

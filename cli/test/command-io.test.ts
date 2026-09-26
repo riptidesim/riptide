@@ -95,7 +95,7 @@ test("command io: init reports through the injected stderr", async () => {
   assert.equal(result.exitCode, 0);
   assert.equal(result.stdout, "");
   assert.match(result.stderr, /riptide init: scaffolded \.riptide\/ for 1 program/);
-  assert.match(result.stderr, /Next steps:/);
+  assert.match(result.stderr, /created \.riptide\/\.gitignore/);
   assert.ok(existsSync(path.join(cwd, ".riptide", "adapters", "manual-program.toml")));
 });
 

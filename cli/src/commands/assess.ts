@@ -38,7 +38,6 @@ import { generateAssessmentNarrative } from "../assess/narrative.js";
 import { renderAssessmentBrief } from "../assess/render-brief.js";
 import { renderAssessmentHtml } from "../assess/render-html.js";
 import { renderAssessmentMarkdown } from "../assess/render-markdown.js";
-import { printBanner } from "../banner.js";
 import {
   pickColorizer,
   relativizePath,
@@ -79,7 +78,6 @@ export interface AssessOptions {
   pdf?: boolean;
   brief?: boolean;
   json?: boolean;
-  quiet?: boolean;
 }
 
 export interface AssessCommandDeps extends CommandIO {
@@ -122,9 +120,7 @@ export function createAssessCommand(deps: AssessCommandDeps = {}): Command {
       false
     )
     .option("--json", "Emit a machine-readable result instead of the cold-read summary", false)
-    .option("--quiet", "Suppress the interactive banner", false)
     .action(async (campaignRoot: string, options: AssessOptions) => {
-      printBanner({ flags: { json: Boolean(options.json), quiet: Boolean(options.quiet) } });
       const exitCode = await runAssess(campaignRoot, options, deps);
       process.exit(exitCode);
     });

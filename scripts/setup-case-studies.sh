@@ -28,7 +28,7 @@ setup_one() {
     echo "case-study $slug already has .riptide/; skipping init"
   else
     echo "scaffolding $slug ($protocol)"
-    (cd "$target" && node "$CLI" init --blank --quiet --protocol "$protocol" --name "$slug")
+    (cd "$target" && node "$CLI" init --blank --protocol "$protocol" --name "$slug")
   fi
 }
 

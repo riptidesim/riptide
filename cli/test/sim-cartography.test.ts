@@ -171,7 +171,7 @@ test("sim cartography: guided-sim root assesses as cartography, discloses proven
       stderrWrite: () => {},
       color: false
     };
-    const exitCode = await runAssess(root, { quiet: true }, deps);
+    const exitCode = await runAssess(root, {}, deps);
     assert.equal(exitCode, 0, stdout);
 
     const md = await readFile(path.join(root, "assessment.md"), "utf8");

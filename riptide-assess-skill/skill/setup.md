@@ -18,8 +18,10 @@ required co-located file.
 riptide init      # only if .riptide/ is absent and the program name is unambiguous
 ```
 
-`riptide init` creates only a thin `.riptide/` bootstrap (adapter placeholder +
-`GETTING-STARTED.md`). You own the rest.
+`riptide init` never prompts. It writes one adapter per detected program and the
+Workspace ignore file `.riptide/.gitignore`, which excludes build output and run
+scratch (`target/`, `runs/`, `last-run.json`) so the rest of `.riptide/` can be
+committed. You own the rest.
 
 **b. Author the adapter** (`.riptide/adapters/<program>.toml`). It declares
 account shape, instruction mappings, scheduled actions, observations, personas,

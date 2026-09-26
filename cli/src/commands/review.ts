@@ -17,7 +17,6 @@ import {
 } from "../display/index.js";
 import { renderCliError } from "../errors/render.js";
 import { ReviewValidationError, type ValidationResult } from "../review/manifest.js";
-import { printBanner } from "../banner.js";
 import type { CommandIO } from "../contract/index.js";
 import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
 
@@ -26,7 +25,6 @@ const execFileAsync = promisify(execFile);
 export interface ReviewOptions {
   out?: string;
   json?: boolean;
-  quiet?: boolean;
 }
 
 export interface ReviewCommandDeps extends CommandIO {
@@ -99,9 +97,7 @@ export function createReviewCommand(deps: ReviewCommandDeps = {}): Command {
     .argument("<path>", "Path to a Riptide campaign root, retained campaign case, or guided-sim artifact directory")
     .option("--out <md-path>", "Write reviewer markdown to a file instead of stdout")
     .option("--json", "Emit a structured JSON review payload", false)
-    .option("--quiet", "Suppress interactive banner", false)
     .action(async (pack: string, options: ReviewOptions) => {
-      printBanner({ flags: { json: Boolean(options.json), quiet: Boolean(options.quiet) } });
       const exitCode = await runReview(pack, options, deps);
       process.exit(exitCode);
     });
