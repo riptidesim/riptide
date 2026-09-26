@@ -37,11 +37,12 @@ verdict is one of `ready_to_send`, `needs_guided_sim`,
 by what ran; the input adds protocol nouns and figures, never new Breaches.
 See [`../examples/assessment-input.json`](../examples/assessment-input.json).
 
-Review the surfaced root, then render:
+Review the surfaced root, then render into the Assessment directory:
 
 ```bash
 riptide review <guided-sim-root> --json
-riptide assess <guided-sim-root> --json --brief --input .riptide/assessment-input.json
+mkdir -p .riptide/assessment
+riptide assess <guided-sim-root> --json --brief --input .riptide/assessment-input.json --out .riptide/assessment
 ```
 
 `riptide assess` is ingest-only: it re-verifies the execution-honesty gates,
@@ -51,34 +52,92 @@ that is a repair (see [repair.md](./repair.md)), never a reason to hand-write
 the report. It picks one of two shapes from the evidence in the root: the
 cartography shape (a risk surface, for parameter-tunable protocols) or the
 correctness shape (Coverage and Breaches without a heatmap, for protocols
-whose risks are binary). Never edit the files it writes.
+whose risks are binary). Never edit `assessment.json`: the gate re-hashes it
+against its own `assessment_digest`.
 
 ### Assessment Context
 
-Write the Assessment Context as its own file beside the Engine's
-`assessment.json`, never inside it. It holds:
+Write the Assessment Context to `assessment-context.json` in the Assessment
+directory, beside the Engine's `assessment.json` and never inside it. Its
+shape is versioned by `schema_version`; every string is non-empty:
 
-- the Skill version and the Engine version (`riptide --version`);
-- the Depth that ran;
-- the Scope Declaration: each assumption with its reason and overriding
-  Steering Hint;
-- Coverage: the instructions and actors exercised, and those not exercised;
-- Gaps: each with the subject, the reason and what would unblock it;
-- invariants: each with its ID, provenance (`floor` or `agent`), Firing Check
-  result (`fired`, `did-not-fire` or `not-run`) and outcome (`held`,
-  `breached` or `gap`) — only a `fired` invariant can be `held`;
-- Breaches: each with the invariant ID, the seed, the replay command
-  (`riptide sim debug .riptide/sim --seed <hex>`) and its Causal Trace (see
-  [causal-trace.md](./causal-trace.md));
-- the Delta against the previous Assessment in this Workspace, when there is
-  one.
+```json
+{
+  "schema_version": "assessment-context.v1",
+  "skill_version": "<this Skill's version>",
+  "engine_version": "<riptide --version>",
+  "depth": "default",
+  "scope_declaration": [
+    { "assumption": "...", "reason": "...", "override": "/riptide-assess <Steering Hint>" }
+  ],
+  "coverage": {
+    "instructions": { "exercised": ["..."], "not_exercised": ["..."] },
+    "actors": { "exercised": ["..."], "not_exercised": ["..."] }
+  },
+  "gaps": [{ "subject": "...", "reason": "...", "unblock": "..." }]
+}
+```
+
+- `depth` is `default` or `deep`, whichever ran (see the Depth table in
+  [SKILL.md](./SKILL.md)).
+- `scope_declaration` holds every assumption made in place of user input,
+  each with its reason and the overriding Steering Hint.
+- `coverage` names the instructions and actors the simulation exercised and
+  those it did not. A name is never in both lists.
+- Every instruction or actor under `not_exercised` has a Gap whose `subject`
+  is that exact name. Other Gaps (an invariant with no Firing Check, a sweep
+  axis left out) sit beside them.
+
+A complete example: [`../examples/assessment-context.json`](../examples/assessment-context.json).
+
+Beyond those fields, record per invariant its ID, provenance (`floor` or
+`agent`), Firing Check result (`fired`, `did-not-fire` or `not-run`) and
+outcome (`held`, `breached` or `gap`) — only a `fired` invariant can be
+`held`; each Breach with its invariant ID, seed, replay command
+(`riptide sim debug .riptide/sim --seed <hex>`) and Causal Trace (see
+[causal-trace.md](./causal-trace.md)); and the Delta against the previous
+Assessment in this Workspace, when there is one.
 
 Keep every Assessment under its own name; never overwrite an earlier one.
 
+### Composed assessment.md
+
+Replace the Engine's `assessment.md` with the composed report, in this order:
+
+1. `## Scope Declaration` — the Depth that ran, then each assumption with its
+   reason and override.
+2. `## Coverage` — the Coverage grade and the exercised and unexercised
+   instructions and actors.
+3. `## Gaps` — each Gap with its reason and unblock.
+4. `## Engine Output` — a line `Assessment digest: <assessment_digest from
+   assessment.json>`, then the Engine's rendered `assessment.md` verbatim.
+
+Breaches and the Delta, when present, go between `## Gaps` and
+`## Engine Output`. Read the Engine's `assessment.md` before replacing it; its
+bytes survive unchanged inside the `## Engine Output` section. A teammate
+reproduces the Engine Output by rendering into a fresh `--out` directory and
+comparing `assessment.json`.
+
+### Validation gate
+
+The Assessment is not complete until the gate passes:
+
+```bash
+riptide validate .riptide/assessment --json
+```
+
+It checks that `assessment.json` still matches its digest, that
+`assessment-context.json` is schema-valid with a Gap for every unexercised
+instruction and actor, and that `assessment.md` opens with the four required
+sections and cites the digest. A failure lists every problem under
+`data.problems`, each with a `code` and a `next` repair; fix them all and
+rerun the gate. Never declare completion on a failing gate.
+
 ### Delivery
 
-Read the rendered `assessment.md`, `assessment.json`, the campaign summary and
-the retention manifest before writing the delivery. Keep it short and
+Deliver only after `riptide validate` passes. Read the composed
+`assessment.md`, `assessment.json`, the campaign summary and the retention
+manifest before writing the delivery. Keep it short and
 complete:
 
 1. The Scope Declaration, first, including the Depth.
@@ -88,7 +147,7 @@ complete:
    summary; or, when nothing breached, the Firing-Checked invariants that held
    and the structural reason each held.
 4. Gaps, each with its unblock.
-5. Paths: `assessment.md`, `assessment.json`, the Assessment Context, the
+5. Paths: `assessment.md`, `assessment.json`, `assessment-context.json`, the
    brief, and the evidence pack (`campaign-summary.md`,
    `retention-manifest.json`, `retained/`, any `rerun.sh`).
 6. The exact rerun commands executed: every `riptide sim run`,

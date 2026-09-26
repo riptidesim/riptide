@@ -295,6 +295,23 @@ is unchanged.
   `assess_surface_digest_mismatch`, `assess_honesty_gates_blocked` (with
   the gate report as `data.execution_honesty`), `assess_artifacts_drifted`,
   `assess_failed`.
+- **`validate`**: the gate the Skill runs on an Assessment directory before
+  it declares completion. It checks that `assessment.json` still matches its
+  own `assessment_digest` (Engine Output is never edited), that
+  `assessment-context.json` is a valid `assessment-context.v1` Assessment
+  Context (versions, Depth, Scope Declaration, Coverage, Gaps) with a Gap for
+  every unexercised instruction and actor, and that the composed
+  `assessment.md` opens with `## Scope Declaration`, `## Coverage`, `## Gaps`
+  and `## Engine Output`, the last citing the digest. It reads only. `data`
+  is the `validate-cli.v1` result (Depth, Coverage counts, Gap count). A
+  failure's `error` is the first problem and `data.problems` lists them all.
+  Failures: `validate_dir_not_found`, `validate_engine_output_missing`,
+  `validate_engine_output_modified`, `validate_context_missing`,
+  `validate_context_malformed`, `validate_context_schema_unsupported`,
+  `validate_context_schema_invalid`, `validate_gap_missing`,
+  `validate_report_missing`, `validate_report_section_missing`,
+  `validate_report_section_order`, `validate_report_engine_output_unlinked`,
+  `validate_failed`.
 
 - **`sim generate`**: `data` names the crate, adapter, IDL and manifests,
   and carries the `setup-gaps.json` report as `setup_gaps`. A genesis with

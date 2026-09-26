@@ -7,6 +7,7 @@ import { createInitCommand } from "./commands/init.js";
 import { createReadinessCommand } from "./commands/readiness.js";
 import { createReviewCommand } from "./commands/review.js";
 import { createSimCommand } from "./commands/sim.js";
+import { createValidateCommand } from "./commands/validate.js";
 import { cliPackageVersion } from "./version.js";
 import { renderCliError } from "./errors/render.js";
 
@@ -36,6 +37,7 @@ addRootCommand(createReadinessCommand(), "Inspect protocol evidence readiness an
 addRootCommand(createSimCommand(), "Generate, refresh, and run guided Rust simulations");
 addRootCommand(createReviewCommand(), "Review a campaign root, retained case, or guided-sim artifact");
 addRootCommand(createAssessCommand(), "Generate a protocol assessment from a guided-sim root");
+addRootCommand(createValidateCommand(), "Check an Assessment's Engine Output, Assessment Context and composed report");
 
 program.addHelpText(
   "after",
@@ -50,6 +52,7 @@ program.addHelpText(
     "  riptide sim surface .riptide/sim/artifacts/<dir> --sim .riptide/sim",
     "  riptide review <guided-sim-root>",
     "  riptide assess <guided-sim-root>",
+    "  riptide validate <assessment-dir>",
     "",
     "Run `riptide <command> --help` for command-specific options.",
     ""

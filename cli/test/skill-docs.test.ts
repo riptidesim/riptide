@@ -245,3 +245,31 @@ test("repo docs name no removed skill", async () => {
     assert.doesNotMatch(raw, /skills\/riptide-/, `${doc} links a removed skill path`);
   }
 });
+
+test("the Report stage writes the Assessment Context and passes the validation gate before delivery", async () => {
+  const body = await skillBody();
+  const report = await readFile(path.join(SKILL_DIR, "report.md"), "utf8");
+  const example = JSON.parse(
+    await readFile(path.join(BUNDLE_ROOT, "examples", "assessment-context.json"), "utf8")
+  ) as { schema_version: string };
+
+  assert.match(body, /`riptide validate <assessment-dir> --json`/);
+  assert.match(body, /Deliver only once that gate\s+passes/);
+
+  assert.match(report, /`assessment-context\.json`/);
+  assert.ok(report.includes(`"schema_version": "${example.schema_version}"`), "report.md and the example disagree on the schema version");
+  assert.match(report, /riptide validate \.riptide\/assessment --json/);
+  assert.match(report, /Never declare completion on a failing gate/);
+  let cursor = 0;
+  for (const section of ["Scope Declaration", "Coverage", "Gaps", "Engine Output"]) {
+    const index = report.indexOf(`\`## ${section}\``, cursor);
+    assert.notEqual(index, -1, `report.md does not order the \`## ${section}\` section`);
+    cursor = index;
+  }
+});
+
+test("SKILL.md documents the Default and Deep budgets", async () => {
+  const body = await skillBody();
+  assert.match(body, /^\| Default \|.*`seeds_per_value = \d+`.*\d+ repair attempts/m);
+  assert.match(body, /^\| Deep \|.*`seeds_per_value = \d+`.*\d+ repair attempts/m);
+});

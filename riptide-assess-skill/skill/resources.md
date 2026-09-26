@@ -5,6 +5,7 @@
 - Riptide source and issues: `https://github.com/riptidesim/riptide`,
   `https://github.com/riptidesim/riptide/issues`
 - Engine Output input shape: [`../examples/assessment-input.json`](../examples/assessment-input.json)
+- Assessment Context shape: [`../examples/assessment-context.json`](../examples/assessment-context.json)
 
 ## Skill file index
 
@@ -30,7 +31,8 @@
 - [repair.md](./repair.md) — Repair: failure classes, where to restart, the
   repair budget and readiness states.
 - [report.md](./report.md) — Report: Out-of-Scope Note, Blocker Report, Engine
-  Output, Assessment Context and delivery.
+  Output, Assessment Context, the composed report, the validation gate and
+  delivery.
 - [causal-trace.md](./causal-trace.md) — the Causal Trace for each Breach.
 - [honesty.md](./honesty.md) — the honesty rules and the three
   runtime-enforced execution-honesty gates.

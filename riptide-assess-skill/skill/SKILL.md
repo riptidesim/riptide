@@ -110,8 +110,11 @@ every one of them: each writes one envelope to stdout, and on failure its
   account snapshot cache.
 - `riptide review <path> --json` — review a run's artifact directory, a
   surfaced root or a retained case.
-- `riptide assess <guided-sim-root> --json [--input <json>] [--brief]` — render
-  the Engine Output for the Assessment.
+- `riptide assess <guided-sim-root> --json [--input <json>] [--brief] --out <dir>`
+  — render the Engine Output for the Assessment.
+- `riptide validate <assessment-dir> --json` — the gate: intact Engine Output,
+  a schema-valid Assessment Context and the required `assessment.md`
+  sections. Failures list every problem under `data.problems`.
 
 ## The flow
 
@@ -178,7 +181,9 @@ Build the cartography root (`campaign-summary.json`, `risk-surface.json`,
 
 Render the **Engine Output** with `riptide assess`, write the
 **Assessment Context** next to it (Scope Declaration, Depth, Coverage, Gaps, invariant
-provenance, Firing Check results, Breaches), and deliver. Every **Breach**
+provenance, Firing Check results, Breaches), compose `assessment.md` from
+both, and run `riptide validate` on the result. Deliver only once that gate
+passes. Every **Breach**
 carries its seed replay command and a **Causal Trace**. When **Coverage** is
 zero, deliver a Blocker Report instead of an Assessment. →
 [report.md](./report.md), [causal-trace.md](./causal-trace.md)

@@ -1,0 +1,40 @@
+{
+  "schema_version": "assessment-context.v1",
+  "skill_version": "0.12.0",
+  "engine_version": "0.12.0",
+  "depth": "default",
+  "scope_declaration": [
+    {
+      "assumption": "target is programs/lending (two programs found)",
+      "reason": "only programs/lending holds the collateral vault and reads a price account",
+      "override": "/riptide-assess programs/rewards"
+    },
+    {
+      "assumption": "stress axis is collateral_price_drop_bps",
+      "reason": "liquidate reads the oracle price; no other P0 instruction takes an external input",
+      "override": "/riptide-assess focus on interest-rate shocks"
+    }
+  ],
+  "coverage": {
+    "instructions": {
+      "exercised": ["deposit_collateral", "borrow", "liquidate"],
+      "not_exercised": ["withdraw_collateral"]
+    },
+    "actors": {
+      "exercised": ["borrower", "keeper"],
+      "not_exercised": ["admin"]
+    }
+  },
+  "gaps": [
+    {
+      "subject": "withdraw_collateral",
+      "reason": "the health-factor account it reads could not be set up from the IDL alone",
+      "unblock": "a deterministic seed for the health-factor account in the setup seam"
+    },
+    {
+      "subject": "admin",
+      "reason": "admin instructions are outside the Default Depth region (P0 only)",
+      "unblock": "/riptide-assess deep"
+    }
+  ]
+}
