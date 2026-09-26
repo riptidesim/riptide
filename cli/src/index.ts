@@ -3,6 +3,7 @@
 import { Command } from "commander";
 
 import { createAssessCommand } from "./commands/assess.js";
+import { createDeltaCommand } from "./commands/delta.js";
 import { createInitCommand } from "./commands/init.js";
 import { createReadinessCommand } from "./commands/readiness.js";
 import { createReviewCommand } from "./commands/review.js";
@@ -37,6 +38,7 @@ addRootCommand(createReadinessCommand(), "Inspect protocol evidence readiness an
 addRootCommand(createSimCommand(), "Generate, refresh, and run guided Rust simulations");
 addRootCommand(createReviewCommand(), "Review a campaign root, retained case, or guided-sim artifact");
 addRootCommand(createAssessCommand(), "Generate a protocol assessment from a guided-sim root");
+addRootCommand(createDeltaCommand(), "Compare an Assessment with the previous one over the same region");
 addRootCommand(createValidateCommand(), "Check an Assessment's Engine Output, Assessment Context and composed report");
 
 program.addHelpText(
@@ -52,6 +54,7 @@ program.addHelpText(
     "  riptide sim surface .riptide/sim/artifacts/<dir> --sim .riptide/sim",
     "  riptide review <guided-sim-root>",
     "  riptide assess <guided-sim-root>",
+    "  riptide delta <previous-assessment-dir> <assessment-dir>",
     "  riptide validate <assessment-dir>",
     "",
     "Run `riptide <command> --help` for command-specific options.",

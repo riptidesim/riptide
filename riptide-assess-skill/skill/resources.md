@@ -32,9 +32,11 @@
   can fire before it counts as held.
 - [repair.md](./repair.md) — Repair: failure classes, where to restart, the
   repair budget and readiness states.
+- [reuse.md](./reuse.md) — reusing a Workspace: refresh, repair, author
+  flows only for new instructions, rerun the previous region, and the Delta.
 - [report.md](./report.md) — Report: Out-of-Scope Note, Blocker Report, Engine
-  Output, Assessment Context, the composed report, the validation gate and
-  delivery.
+  Output, Assessment Context, the Delta, the composed report, the validation
+  gate and delivery.
 - [causal-trace.md](./causal-trace.md) — the Causal Trace for each Breach.
 - [honesty.md](./honesty.md) — the honesty rules and the three
   runtime-enforced execution-honesty gates.

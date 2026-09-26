@@ -8,7 +8,7 @@ import path from "node:path";
 
 import { z } from "zod";
 
-import { assessmentDigestOf } from "./model.js";
+import { assessmentDigestOf, type AssessmentModel } from "./model.js";
 import { FAMILIES, FLOOR_INVARIANTS, isFloorInvariant, type Family } from "../sim/floor-invariants.js";
 import { canonicalJson, type JsonValue } from "../state-pack/json.js";
 import type { CommandError } from "../contract/index.js";
@@ -108,7 +108,26 @@ export const AssessmentContextSchema = z.object({
         causal_trace: z.string().optional()
       })
       .strict()
-  )
+  ),
+  // Absent on the first Assessment of a region; `riptide delta` computes it on a rerun.
+  delta: z
+    .object({
+      previous: text,
+      metric_moves: z.array(
+        z
+          .object({
+            metric: text,
+            previous: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+            current: z.union([z.string(), z.number(), z.boolean(), z.null()])
+          })
+          .strict()
+      ),
+      gaps_opened: z.array(text),
+      gaps_closed: z.array(text),
+      new_instructions: z.array(z.object({ instruction: text, exercised: z.boolean() }).strict())
+    })
+    .strict()
+    .optional()
 });
 
 export type AssessmentContext = z.infer<typeof AssessmentContextSchema>;
@@ -126,6 +145,8 @@ export interface ValidatedAssessment {
   family: Family;
   invariants: Record<(typeof PROVENANCES)[number] | (typeof INVARIANT_OUTCOMES)[number], number>;
   breaches: number;
+  /** The Assessment the Delta compares against, or null on the first Assessment of a region. */
+  delta_previous: string | null;
 }
 
 export type AssessmentValidation =
@@ -142,7 +163,7 @@ export async function validateAssessment(dir: string, label = dir): Promise<Asse
   const problems: CommandError[] = [];
   const at = { dir, label, rerun: `then rerun \`riptide validate ${label} --json\`` };
 
-  const digest = await checkEngineOutput(at, problems);
+  const digest = (await checkEngineOutput(at, problems))?.assessment_digest ?? null;
   const context = await checkContext(at, problems);
   await checkReport(at, digest, context, problems);
 
@@ -167,22 +188,24 @@ export async function validateAssessment(dir: string, label = dir): Promise<Asse
         breached: context.invariants.filter((inv) => inv.outcome === "breached").length,
         gap: context.invariants.filter((inv) => inv.outcome === "gap").length
       },
-      breaches: context.breaches.length
+      breaches: context.breaches.length,
+      delta_previous: context.delta?.previous ?? null
     }
   };
 }
 
 /** Where the checks read from, and how their messages name it. */
-interface CheckTarget {
+export interface CheckTarget {
   dir: string;
   label: string;
   rerun: string;
 }
 
-async function checkEngineOutput(
+/** The Engine-rendered `assessment.json`, once it is shown to match its own digest. */
+export async function checkEngineOutput(
   { dir, label, rerun }: CheckTarget,
   problems: CommandError[]
-): Promise<string | null> {
+): Promise<AssessmentModel | null> {
   const render = `render the Engine Output with \`riptide assess <guided-sim-root> --out ${label} --json\`, ${rerun}`;
   const raw = await readOptional(path.join(dir, ENGINE_OUTPUT_FILE));
   if (raw === null) {
@@ -214,10 +237,10 @@ async function checkEngineOutput(
     });
     return null;
   }
-  return digest;
+  return parsed as unknown as AssessmentModel;
 }
 
-async function checkContext(
+export async function checkContext(
   { dir, label, rerun }: CheckTarget,
   problems: CommandError[]
 ): Promise<AssessmentContext | null> {
@@ -574,7 +597,7 @@ export function checkSections(
   return true;
 }
 
-function reportHeadings(markdown: string): string[] {
+export function reportHeadings(markdown: string): string[] {
   return [...markdown.matchAll(/^## (.+?)\s*$/gm)].map((match) => match[1]!);
 }
 

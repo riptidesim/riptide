@@ -124,12 +124,17 @@ verdict is one of `ready_to_send`, `needs_guided_sim`,
 by what ran; the input adds protocol nouns and figures, never new Breaches.
 See [`../examples/assessment-input.json`](../examples/assessment-input.json).
 
-Review the surfaced root, then render into the Assessment directory:
+Each Assessment has its own directory under `.riptide/assessments/`: `001`
+for the first, and the next number for each rerun (see
+[reuse.md](./reuse.md)). Keep every Assessment under its own name; never
+overwrite an earlier one. `riptide assess` refuses an `--out` directory that
+already holds an `assessment-context.json` (`assess_out_holds_assessment`).
+Review the surfaced root, then render into the new Assessment directory:
 
 ```bash
 riptide review <guided-sim-root> --json
-mkdir -p .riptide/assessment
-riptide assess <guided-sim-root> --json --brief --input .riptide/assessment-input.json --out .riptide/assessment
+mkdir -p .riptide/assessments/001
+riptide assess <guided-sim-root> --json --brief --input .riptide/assessment-input.json --out .riptide/assessments/001
 ```
 
 `riptide assess` is ingest-only: it re-verifies the execution-honesty gates,
@@ -211,12 +216,14 @@ shape is versioned by `schema_version`; every string is non-empty:
   ticks as `**T<n>**` and the transactions of exercised instructions (see
   [causal-trace.md](./causal-trace.md)).
 
+- `delta` is absent on the first Assessment of a region. On a rerun of the
+  previous Assessment's region it is required, and it is exactly `data.delta`
+  from `riptide delta <previous-assessment-dir> <assessment-dir> --json`:
+  `previous`, `metric_moves`, `gaps_opened`, `gaps_closed` and
+  `new_instructions`. The Engine computes it; never edit it (see
+  [reuse.md](./reuse.md)).
+
 A complete example: [`../examples/assessment-context.json`](../examples/assessment-context.json).
-
-Beyond those fields, record the Delta against the previous Assessment in
-this Workspace, when there is one.
-
-Keep every Assessment under its own name; never overwrite an earlier one.
 
 ### Composed assessment.md
 
@@ -232,16 +239,20 @@ Replace the Engine's `assessment.md` with the composed report, in this order:
 5. `## Breaches` — only when there is a Breach: each one headed by its
    invariant ID and seed, with its replay command verbatim and its Causal
    Trace, worded as simulation evidence.
-6. `## Engine Output` — a line `Assessment digest: <assessment_digest from
+6. `## Delta` — only on a rerun: the previous Assessment by name, the
+   metric moves, the Gaps opened and closed, and each new instruction with
+   whether it was exercised, all from the recorded `delta`.
+7. `## Engine Output` — a line `Assessment digest: <assessment_digest from
    assessment.json>`, then the Engine's rendered `assessment.md` verbatim.
 
-The Delta, when present, goes between `## Invariants` and
-`## Engine Output`. Read the Engine's `assessment.md` before replacing it; its
+Read the Engine's `assessment.md` before replacing it; its
 bytes survive unchanged inside the `## Engine Output` section. Compose only
 after the last `riptide assess` render: once `assessment.md` is composed,
 `riptide assess` into the same directory fails with `assess_artifacts_drifted`.
-If a repair needs a new render, delete `assessment.json` and `assessment.md`
-from the Assessment directory, render again, and compose again. A teammate
+If a repair needs a new render before delivery, move the not-yet-delivered
+`assessment-context.json` out of the Assessment directory, delete
+`assessment.json` and `assessment.md`, render again, then put the Assessment
+Context back and compose again. A teammate
 reproduces the Engine Output by rendering into a fresh `--out` directory and
 comparing `assessment.json`.
 
@@ -250,7 +261,7 @@ comparing `assessment.json`.
 The Assessment is not complete until the gate passes:
 
 ```bash
-riptide validate .riptide/assessment --json
+riptide validate .riptide/assessments/001 --json
 ```
 
 It checks that `assessment.json` still matches its digest, that
@@ -261,7 +272,10 @@ is `held` or `breached` without a `fired` Firing Check, that every
 `breached` invariant has a Breach carrying its exact pinned replay command and
 a Causal Trace that cites ticks, and that `assessment.md` opens with the five
 required sections, names every invariant under `## Invariants`, gives every
-Breach's replay command under `## Breaches` and cites the digest. A failure lists every problem under
+Breach's replay command under `## Breaches` and cites the digest. On a rerun
+of the previous Assessment's region it also requires the Delta against that
+Assessment, identical to what `riptide delta` computes, and a `## Delta`
+section naming it. A failure lists every problem under
 `data.problems`, each with a `code` and a `next` repair; fix them all and
 rerun the gate. Never declare completion on a failing gate.
 
@@ -279,15 +293,17 @@ complete:
    summary; or, when nothing breached, the Firing-Checked invariants that held
    and the structural reason each held.
 4. Gaps, each with its unblock.
-5. Paths: `assessment.md`, `assessment.json`, `assessment-context.json`, the
+5. On a rerun, the Delta: the previous Assessment, the metrics that moved,
+   the Gaps opened and closed, and the Coverage of new instructions.
+6. Paths: `assessment.md`, `assessment.json`, `assessment-context.json`, the
    brief, and the evidence pack (`campaign-summary.md`,
    `retention-manifest.json`, `retained/`, any `rerun.sh`).
-6. The exact rerun commands executed: every `riptide sim run`,
+7. The exact rerun commands executed: every `riptide sim run`,
    `riptide sim surface` and `riptide assess` invocation with its options.
-7. The execution-honesty gate results as `riptide assess` printed them.
-8. The boundary: simulation evidence over the declared region, not an audit
+8. The execution-honesty gate results as `riptide assess` printed them.
+9. The boundary: simulation evidence over the declared region, not an audit
    signoff.
-9. Last line: commit `.riptide/` so anyone can rerun this Assessment.
+10. Last line: commit `.riptide/` so anyone can rerun this Assessment.
 
 Cite only section headings the rendered `assessment.md` actually contains.
 Word Breaches as simulation evidence (see [honesty.md](./honesty.md)), never

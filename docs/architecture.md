@@ -297,7 +297,22 @@ is unchanged.
   `assess_artifact_schema_mismatch`, `assess_artifacts_inconsistent`,
   `assess_surface_digest_mismatch`, `assess_honesty_gates_blocked` (with
   the gate report as `data.execution_honesty`), `assess_artifacts_drifted`,
-  `assess_failed`.
+  `assess_out_holds_assessment` (the `--out` directory already holds an
+  `assessment-context.json`: an Assessment is never overwritten, so the
+  rerun renders into the next name beside it), `assess_failed`.
+- **`delta <previous-dir> <current-dir>`**: the deterministic comparison of
+  two Assessments of the same declared region, read from both Engine Outputs
+  and Assessment Contexts. The region is the Depth plus the swept axes,
+  bins, seed policy and run budget (a correctness Assessment's guided-sim
+  iteration count). `data` is the `delta-cli.v1` result: both directories
+  and digests, the region, and `data.delta`, which the Skill copies verbatim
+  into the rerun's Assessment Context: `previous` (the earlier directory's
+  name), `metric_moves` (every Engine Output figure and invariant outcome
+  that changed, sorted by metric), `gaps_opened`, `gaps_closed` and
+  `new_instructions` (each with whether it was exercised). Failures:
+  `delta_same_assessment`, `delta_assessment_invalid` (with every problem
+  as `data.problems`), `delta_region_mismatch` (with both regions),
+  `delta_failed`.
 - **`validate`**: the gate the Skill runs on whatever it delivers. It
   recognises the output from the one agent-written file in the directory
   and reads only. An **Assessment** (`assessment-context.json`, or Engine
@@ -305,7 +320,7 @@ is unchanged.
   `assessment_digest` (Engine Output is never edited),
   `assessment-context.json` is a valid `assessment-context.v1` Assessment
   Context (versions, Depth, Scope Declaration, Coverage, Gaps, family,
-  invariants and Breaches) with at least one exercised instruction and a Gap for every
+  invariants, Breaches and the Delta) with at least one exercised instruction and a Gap for every
   unexercised instruction and actor. Every Floor Invariant of the family is
   reported with `floor` provenance and no other invariant is; an invariant
   counts as `held` or `breached` only when its Firing Check `fired`, and one
@@ -317,7 +332,12 @@ is unchanged.
   `## Scope Declaration`, `## Coverage`, `## Gaps`, `## Invariants` (naming
   every invariant) and `## Engine Output`, the last citing the digest; with a
   Breach, `## Breaches` sits between `## Invariants` and `## Engine Output`
-  and gives every replay command. An **Out-of-Scope Note** (`out-of-scope-note.json`,
+  and gives every replay command. Assessments sit side by side under names
+  that sort in the order they were written (`.riptide/assessments/001`,
+  `002`, …). When an earlier one ran the same region, the Assessment Context
+  carries the Delta `riptide delta` computes against the latest such
+  Assessment, unedited, and `## Delta` sits after `## Invariants` and any
+  `## Breaches`, before `## Engine Output`, naming it. An **Out-of-Scope Note** (`out-of-scope-note.json`,
   `out-of-scope-note.v1`: a `not-economic-protocol` verdict with evidence,
   its override and code-level auditing referrals) with an
   `out-of-scope-note.md` opening `## Classification`, `## Code-Level
@@ -329,7 +349,9 @@ is unchanged.
   risk-surface section (`Coverage`, `Engine Output`, `Region Coverage`,
   `Risk Surface`, `Invariants`, `Breaches`, `Delta`). `data` is the
   `validate-cli.v1` result, with the output as `data.kind`
-  (`assessment`, `out-of-scope-note` or `blocker-report`). A failure's
+  (`assessment`, `out-of-scope-note` or `blocker-report`); an Assessment's
+  `data.delta_previous` names the Assessment its Delta compares against, or
+  is `null` on the first one of a region. A failure's
   `error` is the first problem, `data.problems` lists them all and
   `data.kind` names the output when one was recognised. Failures:
   `validate_dir_not_found`, `validate_output_missing`,
@@ -343,7 +365,9 @@ is unchanged.
   `validate_breach_invariant_mismatch`, `validate_breach_replay_missing`,
   `validate_breach_replay_unpinned`, `validate_breach_causal_trace_missing`,
   `validate_breach_causal_trace_uncited`, `validate_report_invariant_unlisted`,
-  `validate_report_breach_unlisted`,
+  `validate_report_breach_unlisted`, `validate_delta_missing`,
+  `validate_delta_previous_mismatch`, `validate_delta_mismatch`,
+  `validate_report_delta_unlinked`,
   `validate_output_malformed`, `validate_output_schema_unsupported`,
   `validate_output_schema_invalid`, `validate_report_missing`,
   `validate_report_section_missing`, `validate_report_section_order`,

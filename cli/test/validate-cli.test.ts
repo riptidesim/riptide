@@ -207,7 +207,8 @@ test("validate --json: a complete Assessment passes the gate", async () => {
     gaps: 3,
     family: "lending",
     invariants: { floor: 2, agent: 1, held: 1, breached: 1, gap: 1 },
-    breaches: 1
+    breaches: 1,
+    delta_previous: null
   });
 });
 

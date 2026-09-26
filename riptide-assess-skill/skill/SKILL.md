@@ -124,7 +124,10 @@ every one of them: each writes one envelope to stdout, and on failure its
   as held and every Breach with its pinned replay command and Causal Trace,
   the required `assessment.md` sections), an Out-of-Scope
   Note or a Blocker Report, and names it as `data.kind`. Failures list every
-  problem under `data.problems`.
+  problem under `data.problems`. On a rerun it also requires the Delta.
+- `riptide delta <previous-assessment-dir> <assessment-dir> --json` — the
+  deterministic Delta between two Assessments of the same region, as
+  `data.delta`.
 
 ## The flow
 
@@ -135,10 +138,13 @@ starts (`riptide-assess: setup — generating the sim crate`), so a long run doe
 not look hung. A stage may be handed to a subagent where the host supports
 one; nothing in the flow requires it.
 
-When `.riptide/` already exists, reuse it: keep the authored adapter, flows,
-invariants and sweep, refresh builders from the current IDL, repair what broke,
-and author flows only for new instructions. Rerun the region the previous
-Assessment declared.
+When the Workspace already exists, reuse it: keep the authored adapter,
+flows, invariants and sweep, refresh builders from the current IDL, rebuild,
+repair what broke, and author flows only for new instructions. Rerun the
+region the previous Assessment declared, render the new Assessment under its
+own name in `.riptide/assessments/`, and record the **Delta** that
+`riptide delta` computes against the previous one. The Delta section is
+required on reruns. → [reuse.md](./reuse.md)
 
 ### 1. Classify
 
@@ -193,9 +199,10 @@ Build the cartography root (`campaign-summary.json`, `risk-surface.json`,
 
 ### 8. Report
 
-Render the **Engine Output** with `riptide assess`, write the
+Render the **Engine Output** with `riptide assess` into a new Assessment
+directory, write the
 **Assessment Context** next to it (Scope Declaration, Depth, Coverage, Gaps, invariant
-provenance, Firing Check results, Breaches), compose `assessment.md` from
+provenance, Firing Check results, Breaches, and the Delta on a rerun), compose `assessment.md` from
 both, and run `riptide validate` on the result. Deliver only once that gate
 passes. Every **Breach**
 carries its exact seed replay command against the pinned Engine and a

@@ -303,7 +303,7 @@ test("the Report stage writes the Assessment Context and passes the validation g
 
   assert.match(report, /`assessment-context\.json`/);
   assert.ok(report.includes(`"schema_version": "${example.schema_version}"`), "report.md and the example disagree on the schema version");
-  assert.match(report, /riptide validate \.riptide\/assessment --json/);
+  assert.match(report, /riptide validate \.riptide\/assessments\/001 --json/);
   assert.match(report, /Never declare completion on a failing gate/);
   assert.match(report, /Compose only\s+after the last `riptide assess` render/);
   let cursor = 0;
@@ -410,4 +410,36 @@ test("SKILL.md names one Version Pin, the CLI package version, and the Assessmen
   const pins = [...body.matchAll(/\*\*Version Pin:\*\* `([^`]+)`/g)].map((match) => match[1]);
   assert.deepEqual(pins, [version]);
   assert.match(report, /"engine_version": "<the Version Pin>"/);
+});
+
+test("the reuse stage refreshes, repairs and reruns the previous region, and requires the Delta on reruns", async () => {
+  const body = await skillBody();
+  const reuse = await readFile(path.join(SKILL_DIR, "reuse.md"), "utf8");
+  const report = await readFile(path.join(SKILL_DIR, "report.md"), "utf8");
+
+  assert.match(body, /\[reuse\.md\]\(\.\/reuse\.md\)/);
+  assert.match(body, /`riptide delta <previous-assessment-dir> <assessment-dir> --json`/);
+  assert.match(body, /Delta section is\s+required on reruns/);
+
+  assert.match(reuse, /riptide sim refresh --adapter \.riptide\/adapters\/<program>\.toml --dir \.riptide\/sim --json/);
+  assert.match(reuse, /\*\*Repair broken flows\.\*\*/);
+  assert.match(reuse, /\*\*Author flows only for new instructions\.\*\*/);
+  assert.match(reuse, /\*\*Rerun the same region\.\*\*/);
+  assert.match(reuse, /riptide delta \.riptide\/assessments\/001 \.riptide\/assessments\/002 --json/);
+  assert.match(reuse, /computed by the Engine, never by the agent/);
+  assert.match(reuse, /Delta section is required on reruns/);
+  assert.match(reuse, /never overwritten/);
+
+  assert.match(report, /--out \.riptide\/assessments\/001/);
+  assert.match(report, /never\s+overwrite an earlier one/);
+  for (const field of ["previous", "metric_moves", "gaps_opened", "gaps_closed", "new_instructions"]) {
+    assert.ok(report.includes(`\`${field}\``), `report.md does not document the Delta field ${field}`);
+    assert.ok(reuse.includes(`\`${field}\``), `reuse.md does not document the Delta field ${field}`);
+  }
+  let cursor = 0;
+  for (const section of ["Invariants", "Breaches", "Delta", "Engine Output"]) {
+    const index = report.indexOf(`\`## ${section}\``, cursor);
+    assert.notEqual(index, -1, `report.md does not order the \`## ${section}\` section`);
+    cursor = index;
+  }
 });

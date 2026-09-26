@@ -43,6 +43,8 @@ inputs, not disposable scaffolding:
   the smoke used a one-seed override.
 - Any other changed persona, flow, invariant, setup seam or sweep is recorded
   with the validation reason for the change.
+- The full rerun procedure, from refresh to the Delta, is in
+  [reuse.md](./reuse.md).
 - After IDL changes, refresh the generated builders without overwriting
   authored flows:
 

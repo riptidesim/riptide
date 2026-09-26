@@ -5,7 +5,8 @@
 
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -34,6 +35,7 @@ import {
   type ExecutionHonestyReport
 } from "../sim/honesty-gates.js";
 import type { AssessmentNarrative } from "../assess/model.js";
+import { ASSESSMENT_CONTEXT_FILE } from "../assess/context.js";
 import { generateAssessmentNarrative } from "../assess/narrative.js";
 import { renderAssessmentBrief } from "../assess/render-brief.js";
 import { renderAssessmentHtml } from "../assess/render-html.js";
@@ -93,7 +95,11 @@ export interface AssessCommandDeps extends CommandIO {
 }
 
 /** Thrown for CLI-input problems (bad flag, malformed input file). Message-first. */
-export type AssessmentInputErrorCode = "assess_input_not_found" | "assess_input_unreadable" | "assess_input_invalid";
+export type AssessmentInputErrorCode =
+  | "assess_input_not_found"
+  | "assess_input_unreadable"
+  | "assess_input_invalid"
+  | "assess_out_holds_assessment";
 
 export class AssessmentInputError extends Error {
   readonly hint: string | undefined;
@@ -148,6 +154,8 @@ export async function runAssess(
 
   try {
     const root = path.resolve(cwd, campaignRoot);
+    const outDir = options.out ? path.resolve(cwd, options.out) : root;
+    await assertNoAssessmentAt(outDir, cwd);
     const inputs = await resolveInputs(cwd, options);
 
     // The reviewer-facing root label is repo/workspace-relative (R1): it is the
@@ -180,7 +188,6 @@ export async function runAssess(
     const markdown = renderAssessmentMarkdown(emittedModel, narrative);
     const json = serializeAssessment(emittedModel);
 
-    const outDir = options.out ? path.resolve(cwd, options.out) : root;
     const jsonPath = path.join(outDir, ASSESSMENT_JSON_FILE);
     const mdPath = path.join(outDir, ASSESSMENT_MD_FILE);
     if (executionHonesty) {
@@ -312,6 +319,29 @@ async function readRecordedHonesty(root: string): Promise<ExecutionHonestyReport
   } catch {
     return null;
   }
+}
+
+/**
+ * An Assessment, once its Assessment Context is written, is never overwritten:
+ * each rerun renders into its own directory, named after the last one.
+ */
+async function assertNoAssessmentAt(outDir: string, cwd: string): Promise<void> {
+  if (!existsSync(path.join(outDir, ASSESSMENT_CONTEXT_FILE))) return;
+  const label = path.relative(cwd, outDir) || ".";
+  const parent = path.dirname(outDir);
+  const numbered = (await readdir(parent)).filter((name) => /^\d+$/.test(name));
+  const next =
+    numbered.length > 0 && numbered.includes(path.basename(outDir))
+      ? path.join(
+          path.relative(cwd, parent),
+          String(Math.max(...numbered.map(Number)) + 1).padStart(Math.max(...numbered.map((name) => name.length)), "0")
+        )
+      : `a new directory beside ${label}`;
+  throw new AssessmentInputError(
+    `${label} already holds an Assessment (${ASSESSMENT_CONTEXT_FILE}); an Assessment is never overwritten`,
+    `render into ${next} with \`riptide assess --out\`, then compare it with \`riptide delta ${label} <new-dir> --json\``,
+    "assess_out_holds_assessment"
+  );
 }
 
 async function assertAssessmentArtifactsStableAtEmit(input: {

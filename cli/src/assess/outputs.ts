@@ -22,6 +22,7 @@ import {
   validateAssessment,
   type ValidatedAssessment
 } from "./context.js";
+import { checkRerunDelta } from "./delta.js";
 import type { CommandError } from "../contract/index.js";
 
 export const OUT_OF_SCOPE_NOTE_SCHEMA_VERSION = "out-of-scope-note.v1" as const;
@@ -158,9 +159,11 @@ export async function validateOutput(dir: string, label = dir): Promise<OutputVa
 
   if (kind === "assessment") {
     const validation = await validateAssessment(dir, label);
-    return validation.ok
+    const problems = validation.ok ? [] : validation.problems;
+    await checkRerunDelta(dir, label, problems);
+    return validation.ok && problems.length === 0
       ? { ok: true, result: { kind, ...validation.result } }
-      : { ok: false, kind, problems: validation.problems };
+      : { ok: false, kind, problems };
   }
 
   const problems: CommandError[] = [];
