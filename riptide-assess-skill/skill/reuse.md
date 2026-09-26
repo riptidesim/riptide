@@ -18,8 +18,7 @@ they are the region to rerun.
 
 The new Assessment renders into the next name. An Assessment already written
 is never overwritten: `riptide assess --out` into a directory that holds an
-`assessment-context.json` fails with `assess_out_holds_assessment` and names
-the next directory in `error.next`.
+`assessment-context.json` fails with `assess_out_holds_assessment`.
 
 ## The rerun, stage by stage
 
@@ -52,9 +51,11 @@ starts from what the Workspace already holds.
 5. **Rerun the same region.** Leave `[sim.sweep]` (`name`, `values`,
    `seeds_per_value`) as it was, rerun the Firing Check for every invariant,
    then run the full sweep with the same `riptide sim run` options the
-   previous Assessment ran (its `--flows` and any `--seed`) and surface it. A changed
-   region is a new region: it gets no Delta, and the Scope Declaration
-   records the change and why.
+   previous Assessment ran (its `--flows` and any `--seed`) and surface it.
+   `riptide delta` checks the Depth, swept axes, bins, seed policy and run
+   budget (a correctness Assessment's iteration count); keeping `--flows`
+   the same is the Skill's job. A changed region is a new region: it gets no
+   Delta, and the Scope Declaration records the change and why.
 6. **Report into the next name.** Render the Engine Output into the next
    Assessment directory, write its Assessment Context, then compute the
    Delta:

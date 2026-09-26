@@ -6,7 +6,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -321,25 +321,13 @@ async function readRecordedHonesty(root: string): Promise<ExecutionHonestyReport
   }
 }
 
-/**
- * An Assessment, once its Assessment Context is written, is never overwritten:
- * each rerun renders into its own directory, named after the last one.
- */
+/** An Assessment, once its Assessment Context is written, is never overwritten: each rerun renders into its own directory. */
 async function assertNoAssessmentAt(outDir: string, cwd: string): Promise<void> {
   if (!existsSync(path.join(outDir, ASSESSMENT_CONTEXT_FILE))) return;
   const label = path.relative(cwd, outDir) || ".";
-  const parent = path.dirname(outDir);
-  const numbered = (await readdir(parent)).filter((name) => /^\d+$/.test(name));
-  const next =
-    numbered.length > 0 && numbered.includes(path.basename(outDir))
-      ? path.join(
-          path.relative(cwd, parent),
-          String(Math.max(...numbered.map(Number)) + 1).padStart(Math.max(...numbered.map((name) => name.length)), "0")
-        )
-      : `a new directory beside ${label}`;
   throw new AssessmentInputError(
     `${label} already holds an Assessment (${ASSESSMENT_CONTEXT_FILE}); an Assessment is never overwritten`,
-    `render into ${next} with \`riptide assess --out\`, then compare it with \`riptide delta ${label} <new-dir> --json\``,
+    `render into a new Assessment directory beside ${label} with \`riptide assess --out\`, then compare the two with \`riptide delta ${label} <new-dir> --json\``,
     "assess_out_holds_assessment"
   );
 }

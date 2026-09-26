@@ -15,6 +15,8 @@ import { runAssess } from "../src/commands/assess.js";
 import { runDelta } from "../src/commands/delta.js";
 import { runSimSurface } from "../src/commands/sim.js";
 import { runValidate } from "../src/commands/validate.js";
+import { assessmentDigestOf } from "../src/assess/model.js";
+import { canonicalJson, type JsonValue } from "../src/state-pack/json.js";
 
 const EXAMPLE_CONTEXT = path.resolve(process.cwd(), "..", "riptide-assess-skill", "examples", "assessment-context.json");
 const PREVIOUS = ".riptide/assessments/001";
@@ -354,6 +356,19 @@ test("delta --json: an Assessment compared with itself, or one missing its files
   }
 });
 
+test("delta --json: Engine Output of another schema version is a coded error, not a crash", async () => {
+  const cwd = await rerunWorkspace();
+  const file = path.join(cwd, PREVIOUS, "assessment.json");
+  const { assessment_digest: _digest, ...facts } = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+  const older = { ...facts, schema_version: "assessment.v0" };
+  await writeFile(file, canonicalJson({ ...older, assessment_digest: assessmentDigestOf(older) } as JsonValue));
+
+  const { exitCode, envelope } = await delta(cwd);
+  assert.equal(exitCode, 1);
+  assert.equal(envelope.error!.code, "delta_assessment_invalid");
+  assert.ok(problemCodes(envelope).includes("delta_engine_output_unsupported"), JSON.stringify(envelope.data?.problems));
+});
+
 test("delta: without --json the moves go to stdout", async () => {
   const cwd = await rerunWorkspace();
   const result = await drive(cwd, (io) => runDelta(PREVIOUS, CURRENT, {}, io));
@@ -430,6 +445,6 @@ test("assess --json: an Assessment already written is never overwritten", async 
   assert.equal(again.exitCode, 1);
   const envelope = JSON.parse(again.stdout) as Envelope;
   assert.equal(envelope.error!.code, "assess_out_holds_assessment");
-  assert.match(envelope.error!.next, /\.riptide\/assessments\/003/);
+  assert.match(envelope.error!.next, /new Assessment directory beside \.riptide\/assessments\/001/);
   assert.equal(await readFile(path.join(cwd, PREVIOUS, "assessment.json"), "utf8"), before);
 });

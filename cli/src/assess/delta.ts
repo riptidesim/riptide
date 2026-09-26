@@ -17,7 +17,7 @@ import {
   sectionBody,
   type AssessmentContext
 } from "./context.js";
-import type { AssessmentModel } from "./model.js";
+import { ASSESSMENT_SCHEMA_VERSION, type AssessmentModel } from "./model.js";
 import { canonicalJson, type JsonValue } from "../state-pack/json.js";
 import type { CommandError } from "../contract/index.js";
 
@@ -48,6 +48,13 @@ export async function loadAssessment(
   const problems: CommandError[] = [];
   const at = { dir, label, rerun };
   const model = await checkEngineOutput(at, problems);
+  if (model !== null && model.schema_version !== ASSESSMENT_SCHEMA_VERSION) {
+    problems.push({
+      code: "delta_engine_output_unsupported",
+      message: `${label} assessment.json schema_version is ${JSON.stringify(model.schema_version ?? null)}, expected ${JSON.stringify(ASSESSMENT_SCHEMA_VERSION)}`,
+      next: `render ${label} again with the pinned Engine, ${rerun}`
+    });
+  }
   const context = await checkContext(at, problems);
   if (problems.length > 0 || model === null || context === null) return { ok: false, problems };
   return { ok: true, assessment: { name: path.basename(dir), label, model, context } };

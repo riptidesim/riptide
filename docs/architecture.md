@@ -299,7 +299,7 @@ is unchanged.
   the gate report as `data.execution_honesty`), `assess_artifacts_drifted`,
   `assess_out_holds_assessment` (the `--out` directory already holds an
   `assessment-context.json`: an Assessment is never overwritten, so the
-  rerun renders into the next name beside it), `assess_failed`.
+  rerun renders into a new directory beside it), `assess_failed`.
 - **`delta <previous-dir> <current-dir>`**: the deterministic comparison of
   two Assessments of the same declared region, read from both Engine Outputs
   and Assessment Contexts. The region is the Depth plus the swept axes,
@@ -311,7 +311,7 @@ is unchanged.
   that changed, sorted by metric), `gaps_opened`, `gaps_closed` and
   `new_instructions` (each with whether it was exercised). Failures:
   `delta_same_assessment`, `delta_assessment_invalid` (with every problem
-  as `data.problems`), `delta_region_mismatch` (with both regions),
+  as `data.problems`, including `delta_engine_output_unsupported`), `delta_region_mismatch` (with both regions),
   `delta_failed`.
 - **`validate`**: the gate the Skill runs on whatever it delivers. It
   recognises the output from the one agent-written file in the directory
