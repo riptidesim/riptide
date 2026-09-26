@@ -8,7 +8,7 @@ verification and not a mainnet prediction.
 
 ## Use
 
-Install the skill in one step. In Claude Code:
+Install the Skill in one step. In Claude Code:
 
 ```text
 /plugin marketplace add riptidesim/riptide

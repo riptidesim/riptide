@@ -6,13 +6,15 @@
 //   node scripts/release.mjs publish [--dry-run]
 //                                             preflight, test, then `npm publish` the CLI
 //
-// `--root <dir>` points any subcommand at another checkout.
+// `--root <dir>` points any subcommand at another checkout; `RIPTIDE_RELEASE_NPM`
+// names the npm executable to run.
 
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+const NPM = process.env.RIPTIDE_RELEASE_NPM || "npm";
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
 const CLI_PACKAGE = "cli/package.json";
@@ -143,14 +145,14 @@ function checkScope(root, name) {
   if (scope === null) return;
   let user;
   try {
-    user = run(root, "npm", ["whoami"]).trim();
+    user = run(root, NPM, ["whoami"]).trim();
   } catch {
     fail("not logged in to npm: run `npm login` first");
   }
   if (user === scope) return;
   let members = {};
   try {
-    members = JSON.parse(run(root, "npm", ["org", "ls", scope, "--json"]));
+    members = JSON.parse(run(root, NPM, ["org", "ls", scope, "--json"]));
   } catch {
     fail(`npm user ${user} cannot publish to the @${scope} scope: it is neither that user nor an org ${user} belongs to`);
   }
@@ -166,15 +168,15 @@ function publish(root, dryRun) {
   }
   let published = "";
   try {
-    published = run(root, "npm", ["view", `${name}@${version}`, "version"]).trim();
+    published = run(root, NPM, ["view", `${name}@${version}`, "version"]).trim();
   } catch {
     // Not on the registry yet.
   }
   if (published === version) fail(`${name}@${version} is already published: bump the version first`);
   if (!dryRun) checkScope(root, name);
 
-  run(root, "npm", ["test"], { inherit: true });
-  run(path.join(root, "cli"), "npm", ["publish", "--access", "public", ...(dryRun ? ["--dry-run"] : [])], {
+  run(root, NPM, ["test"], { inherit: true });
+  run(path.join(root, "cli"), NPM, ["publish", "--access", "public", ...(dryRun ? ["--dry-run"] : [])], {
     inherit: true
   });
   process.stdout.write(

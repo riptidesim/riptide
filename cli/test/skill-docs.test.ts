@@ -553,9 +553,72 @@ test("the release script bumps the CLI version and every Version Pin together, a
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
 
-  const source = await readFile(script, "utf8");
-  assert.match(source, /\["publish", "--access", "public"/);
+test("the release script publishes the CLI to npm only from a clean release commit it can publish to", async () => {
+  const script = path.join(REPO_ROOT, "scripts", "release.mjs");
+  const root = await mkdtemp(path.join(os.tmpdir(), "riptide-publish-"));
+  const log = path.join(root, "npm.log");
+  const npm = path.join(root, "npm-stub.mjs");
+  // Stands in for npm: logs each call; the version is unpublished, the user is NPM_STUB_USER, and no org has members.
+  await writeFile(
+    npm,
+    [
+      "#!/usr/bin/env node",
+      'import { appendFileSync } from "node:fs";',
+      "const args = process.argv.slice(2);",
+      `appendFileSync(${JSON.stringify(log)}, args.join(" ") + "\\n");`,
+      'if (args[0] === "view") process.exit(1);',
+      'if (args[0] === "whoami") process.stdout.write(`${process.env.NPM_STUB_USER}\\n`);',
+      'if (args[0] === "org") process.exit(1);'
+    ].join("\n"),
+    { mode: 0o755 }
+  );
+  const publish = (user = "riptide") =>
+    spawnSync(process.execPath, [script, "publish", "--root", path.join(root, "repo")], {
+      encoding: "utf8",
+      env: { ...process.env, RIPTIDE_RELEASE_NPM: npm, NPM_STUB_USER: user }
+    });
+  const git = (...args: string[]) => spawnSync("git", args, { cwd: path.join(root, "repo"), encoding: "utf8" });
+
+  try {
+    for (const file of [
+      path.join("cli", "package.json"),
+      path.join("cli", "npm-shrinkwrap.json"),
+      path.join(".claude-plugin", "marketplace.json")
+    ]) {
+      await mkdir(path.dirname(path.join(root, "repo", file)), { recursive: true });
+      await cp(path.join(REPO_ROOT, file), path.join(root, "repo", file));
+    }
+    await cp(SKILL_DIR, path.join(root, "repo", "riptide-assess-skill", "skill"), { recursive: true });
+    git("init", "-q");
+    git("add", "-A");
+    git("-c", "user.name=release", "-c", "user.email=release@example.test", "commit", "-qm", "release");
+
+    await writeFile(path.join(root, "repo", "stray.txt"), "uncommitted");
+    const dirty = publish();
+    assert.equal(dirty.status, 1);
+    assert.match(dirty.stderr, /working tree is not clean/);
+    await rm(path.join(root, "repo", "stray.txt"));
+
+    const foreign = publish("someone-else");
+    assert.equal(foreign.status, 1);
+    assert.match(foreign.stderr, /npm user someone-else cannot publish to the @riptide scope/);
+    assert.doesNotMatch(await readFile(log, "utf8"), /^publish/m);
+    await rm(log);
+
+    const published = publish();
+    assert.equal(published.status, 0, published.stderr);
+    const { name, version } = await cliPackage();
+    assert.deepEqual((await readFile(log, "utf8")).trim().split("\n"), [
+      `view ${name}@${version} version`,
+      "whoami",
+      "test",
+      "publish --access public"
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("the reuse stage refreshes, repairs and reruns the previous region, and requires the Delta on reruns", async () => {
