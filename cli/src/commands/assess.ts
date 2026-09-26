@@ -45,6 +45,7 @@ import {
   shouldUseColor,
   type Colorizer
 } from "../display/index.js";
+import { resolveCommandIO, type CommandIO } from "../contract/index.js";
 import { renderCliError } from "../errors/render.js";
 
 const execFileAsync = promisify(execFile);
@@ -81,10 +82,7 @@ export interface AssessOptions {
   quiet?: boolean;
 }
 
-export interface AssessCommandDeps {
-  stdoutWrite?: (chunk: string) => void;
-  stderrWrite?: (chunk: string) => void;
-  cwd?: string;
+export interface AssessCommandDeps extends CommandIO {
   color?: boolean;
 }
 
@@ -137,9 +135,9 @@ export async function runAssess(
   options: AssessOptions,
   deps: AssessCommandDeps = {}
 ): Promise<number> {
-  const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
-  const stderr = deps.stderrWrite ?? ((chunk: string) => process.stderr.write(chunk));
-  const cwd = path.resolve(deps.cwd ?? process.cwd());
+  const io = resolveCommandIO(deps);
+  const { stdout, stderr } = io;
+  const cwd = path.resolve(io.cwd);
 
   try {
     const root = path.resolve(cwd, campaignRoot);

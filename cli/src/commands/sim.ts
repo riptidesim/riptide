@@ -8,6 +8,7 @@ import chalk from "chalk";
 import { Command } from "commander";
 
 import { runReview, type ReviewOptions } from "./review.js";
+import { resolveCommandIO, type CommandIO, type ResolvedCommandIO } from "../contract/index.js";
 import { generateSim, type SimGenerateOptions } from "../sim/generate.js";
 import { lintSimManifest, renderSimManifestLintReport } from "../sim/manifest.js";
 import {
@@ -28,7 +29,9 @@ import {
 
 const dim = (value: string) => chalk.hex("#A8A8A8")(value);
 
-export function createSimCommand(): Command {
+export type SimCommandDeps = CommandIO;
+
+export function createSimCommand(deps: SimCommandDeps = {}): Command {
   const command = new Command("sim").description(
     "Generate, refresh, and run guided Rust simulations"
   );
@@ -44,19 +47,7 @@ export function createSimCommand(): Command {
       false
     )
     .action(async (options: SimGenerateOptions) => {
-      try {
-        const result = await generateSim(process.cwd(), options);
-        process.stderr.write(
-          chalk.bold(`riptide sim: generated guided Rust simulation at ${chalk.cyan(result.dir)}\n`)
-        );
-        process.stderr.write(dim(`  adapter ${result.adapterPath}\n`));
-        process.stderr.write(dim(`  idl ${result.idlPath}\n`));
-        process.stderr.write(dim(`  manifest ${result.manifestPath}\n`));
-        process.stderr.write(dim(`  bootstrap ${result.bootstrapManifestPath}\n`));
-      } catch (err) {
-        process.stderr.write(chalk.red(`riptide sim: ${errMessage(err)}\n`));
-        process.exitCode = 2;
-      }
+      process.exitCode = await runSimGenerate(options, deps);
     });
 
   command
@@ -65,15 +56,7 @@ export function createSimCommand(): Command {
     .requiredOption("--adapter <path-or-name>", "Adapter TOML to refresh against")
     .option("--dir <path>", "Simulation crate directory", ".riptide/sim")
     .action(async (options: SimGenerateOptions) => {
-      try {
-        const result = await generateSim(process.cwd(), { ...options, regenTypesOnly: true });
-        process.stderr.write(
-          chalk.bold(`riptide sim: refreshed generated Rust files in ${chalk.cyan(result.dir)}\n`)
-        );
-      } catch (err) {
-        process.stderr.write(chalk.red(`riptide sim: ${errMessage(err)}\n`));
-        process.exitCode = 2;
-      }
+      process.exitCode = await runSimRefresh(options, deps);
     });
 
   command
@@ -85,7 +68,7 @@ export function createSimCommand(): Command {
     .option("--seed <hex>", "Deterministic seed as hex")
     .option("--out <dir>", "Write guided-sim JSON artifacts to a directory")
     .action(async (simPath: string, options: RunOptions) => {
-      process.exitCode = await runCargoSim(simPath, options);
+      process.exitCode = await runSimRun(simPath, options, deps);
     });
 
   command
@@ -101,7 +84,7 @@ export function createSimCommand(): Command {
     .option("--sim <path>", "Simulation crate directory holding Riptide.toml", ".riptide/sim")
     .option("--out <dir>", "Directory to write the cartography artifacts (default: the assess root that contains the run)")
     .action(async (runPath: string, options: SurfaceOptions) => {
-      process.exitCode = await runSimSurface(runPath, options);
+      process.exitCode = await runSimSurface(runPath, options, deps);
     });
 
   command
@@ -112,7 +95,7 @@ export function createSimCommand(): Command {
     .requiredOption("--out <path>", "Snapshot JSON output path")
     .option("--overwrite", "Refresh an existing snapshot instead of reusing it", false)
     .action(async (options: ForkOptions) => {
-      process.exitCode = await runSimFork(options);
+      process.exitCode = await runSimFork(options, deps);
     });
 
   command
@@ -120,7 +103,7 @@ export function createSimCommand(): Command {
     .description("Validate a guided simulation Riptide.toml manifest")
     .argument("[path]", "Simulation crate directory or Riptide.toml path", ".riptide/sim")
     .action(async (simPath: string) => {
-      process.exitCode = await runSimLint(simPath);
+      process.exitCode = await runSimLint(simPath, deps);
     });
 
   command
@@ -131,7 +114,7 @@ export function createSimCommand(): Command {
     .option("--json", "Emit a structured JSON review payload", false)
     .option("--quiet", "Suppress interactive banner", false)
     .action(async (artifactPath: string, options: ReviewOptions) => {
-      process.exitCode = await runReview(artifactPath, options, { cwd: process.cwd() });
+      process.exitCode = await runReview(artifactPath, options, deps);
     });
 
   command
@@ -139,24 +122,71 @@ export function createSimCommand(): Command {
     .description("Run one seed with verbose labelled transaction logging")
     .argument("[path]", "Simulation crate path", ".riptide/sim")
     .requiredOption("--seed <hex>", "Deterministic seed as hex")
-    .action(async (simPath: string, options: RunOptions) => {
-      process.exitCode = await runCargoSim(simPath, {
-        ...options,
-        iterations: "1",
-        debug: true
-      });
+    .action(async (simPath: string, options: SimDebugOptions) => {
+      process.exitCode = await runSimDebug(simPath, options, deps);
     });
 
   return command;
 }
 
-export async function runSimLint(simPath: string): Promise<number> {
-  const report = await lintSimManifest(simPath);
-  process.stdout.write(renderSimManifestLintReport(report));
+export async function runSimGenerate(
+  options: SimGenerateOptions,
+  deps: SimCommandDeps = {}
+): Promise<number> {
+  const { stderr, cwd } = resolveCommandIO(deps);
+  try {
+    const result = await generateSim(cwd, { ...options, writeSummary: stderr });
+    stderr(chalk.bold(`riptide sim: generated guided Rust simulation at ${chalk.cyan(result.dir)}\n`));
+    stderr(dim(`  adapter ${result.adapterPath}\n`));
+    stderr(dim(`  idl ${result.idlPath}\n`));
+    stderr(dim(`  manifest ${result.manifestPath}\n`));
+    stderr(dim(`  bootstrap ${result.bootstrapManifestPath}\n`));
+    return 0;
+  } catch (err) {
+    stderr(chalk.red(`riptide sim: ${errMessage(err)}\n`));
+    return 2;
+  }
+}
+
+export async function runSimRefresh(
+  options: SimGenerateOptions,
+  deps: SimCommandDeps = {}
+): Promise<number> {
+  const { stderr, cwd } = resolveCommandIO(deps);
+  try {
+    const result = await generateSim(cwd, { ...options, regenTypesOnly: true, writeSummary: stderr });
+    stderr(chalk.bold(`riptide sim: refreshed generated Rust files in ${chalk.cyan(result.dir)}\n`));
+    return 0;
+  } catch (err) {
+    stderr(chalk.red(`riptide sim: ${errMessage(err)}\n`));
+    return 2;
+  }
+}
+
+export async function runSimRun(
+  simPath: string,
+  options: RunOptions,
+  deps: SimCommandDeps = {}
+): Promise<number> {
+  return runCargoSim(simPath, options, resolveCommandIO(deps));
+}
+
+export async function runSimDebug(
+  simPath: string,
+  options: SimDebugOptions,
+  deps: SimCommandDeps = {}
+): Promise<number> {
+  return runCargoSim(simPath, { ...options, iterations: "1", debug: true }, resolveCommandIO(deps));
+}
+
+export async function runSimLint(simPath: string, deps: SimCommandDeps = {}): Promise<number> {
+  const { stdout, cwd } = resolveCommandIO(deps);
+  const report = await lintSimManifest(simPath, cwd);
+  stdout(renderSimManifestLintReport(report));
   return report.exitCode;
 }
 
-interface RunOptions {
+export interface RunOptions {
   iterations?: string;
   flows?: string;
   seed?: string;
@@ -164,37 +194,46 @@ interface RunOptions {
   out?: string;
 }
 
-interface ForkOptions {
+export interface SimDebugOptions {
+  seed: string;
+}
+
+export interface ForkOptions {
   address: string;
   cluster: string;
   out: string;
   overwrite?: boolean;
 }
 
-interface SurfaceOptions {
+export interface SurfaceOptions {
   sim: string;
   out?: string;
 }
 
-export async function runSimSurface(runPath: string, options: SurfaceOptions): Promise<number> {
+export async function runSimSurface(
+  runPath: string,
+  options: SurfaceOptions,
+  deps: SimCommandDeps = {}
+): Promise<number> {
+  const { stderr, cwd: baseCwd } = resolveCommandIO(deps);
   try {
-    const resolvedRun = path.resolve(process.cwd(), runPath);
+    const resolvedRun = path.resolve(baseCwd, runPath);
     const runFile = resolvedRun.endsWith(".json")
       ? resolvedRun
       : path.join(resolvedRun, "guided-sim-run.json");
     if (!existsSync(runFile)) {
-      process.stderr.write(
+      stderr(
         chalk.red(`riptide sim surface: guided-sim run artifact not found at ${runFile}\n`)
       );
       return 2;
     }
     const runDoc = JSON.parse(await readFile(runFile, "utf8")) as GuidedSimRunDocument;
 
-    const simDir = path.resolve(process.cwd(), options.sim);
+    const simDir = path.resolve(baseCwd, options.sim);
     const manifestPath = path.join(simDir, "Riptide.toml");
     const sweep = await readSweepConfig(manifestPath);
     if (!sweep) {
-      process.stderr.write(
+      stderr(
         chalk.red(
           `riptide sim surface: no [sim.sweep] block in ${manifestPath}; declare a parameter sweep to build a risk surface\n`
         )
@@ -215,55 +254,58 @@ export async function runSimSurface(runPath: string, options: SurfaceOptions): P
       positiveControl,
       lifecycle
     });
-    const outDir = options.out
-      ? path.resolve(process.cwd(), options.out)
-      : path.dirname(simDir);
+    const outDir = options.out ? path.resolve(baseCwd, options.out) : path.dirname(simDir);
     await emitCartographyRoot(artifacts, outDir);
 
-    process.stderr.write(
+    stderr(
       chalk.bold(`riptide sim surface: wrote cartography artifacts to ${chalk.cyan(outDir)}\n`)
     );
-    process.stderr.write(dim(`  campaign-summary.json (id ${artifacts.campaignId})\n`));
-    process.stderr.write(dim(`  risk-surface.json\n`));
-    process.stderr.write(dim(`  retention-manifest.json\n`));
+    stderr(dim(`  campaign-summary.json (id ${artifacts.campaignId})\n`));
+    stderr(dim(`  risk-surface.json\n`));
+    stderr(dim(`  retention-manifest.json\n`));
 
     // Surface the execution-honesty gate status; a failed gate blocks at
     // `riptide assess` (emit) time, so flag it loudly here too.
     const honesty = artifacts.campaignSummary.execution_honesty;
     if (honesty) {
       const blocked = honesty.status === "blocked";
-      process.stderr.write(
+      stderr(
         (blocked ? chalk.red : chalk.green)(
           `  execution-honesty gates: ${honesty.status}\n`
         )
       );
       for (const gate of honesty.gates) {
         const mark = gate.status === "fail" ? chalk.red("✗") : dim("✓");
-        process.stderr.write(`    ${mark} ${gate.id}: ${gate.detail}\n`);
+        stderr(`    ${mark} ${gate.id}: ${gate.detail}\n`);
       }
       if (blocked) {
-        process.stderr.write(
+        stderr(
           chalk.red(`  riptide assess will block this surface until the failing gate(s) pass\n`)
         );
       }
     }
 
-    process.stderr.write(dim(`  next: riptide assess ${path.relative(process.cwd(), outDir) || "."}\n`));
+    stderr(dim(`  next: riptide assess ${path.relative(baseCwd, outDir) || "."}\n`));
     return 0;
   } catch (err) {
-    process.stderr.write(chalk.red(`riptide sim surface: ${errMessage(err)}\n`));
+    stderr(chalk.red(`riptide sim surface: ${errMessage(err)}\n`));
     return 2;
   }
 }
 
-async function runCargoSim(simPath: string, options: RunOptions): Promise<number> {
-  const cwd = path.resolve(process.cwd(), simPath);
+async function runCargoSim(
+  simPath: string,
+  options: RunOptions,
+  io: ResolvedCommandIO
+): Promise<number> {
+  const { stderr } = io;
+  const cwd = path.resolve(io.cwd, simPath);
   const args = ["run", "--release", "--quiet", "--"];
   if (options.iterations) args.push("--iterations", options.iterations);
   if (options.flows) args.push("--flows", options.flows);
   if (options.seed) args.push("--seed", options.seed);
   if (options.debug) args.push("--debug");
-  if (options.out) args.push("--out", path.resolve(process.cwd(), options.out));
+  if (options.out) args.push("--out", path.resolve(io.cwd, options.out));
 
   // Manifest-primary parameter sweep: if Riptide.toml declares [sim.sweep],
   // forward it to the runner. Skipped in --debug (single-seed) mode.
@@ -277,19 +319,23 @@ async function runCargoSim(simPath: string, options: RunOptions): Promise<number
       axes.length === 1
         ? `${axes[0]!.name} over ${axes[0]!.values.length} value(s)`
         : `${axes.length} axes (${axes.map((axis) => axis.name).join(", ")}) over ${coordinates} coordinate(s)`;
-    process.stderr.write(dim(`  sweep ${description} x ${sweep.seedsPerValue} seed(s)\n`));
+    stderr(dim(`  sweep ${description} x ${sweep.seedsPerValue} seed(s)\n`));
   }
 
   if (options.out) {
-    await writeGuidedSimRerunScript(simPath, options);
+    await writeGuidedSimRerunScript(simPath, options, io.cwd);
   }
 
+  // Injected streams cannot be handed to a child as file descriptors, so the
+  // child's output is piped through them; otherwise it inherits the terminal.
   const code: number = await new Promise((resolve, reject) => {
     const child = spawn("cargo", args, {
       cwd,
-      stdio: "inherit",
+      stdio: io.injected ? ["ignore", "pipe", "pipe"] : "inherit",
       env: { ...process.env }
     });
+    child.stdout?.setEncoding("utf8").on("data", io.stdout);
+    child.stderr?.setEncoding("utf8").on("data", stderr);
     child.once("error", reject);
     child.once("close", (closeCode) => resolve(closeCode ?? 1));
   });
@@ -298,16 +344,21 @@ async function runCargoSim(simPath: string, options: RunOptions): Promise<number
   // (positive control + lifecycle) so authoring iterations get early feedback
   // without being stopped. Emit-time enforcement happens at `riptide assess`.
   if (code === 0 && sweep && options.out) {
-    await warnRunGates(cwd, options.out, sweep.name);
+    await warnRunGates(cwd, path.resolve(io.cwd, options.out), sweep.name, stderr);
   }
 
   return code;
 }
 
 /** Evaluate the run-only honesty gates over a freshly written guided-sim-run.json and warn on failures. */
-async function warnRunGates(cwd: string, out: string, sweepName: string): Promise<void> {
+async function warnRunGates(
+  cwd: string,
+  outDir: string,
+  sweepName: string,
+  stderr: (chunk: string) => void
+): Promise<void> {
   try {
-    const runFile = path.join(path.resolve(process.cwd(), out), "guided-sim-run.json");
+    const runFile = path.join(outDir, "guided-sim-run.json");
     if (!existsSync(runFile)) return;
     const runDoc = JSON.parse(await readFile(runFile, "utf8")) as GuidedSimRunDocument;
     const manifestPath = path.join(cwd, "Riptide.toml");
@@ -319,28 +370,32 @@ async function warnRunGates(cwd: string, out: string, sweepName: string): Promis
     ];
     const failed = gates.filter((gate) => gate.status === "fail");
     if (failed.length === 0) return;
-    process.stderr.write(
+    stderr(
       chalk.yellow(
         `  warning: ${failed.length} execution-honesty gate(s) would block at \`riptide assess\`:\n`
       )
     );
     for (const gate of failed) {
-      process.stderr.write(chalk.yellow(`    ✗ ${gate.id}: ${gate.detail}\n`));
+      stderr(chalk.yellow(`    ✗ ${gate.id}: ${gate.detail}\n`));
     }
   } catch {
     // Best-effort warning; never fail the run on gate-evaluation trouble.
   }
 }
 
-async function writeGuidedSimRerunScript(simPath: string, options: RunOptions): Promise<void> {
+async function writeGuidedSimRerunScript(
+  simPath: string,
+  options: RunOptions,
+  baseCwd: string
+): Promise<void> {
   if (!options.out) return;
-  const outDir = path.resolve(process.cwd(), options.out);
+  const outDir = path.resolve(baseCwd, options.out);
   await mkdir(outDir, { recursive: true });
   const parts = [
     "riptide",
     "sim",
     "run",
-    shellQuotePath(path.resolve(process.cwd(), simPath))
+    shellQuotePath(path.resolve(baseCwd, simPath))
   ];
   if (options.iterations) parts.push("--iterations", shellQuotePath(options.iterations));
   if (options.flows) parts.push("--flows", shellQuotePath(options.flows));
@@ -357,13 +412,14 @@ function shellQuotePath(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
-export async function runSimFork(options: ForkOptions): Promise<number> {
-  const outPath = path.resolve(process.cwd(), options.out);
+export async function runSimFork(options: ForkOptions, deps: SimCommandDeps = {}): Promise<number> {
+  const { stdout, stderr, cwd } = resolveCommandIO(deps);
+  const outPath = path.resolve(cwd, options.out);
   try {
     if (existsSync(outPath) && options.overwrite !== true) {
       const raw = await readFile(outPath, "utf8");
       validateReusableSnapshot(raw, options.address, outPath);
-      process.stdout.write(`riptide sim fork: reused cached snapshot ${outPath}\n`);
+      stdout(`riptide sim fork: reused cached snapshot ${outPath}\n`);
       return 0;
     }
 
@@ -374,12 +430,12 @@ export async function runSimFork(options: ForkOptions): Promise<number> {
       JSON.stringify(snapshotJson(options.address, options.cluster, outPath, account), null, 2),
       "utf8"
     );
-    process.stdout.write(
+    stdout(
       `riptide sim fork: wrote ${options.address} from ${options.cluster} to ${outPath}\n`
     );
     return 0;
   } catch (err) {
-    process.stderr.write(chalk.red(`riptide sim fork: ${errMessage(err)}\n`));
+    stderr(chalk.red(`riptide sim fork: ${errMessage(err)}\n`));
     return 2;
   }
 }

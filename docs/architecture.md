@@ -225,6 +225,49 @@ These surfaces are **simulation evidence**, not audit signoff. A run
 verdict describes the declared simulation run, not a security
 attestation on the program.
 
+## Engine command contract
+
+The Engine CLI is an API the Skill drives (ADR 0001), so every command
+runner follows one IO contract, defined in `cli/src/contract/`:
+
+- **Injected streams.** A runner (`runDoctor`, `runInit`, `runSimRun`,
+  ...) takes `stdoutWrite`, `stderrWrite` and `cwd` through its deps and
+  never writes to the process directly. Relative paths resolve against
+  the injected `cwd`. When streams are injected, a child process such as
+  the sim crate's `cargo run` is piped through them instead of inheriting
+  the terminal.
+- **One envelope in `--json` mode.** The runner writes exactly one JSON
+  document to stdout, and its exit code still signals the outcome.
+
+  ```json
+  { "schema_version": "riptide-command.v1", "command": "doctor", "ok": true, "data": { } }
+  ```
+
+- **One error shape.** A failure is the same envelope with `ok: false`
+  and an `error` carrying a stable `code`, a one-line `message` and a
+  `next` field naming the recommended next action. `data` may still
+  carry the partial result when it helps the caller repair.
+
+  ```json
+  {
+    "schema_version": "riptide-command.v1",
+    "command": "doctor",
+    "ok": false,
+    "error": {
+      "code": "doctor_checks_failed",
+      "message": "1 doctor check failed: cargo-build-sbf",
+      "next": "cargo-build-sbf: cargo-build-sbf ships with the Solana CLI — install or repair the Solana CLI"
+    },
+    "data": { }
+  }
+  ```
+
+`doctor --json` is the first command on the envelope: PASS and WARN
+reports are a success envelope carrying the report, a FAIL report is
+`doctor_checks_failed` with the report as `data`, and a report that
+cannot be assembled is `doctor_report_failed`. Other commands keep their
+existing output until they adopt the envelope.
+
 ## Further reading
 
 - [`vision.md`](vision.md) — why this shape, what's in scope, what isn't.

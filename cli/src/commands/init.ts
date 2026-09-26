@@ -23,6 +23,7 @@ import {
 import { runWizard, type WizardAnswers, type WizardDefaults } from "../init/wizard.js";
 import { PROTOCOL_CHOICES, type Protocol } from "../init/personas-catalog.js";
 import { printInitBanner } from "../banner.js";
+import { resolveCommandIO, type CommandIO } from "../contract/index.js";
 
 const SECONDARY_TEXT = "#A8A8A8";
 const dim = (value: string) => chalk.hex(SECONDARY_TEXT)(value);
@@ -45,7 +46,7 @@ export interface InitOptions {
 
 // Injection seam for tests: real wizard talks to a TTY, so callers can
 // supply a fake that returns canned answers without spawning prompts.
-export interface InitDeps {
+export interface InitDeps extends Omit<CommandIO, "cwd"> {
   promptWizard?: (defaults: WizardDefaults) => Promise<WizardAnswers>;
   isTTY?: boolean;
 }
@@ -89,6 +90,7 @@ export function createInitCommand(deps: InitDeps = {}): Command {
 
 export async function runInit(options: InitOptions, deps: InitDeps = {}): Promise<number> {
   const cwd = path.resolve(options.dir);
+  const { stderr } = resolveCommandIO(deps);
 
   try {
     const optionProtocol = normalizeProfileOptions(options.protocol, options.profile);
@@ -124,7 +126,7 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
     });
 
     const programs = result.programNames.map((name) => chalk.cyan(name)).join(", ");
-    process.stderr.write(
+    stderr(
       chalk.bold(
         `riptide init: scaffolded .riptide/ for ${result.programNames.length} ${
           result.programNames.length === 1 ? "program" : "programs"
@@ -133,37 +135,37 @@ export async function runInit(options: InitOptions, deps: InitDeps = {}): Promis
     );
     const summaryByPath = new Map(result.adapters.map((adapter) => [adapter.path, adapter]));
     for (const rel of result.created) {
-      process.stderr.write(dim(`  created ${rel}\n`));
+      stderr(dim(`  created ${rel}\n`));
       const adapter = summaryByPath.get(rel);
       if (adapter?.kind === "defaults") {
-        process.stderr.write(dim(`    ${describeDefaults(adapter)}\n`));
+        stderr(dim(`    ${describeDefaults(adapter)}\n`));
       }
     }
     for (const warning of result.warnings) {
-      process.stderr.write(chalk.yellow(`  warning: ${warning}\n`));
+      stderr(chalk.yellow(`  warning: ${warning}\n`));
     }
 
     const defaulted = result.adapters.filter((adapter) => adapter.kind === "defaults");
-    process.stderr.write("\nNext steps:\n\n");
+    stderr("\nNext steps:\n\n");
     if (defaulted.length > 0) {
-      printDefaultsNextSteps(defaulted);
+      printDefaultsNextSteps(defaulted, stderr);
     } else {
-      printScaffoldNextSteps(`.riptide/adapters/${result.programName}.toml`, useWizardScaffold);
+      printScaffoldNextSteps(`.riptide/adapters/${result.programName}.toml`, useWizardScaffold, stderr);
     }
-    process.stderr.write(
+    stderr(
       dim(`More detail: ${chalk.cyan(".riptide/GETTING-STARTED.md")}\n`)
     );
     return 0;
   } catch (err) {
     if (err instanceof RiptideDirExistsError) {
-      process.stderr.write(chalk.red(`riptide init: ${err.message}\n`));
+      stderr(chalk.red(`riptide init: ${err.message}\n`));
       return 2;
     }
     if (err instanceof ProgramDetectionError) {
-      process.stderr.write(chalk.red(`riptide init: ${err.message}\n`));
+      stderr(chalk.red(`riptide init: ${err.message}\n`));
       return 2;
     }
-    process.stderr.write(
+    stderr(
       chalk.red(`riptide init: scaffold failed: ${errMessage(err)}\n`)
     );
     return 1;
@@ -234,53 +236,56 @@ function normalizeProfileOptions(
  * because the adapters already run, and `/riptide-config` becomes the
  * sharpening step rather than a prerequisite.
  */
-function printDefaultsNextSteps(defaulted: ScaffoldedAdapter[]): void {
+function printDefaultsNextSteps(
+  defaulted: ScaffoldedAdapter[],
+  stderr: (chunk: string) => void
+): void {
   // `sim generate` writes to .riptide/sim by default, so a second
   // program would clobber the first — give each its own crate directory.
   const perProgram = defaulted.length > 1;
   const first = defaulted[0]!;
   const simDir = perProgram ? `.riptide/sim/${first.programName}` : ".riptide/sim";
 
-  process.stderr.write(
+  stderr(
     `  1. Generate and run a simulation${perProgram ? " (one crate per program)" : ""}:\n`
   );
-  process.stderr.write(
+  stderr(
     `     ${chalk.cyan(
       `riptide sim generate --adapter ${first.path}${perProgram ? ` --dir ${simDir}` : ""}`
     )}\n`
   );
-  process.stderr.write(`     ${chalk.cyan(`riptide sim run ${simDir} --flows 8`)}\n`);
-  process.stderr.write(
+  stderr(`     ${chalk.cyan(`riptide sim run ${simDir} --flows 8`)}\n`);
+  stderr(
     `     ${chalk.cyan(`riptide sim surface ${simDir}/artifacts/<dir> --sim ${simDir}`)}\n\n`
   );
   for (const adapter of defaulted.slice(1)) {
-    process.stderr.write(
+    stderr(
       dim(
         `     Then the same for ${adapter.programName}: --adapter ${adapter.path} --dir .riptide/sim/${adapter.programName}\n`
       )
     );
   }
-  if (perProgram) process.stderr.write("\n");
+  if (perProgram) stderr("\n");
 
-  process.stderr.write(
+  stderr(
     `  2. Get the assessment:\n     ${chalk.cyan("riptide assess <guided-sim-root>")}\n\n`
   );
 
   const gaps = defaulted.reduce((total, adapter) => total + adapter.gaps, 0);
-  process.stderr.write("  3. Sharpen what init could not derive — personas, invariants,\n");
-  process.stderr.write(
+  stderr("  3. Sharpen what init could not derive — personas, invariants,\n");
+  stderr(
     `     protocol semantics${
       gaps > 0 ? `, and the ${count(gaps, "gap")} recorded under [lineage]` : ""
     }:\n`
   );
-  process.stderr.write(`     invoke ${chalk.cyan("/riptide-config")} in your coding agent.\n\n`);
+  stderr(`     invoke ${chalk.cyan("/riptide-config")} in your coding agent.\n\n`);
 
-  process.stderr.write(
+  stderr(
     dim(
       "A run over these adapters produces simulation evidence over the inputs they declare — a bounded result, not a safety proof.\n\n"
     )
   );
-  process.stderr.write(
+  stderr(
     dim(
       `Advanced: run ${chalk.cyan("riptide init --wizard --force")} only if you want to replace these IDL-derived adapters with questionnaire-selected starter files.\n\n`
     )
@@ -288,20 +293,24 @@ function printDefaultsNextSteps(defaulted: ScaffoldedAdapter[]): void {
 }
 
 /** Next steps for a thin or wizard scaffold, which still needs authoring. */
-function printScaffoldNextSteps(adapterRel: string, useWizardScaffold: boolean): void {
-  process.stderr.write(`  1. Invoke ${chalk.cyan("/riptide-config")} in your coding agent.\n`);
-  process.stderr.write("     It finishes the adapter and authors the guided simulation.\n\n");
-  process.stderr.write("  2. Generate and run the guided sim:\n");
-  process.stderr.write(`     ${chalk.cyan(`riptide sim generate --adapter ${adapterRel}`)}\n`);
-  process.stderr.write(`     ${chalk.cyan("riptide sim run .riptide/sim --flows 8")}\n`);
-  process.stderr.write(
+function printScaffoldNextSteps(
+  adapterRel: string,
+  useWizardScaffold: boolean,
+  stderr: (chunk: string) => void
+): void {
+  stderr(`  1. Invoke ${chalk.cyan("/riptide-config")} in your coding agent.\n`);
+  stderr("     It finishes the adapter and authors the guided simulation.\n\n");
+  stderr("  2. Generate and run the guided sim:\n");
+  stderr(`     ${chalk.cyan(`riptide sim generate --adapter ${adapterRel}`)}\n`);
+  stderr(`     ${chalk.cyan("riptide sim run .riptide/sim --flows 8")}\n`);
+  stderr(
     `     ${chalk.cyan("riptide sim surface .riptide/sim/artifacts/<dir> --sim .riptide/sim")}\n\n`
   );
-  process.stderr.write(
+  stderr(
     `  3. Get the assessment:\n     ${chalk.cyan("riptide assess <guided-sim-root>")}\n\n`
   );
   if (!useWizardScaffold) {
-    process.stderr.write(
+    stderr(
       dim(
         `Advanced: run ${chalk.cyan("riptide init --wizard --force")} only if you want to replace this thin scaffold with questionnaire-selected starter files. Otherwise follow .riptide/GETTING-STARTED.md.\n\n`
       )

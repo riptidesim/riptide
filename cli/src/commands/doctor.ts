@@ -9,6 +9,11 @@
 //   1 — at least one warn, no fails
 //   2 — at least one fail
 //
+// `--json` writes one command envelope to stdout (src/contract): a
+// success envelope carrying the report for PASS and WARN, and the error
+// shape — with the report attached as `data` — for FAIL or when the
+// report cannot be assembled. Exit codes are the same in both modes.
+//
 // Output style mirrors the existing `riptide lint` voice: bold header,
 // per-section blocks, a verdict line. Color decisions defer to chalk's
 // own TTY / NO_COLOR / FORCE_COLOR detection unless tests force a
@@ -26,24 +31,26 @@ import {
   type DoctorStatus,
 } from "../doctor/index.js";
 import { printBanner } from "../banner.js";
+import {
+  errorEnvelope,
+  renderEnvelope,
+  resolveCommandIO,
+  successEnvelope,
+  type CommandError,
+  type CommandIO,
+} from "../contract/index.js";
 
-export interface DoctorCommandDeps {
-  /** Test seam — override stdout. */
-  stdoutWrite?: (chunk: string) => void;
-  /** Test seam — override stderr. */
-  stderrWrite?: (chunk: string) => void;
+export interface DoctorCommandDeps extends CommandIO {
   /** Test seam — force color on/off. Defaults to chalk's own detection. */
   color?: boolean;
   /** Test seam — override report builder (used to inject toolchain probe stubs). */
   buildReport?: typeof buildDoctorReport;
-  /** Test seam — override cwd. */
-  cwd?: string;
   /** Test seam — override env. */
   env?: NodeJS.ProcessEnv;
 }
 
 export interface DoctorOptions {
-  // Reserved for future flags (`--json`, `--no-adapters`, ...).
+  json?: boolean;
   quiet?: boolean;
 }
 
@@ -52,10 +59,11 @@ export function createDoctorCommand(deps: DoctorCommandDeps = {}): Command {
     .description(
       "Static health check — toolchain presence and adapter load + lint status. No build, no network, no simulation."
     )
+    .option("--json", "Emit the report as a command envelope", false)
     .option("--quiet", "Suppress interactive banner", false);
 
   return command.action(async (options: DoctorOptions) => {
-    printBanner({ flags: { quiet: Boolean(options.quiet) } });
+    printBanner({ flags: { json: Boolean(options.json), quiet: Boolean(options.quiet) } });
     const code = await runDoctor(options, deps);
     process.exit(code);
   });
@@ -63,12 +71,10 @@ export function createDoctorCommand(deps: DoctorCommandDeps = {}): Command {
 
 /** Returns the exit code instead of calling `process.exit`. Test seam. */
 export async function runDoctor(
-  _options: DoctorOptions,
+  options: DoctorOptions,
   deps: DoctorCommandDeps = {}
 ): Promise<number> {
-  const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
-  const stderr = deps.stderrWrite ?? ((chunk: string) => process.stderr.write(chunk));
-  const cwd = deps.cwd ?? process.cwd();
+  const { stdout, stderr, cwd } = resolveCommandIO(deps);
   const env = deps.env ?? process.env;
   const builder = deps.buildReport ?? buildDoctorReport;
 
@@ -76,14 +82,77 @@ export async function runDoctor(
   try {
     report = await builder({ cwd, env });
   } catch (err) {
-    stderr(
-      `riptide doctor: failed to assemble report: ${(err as Error).message ?? String(err)}\n`
-    );
+    const message = `failed to assemble report: ${(err as Error).message ?? String(err)}`;
+    if (options.json) {
+      stdout(
+        renderEnvelope(
+          errorEnvelope("doctor", {
+            code: "doctor_report_failed",
+            message,
+            next: "rerun `riptide doctor --json` with RIPTIDE_DEBUG=1 to see the stack trace",
+          })
+        )
+      );
+    } else {
+      stderr(`riptide doctor: ${message}\n`);
+    }
     return 2;
   }
 
-  stdout(renderDoctorReport(report, { color: deps.color }));
+  if (options.json) {
+    const data = doctorReportJson(report);
+    stdout(
+      renderEnvelope(
+        report.exitCode === 2
+          ? errorEnvelope("doctor", doctorFailure(report), data)
+          : successEnvelope("doctor", data)
+      )
+    );
+  } else {
+    stdout(renderDoctorReport(report, { color: deps.color }));
+  }
   return report.exitCode;
+}
+
+export interface DoctorReportJson {
+  verdict: DoctorStatus;
+  exit_code: 0 | 1 | 2;
+  counts: AggregateCounts;
+  cwd: string;
+  environment: DoctorCheck[];
+  adapters: DoctorAdapter[];
+}
+
+function doctorReportJson(report: DoctorReport): DoctorReportJson {
+  return {
+    verdict: report.exitCode === 0 ? "pass" : report.exitCode === 1 ? "warn" : "fail",
+    exit_code: report.exitCode,
+    counts: aggregateCounts(report),
+    cwd: report.cwd,
+    environment: report.environment,
+    adapters: report.adapters,
+  };
+}
+
+function doctorFailure(report: DoctorReport): CommandError {
+  const failed = [
+    ...report.environment
+      .filter((c) => c.status === "fail")
+      .map((c) => ({ subject: c.label, hint: c.hint })),
+    ...report.adapters
+      .filter((a) => effectiveAdapterStatus(a) === "fail")
+      .map((a) => ({ subject: `adapter ${a.name}`, hint: a.hint })),
+  ];
+  const first = failed.find((f) => f.hint) ?? failed[0];
+  return {
+    code: "doctor_checks_failed",
+    message: `${failed.length} doctor check${failed.length === 1 ? "" : "s"} failed: ${failed
+      .map((f) => f.subject)
+      .join(", ")}`,
+    next: first?.hint
+      ? `${first.subject}: ${first.hint}`
+      : "fix the failing checks listed in data, then rerun `riptide doctor --json`",
+  };
 }
 
 export interface RenderOptions {

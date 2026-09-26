@@ -21,6 +21,7 @@ import {
   type ReadinessCorpusReport,
   type ReadinessReport,
 } from "../readiness/index.js";
+import { resolveCommandIO, type CommandIO } from "../contract/index.js";
 import { renderCliError } from "../errors/render.js";
 
 export const DEFAULT_CASE_STUDIES_ROOT = "case-studies";
@@ -33,10 +34,7 @@ export interface ReadinessOptions {
   slice?: string;
 }
 
-export interface ReadinessCommandDeps {
-  stdoutWrite?: (chunk: string) => void;
-  stderrWrite?: (chunk: string) => void;
-  cwd?: string;
+export interface ReadinessCommandDeps extends CommandIO {
   inspectAndAnalyzeImpl?: typeof inspectAndAnalyzeReadiness;
 }
 
@@ -69,9 +67,7 @@ export async function runReadiness(
   options: ReadinessOptions,
   deps: ReadinessCommandDeps = {}
 ): Promise<number> {
-  const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
-  const stderr = deps.stderrWrite ?? ((chunk: string) => process.stderr.write(chunk));
-  const cwd = deps.cwd ?? process.cwd();
+  const { stdout, stderr, cwd } = resolveCommandIO(deps);
 
   try {
     const output = await buildReadinessOutput(inputPath, options, deps);

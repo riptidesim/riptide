@@ -18,6 +18,7 @@ import {
 import { renderCliError } from "../errors/render.js";
 import { ReviewValidationError, type ValidationResult } from "../review/manifest.js";
 import { printBanner } from "../banner.js";
+import type { CommandIO } from "../contract/index.js";
 import { canonicalJson, sha256Hex, type JsonValue } from "../state-pack/json.js";
 
 const execFileAsync = promisify(execFile);
@@ -28,10 +29,7 @@ export interface ReviewOptions {
   quiet?: boolean;
 }
 
-export interface ReviewCommandDeps {
-  stdoutWrite?: (chunk: string) => void;
-  stderrWrite?: (chunk: string) => void;
-  cwd?: string;
+export interface ReviewCommandDeps extends CommandIO {
   color?: boolean;
 }
 
@@ -842,12 +840,14 @@ async function runCampaignReview(
     }
   ];
 
+  const cwd = path.resolve(deps.cwd ?? process.cwd());
   for (const entry of selected) {
-    await validateRetainedCase(campaignRoot, entry, validationResults);
+    await validateRetainedCase(campaignRoot, entry, validationResults, cwd);
   }
 
   const markdown = renderCampaignReviewMarkdown({
     campaignRoot,
+    cwd,
     summary,
     manifest,
     selected,
@@ -938,12 +938,13 @@ function isRetainedCaseRoot(candidate: string): boolean {
 async function validateRetainedCase(
   campaignRoot: string,
   entry: JsonRecord,
-  validationResults: ValidationResult[]
+  validationResults: ValidationResult[],
+  cwd: string
 ): Promise<void> {
   const paths = objectValue(entry.paths);
   const label = stringValue(entry.label) ?? "unknown";
   const runId = stringValue(entry.run_id) ?? "unknown";
-  const caseManifestPath = resolveEvidencePath(campaignRoot, stringValue(paths?.case_manifest));
+  const caseManifestPath = resolveEvidencePath(campaignRoot, stringValue(paths?.case_manifest), cwd);
   if (!caseManifestPath) {
     throw new ReviewValidationError(
       `retained case manifest path missing\n  label: ${label}\n  run: ${runId}\n  next: regenerate campaign retained evidence`
@@ -958,7 +959,7 @@ async function validateRetainedCase(
     path: caseManifestPath,
   });
 
-  const rerunPath = resolveEvidencePath(campaignRoot, stringValue(paths?.rerun_sh));
+  const rerunPath = resolveEvidencePath(campaignRoot, stringValue(paths?.rerun_sh), cwd);
   if (!rerunPath) {
     throw new ReviewValidationError(
       `retained rerun script path missing\n  label: ${label}\n  run: ${runId}\n  next: regenerate campaign retained evidence`
@@ -998,6 +999,7 @@ function validateCaseDigest(
 
 function renderCampaignReviewMarkdown(input: {
   campaignRoot: string;
+  cwd: string;
   summary: JsonRecord;
   manifest: JsonRecord;
   selected: JsonRecord[];
@@ -1082,7 +1084,7 @@ function renderCampaignReviewMarkdown(input: {
     "Review the campaign root:",
     "",
     "```sh",
-    `riptide review ${shellQuotePath(relativizeIfInside(process.cwd(), input.campaignRoot))}`,
+    `riptide review ${shellQuotePath(relativizeIfInside(input.cwd, input.campaignRoot))}`,
     "```",
     "",
     "Rerun commands for retained cases are listed in Relevant Events. The review command validated their `rerun.sh` files with `sh -n`; it did not execute them.",
@@ -1436,12 +1438,12 @@ function retentionEntries(manifest: JsonRecord): JsonRecord[] {
   return manifest.entries.filter((entry): entry is JsonRecord => objectValue(entry) !== null);
 }
 
-function resolveEvidencePath(campaignRoot: string, raw: string | null): string | null {
+function resolveEvidencePath(campaignRoot: string, raw: string | null, cwd: string): string | null {
   if (!raw) return null;
   if (path.isAbsolute(raw)) return raw;
   const campaignRootCandidate = path.resolve(campaignRoot, raw);
   if (existsSync(campaignRootCandidate)) return campaignRootCandidate;
-  const cwdCandidate = path.resolve(process.cwd(), raw);
+  const cwdCandidate = path.resolve(cwd, raw);
   if (existsSync(cwdCandidate)) return cwdCandidate;
   const stripped = stripCampaignRootPrefix(campaignRoot, raw);
   if (stripped) return stripped;
