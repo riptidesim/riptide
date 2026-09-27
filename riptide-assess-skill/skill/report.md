@@ -171,7 +171,6 @@ Review the surfaced root, then render into the new Assessment directory:
 
 ```bash
 riptide review <guided-sim-root> --json
-mkdir -p .riptide/assessments/001
 riptide assess <guided-sim-root> --json --brief --input .riptide/assessment-input.json --out .riptide/assessments/001
 ```
 

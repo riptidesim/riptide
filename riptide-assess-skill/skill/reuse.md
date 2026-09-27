@@ -63,7 +63,6 @@ starts from what the Workspace already holds.
    Delta:
 
    ```bash
-   mkdir -p .riptide/assessments/002
    riptide assess <guided-sim-root> --json --brief --input .riptide/assessment-input.json --out .riptide/assessments/002
    riptide delta .riptide/assessments/001 .riptide/assessments/002 --json
    ```

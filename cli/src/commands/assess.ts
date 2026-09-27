@@ -6,7 +6,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -198,6 +198,7 @@ export async function runAssess(
     // assessment.json is the canonical, self-digested model; assessment.md is the
     // byte-deterministic render the digest transitively covers. The markdown
     // already ends in a single trailing newline; the JSON is written verbatim.
+    await mkdir(outDir, { recursive: true });
     await writeFile(jsonPath, json, "utf8");
     await writeFile(mdPath, markdown, "utf8");
 

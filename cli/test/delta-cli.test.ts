@@ -134,7 +134,6 @@ async function runSweep(cwd: string, fires: number[], badDebtShift: number, valu
 
 /** Render Engine Output into `dir`, keeping the Engine's own assessment.md for every later compose. */
 async function render(cwd: string, dir: string): Promise<Driven> {
-  await mkdir(path.join(cwd, dir), { recursive: true });
   const context = JSON.parse(await readFile(EXAMPLE_CONTEXT, "utf8")) as { engine_version: string };
   const input = path.join(cwd, ".riptide", "assessment-input.json");
   await writeFile(
