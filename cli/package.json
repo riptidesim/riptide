@@ -6,7 +6,7 @@
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/riptidesim/riptide.git",
+    "url": "git+https://github.com/riptidesim/riptide.git",
     "directory": "cli"
   },
   "homepage": "https://github.com/riptidesim/riptide",
