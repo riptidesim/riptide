@@ -5,7 +5,6 @@ on:
     paths:
       - ".github/workflows/release-installers.yml"
       - "README.md"
-      - "docs/install.md"
       - "scripts/install-release.sh"
       - "scripts/install-release.ps1"
       - "scripts/package-release.sh"

@@ -3,12 +3,13 @@
 import { Command } from "commander";
 
 import { createAssessCommand } from "./commands/assess.js";
-import { createDoctorCommand } from "./commands/doctor.js";
+import { createDeltaCommand } from "./commands/delta.js";
 import { createInitCommand } from "./commands/init.js";
 import { createReadinessCommand } from "./commands/readiness.js";
 import { createReviewCommand } from "./commands/review.js";
 import { createSimCommand } from "./commands/sim.js";
-import { cliPackageVersion } from "./banner.js";
+import { createValidateCommand } from "./commands/validate.js";
+import { cliPackageVersion } from "./version.js";
 import { renderCliError } from "./errors/render.js";
 
 const program = new Command();
@@ -16,51 +17,32 @@ const program = new Command();
 program
   .name("riptide")
   .description(
-    "Deterministic Solana guided simulations and reviewer-ready evidence."
+    "The Riptide Engine: deterministic guided simulation of a Solana program's compiled binary. " +
+      "An agent API driven by the /riptide-assess Skill."
   )
   .version(cliPackageVersion())
   .addHelpCommand(false);
 
-program.addHelpText(
-  "before",
-  [
-    "First assessment:",
-    "  Open your Solana program repo in an agent and invoke `riptide-assess`.",
-    "  The skill runs this CLI underneath and returns assessment.md, assessment.json, evidence, and rerun commands.",
-    "  Reports are simulation evidence over declared inputs, not audit signoff.",
-    ""
-  ].join("\n")
-);
-
-addRootCommand(createInitCommand(), "Scaffold .riptide/ in the current repo", "Start here:");
-addRootCommand(createReadinessCommand(), "Inspect local protocol evidence readiness", "Start here:");
-addRootCommand(createSimCommand(), "Generate, refresh, and run guided Rust simulations", "Start here:");
-addRootCommand(createReviewCommand(), "Review a guided-sim evidence root", "Start here:");
-addRootCommand(createAssessCommand(), "Generate a protocol assessment from a guided-sim root", "Start here:");
-addRootCommand(createDoctorCommand(), "Check the local toolchain", "Start here:");
+addRootCommand(createInitCommand(), "Scaffold .riptide/ in the current repo");
+addRootCommand(createReadinessCommand(), "Inspect protocol evidence readiness and toolchain health");
+addRootCommand(createSimCommand(), "Generate, refresh, and run guided Rust simulations");
+addRootCommand(createReviewCommand(), "Review a campaign root, retained case, or guided-sim artifact");
+addRootCommand(createAssessCommand(), "Generate a protocol assessment from a guided-sim root");
+addRootCommand(createDeltaCommand(), "Compare an Assessment with the previous one over the same region");
+addRootCommand(createValidateCommand(), "Check an Assessment's Engine Output, Assessment Context and composed report");
 
 program.addHelpText(
   "after",
   [
     "",
-    "Examples:",
-    "  # First assessment: use the riptide-assess agent skill from your protocol repo",
-    "  riptide init",
-    "  riptide readiness .",
-    "  riptide doctor",
-    "  riptide sim generate --adapter .riptide/adapters/<program-name>.toml",
-    "  riptide sim run .riptide/sim --flows 8",
-    "  riptide sim surface .riptide/sim/artifacts/<dir> --sim .riptide/sim",
-    "  riptide review <guided-sim-root>",
-    "  riptide assess <guided-sim-root>",
-    "",
-    "Run `riptide <command> --help` for command-specific options.",
+    "Pass --json to every command: it writes one riptide-command.v1 envelope to stdout.",
+    "On failure, error.code names the problem and error.next the repair. No command reads stdin.",
     ""
   ].join("\n")
 );
 
-function addRootCommand(command: Command, summary: string, group: string): void {
-  program.addCommand(command.summary(summary).helpGroup(group));
+function addRootCommand(command: Command, summary: string): void {
+  program.addCommand(command.summary(summary));
 }
 
 program.parseAsync(process.argv).catch((error: unknown) => {

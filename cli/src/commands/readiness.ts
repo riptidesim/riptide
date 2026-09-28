@@ -1,8 +1,17 @@
-// `riptide readiness` — read-only external protocol support inspection.
+// `riptide readiness` — read-only protocol support inspection plus the
+// static health check (toolchain presence, adapter load + lint).
 //
 // The command surfaces readiness reports without depending on campaign
 // execution internals. JSON mode is stable and banner-free; Markdown mode is
 // reviewer-facing and uses the same report model.
+//
+// A single-repo run also reports health for that repo. `--json` carries it
+// as `data.health`; a failing health check turns the envelope into the
+// error shape with the full report still attached as `data`. The files
+// `--out` and `--markdown` write stay readiness-only. A produced report
+// exits 0 even when health warns (the verdict is in the report); a failing
+// health check or any other error exits 2. A `--case-studies` corpus run
+// has no health block.
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -12,6 +21,7 @@ import { Command } from "commander";
 import {
   inspectAndAnalyzeReadiness,
   createReadinessCorpusReport,
+  ReadinessInputError,
   discoverCaseStudyTargets,
   readinessReportToJson,
   renderReadinessCorpusMarkdown,
@@ -21,7 +31,18 @@ import {
   type ReadinessCorpusReport,
   type ReadinessReport,
 } from "../readiness/index.js";
+import {
+  errorEnvelope,
+  oneLineMessage,
+  renderEnvelope,
+  resolveCommandIO,
+  successEnvelope,
+  type CommandError,
+  type CommandIO,
+} from "../contract/index.js";
 import { renderCliError } from "../errors/render.js";
+import { buildHealthReport, type HealthReport } from "../health/index.js";
+import { healthFailure, healthReportJson, renderHealthReport } from "../health/render.js";
 
 export const DEFAULT_CASE_STUDIES_ROOT = "case-studies";
 
@@ -33,24 +54,27 @@ export interface ReadinessOptions {
   slice?: string;
 }
 
-export interface ReadinessCommandDeps {
-  stdoutWrite?: (chunk: string) => void;
-  stderrWrite?: (chunk: string) => void;
-  cwd?: string;
+export interface ReadinessCommandDeps extends CommandIO {
   inspectAndAnalyzeImpl?: typeof inspectAndAnalyzeReadiness;
+  /** Test seam — override the health report builder (toolchain probe stubs). */
+  buildHealth?: typeof buildHealthReport;
+  /** Test seam — force color on/off in the health section. */
+  color?: boolean;
+  /** Test seam — override env. */
+  env?: NodeJS.ProcessEnv;
 }
 
 type ReadinessOutput =
-  | { kind: "single"; report: ReadinessReport; markdown: string; json: string }
+  | { kind: "single"; target: string; report: ReadinessReport; markdown: string; json: string }
   | { kind: "corpus"; corpus: ReadinessCorpusReport; markdown: string; json: string };
 
 export function createReadinessCommand(deps: ReadinessCommandDeps = {}): Command {
   return new Command("readiness")
     .description(
-      "Inspect local protocol readiness evidence and report observed support level, missing inputs, and next action"
+      "Inspect local protocol readiness evidence and toolchain and adapter health, and report support level, missing inputs, and next action"
     )
     .argument("[path]", "Protocol repo or .riptide workspace path")
-    .option("--json", "Emit stable machine-readable JSON", false)
+    .option("--json", "Emit the report as a command envelope", false)
     .option("--markdown <file>", "Write reviewer Markdown to a file")
     .option("--out <dir>", "Write readiness.json and readiness.md into a directory")
     .option(
@@ -69,16 +93,21 @@ export async function runReadiness(
   options: ReadinessOptions,
   deps: ReadinessCommandDeps = {}
 ): Promise<number> {
-  const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
-  const stderr = deps.stderrWrite ?? ((chunk: string) => process.stderr.write(chunk));
-  const cwd = deps.cwd ?? process.cwd();
+  const { stdout, stderr, cwd } = resolveCommandIO(deps);
 
+  let output: ReadinessOutput;
+  let health: HealthReport | null = null;
   try {
-    const output = await buildReadinessOutput(inputPath, options, deps);
+    output = await buildReadinessOutput(inputPath, options, deps);
     await persistReadinessOutput(output, options, cwd);
-    stdout(options.json ? `${output.json}\n` : output.markdown);
-    return 0;
+    if (output.kind === "single") {
+      health = await buildHealth(output.target, deps);
+    }
   } catch (error) {
+    if (options.json) {
+      stdout(renderEnvelope(errorEnvelope("readiness", readinessFailure(error))));
+      return 2;
+    }
     stderr(
       renderCliError(error, {
         env: process.env,
@@ -86,6 +115,42 @@ export async function runReadiness(
       })
     );
     return 2;
+  }
+
+  if (health === null) {
+    stdout(
+      options.json
+        ? renderEnvelope(successEnvelope("readiness", JSON.parse(output.json) as unknown))
+        : output.markdown
+    );
+    return 0;
+  }
+
+  if (options.json) {
+    const data = { ...(JSON.parse(output.json) as object), health: healthReportJson(health) };
+    stdout(
+      renderEnvelope(
+        health.exitCode === 2
+          ? errorEnvelope("readiness", healthFailure(health), data)
+          : successEnvelope("readiness", data)
+      )
+    );
+  } else {
+    stdout(`${output.markdown}\n${renderHealthReport(health, { color: deps.color })}`);
+  }
+  return health.exitCode === 2 ? 2 : 0;
+}
+
+class HealthReportError extends Error {}
+
+async function buildHealth(target: string, deps: ReadinessCommandDeps): Promise<HealthReport> {
+  const builder = deps.buildHealth ?? buildHealthReport;
+  try {
+    return await builder({ cwd: target, env: deps.env ?? process.env });
+  } catch (error) {
+    throw new HealthReportError(
+      `riptide readiness: failed to assemble the health report: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
@@ -124,16 +189,39 @@ async function buildReadinessOutput(
   }
 
   if (!inputPath) {
-    throw new Error("riptide readiness: provide <path> or --case-studies");
+    throw new ReadinessInputError(
+      "riptide readiness: provide <path> or --case-studies",
+      "readiness_missing_target",
+      "rerun with the repo path, e.g. `riptide readiness . --json`"
+    );
   }
 
   const target = path.resolve(cwd, inputPath);
   const { report } = await inspectAndAnalyze(target, analyzerOptions);
   return {
     kind: "single",
+    target,
     report,
     markdown: renderReadinessMarkdown(report),
     json: readinessReportToJson(report),
+  };
+}
+
+function readinessFailure(error: unknown): CommandError {
+  if (error instanceof ReadinessInputError) {
+    return { code: error.code, message: oneLineMessage(error.message), next: error.next };
+  }
+  if (error instanceof HealthReportError) {
+    return {
+      code: "health_report_failed",
+      message: oneLineMessage(error.message),
+      next: "check that the repo and its .riptide/adapters/ are readable, then rerun `riptide readiness <path> --json`",
+    };
+  }
+  return {
+    code: "readiness_failed",
+    message: oneLineMessage(error instanceof Error ? error.message : String(error)),
+    next: "fix the path, adapter or output directory named in the message, then rerun `riptide readiness <path> --json`",
   };
 }
 

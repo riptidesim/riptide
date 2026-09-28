@@ -789,13 +789,26 @@ export interface IngestAssessmentOptions {
 }
 
 /** Thrown when a required campaign artifact is missing or malformed (R4.4). */
+export type AssessmentIngestErrorCode =
+  | "assess_no_evidence"
+  | "assess_artifact_unreadable"
+  | "assess_artifact_malformed"
+  | "assess_artifact_schema_mismatch"
+  | "assess_artifacts_inconsistent"
+  | "assess_surface_digest_mismatch"
+  | "assess_honesty_gates_blocked"
+  | "assess_artifacts_drifted";
+
 export class AssessmentIngestError extends Error {
   /** A short, actionable next step rendered after the message. */
   readonly hint: string | undefined;
-  constructor(message: string, hint?: string) {
+  /** Stable error code for the command error shape. */
+  readonly code: AssessmentIngestErrorCode;
+  constructor(message: string, hint: string | undefined, code: AssessmentIngestErrorCode) {
     super(message);
     this.name = "AssessmentIngestError";
     this.hint = hint;
+    this.code = code;
   }
 }
 
@@ -824,7 +837,8 @@ export async function ingestAssessment(options: IngestAssessmentOptions): Promis
   if (summary.schema_version !== "campaign-summary.v1") {
     throw new AssessmentIngestError(
       `${CAMPAIGN_SUMMARY_FILE} is schema ${JSON.stringify(summary.schema_version)}, not "campaign-summary.v1".`,
-      "assessment.v1 ingests campaign-summary.v1 artifacts; regenerate the campaign with the current CLI."
+      "assessment.v1 ingests campaign-summary.v1 artifacts; regenerate the campaign with the current CLI.",
+      "assess_artifact_schema_mismatch"
     );
   }
   const surfaceRawBytes = await readRaw(
@@ -894,7 +908,8 @@ export async function ingestAssessmentWorkspace(
     throw new AssessmentIngestError(
       `no assessable evidence was found under ${root}.`,
       "Point `riptide assess` at a campaign root (campaign-summary.json + risk-surface.json) or a workspace " +
-        "with guided-sim evidence (sim/artifacts/<run>/guided-sim-run.json), a run-collection.json, or packs."
+        "with guided-sim evidence (sim/artifacts/<run>/guided-sim-run.json), a run-collection.json, or packs.",
+      "assess_no_evidence"
     );
   }
 
@@ -1255,10 +1270,13 @@ export function buildAssessmentModel(input: BuildAssessmentInput): CartographyAs
     coverage_statement: buildCoverageStatementFromFacts(documentFacts)
   };
 
-  const digest = sha256Hex(
-    `${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
-  );
+  const digest = assessmentDigestOf(document);
   return { ...document, assessment_digest: digest };
+}
+
+/** The self-digest of an assessment document: its canonical JSON without `assessment_digest`, domain-prefixed. */
+export function assessmentDigestOf(document: object): string {
+  return sha256Hex(`${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`);
 }
 
 /**
@@ -1275,9 +1293,7 @@ export function withExecutionHonesty<T extends AssessmentModel>(
   const document = executionHonesty
     ? { ...facts, execution_honesty: executionHonesty }
     : facts;
-  const digest = sha256Hex(
-    `${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
-  );
+  const digest = assessmentDigestOf(document);
   return { ...(document as Omit<T, "assessment_digest">), assessment_digest: digest } as T;
 }
 
@@ -1441,9 +1457,7 @@ export function buildCorrectnessAssessmentModel(
     coverage_statement: buildCoverageStatementFromFacts(documentFacts)
   };
 
-  const digest = sha256Hex(
-    `${ASSESSMENT_HASH_PREFIX}\n${canonicalJson(document as unknown as JsonValue)}`
-  );
+  const digest = assessmentDigestOf(document);
   return { ...document, assessment_digest: digest };
 }
 
@@ -2690,7 +2704,8 @@ function validateCampaignSummary(summary: CampaignSummaryJson): void {
   if (schema !== "campaign-summary.v1") {
     throw new AssessmentIngestError(
       `${CAMPAIGN_SUMMARY_FILE} is schema ${JSON.stringify(schema)}, not "campaign-summary.v1".`,
-      "assessment.v1 ingests campaign-summary.v1 artifacts; regenerate the campaign with the current CLI."
+      "assessment.v1 ingests campaign-summary.v1 artifacts; regenerate the campaign with the current CLI.",
+      "assess_artifact_schema_mismatch"
     );
   }
   const campaign = requireObject(root.campaign, CAMPAIGN_SUMMARY_FILE, "campaign");
@@ -2714,7 +2729,8 @@ function validateRiskSurface(surface: RiskSurfaceDocument): void {
   if (schema !== "risk-surface.v1") {
     throw new AssessmentIngestError(
       `${RISK_SURFACE_FILE} is schema ${JSON.stringify(schema)}, not "risk-surface.v1".`,
-      "assessment.v1 requires a Sprint 39 risk-surface.v1 artifact; rerun the campaign with the current CLI."
+      "assessment.v1 requires a risk-surface.v1 artifact; rerun the campaign with the current CLI.",
+      "assess_artifact_schema_mismatch"
     );
   }
   const campaign = requireObject(root.campaign, RISK_SURFACE_FILE, "campaign");
@@ -2747,7 +2763,8 @@ function validateRetentionManifest(manifest: CampaignRetentionManifest): void {
   if (schema !== "campaign-retention-manifest.v1") {
     throw new AssessmentIngestError(
       `${RETENTION_MANIFEST_FILE} is schema ${JSON.stringify(schema)}, not "campaign-retention-manifest.v1".`,
-      "assessment.v1 requires the campaign retention manifest emitted by the campaign runner; regenerate the campaign artifacts."
+      "assessment.v1 requires the campaign retention manifest emitted by the campaign runner; regenerate the campaign artifacts.",
+      "assess_artifact_schema_mismatch"
     );
   }
   requireString(root, RETENTION_MANIFEST_FILE, "campaign_id");
@@ -2864,7 +2881,8 @@ function validateSurfaceDigest(surface: RiskSurfaceDocument): void {
   if (surfaceDigest !== expected) {
     throw new AssessmentIngestError(
       `${RISK_SURFACE_FILE} surface_digest ${JSON.stringify(surfaceDigest)} does not match the document contents.`,
-      "Regenerate the campaign artifacts; assessment ingestion refuses a risk surface whose embedded digest does not verify."
+      "Regenerate the campaign artifacts; assessment ingestion refuses a risk surface whose embedded digest does not verify.",
+      "assess_surface_digest_mismatch"
     );
   }
 }
@@ -2881,7 +2899,8 @@ function requireSameIdentity(
     throw new AssessmentIngestError(
       `${leftFile} ${leftPath} ${JSON.stringify(leftValue)} does not match ` +
         `${rightFile} ${rightPath} ${JSON.stringify(rightValue)}.`,
-      "Use artifacts from the same campaign root, or rerun the campaign so summary, surface, and retention manifest agree."
+      "Use artifacts from the same campaign root, or rerun the campaign so summary, surface, and retention manifest agree.",
+      "assess_artifacts_inconsistent"
     );
   }
 }
@@ -2891,9 +2910,13 @@ async function readRaw(filePath: string, fileLabel: string, hint: string): Promi
     return await readFile(filePath, "utf8");
   } catch (err) {
     if (isNotFound(err)) {
-      throw new AssessmentIngestError(`${fileLabel} not found at ${filePath}.`, hint);
+      throw new AssessmentIngestError(`${fileLabel} not found at ${filePath}.`, hint, "assess_artifact_unreadable");
     }
-    throw new AssessmentIngestError(`could not read ${fileLabel} at ${filePath}: ${errMessage(err)}`, hint);
+    throw new AssessmentIngestError(
+      `could not read ${fileLabel} at ${filePath}: ${errMessage(err)}`,
+      hint,
+      "assess_artifact_unreadable"
+    );
   }
 }
 
@@ -2913,7 +2936,8 @@ function parseJson<T>(raw: string, fileLabel: string): T {
   } catch (err) {
     throw new AssessmentIngestError(
       `${fileLabel} is not valid JSON: ${errMessage(err)}.`,
-      "Regenerate the campaign artifacts; assessment ingestion does not repair malformed JSON."
+      "Regenerate the campaign artifacts; assessment ingestion does not repair malformed JSON.",
+      "assess_artifact_malformed"
     );
   }
 }
@@ -2966,7 +2990,8 @@ function leafKey(pathLabel: string): string {
 function malformedArtifact(fileLabel: string, detail: string): AssessmentIngestError {
   return new AssessmentIngestError(
     `${fileLabel} is malformed: ${detail}.`,
-    "Regenerate the campaign artifacts; assessment ingestion only accepts complete, current campaign artifacts."
+    "Regenerate the campaign artifacts; assessment ingestion only accepts complete, current campaign artifacts.",
+    "assess_artifact_malformed"
   );
 }
 

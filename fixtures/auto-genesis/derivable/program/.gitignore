@@ -1,0 +1,4 @@
+# Fixture build artifacts stay local. The `.so` is not committed: a binary blob
+# nobody can review is worse evidence than source plus the exact build command
+# (see ../../README.md).
+/target/

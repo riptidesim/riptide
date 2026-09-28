@@ -5,7 +5,8 @@
 
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -34,17 +35,26 @@ import {
   type ExecutionHonestyReport
 } from "../sim/honesty-gates.js";
 import type { AssessmentNarrative } from "../assess/model.js";
+import { ASSESSMENT_CONTEXT_FILE } from "../assess/context.js";
 import { generateAssessmentNarrative } from "../assess/narrative.js";
 import { renderAssessmentBrief } from "../assess/render-brief.js";
 import { renderAssessmentHtml } from "../assess/render-html.js";
 import { renderAssessmentMarkdown } from "../assess/render-markdown.js";
-import { printBanner } from "../banner.js";
 import {
   pickColorizer,
   relativizePath,
   shouldUseColor,
   type Colorizer
 } from "../display/index.js";
+import {
+  errorEnvelope,
+  oneLineMessage,
+  renderEnvelope,
+  resolveCommandIO,
+  successEnvelope,
+  type CommandError,
+  type CommandIO
+} from "../contract/index.js";
 import { renderCliError } from "../errors/render.js";
 
 const execFileAsync = promisify(execFile);
@@ -78,23 +88,28 @@ export interface AssessOptions {
   pdf?: boolean;
   brief?: boolean;
   json?: boolean;
-  quiet?: boolean;
 }
 
-export interface AssessCommandDeps {
-  stdoutWrite?: (chunk: string) => void;
-  stderrWrite?: (chunk: string) => void;
-  cwd?: string;
+export interface AssessCommandDeps extends CommandIO {
   color?: boolean;
 }
 
 /** Thrown for CLI-input problems (bad flag, malformed input file). Message-first. */
+export type AssessmentInputErrorCode =
+  | "assess_input_not_found"
+  | "assess_input_unreadable"
+  | "assess_input_invalid"
+  | "assess_out_holds_assessment"
+  | "assess_out_not_latest";
+
 export class AssessmentInputError extends Error {
   readonly hint: string | undefined;
-  constructor(message: string, hint?: string) {
+  readonly code: AssessmentInputErrorCode;
+  constructor(message: string, hint?: string, code: AssessmentInputErrorCode = "assess_input_invalid") {
     super(hint ? `${message}\n  next: ${hint}` : message);
     this.name = "AssessmentInputError";
     this.hint = hint;
+    this.code = code;
   }
 }
 
@@ -123,10 +138,8 @@ export function createAssessCommand(deps: AssessCommandDeps = {}): Command {
       "Also write a one-page brief.html + brief.pdf executive brief rendered from the assessment model (out of the byte-hash gate)",
       false
     )
-    .option("--json", "Emit a machine-readable result instead of the cold-read summary", false)
-    .option("--quiet", "Suppress the interactive banner", false)
+    .option("--json", "Emit the result as a command envelope instead of the cold-read summary", false)
     .action(async (campaignRoot: string, options: AssessOptions) => {
-      printBanner({ flags: { json: Boolean(options.json), quiet: Boolean(options.quiet) } });
       const exitCode = await runAssess(campaignRoot, options, deps);
       process.exit(exitCode);
     });
@@ -137,12 +150,14 @@ export async function runAssess(
   options: AssessOptions,
   deps: AssessCommandDeps = {}
 ): Promise<number> {
-  const stdout = deps.stdoutWrite ?? ((chunk: string) => process.stdout.write(chunk));
-  const stderr = deps.stderrWrite ?? ((chunk: string) => process.stderr.write(chunk));
-  const cwd = path.resolve(deps.cwd ?? process.cwd());
+  const { stdout, stderr, cwd } = resolveCommandIO(deps);
+  let executionHonesty: ExecutionHonestyReport | null = null;
 
   try {
     const root = path.resolve(cwd, campaignRoot);
+    const outDir = options.out ? path.resolve(cwd, options.out) : root;
+    await assertNoAssessmentAt(outDir, cwd);
+    if (options.out) await assertOutSortsLast(outDir, cwd);
     const inputs = await resolveInputs(cwd, options);
 
     // The reviewer-facing root label is repo/workspace-relative (R1): it is the
@@ -158,14 +173,15 @@ export async function runAssess(
     // gate. Gated on the guided-sim adapter so real-campaign assessments — and
     // the frozen cartography bytes — are never affected. Runs before any
     // artifact is written so a blocked report is never emitted.
-    const executionHonesty = await resolveExecutionHonesty(root, model);
+    executionHonesty = await resolveExecutionHonesty(root, model);
     if (executionHonesty && executionHonesty.status === "blocked") {
       throw new AssessmentIngestError(
         "execution-honesty gates blocked this guided-sim assessment:\n" +
           failedGates(executionHonesty)
             .map((gate) => `    ✗ ${gate.id}: ${gate.detail}`)
             .join("\n"),
-        "Fix the guided sim (declare/pass a positive control, run the full lifecycle, keep the surface deterministic), re-run `riptide sim run` + `riptide sim surface`, then assess again."
+        "Fix the guided sim (declare/pass a positive control, run the full lifecycle, keep the surface deterministic), re-run `riptide sim run` + `riptide sim surface`, then assess again.",
+        "assess_honesty_gates_blocked"
       );
     }
 
@@ -174,7 +190,6 @@ export async function runAssess(
     const markdown = renderAssessmentMarkdown(emittedModel, narrative);
     const json = serializeAssessment(emittedModel);
 
-    const outDir = options.out ? path.resolve(cwd, options.out) : root;
     const jsonPath = path.join(outDir, ASSESSMENT_JSON_FILE);
     const mdPath = path.join(outDir, ASSESSMENT_MD_FILE);
     if (executionHonesty) {
@@ -183,6 +198,7 @@ export async function runAssess(
     // assessment.json is the canonical, self-digested model; assessment.md is the
     // byte-deterministic render the digest transitively covers. The markdown
     // already ends in a single trailing newline; the JSON is written verbatim.
+    await mkdir(outDir, { recursive: true });
     await writeFile(jsonPath, json, "utf8");
     await writeFile(mdPath, markdown, "utf8");
 
@@ -194,8 +210,8 @@ export async function runAssess(
 
     if (options.json) {
       stdout(
-        JSON.stringify(
-          {
+        renderEnvelope(
+          successEnvelope("assess", {
             schema_version: "assess-cli.v1",
             assessment_digest: emittedModel.assessment_digest,
             verdict: { value: emittedModel.verdict.value, source: emittedModel.verdict.source },
@@ -220,10 +236,8 @@ export async function runAssess(
                 }
               : {}),
             ...(executionHonesty ? { execution_honesty: executionHonesty } : {})
-          },
-          null,
-          2
-        ) + "\n"
+          })
+        )
       );
     } else {
       const summaryArtifacts: SummaryArtifacts = { jsonPath, mdPath, campaignRootPath: root, ...exports };
@@ -242,6 +256,18 @@ export async function runAssess(
     return 0;
   } catch (error) {
     const exitCode = error instanceof AssessmentIngestError || error instanceof AssessmentInputError ? 1 : 2;
+    if (options.json) {
+      stdout(
+        renderEnvelope(
+          errorEnvelope(
+            "assess",
+            assessFailure(error),
+            executionHonesty ? { execution_honesty: executionHonesty } : undefined
+          )
+        )
+      );
+      return exitCode;
+    }
     stderr(
       renderCliError(withHint(error), {
         env: process.env,
@@ -298,6 +324,41 @@ async function readRecordedHonesty(root: string): Promise<ExecutionHonestyReport
   }
 }
 
+/** An Assessment, once its Assessment Context is written, is never overwritten: each rerun renders into its own directory. */
+async function assertNoAssessmentAt(outDir: string, cwd: string): Promise<void> {
+  if (!existsSync(path.join(outDir, ASSESSMENT_CONTEXT_FILE))) return;
+  const label = path.relative(cwd, outDir) || ".";
+  throw new AssessmentInputError(
+    `${label} already holds an Assessment (${ASSESSMENT_CONTEXT_FILE}); an Assessment is never overwritten`,
+    `render into a new Assessment directory beside ${label} with \`riptide assess --out\`, then compare the two with \`riptide delta ${label} <new-dir> --json\``,
+    "assess_out_holds_assessment"
+  );
+}
+
+/**
+ * Assessments beside each other are ordered by name, and the Delta pairs a
+ * rerun with the latest earlier one; a new Assessment must sort after every
+ * Assessment already written beside it.
+ */
+async function assertOutSortsLast(outDir: string, cwd: string): Promise<void> {
+  const parent = path.dirname(outDir);
+  const name = path.basename(outDir);
+  if (!existsSync(parent)) return;
+  const later = (await readdir(parent, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory() && entry.name > name)
+    .filter((entry) => existsSync(path.join(parent, entry.name, ASSESSMENT_CONTEXT_FILE)))
+    .map((entry) => entry.name)
+    .sort();
+  if (later.length === 0) return;
+  const label = path.relative(cwd, outDir) || ".";
+  const latest = later[later.length - 1]!;
+  throw new AssessmentInputError(
+    `${label} sorts before Assessment ${latest} beside it; a Delta pairs each Assessment with the latest one named before it`,
+    `render into a directory beside ${label} whose name sorts after ${latest}, such as the next zero-padded number`,
+    "assess_out_not_latest"
+  );
+}
+
 async function assertAssessmentArtifactsStableAtEmit(input: {
   jsonPath: string;
   mdPath: string;
@@ -315,7 +376,8 @@ async function assertAssessmentArtifactsStableAtEmit(input: {
   throw new AssessmentIngestError(
     "execution-honesty gates blocked this guided-sim assessment:\n" +
       drifts.map((detail) => `    ✗ determinism: ${detail}`).join("\n"),
-    "The existing assessment artifact(s) do not match the freshly rendered bytes. Re-run `riptide assess` into a clean output directory, or perform a documented additive re-pin."
+    "The existing assessment artifact(s) do not match the freshly rendered bytes. Re-run `riptide assess` into a clean output directory, or perform a documented additive re-pin.",
+    "assess_artifacts_drifted"
   );
 }
 
@@ -381,10 +443,15 @@ async function readInputFile(cwd: string, file: string): Promise<AssessmentInput
     if (isNotFound(err)) {
       throw new AssessmentInputError(
         `assessment input file not found at ${inputPath}.`,
-        "Point --input at a JSON file of Risk Plan / coverage / verdict inputs, or omit it to use campaign-derived defaults."
+        "Point --input at a JSON file of Risk Plan / coverage / verdict inputs, or omit it to use campaign-derived defaults.",
+        "assess_input_not_found"
       );
     }
-    throw new AssessmentInputError(`could not read assessment input file at ${inputPath}: ${errMessage(err)}.`);
+    throw new AssessmentInputError(
+      `could not read assessment input file at ${inputPath}: ${errMessage(err)}.`,
+      undefined,
+      "assess_input_unreadable"
+    );
   }
   let parsed: unknown;
   try {
@@ -698,6 +765,21 @@ function renderCorrectnessSummary(
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
+
+function assessFailure(error: unknown): CommandError {
+  if (error instanceof AssessmentIngestError || error instanceof AssessmentInputError) {
+    return {
+      code: error.code,
+      message: oneLineMessage(error.message),
+      next: error.hint ?? "fix the file named in the message, then rerun `riptide assess --json`"
+    };
+  }
+  return {
+    code: "assess_failed",
+    message: oneLineMessage(errMessage(error)),
+    next: "check that the campaign root and --out directory are readable and writable, then rerun `riptide assess --json`"
+  };
+}
 
 /**
  * Fold an {@link AssessmentIngestError}'s separate `hint` into its message as a

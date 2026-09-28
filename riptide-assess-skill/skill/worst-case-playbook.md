@@ -1,7 +1,7 @@
 # Worst-Case Playbook
 
-Per-archetype authoring guidance for guided-sim assessments. The riptide-assess
-skill loads this file when the execution-path classification returns
+Per-archetype authoring guidance for guided-sim Assessments. The Scope stage
+loads this file when the execution-path classification returns
 `guided-sim-authored`: the archetype from the classification note selects an
 entry, and the entry tells the authoring pass what worst case to hunt before
 any code is written.
@@ -15,7 +15,7 @@ Every entry uses the same fields:
   `[sim.sweep]` in `.riptide/sim/Riptide.toml`) and the range that brackets
   the interesting region.
 - **Deciding invariant / metric** — the invariant or metric whose movement
-  decides the verdict, with the severity that makes the failure gradient
+  decides the outcome, with the severity that makes the failure gradient
   visible on the risk surface.
 - **Signal trap** — where a naive measurement reads flat while the real
   signal moves; name the field to measure instead.
@@ -107,7 +107,7 @@ invariants, and stress scenarios these entries build on.
   **inherent risk of collateralized lending**, not an accounting bug — the
   liquidation math is doing exactly what it should (payout capped at collateral
   held). The crash is **exogenous**. Surface the permissioning nuance as a
-  deliberate design question (no third-party backstop on an active underwater
+  deliberate design choice (no third-party backstop on an active underwater
   loan), not a defect. If you drive the oracle directly, state the oracle's own
   staleness/confidence/verification guards are out of scope — you are isolating
   the protocol's response to a price *path*. *(Validated on a real lending protocol: liquidation
@@ -190,7 +190,7 @@ inside the same crate; the worst case is still worth hunting.
   an LP underwrites**, not a bug — say so and do not report it as a failure. The
   price divergence is **exogenous**. A `k` that holds (never decreases net of
   fees) across the full sweep is a **robustness result** worth stating plainly;
-  only a real `k` decrease is a finding.
+  only a real `k` decrease is a Breach.
 
 ## perps
 
@@ -229,7 +229,7 @@ third-party flow (**Trigger C**) and the mark price is an oracle-account read
   at margin held, exactly as it should. The gap and the funding rate are
   **exogenous** market inputs, not protocol knobs. An insurance fund that
   absorbs every gap across the sweep is a robustness result; only a fund
-  *breach* (socialized loss reaching real traders) is a finding.
+  *breach* (socialized loss reaching real traders) is a Breach.
 
 ## lst
 
@@ -343,4 +343,4 @@ match/settle flows.
   input (how fresh the keeper's reference is), not a protocol knob. A book that
   conserves value and settles every obligation across the full staleness sweep
   is a **robustness result**; only a value leak or an unmatched obligation is a
-  finding.
+  Breach.

@@ -1,10 +1,10 @@
 # Honesty Discipline (non-negotiable)
 
-This is the credibility spine of every assessment — read it before delivering
+This is the credibility spine of every Assessment — read it before delivering
 any result. The runtime enforces the first three rules as execution-honesty
 gates; the rest are framing rules only you can keep.
 
-Riptide has no automatic oracle for "is this finding real and honestly framed",
+Riptide has no automatic oracle for "is this Breach real and honestly framed",
 so the report's credibility rests on these rules. The runtime enforces the first
 three as execution-honesty gates — evaluated at `riptide sim surface`, warned at
 `riptide sim run`, and **blocking** at `riptide assess` — and the rest are
@@ -35,9 +35,10 @@ framing rules the gates cannot check, so following them is on you.
    own staleness guards when you drive the price directly, an external reserve
    that is inert in stub mode), and say "evidence over the declared region",
    never "safe".
-5. **Robustness is a valid result — never manufacture a finding.** A flat
-   surface with the positive control passing and the lifecycle executed is a
-   real, publishable robustness result. State the structural reason the guard
+5. **Robustness is a valid result — never manufacture a Breach.** A flat
+   surface with the positive control passing, the lifecycle executed and every
+   invariant Firing-Checked is a real, publishable robustness result. An
+   invariant that never passed its Firing Check supports no robustness claim. State the structural reason the guard
    holds rather than asserting safety, and do not tighten thresholds or distort
    scenarios until something fires.
 6. **The fire-threshold is a stated risk line; the gradient is the signal.** The
@@ -50,13 +51,17 @@ framing rules the gates cannot check, so following them is on you.
    delivery as "the onset sits at X on the axis" — a fact about where the risk
    begins, never a tuning instruction to the protocol team. No gate can check
    this; it is a delivery-step rule.
+8. **A Breach is simulation evidence.** Word it as "invariant `<name>` fired at
+   seed `<hex>`, coordinate X", never as a vulnerability or a bug, so it sits
+   beside an auditor's own findings without overclaiming. Every Breach carries
+   its replay command and a Causal Trace.
 
 ## When it hits a wall — fail fast, file an issue
 
 If a protocol surface cannot be modeled — FHE/MPC/ZK, external-venue execution,
-off-chain matching the sim cannot drive — do **not** paper over it. Name it as an
-explicit **scope boundary** in the assessment (verdict `unsupported` for that
-surface) and state what evidence the rest of the run still produced.
+off-chain matching the sim cannot drive — do **not** paper over it. Report it
+as a Gap in the Assessment (`unsupported` for that surface) and state what
+evidence the rest of the run still produced.
 
 If a blocker is in Riptide itself (a CLI validation gap, a missing builder, a
 runtime limitation), report the blocked state with the exact failed command, the

@@ -1,0 +1,28 @@
+{
+  "schema_version": "blocker-report.v1",
+  "skill_version": "0.12.0",
+  "engine_version": "0.12.0",
+  "depth": "default",
+  "scope_declaration": [
+    {
+      "assumption": "assess the whole repo at Default Depth",
+      "reason": "no Steering Hint was given",
+      "override": "/riptide-assess programs/<program>"
+    }
+  ],
+  "blocker": {
+    "command": "cargo-build-sbf --version",
+    "error": "prerequisite_missing: cargo-build-sbf not found on PATH"
+  },
+  "not_exercised": {
+    "instructions": [],
+    "actors": []
+  },
+  "gaps": [
+    {
+      "subject": "cargo-build-sbf",
+      "reason": "the program's SBF binary cannot be built without it, so no instruction can execute",
+      "unblock": "install the Solana CLI, which ships cargo-build-sbf, then rerun /riptide-assess"
+    }
+  ]
+}

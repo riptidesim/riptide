@@ -177,7 +177,9 @@ impl AgentRuntime {
 mod tests {
     use std::collections::BTreeMap;
 
-    use crate::kernel::types::{Policy, PositionSizing, PositionSizingStrategy, Trigger, TriggerCondition};
+    use crate::kernel::types::{
+        Policy, PositionSizing, PositionSizingStrategy, Trigger, TriggerCondition,
+    };
 
     use super::*;
     use crate::kernel::persona::state::Agent;

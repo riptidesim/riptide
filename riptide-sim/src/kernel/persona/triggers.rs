@@ -1,4 +1,6 @@
-use crate::kernel::types::{ComparisonOp, ObservationValue, Trigger, TriggerCondition, TriggerValue};
+use crate::kernel::types::{
+    ComparisonOp, ObservationValue, Trigger, TriggerCondition, TriggerValue,
+};
 
 use super::{runtime::AgentObservation, state::Agent};
 
@@ -101,7 +103,9 @@ pub fn evaluate_trigger(
 mod tests {
     use std::collections::BTreeMap;
 
-    use crate::kernel::types::{Policy, PositionSizing, PositionSizingStrategy, Trigger, TriggerCondition};
+    use crate::kernel::types::{
+        Policy, PositionSizing, PositionSizingStrategy, Trigger, TriggerCondition,
+    };
 
     use super::*;
     use crate::kernel::persona::{runtime::AgentObservation, state::Agent};

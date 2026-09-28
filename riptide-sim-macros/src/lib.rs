@@ -30,10 +30,16 @@ pub fn end(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+#[proc_macro_attribute]
+pub fn violations(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 fn expand_riptide_sim(mut item: ItemImpl) -> Result<proc_macro2::TokenStream> {
     let self_ty = item.self_ty.clone();
     let mut init_method: Option<Ident> = None;
     let mut end_method: Option<Ident> = None;
+    let mut violations_method: Option<Ident> = None;
     let mut flows: Vec<(Ident, Option<u64>)> = Vec::new();
 
     for impl_item in &mut item.items {
@@ -57,6 +63,16 @@ fn expand_riptide_sim(mut item: ItemImpl) -> Result<proc_macro2::TokenStream> {
                 ));
             }
         }
+        if markers.violations
+            && violations_method
+                .replace(method.sig.ident.clone())
+                .is_some()
+        {
+            return Err(Error::new_spanned(
+                &method.sig.ident,
+                "duplicate #[violations] method",
+            ));
+        }
         if markers.flow {
             flows.push((method.sig.ident.clone(), markers.weight));
         }
@@ -77,6 +93,13 @@ fn expand_riptide_sim(mut item: ItemImpl) -> Result<proc_macro2::TokenStream> {
     let flow_idents = flows.iter().map(|(name, _)| name);
     let flow_indices = 0usize..flows.len();
     let (impl_generics, _, where_clause) = item.generics.split_for_impl();
+    let violations = violations_method.map(|method| {
+        quote! {
+            fn __riptide_violations(&mut self) -> ::std::vec::Vec<::riptide_sim::FiringCheck> {
+                self.#method()
+            }
+        }
+    });
 
     Ok(quote! {
         #item
@@ -110,6 +133,8 @@ fn expand_riptide_sim(mut item: ItemImpl) -> Result<proc_macro2::TokenStream> {
                     )*
                 ]
             }
+
+            #violations
         }
     })
 }
@@ -119,6 +144,7 @@ struct Markers {
     init: bool,
     flow: bool,
     end: bool,
+    violations: bool,
     weight: Option<u64>,
 }
 
@@ -132,6 +158,10 @@ fn take_markers(method: &mut ImplItemFn) -> Result<Markers> {
         }
         if attr.path().is_ident("end") {
             markers.end = true;
+            continue;
+        }
+        if attr.path().is_ident("violations") {
+            markers.violations = true;
             continue;
         }
         if attr.path().is_ident("flow") {
@@ -269,5 +299,32 @@ mod tests {
             .to_string();
         assert!(expanded.contains("__riptide_dispatch_flow"));
         assert!(expanded.contains("FlowSpec"));
+        assert!(!expanded.contains("__riptide_violations"));
+    }
+
+    #[test]
+    fn expands_violations_marker() {
+        let item: ItemImpl = parse_quote! {
+            impl Simulation {
+                #[init]
+                fn setup(&mut self) {}
+
+                #[flow]
+                fn step(&mut self) {}
+
+                #[end]
+                fn check(&mut self) {}
+
+                #[violations]
+                fn declared(&mut self) -> Vec<FiringCheck> { Vec::new() }
+            }
+        };
+
+        let expanded = expand_riptide_sim(item)
+            .unwrap()
+            .to_token_stream()
+            .to_string();
+        assert!(expanded.contains("fn __riptide_violations"));
+        assert!(!expanded.contains("# [violations]"));
     }
 }

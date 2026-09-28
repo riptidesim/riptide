@@ -255,6 +255,28 @@ pub fn crash_in_place(
     })
 }
 
+/// Drop the price (and EMA price) of an installed `PriceUpdateV2` by
+/// `drop_bps` basis points, keeping its publish time. Unlike
+/// [`crash_in_place`], a missing or short account is an error.
+pub fn perturb_price_in_place(world: &mut World, key: &Pubkey, drop_bps: u64) -> Result<()> {
+    let account = world
+        .get_account(key)
+        .ok_or_else(|| anyhow::anyhow!("oracle account {key} is missing"))?;
+    if account.data.len() < PRICE_UPDATE_V2_LEN {
+        anyhow::bail!("account {key} is not a Pyth PriceUpdateV2");
+    }
+    let mut update = PythPriceUpdate::new([0; 32], 0, 0, 0);
+    update.set_price(i64::from_le_bytes(
+        account.data[OFF_PRICE..OFF_PRICE + 8].try_into()?,
+    ));
+    update.crash_price(drop_bps);
+    world.mutate_account(key, |stored| {
+        stored.data[OFF_PRICE..OFF_PRICE + 8].copy_from_slice(&update.price.to_le_bytes());
+        stored.data[OFF_EMA_PRICE..OFF_EMA_PRICE + 8]
+            .copy_from_slice(&update.ema_price.to_le_bytes());
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

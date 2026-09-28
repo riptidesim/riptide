@@ -15,7 +15,7 @@
 # 2. Installs CLI dependencies and builds the TypeScript CLI.
 # 3. Installs a `riptide` launcher into $HOME/.local/bin.
 # 4. Verifies the CLI responds to `--version`/`--help` and runs
-#    `riptide doctor` as a toolchain self-check.
+#    `riptide readiness .` as a toolchain self-check.
 #
 # Riptide runs deterministic guided simulations: `riptide sim generate`
 # scaffolds a project-owned Rust crate that builds against the vendored
@@ -241,19 +241,18 @@ if ! "$LAUNCHER" --help >/dev/null 2>&1; then
 fi
 ok   "riptide --help responded"
 
-# `riptide doctor` is the toolchain self-check. It is static (no build,
-# no network, no simulation) and exits non-zero on a hard toolchain
-# failure; a WARN verdict (e.g. a Solana version drift) is acceptable for
-# a successful install, so do not treat exit 1 as fatal here.
-log "running: $LAUNCHER doctor"
-DOCTOR_EXIT=0
-"$LAUNCHER" doctor || DOCTOR_EXIT=$?
-if [ "$DOCTOR_EXIT" -ge 2 ]; then
-  fail "'riptide doctor' reported a hard failure (exit ${DOCTOR_EXIT})."
-  fail "address the FAIL rows above, then re-run: riptide doctor"
+# `riptide readiness .` is the toolchain self-check. It is static (no build,
+# no network, no simulation) and exits 2 on a hard toolchain failure; a
+# WARN verdict (e.g. a Solana version drift) exits 0.
+log "running: $LAUNCHER readiness ."
+HEALTH_EXIT=0
+"$LAUNCHER" readiness . || HEALTH_EXIT=$?
+if [ "$HEALTH_EXIT" -ge 2 ]; then
+  fail "'riptide readiness .' reported a hard failure (exit ${HEALTH_EXIT})."
+  fail "address the FAIL rows above, then re-run: riptide readiness ."
   exit 1
 fi
-ok   "riptide doctor passed (exit ${DOCTOR_EXIT})"
+ok   "riptide readiness . passed (exit ${HEALTH_EXIT})"
 
 # ---------- completion ----------
 ELAPSED=$SECONDS
@@ -263,8 +262,8 @@ printf '\n%s=====================================================%s\n' "$BOLD" "
 printf '%sRiptide install complete in %dm %02ds%s\n' "$GREEN" "$MIN" "$SEC" "$RESET"
 printf '%s=====================================================%s\n' "$BOLD" "$RESET"
 printf '\nnext steps:\n'
-printf '  1. %sriptide doctor%s                        # verify your toolchain\n' "$BOLD" "$RESET"
+printf '  1. %sriptide readiness .%s                   # verify your toolchain\n' "$BOLD" "$RESET"
 printf '  2. %scd <your-program>%s                     # the Solana program you want to simulate\n' "$BOLD" "$RESET"
 printf '  3. %sriptide init%s                          # thin .riptide/ bootstrap\n' "$BOLD" "$RESET"
-printf '  4. %s/riptide-config%s                       # finish the adapter and author the guided simulation\n' "$BOLD" "$RESET"
+printf '  4. %s/riptide-assess%s                       # run the Skill: simulate and write the Assessment\n' "$BOLD" "$RESET"
 printf '\n%sNew to Riptide?%s %sriptide --help%s walks through the full surface.\n' "$DIM" "$RESET" "$BOLD" "$RESET"

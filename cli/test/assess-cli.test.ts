@@ -166,11 +166,20 @@ test("assess cli: --json emits a machine-readable result", async () => {
   try {
     const { exitCode, stdout } = await assess(root, { json: true });
     assert.equal(exitCode, 0);
-    const payload = JSON.parse(stdout) as {
+    const envelope = JSON.parse(stdout) as {
       schema_version: string;
-      assessment_digest: string;
-      artifacts: { assessment_json: string; assessment_md: string };
+      command: string;
+      ok: boolean;
+      data: {
+        schema_version: string;
+        assessment_digest: string;
+        artifacts: { assessment_json: string; assessment_md: string };
+      };
     };
+    assert.equal(envelope.schema_version, "riptide-command.v1");
+    assert.equal(envelope.command, "assess");
+    assert.equal(envelope.ok, true);
+    const payload = envelope.data;
     assert.equal(payload.schema_version, "assess-cli.v1");
     assert.match(payload.assessment_digest, /^[0-9a-f]{64}$/);
     assert.match(payload.artifacts.assessment_json, /assessment\.json$/);

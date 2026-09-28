@@ -23,7 +23,7 @@ import { monorepoRootFromModule } from "../orchestrator/index.js";
 
 /**
  * Derive the repo root for an adapter path (recovered from the former
- * `riptide lint` command, still used by `riptide doctor`'s adapter-health
+ * `riptide lint` command, still used by the `riptide readiness` adapter-health
  * check). Shipping convention `<root>/fixtures/adapters/<name>.toml`, downstream
  * convention `<root>/.riptide/adapters/<name>.toml`, else module/fixtures root.
  */

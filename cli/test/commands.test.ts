@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { execFile, spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -57,26 +59,23 @@ test("retired generic commands are not registered", async () => {
   }
 });
 
-test("commands: root help is compact and lists the guided-sim core surface", async () => {
+test("commands: root help is an agent API reference that addresses no human", async () => {
   const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "--help"], {
     cwd: process.cwd()
   });
 
-  assert.match(stdout, /Deterministic Solana guided simulations and reviewer-ready evidence\./);
-  assert.match(stdout, /First assessment:/);
-  assert.match(stdout, /riptide-assess/);
-  assert.match(stdout, /Reports are simulation evidence over declared inputs, not audit signoff\./);
-  assert.match(stdout, /Start here:/);
-  assert.match(stdout, /Examples:/);
-  assert.match(stdout, /# First assessment: use the riptide-assess agent skill from your protocol repo/);
-  assert.match(stdout, /riptide sim run \.riptide\/sim --flows 8/);
-  assert.match(stdout, /riptide <command> --help/);
+  assert.match(stdout, /The Riptide Engine:[\s\S]*An agent API driven by the \/riptide-assess\s+Skill\./);
+  assert.match(stdout, /Pass --json to every command/);
+  assert.match(stdout, /error\.next the repair/);
+  for (const human of [/First assessment/, /Examples:/, /Start here/, /\byou(r)?\b/i, /^\s+riptide \w/m]) {
+    assert.doesNotMatch(stdout, human);
+  }
   assert.doesNotMatch(stdout, /complete protocol safety/i);
   // Generic-path commands are gone from the surface.
   assert.doesNotMatch(stdout, /^\s+campaign\b/m);
   assert.doesNotMatch(stdout, /^\s+run\b/m);
 
-  const ordered = ["init", "readiness", "sim", "review", "assess", "doctor"].map((command) => {
+  const ordered = ["init", "readiness", "sim", "review", "assess"].map((command) => {
     const index = stdout.indexOf(`  ${command}`);
     assert.notEqual(index, -1, `${command} missing from root help:\n${stdout}`);
     return index;
@@ -84,4 +83,128 @@ test("commands: root help is compact and lists the guided-sim core surface", asy
   assert.deepEqual([...ordered].sort((a, b) => a - b), ordered);
 
   assert.ok(stdout.split("\n").length < 80, stdout);
+});
+
+test("commands: no command's help addresses a human", async () => {
+  const commands = [
+    ["init"], ["readiness"], ["review"], ["assess"], ["delta"], ["validate"], ["sim"],
+    ["sim", "generate"], ["sim", "refresh"], ["sim", "run"], ["sim", "surface"],
+    ["sim", "fork"], ["sim", "lint"], ["sim", "debug"]
+  ];
+  for (const command of commands) {
+    const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, ...command, "--help"]);
+    for (const human of [/\byou(r)?\b/i, /Examples:/, /Start here/, /getting started/i, /wizard/i]) {
+      assert.doesNotMatch(stdout, human, `riptide ${command.join(" ")} --help addresses a human`);
+    }
+  }
+});
+
+async function rejected(args: string[]): Promise<{ code: number | string | undefined; stderr: string }> {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-merged-cli-"));
+  try {
+    await execFileAsync(process.execPath, [cliEntrypoint, ...args], { cwd });
+  } catch (err) {
+    const execErr = err as { stderr?: string; code?: number | string };
+    return { code: execErr.code, stderr: execErr.stderr ?? "" };
+  }
+  assert.fail(`riptide ${args.join(" ")} was accepted`);
+}
+
+test("commands: review is the only review command", async () => {
+  const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "sim", "--help"]);
+  assert.doesNotMatch(stdout, /^\s+review\b/m);
+
+  const simReview = await rejected(["sim", "review", "--json"]);
+  assert.equal(simReview.code, 1);
+  assert.match(simReview.stderr, /unknown command 'review'/);
+});
+
+test("commands: readiness is the only health and readiness command", async () => {
+  const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "--help"]);
+  assert.doesNotMatch(stdout, /^\s+doctor\b/m);
+
+  const doctor = await rejected(["doctor", "--json"]);
+  assert.equal(doctor.code, 1);
+  assert.match(doctor.stderr, /unknown command 'doctor'/);
+});
+
+test("review: with no path it reviews the Workspace's guided-sim artifacts", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-review-default-"));
+  const artifacts = path.join(cwd, ".riptide", "sim", "artifacts");
+  await mkdir(artifacts, { recursive: true });
+  await writeFile(
+    path.join(artifacts, "guided-sim-run.json"),
+    `${JSON.stringify({
+      schema_version: 1,
+      status: "passed",
+      base_seed: "52".repeat(32),
+      retained_failing_seed: null,
+      iterations: [
+        {
+          iteration: 0,
+          seed: "0".repeat(64),
+          status: "passed",
+          panic: false,
+          tx_outcomes: [{ label: "deposit", ok: true }]
+        }
+      ]
+    })}\n`,
+    "utf8"
+  );
+
+  const { stdout } = await execFileAsync(process.execPath, [cliEntrypoint, "review", "--json"], { cwd });
+  const envelope = JSON.parse(stdout) as { command: string; ok: boolean; data: { schema_version: string } };
+  assert.equal(envelope.command, "review");
+  assert.equal(envelope.ok, true);
+  assert.equal(envelope.data.schema_version, "guided-sim-review.v1");
+});
+
+test("init: completes without input while stdin stays open", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-init-cli-"));
+  await writeFile(
+    path.join(cwd, "Anchor.toml"),
+    '[programs.localnet]\nwidget_factory = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"\n',
+    "utf8"
+  );
+
+  // stdin is a pipe that is never written to or closed: any prompt would hang.
+  const child = spawn(process.execPath, [cliEntrypoint, "init"], {
+    cwd,
+    stdio: ["pipe", "pipe", "pipe"],
+    env: { ...process.env, FORCE_COLOR: "0" }
+  });
+  let stdout = "";
+  child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")));
+  const code = await new Promise<number | null>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error("riptide init waited for input"));
+    }, 15_000);
+    child.on("exit", (exitCode) => {
+      clearTimeout(timer);
+      resolve(exitCode);
+    });
+  });
+
+  assert.equal(code, 0);
+  assert.equal(stdout, "");
+  assert.ok(existsSync(path.join(cwd, ".riptide", "adapters", "widget-factory.toml")));
+  assert.equal(existsSync(path.join(cwd, ".claude")), false, "init wrote outside the Workspace");
+  assert.ok(existsSync(path.join(cwd, ".riptide", ".gitignore")));
+});
+
+test("init: the interactive wizard is not available", async () => {
+  const cwd = await mkdtemp(path.join(os.tmpdir(), "riptide-init-cli-"));
+  let stderr = "";
+  let code: number | string | undefined;
+  try {
+    await execFileAsync(process.execPath, [cliEntrypoint, "init", "--wizard"], { cwd });
+  } catch (err) {
+    const execErr = err as { stderr?: string; code?: number | string };
+    stderr = execErr.stderr ?? "";
+    code = execErr.code;
+  }
+  assert.equal(code, 1);
+  assert.match(stderr, /unknown option '--wizard'/);
+  assert.equal(existsSync(path.join(cwd, ".riptide")), false);
 });

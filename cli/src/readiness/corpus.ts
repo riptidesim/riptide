@@ -136,7 +136,7 @@ export const READINESS_GATE_DEFINITIONS: readonly ReadinessGateDefinition[] = [
     title: "Adapter readiness",
     description:
       "Run the per-adapter static report against the repo-local adapter TOML and its declared lineage.",
-    command_template: "riptide doctor",
+    command_template: "riptide readiness <repo>",
     executed_by_default: false,
   },
   {
@@ -152,7 +152,7 @@ export const READINESS_GATE_DEFINITIONS: readonly ReadinessGateDefinition[] = [
     title: "Guided-sim run and review",
     description:
       "Run a repo-local guided simulation manifest and review the produced guided artifact.",
-    command_template: "riptide sim run <manifest> --out <artifact-dir>; riptide sim review <artifact-dir>",
+    command_template: "riptide sim run <manifest> --out <artifact-dir>; riptide review <artifact-dir>",
     executed_by_default: false,
   },
   {
@@ -221,15 +221,30 @@ export const LAUNCH_CLAIM_DEFINITIONS: readonly LaunchClaimDefinition[] = [
   },
 ];
 
+/** A readiness input the caller can fix, with a stable code and the recommended next action. */
+export type ReadinessInputErrorCode = "readiness_missing_target" | "readiness_case_studies_not_found";
+
+export class ReadinessInputError extends Error {
+  readonly code: ReadinessInputErrorCode;
+  readonly next: string;
+  constructor(message: string, code: ReadinessInputErrorCode, next: string) {
+    super(message);
+    this.name = "ReadinessInputError";
+    this.code = code;
+    this.next = next;
+  }
+}
+
 export async function discoverCaseStudyTargets(
   root: string
 ): Promise<ReadinessCaseStudyTarget[]> {
   const rootStats = await safeStat(root);
-  if (!rootStats) {
-    throw new Error(`riptide readiness: case-study root not found: ${root}`);
-  }
-  if (!rootStats.isDirectory()) {
-    throw new Error(`riptide readiness: case-study root is not a directory: ${root}`);
+  if (!rootStats || !rootStats.isDirectory()) {
+    throw new ReadinessInputError(
+      `riptide readiness: case-study root ${rootStats ? "is not a directory" : "not found"}: ${root}`,
+      "readiness_case_studies_not_found",
+      "pass --case-studies a directory whose immediate children are protocol repos, or inspect one repo with `riptide readiness <path> --json`"
+    );
   }
 
   const entries = await readdir(root, { withFileTypes: true });
@@ -352,11 +367,11 @@ function commandResultsFor(input: {
     staticHealthResult(input.repoPath, input.report),
     skippedGate({
       gate: "adapter-lint",
-      command: `cd ${shellQuote(input.repoPath)} && riptide doctor`,
+      command: `cd ${shellQuote(input.repoPath)} && riptide readiness .`,
       artifacts: adapter ? [adapter] : [],
       nextAction: adapter
-        ? "Run the per-adapter doctor report in the validation lane before upgrading the launch claim."
-        : "Add a repo-local adapter TOML before running the per-adapter doctor report.",
+        ? "Run the per-adapter health report in the validation lane before upgrading the launch claim."
+        : "Add a repo-local adapter TOML before running the per-adapter health report.",
     }),
     skippedGate({
       gate: "direct-baseline-run",
@@ -371,7 +386,7 @@ function commandResultsFor(input: {
     skippedGate({
       gate: "guided-sim-run-review",
       command: guidedManifest
-        ? `cd ${shellQuote(input.repoPath)} && riptide sim run ${shellQuote(guidedManifest)} --out /tmp/riptide-guided-sim-${input.slug} && riptide sim review /tmp/riptide-guided-sim-${input.slug}`
+        ? `cd ${shellQuote(input.repoPath)} && riptide sim run ${shellQuote(guidedManifest)} --out /tmp/riptide-guided-sim-${input.slug} && riptide review /tmp/riptide-guided-sim-${input.slug}`
         : `cd ${shellQuote(input.repoPath)} && riptide sim run .riptide/sim --out /tmp/riptide-guided-sim-${input.slug}`,
       artifacts: guidedManifest ? [guidedManifest] : [],
       nextAction: guidedManifest

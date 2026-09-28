@@ -39,8 +39,9 @@ test("readiness case-studies emits deterministic corpus rows with required schem
 
   assert.equal(code, 0);
   assert.equal(stderr, "");
+  assert.equal((JSON.parse(stdout) as { data: Record<string, unknown> }).data.health, undefined);
 
-  const parsed = JSON.parse(stdout) as {
+  const parsed = (JSON.parse(stdout) as { data: unknown }).data as {
     schema_version: string;
     generated_at: string;
     case_studies_root: string;
@@ -138,7 +139,7 @@ test("readiness case-studies writes deterministic markdown and JSON outputs", as
   );
 
   assert.equal(code, 0);
-  const parsed = JSON.parse(stdout) as {
+  const parsed = (JSON.parse(stdout) as { data: unknown }).data as {
     rows: Array<{ slug: string; command_results: Array<{ gate: string }> }>;
   };
   const jsonOut = JSON.parse(await readFile(path.join(out, "readiness.json"), "utf8")) as {
@@ -197,7 +198,7 @@ test("readiness case-studies does not include target build artifacts", async () 
   );
 
   assert.equal(code, 0);
-  const parsed = JSON.parse(stdout) as {
+  const parsed = (JSON.parse(stdout) as { data: unknown }).data as {
     rows: Array<{
       slug: string;
       command_results: Array<{ artifacts: string[] }>;

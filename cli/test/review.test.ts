@@ -18,7 +18,7 @@ test("review accepts a campaign root and maps retained cases to risk and rerun e
 
   const { stdout, stderr } = await execFileAsync(
     process.execPath,
-    [cliEntrypoint, "review", campaignRoot, "--quiet"],
+    [cliEntrypoint, "review", campaignRoot],
     { cwd: campaignRoot }
   );
 
@@ -41,7 +41,7 @@ test("review accepts a campaign root and maps retained cases to risk and rerun e
   const otherCwd = await mkdtemp(path.join(os.tmpdir(), "riptide-review-other-cwd-"));
   const { stdout: otherStdout, stderr: otherStderr } = await execFileAsync(
     process.execPath,
-    [cliEntrypoint, "review", campaignRoot, "--quiet"],
+    [cliEntrypoint, "review", campaignRoot],
     { cwd: otherCwd }
   );
 
@@ -50,7 +50,7 @@ test("review accepts a campaign root and maps retained cases to risk and rerun e
   assert.match(otherStdout, /bad_debt=2500/);
 
   let colored = "";
-  const colorExit = await runReview(campaignRoot, { quiet: true }, {
+  const colorExit = await runReview(campaignRoot, {}, {
     cwd: campaignRoot,
     color: true,
     stdoutWrite: (chunk) => {
@@ -142,7 +142,7 @@ test("review accepts guided sim artifacts with flow labels and rerun evidence", 
 
   const { stdout, stderr } = await execFileAsync(
     process.execPath,
-    [cliEntrypoint, "review", artifactDir, "--quiet"],
+    [cliEntrypoint, "review", artifactDir],
     { cwd: root }
   );
 
@@ -158,10 +158,10 @@ test("review accepts guided sim artifacts with flow labels and rerun evidence", 
 
   const { stdout: jsonStdout } = await execFileAsync(
     process.execPath,
-    [cliEntrypoint, "sim", "review", artifactDir, "--json"],
+    [cliEntrypoint, "review", artifactDir, "--json"],
     { cwd: root }
   );
-  const payload = JSON.parse(jsonStdout) as Record<string, unknown>;
+  const payload = (JSON.parse(jsonStdout) as { data: Record<string, unknown> }).data;
   assert.equal(payload.schema_version, "guided-sim-review.v1");
   assert.equal(payload.retained_failing_seed, retainedSeed);
   assert.equal((payload.flow_counts as Record<string, unknown>).mutate_external_dependency, 1);
@@ -283,7 +283,7 @@ test("review summarizes trace-bearing passed guided sim artifacts", async () => 
 
   const { stdout, stderr } = await execFileAsync(
     process.execPath,
-    [cliEntrypoint, "review", artifactDir, "--quiet"],
+    [cliEntrypoint, "review", artifactDir],
     { cwd: root }
   );
 
@@ -297,10 +297,10 @@ test("review summarizes trace-bearing passed guided sim artifacts", async () => 
 
   const { stdout: jsonStdout } = await execFileAsync(
     process.execPath,
-    [cliEntrypoint, "sim", "review", artifactDir, "--json"],
+    [cliEntrypoint, "review", artifactDir, "--json"],
     { cwd: root }
   );
-  const payload = JSON.parse(jsonStdout) as Record<string, unknown>;
+  const payload = (JSON.parse(jsonStdout) as { data: Record<string, unknown> }).data;
   const traceSummary = payload.trace_summary as Record<string, unknown>;
   assert.equal(traceSummary.available, true);
   assert.equal(traceSummary.schema_version, 1);
@@ -437,7 +437,7 @@ test("review reports the first failing guided trace flow step", async () => {
 
   const { stdout, stderr } = await execFileAsync(
     process.execPath,
-    [cliEntrypoint, "review", artifactDir, "--quiet"],
+    [cliEntrypoint, "review", artifactDir],
     { cwd: root }
   );
 
@@ -448,10 +448,10 @@ test("review reports the first failing guided trace flow step", async () => {
 
   const { stdout: jsonStdout } = await execFileAsync(
     process.execPath,
-    [cliEntrypoint, "sim", "review", artifactDir, "--json"],
+    [cliEntrypoint, "review", artifactDir, "--json"],
     { cwd: root }
   );
-  const payload = JSON.parse(jsonStdout) as Record<string, unknown>;
+  const payload = (JSON.parse(jsonStdout) as { data: Record<string, unknown> }).data;
   assert.equal((payload.first_failing_flow_step as Record<string, unknown>).flow_name, "borrow_against_dependency");
   assert.equal((payload.first_failure as Record<string, unknown>).stage, "flow");
 });
@@ -515,7 +515,7 @@ test("review rejects malformed guided trace fields with an actionable error", as
 
   await assert.rejects(
     () =>
-      execFileAsync(process.execPath, [cliEntrypoint, "review", artifactDir, "--quiet"], {
+      execFileAsync(process.execPath, [cliEntrypoint, "review", artifactDir], {
         cwd: root
       }),
     (err: unknown) => {
@@ -534,7 +534,7 @@ test("review rejects paths that are not a recognized review root", async () => {
 
   await assert.rejects(
     () =>
-      execFileAsync(process.execPath, [cliEntrypoint, "review", root, "--quiet"], {
+      execFileAsync(process.execPath, [cliEntrypoint, "review", root], {
         cwd: root
       }),
     (err: unknown) => {

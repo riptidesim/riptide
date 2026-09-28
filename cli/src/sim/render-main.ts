@@ -42,6 +42,7 @@ mod invariants;
 mod services;
 mod types;
 mod types_ext;
+mod violations;
 
 use accounts::AccountStorage;
 
@@ -78,6 +79,11 @@ ${loadProgram}        flows::init(self)
     #[end]
     fn end(&mut self) -> riptide_sim::anyhow::Result<()> {
         invariants::check(self)
+    }
+
+    #[violations]
+    fn violations(&mut self) -> Vec<riptide_sim::FiringCheck> {
+        violations::declare(self)
     }
 }
 

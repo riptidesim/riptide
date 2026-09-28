@@ -168,7 +168,9 @@ impl Agent {
 mod tests {
     use std::collections::BTreeMap;
 
-    use crate::kernel::types::{AgentStatus, Policy, PositionSizing, PositionSizingStrategy, Trigger};
+    use crate::kernel::types::{
+        AgentStatus, Policy, PositionSizing, PositionSizingStrategy, Trigger,
+    };
 
     use super::{Agent, BalanceUpdateError};
 

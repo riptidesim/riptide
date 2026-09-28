@@ -5,10 +5,19 @@ import path from "node:path";
 import { loadAdapter, type AdapterLoadError } from "../adapter/resolve.js";
 import { cliPackageRootFromModule, monorepoRootFromModule } from "../orchestrator/index.js";
 import { resolveAdapterRuntime, resolveRuntimePath, type Adapter } from "../schemas/adapter.js";
-import { loadGenericIdl } from "./idl.js";
+import { wireFloorInvariants, type Family, type WiredFloorInvariant } from "./floor-invariants.js";
+import { planGenesis } from "./genesis.js";
+import { loadGenericIdl, type GenericIdl } from "./idl.js";
 import { renderAccounts } from "./render-accounts.js";
+import {
+  buildSetupGapsReport,
+  renderSetupGapsJson,
+  renderSetupGapsSummary,
+  SETUP_GAPS_FILENAME,
+  type SetupGapsReport
+} from "./setup-gaps.js";
 import { renderBootstrapManifest } from "./render-manifest.js";
-import { renderInvariants } from "./render-invariants.js";
+import { renderInvariants, renderViolations } from "./render-invariants.js";
 import { renderFlows } from "./render-flows.js";
 import {
   renderMain,
@@ -24,6 +33,11 @@ export interface SimGenerateOptions {
   dir?: string;
   forceGenerated?: boolean;
   regenTypesOnly?: boolean;
+  /**
+   * Where the genesis summary is written. Defaults to stderr so `--json`
+   * consumers keep a clean stdout; pass a sink to silence it.
+   */
+  writeSummary?: (text: string) => void;
 }
 
 export interface SimGenerateResult {
@@ -32,6 +46,34 @@ export interface SimGenerateResult {
   bootstrapManifestPath: string;
   adapterPath: string;
   idlPath: string;
+  /**
+   * The tick-0 genesis classification and its on-disk report. Undefined only for
+   * `regenTypesOnly` refreshes, which preserve the existing report alongside the
+   * user-owned files it describes.
+   */
+  setupGaps?: SetupGapsReport;
+  setupGapsPath?: string;
+  /** The adapter's family and how each of its Floor Invariants is wired into the sim. */
+  floorInvariants: { family: Family; floors: WiredFloorInvariant[] };
+}
+
+export type SimGenerateErrorCode =
+  | "sim_adapter_not_found"
+  | "sim_adapter_invalid"
+  | "sim_adapter_unsupported"
+  | "sim_idl_invalid"
+  | "sim_runtime_missing";
+
+/** A `sim generate` / `sim refresh` failure the Skill can repair: a stable code and the next action. */
+export class SimGenerateError extends Error {
+  readonly code: SimGenerateErrorCode;
+  readonly next: string;
+  constructor(message: string, code: SimGenerateErrorCode, next: string) {
+    super(message);
+    this.name = "SimGenerateError";
+    this.code = code;
+    this.next = next;
+  }
 }
 
 export async function generateSim(
@@ -41,16 +83,31 @@ export async function generateSim(
   const resolved = await resolveAdapterForSim(cwd, options.adapter);
   const runtime = resolveAdapterRuntime(resolved.adapter);
   if (runtime !== "generic") {
-    throw new Error(
-      `guided simulations currently require an IDL-backed generic adapter; ${resolved.path} resolves to ${runtime}`
+    throw new SimGenerateError(
+      `guided simulations currently require an IDL-backed generic adapter; ${resolved.path} resolves to ${runtime}`,
+      "sim_adapter_unsupported",
+      `set runtime = "generic" and idl_path in ${resolved.path}, then rerun`
     );
   }
   if (!resolved.adapter.idl_path) {
-    throw new Error(`${resolved.path} does not declare idl_path`);
+    throw new SimGenerateError(
+      `${resolved.path} does not declare idl_path`,
+      "sim_adapter_unsupported",
+      `set idl_path in ${resolved.path} to the program's Anchor IDL, then rerun`
+    );
   }
 
   const idlPath = resolveRuntimePath(resolved.adapter.idl_path, resolved.path);
-  const idl = await loadGenericIdl(idlPath);
+  let idl: GenericIdl;
+  try {
+    idl = await loadGenericIdl(idlPath);
+  } catch (err) {
+    throw new SimGenerateError(
+      err instanceof Error ? err.message : String(err),
+      "sim_idl_invalid",
+      `rebuild the program's IDL (anchor build) or point idl_path in ${resolved.path} at a readable Anchor IDL, then rerun`
+    );
+  }
   const outDir = path.resolve(cwd, options.dir ?? ".riptide/sim");
   const srcDir = path.join(outDir, "src");
   const servicesDir = path.join(srcDir, "services");
@@ -60,6 +117,12 @@ export async function generateSim(
   const programSoPath = resolved.adapter.program_so
     ? resolveRuntimePath(resolved.adapter.program_so, resolved.path)
     : undefined;
+  // The genesis summary is the only operator-visible string this module emits.
+  // It lives here rather than in the command wrapper so every caller of
+  // `generateSim` — CLI, orchestrator, skill — sees the same routing copy.
+  const writeSummary = options.writeSummary ?? ((text: string) => process.stderr.write(text));
+  let setupGaps: SetupGapsReport | undefined;
+  let setupGapsPath: string | undefined;
 
   await mkdir(servicesDir, { recursive: true });
   await writeFile(path.join(srcDir, "types.rs"), renderTypes(idl), "utf8");
@@ -68,8 +131,10 @@ export async function generateSim(
   if (!options.regenTypesOnly) {
     const runtimeSource = resolveRuntimeSource();
     if (!runtimeSource) {
-      throw new Error(
-        "guided simulation runtime crates were not found in the source checkout or packaged CLI runtime"
+      throw new SimGenerateError(
+        "guided simulation runtime crates were not found in the source checkout or packaged CLI runtime",
+        "sim_runtime_missing",
+        "reinstall the pinned Engine; its package ships the guided-sim runtime crates"
       );
     }
     const runtimePaths = await materializeRuntime(outDir, runtimeSource);
@@ -87,10 +152,25 @@ export async function generateSim(
       }),
       "utf8"
     );
-    await writeIfFirst(path.join(srcDir, "flows.rs"), renderFlows(resolved.adapter, idl), forceUserOwned);
+    const genesis = planGenesis(resolved.adapter, idl);
+    const flowsPath = path.join(srcDir, "flows.rs");
+    const flowsAuthored = existsSync(flowsPath) && !forceUserOwned;
+    await writeIfFirst(flowsPath, renderFlows(resolved.adapter, idl, genesis), forceUserOwned);
+    setupGaps = buildSetupGapsReport(genesis, {
+      adapterPath: resolved.path,
+      flowsAuthored
+    });
+    setupGapsPath = path.join(outDir, SETUP_GAPS_FILENAME);
+    await writeFile(setupGapsPath, renderSetupGapsJson(setupGaps), "utf8");
+    writeSummary(renderSetupGapsSummary(setupGaps, setupGapsPath));
     await writeIfFirst(
       path.join(srcDir, "invariants.rs"),
       renderInvariants(resolved.adapter, idl),
+      forceUserOwned
+    );
+    await writeIfFirst(
+      path.join(srcDir, "violations.rs"),
+      renderViolations(resolved.adapter, idl),
       forceUserOwned
     );
     // Pin the sim crate's toolchain so a case-study root that pins an older
@@ -104,7 +184,16 @@ export async function generateSim(
     await copyRuntimeLockfile(outDir, runtimeSource);
   }
 
-  return { dir: outDir, manifestPath, bootstrapManifestPath, adapterPath: resolved.path, idlPath };
+  return {
+    dir: outDir,
+    manifestPath,
+    bootstrapManifestPath,
+    adapterPath: resolved.path,
+    idlPath,
+    setupGaps,
+    setupGapsPath,
+    floorInvariants: wireFloorInvariants(resolved.adapter)
+  };
 }
 
 async function writeIfFirst(filePath: string, content: string, force: boolean): Promise<void> {
@@ -225,7 +314,13 @@ async function resolveAdapterForSim(
   }
   const loaded = await loadAdapter(adapterArg, { cwd });
   if (!loaded.ok) {
-    throw new Error(renderAdapterLoadError(loaded.error));
+    throw new SimGenerateError(
+      renderAdapterLoadError(loaded.error),
+      loaded.error.kind === "not-found" ? "sim_adapter_not_found" : "sim_adapter_invalid",
+      loaded.error.kind === "not-found"
+        ? "pass an adapter under .riptide/adapters/ (run `riptide init --json` to scaffold one)"
+        : "repair the adapter TOML named in the message, then rerun"
+    );
   }
   return { path: loaded.value.resolved.path, adapter: loaded.value.adapter };
 }

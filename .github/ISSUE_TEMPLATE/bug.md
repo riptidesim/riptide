@@ -9,30 +9,30 @@ labels: bug
 
 A one-line description of the bug.
 
-## Reproduction steps
+## How it was invoked
 
-1. Run... (exact command line, including adapter path, run-config path, env vars)
-2....
-3. Observe...
-
-If the bug reproduces against a shipping fixture (`fixtures/adapters/lending.toml`, `perpetuals.toml`, `amm.toml`, `resource-grinder.toml`), mention that — it's the fastest path to a repro on our end.
+The exact `/riptide-assess` invocation, including any Steering Hint, and the
+agent host (Claude Code, Codex, ...).
 
 ## Expected behavior
 
 What should have happened instead.
 
-## Actual behavior
+## What was delivered
 
-What actually happened. Paste the full error, the exit code, and any relevant stderr.
+The Assessment, Blocker Report or Out-of-Scope Note the Skill delivered (the
+`.md` and its `.json`), or where the run stopped. A committed `.riptide/`
+Workspace is the fastest path to a repro on our end.
 
 ## Environment
 
-- Riptide version (Docker tag / `cargo install` version / `npm` version / git SHA):
+- Skill and Engine versions (`skill_version` and `engine_version` in the delivered `.json`):
 - OS (Linux distro + kernel / macOS version):
 - Rust toolchain (`rustc --version`):
-- Solana CLI (`solana --version`) if you built programs locally:
-- Node version (`node --version`) if you used the CLI wrapper:
+- Solana CLI (`solana --version`):
+- Node version (`node --version`):
 
 ## Additional context
 
-Anything else — determinism hash mismatches, the contents of `simulation-result.json`, a minimal adapter TOML that reproduces the issue, etc.
+Anything else: a determinism mismatch between two runs, a minimal program that
+reproduces the issue, etc.

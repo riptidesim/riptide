@@ -50,14 +50,13 @@ export function resolveAdapterArg(
   }
 
   // Bare-name layering, mirroring `discoverAdapters` in
-  // `cli/src/doctor/index.ts`:
+  // `cli/src/health/index.ts`:
   //   1. `<cwd>/.riptide/adapters/<name>.toml`  (downstream user repo)
   //   2. `<cwd>/fixtures/adapters/<name>.toml`  (in-tree monorepo checkout)
   //   3. `<fixturesRoot>/adapters/<name>.toml`  (explicit override / module-derived fallback)
   //
   // The downstream user-repo layer wins first so a fresh `riptide init`
-  // scaffold is lintable by bare name, matching the install-first path
-  // documented in `README.md` and `docs/install.md`.
+  // scaffold is lintable by bare name.
   const cwd = opts.cwd ?? process.cwd();
   const bareCandidates: string[] = [
     path.resolve(cwd, ".riptide", "adapters", `${adapterArg}.toml`),
