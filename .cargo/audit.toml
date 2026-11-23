@@ -24,6 +24,5 @@ ignore = [
     # rand — unsound with custom logger using rand::rng(). We do not use
     # custom loggers. Transitive dep of solana-sdk and litesvm.
     # Two advisory IDs for the same issue across rand versions.
-    "RUSTSEC-2025-0026",
     "RUSTSEC-2026-0097",
 ]
